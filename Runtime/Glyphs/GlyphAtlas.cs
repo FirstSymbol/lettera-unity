@@ -12,7 +12,9 @@ namespace FirstSymbol.Lettera
     /// <summary>Where a glyph lives in the shared atlases and the quad that shows it, in font units.</summary>
     internal struct AtlasGlyph
     {
-        public const byte Empty = 0, Sdf = 1, Color = 2;
+        public const byte Empty = 0, Sdf = 1, Color = 2, Msdf = 3;
+
+        public bool HasDistance => Kind == Sdf || Kind == Msdf;
 
         public byte Kind;
         public ushort Page;
@@ -41,9 +43,11 @@ namespace FirstSymbol.Lettera
 #if UNITY_WEBGL && !UNITY_EDITOR
         const int DefaultSdfPages = 3;
         const int DefaultColorPages = 1;
+        const int DefaultMsdfPages = 1;
 #else
         const int DefaultSdfPages = 8;
         const int DefaultColorPages = 4;
+        const int DefaultMsdfPages = 4;
 #endif
         const int ColorTileHeight = 96;
         const int StagingSize = 1024;
@@ -51,6 +55,7 @@ namespace FirstSymbol.Lettera
 
         static readonly int s_SdfAtlasId = Shader.PropertyToID("_LetteraSdfAtlas");
         static readonly int s_ColorAtlasId = Shader.PropertyToID("_LetteraColorAtlas");
+        static readonly int s_MsdfAtlasId = Shader.PropertyToID("_LetteraMsdfAtlas");
 
         sealed class PageSet
         {
@@ -82,23 +87,26 @@ namespace FirstSymbol.Lettera
 
         static readonly PageSet s_Sdf = new PageSet(GraphicsFormat.R8_UNorm, 1, DefaultSdfPages, s_SdfAtlasId);
         static readonly PageSet s_Color = new PageSet(GraphicsFormat.R8G8B8A8_SRGB, 4, DefaultColorPages, s_ColorAtlasId);
+        static readonly PageSet s_Msdf = new PageSet(GraphicsFormat.R8G8B8A8_UNorm, 4, DefaultMsdfPages, s_MsdfAtlasId);
         static readonly Dictionary<ulong, AtlasGlyph> s_Glyphs = new Dictionary<ulong, AtlasGlyph>();
         static readonly List<PendingUpload> s_Uploads = new List<PendingUpload>();
         static readonly List<SdfTile> s_Tiles = new List<SdfTile>();
         static NativeList<float4> s_Lines;
+        static NativeList<byte> s_LineColors;
         static float[] s_Commands = new float[4096];
         static readonly List<ulong> s_Evicted = new List<ulong>();
-        static Texture2D s_StagingSdf, s_StagingColor;
+        static Texture2D s_StagingSdf, s_StagingColor, s_StagingMsdf;
         static bool s_Rebind;
         static bool s_ClearPending;
         static int s_Tick;
-        static Texture2DArray s_EmptyColor;
+        static Texture2DArray s_EmptyColor, s_EmptyMsdf;
 
         /// <summary>Raised when the atlas was cleared: every text must rebuild its mesh.</summary>
         public static event Action Cleared;
 
         public static int SdfPageCount => s_Sdf.Pixels.Count;
         public static int ColorPageCount => s_Color.Pixels.Count;
+        public static int MsdfPageCount => s_Msdf.Pixels.Count;
         public static int GlyphCount => s_Glyphs.Count;
 
         /// <summary>Limits the page counts, e.g. for tests; a set at its limit recycles its least recently used page.</summary>
@@ -125,35 +133,35 @@ namespace FirstSymbol.Lettera
             return pixelsPerEm;
         }
 
-        public static AtlasGlyph Get(FontInstance instance, uint glyph, int pixelsPerEm, float reach = 0)
+        public static AtlasGlyph Get(FontInstance instance, uint glyph, int pixelsPerEm, float reach = 0, bool multi = false)
         {
             if (s_MinDensity.Count > 0 && s_MinDensity.TryGetValue(((ulong)(uint)instance.Id << 32) | glyph, out int raised) && raised > pixelsPerEm)
                 pixelsPerEm = raised;
-            ulong key = ((ulong)(uint)instance.Id << 36) | ((ulong)glyph << 8) | (uint)(pixelsPerEm >> 2 & 0xFF);
+            ulong key = ((ulong)(uint)instance.Id << 36) | ((ulong)glyph << 8) | (uint)(pixelsPerEm >> 2 & 0x7F) | (multi ? 0x80u : 0);
             if (s_Glyphs.TryGetValue(key, out AtlasGlyph entry))
             {
-                if (entry.Kind == AtlasGlyph.Sdf)
+                if (entry.HasDistance)
                 {
                     if (entry.Spread < reach)
                     {
-                        AtlasGlyph wider = CreateSdf(instance, glyph, pixelsPerEm, SpreadFor(reach));
-                        if (wider.Kind == AtlasGlyph.Sdf)
+                        AtlasGlyph wider = CreateSdf(instance, glyph, pixelsPerEm, SpreadFor(reach), multi);
+                        if (wider.HasDistance)
                         {
                             s_Glyphs[key] = wider;
                             return wider;
                         }
                     }
-                    s_Sdf.LastUsed[entry.Page] = s_Tick;
+                    (entry.Kind == AtlasGlyph.Sdf ? s_Sdf : s_Msdf).LastUsed[entry.Page] = s_Tick;
                 }
                 else if (entry.Kind == AtlasGlyph.Color) s_Color.LastUsed[entry.Page] = s_Tick;
                 return entry;
             }
-            entry = Create(instance, glyph, pixelsPerEm, SpreadFor(reach));
+            entry = Create(instance, glyph, pixelsPerEm, SpreadFor(reach), multi);
             s_Glyphs[key] = entry;
             return entry;
         }
 
-        static AtlasGlyph Create(FontInstance instance, uint glyph, int pixelsPerEm, float spread)
+        static AtlasGlyph Create(FontInstance instance, uint glyph, int pixelsPerEm, float spread, bool multi)
         {
             FontFace face = instance.Face;
             if (face.IsVirtual) return CreateBrowserEmoji(glyph);
@@ -164,7 +172,7 @@ namespace FirstSymbol.Lettera
                 AtlasGlyph bitmap = CreateBitmap(instance, glyph);
                 if (bitmap.Kind != AtlasGlyph.Empty) return bitmap;
             }
-            return CreateSdf(instance, glyph, pixelsPerEm, spread);
+            return CreateSdf(instance, glyph, pixelsPerEm, spread, multi);
         }
 
         static int ReadOutline(FontInstance instance, uint glyph)
@@ -179,11 +187,13 @@ namespace FirstSymbol.Lettera
             return needed;
         }
 
-        static AtlasGlyph CreateSdf(FontInstance instance, uint glyph, int pixelsPerEm, float spread)
+        static AtlasGlyph CreateSdf(FontInstance instance, uint glyph, int pixelsPerEm, float spread, bool multi)
         {
             int count = ReadOutline(instance, glyph);
             if (count == 0) return default;
             if (!s_Lines.IsCreated) s_Lines = new NativeList<float4>(4096, Allocator.Persistent);
+            if (!s_LineColors.IsCreated) s_LineColors = new NativeList<byte>(4096, Allocator.Persistent);
+            PageSet set = multi ? s_Msdf : s_Sdf;
 
             int upem = instance.Face.Metrics.Upem;
             Bounds2(s_Commands, count, out float minX, out float minY, out float maxX, out float maxY);
@@ -197,7 +207,7 @@ namespace FirstSymbol.Lettera
 
             int width = Mathf.CeilToInt((maxX - minX) * scale + 2 * spreadPixels);
             int height = Mathf.CeilToInt((maxY - minY) * scale + 2 * spreadPixels);
-            if (!Allocate(s_Sdf, width + 2 * Bleed, height + 2 * Bleed, out int page, out int x, out int y))
+            if (!Allocate(set, width + 2 * Bleed, height + 2 * Bleed, out int page, out int x, out int y))
                 return default;
             x += Bleed;
             y += Bleed;
@@ -205,20 +215,22 @@ namespace FirstSymbol.Lettera
             float offsetX = spreadPixels - minX * scale, offsetY = spreadPixels - minY * scale;
             int lineStart = s_Lines.Length;
             OutlineFlattener.Flatten(s_Commands, count, scale, offsetX, offsetY, s_Lines);
+            if (multi) EdgeColoring.Color(s_Lines, s_LineColors, lineStart);
             s_Tiles.Add(new SdfTile
             {
-                Target = (byte*)s_Sdf.Pixels[page],
-                Stride = PageSize,
+                Target = (byte*)set.Pixels[page],
+                Stride = PageSize * set.Bytes,
+                Multi = multi,
                 X = x, Y = y, Width = width, Height = height,
                 LineStart = lineStart,
                 LineCount = s_Lines.Length - lineStart,
                 Spread = spreadPixels,
             });
-            s_Uploads.Add(new PendingUpload { Set = s_Sdf, Page = page, X = x, Y = y, Width = width, Height = height });
+            s_Uploads.Add(new PendingUpload { Set = set, Page = page, X = x, Y = y, Width = width, Height = height });
 
             return new AtlasGlyph
             {
-                Kind = AtlasGlyph.Sdf,
+                Kind = multi ? AtlasGlyph.Msdf : AtlasGlyph.Sdf,
                 Page = (ushort)page,
                 U0 = (float)x / PageSize, V0 = (float)y / PageSize,
                 U1 = (float)(x + width) / PageSize, V1 = (float)(y + height) / PageSize,
@@ -268,7 +280,7 @@ namespace FirstSymbol.Lettera
                 OutlineFlattener.Flatten(s_Commands, count, scale, offsetX, offsetY, lines);
                 // A half pixel spread turns the distance into antialiased coverage.
                 tiles[0] = new SdfTile { Target = (byte*)coverage.GetUnsafePtr(), Stride = width, Width = width, Height = height, LineCount = lines.Length, Spread = 0.5f };
-                new SdfTileJob { Tiles = tiles, Lines = lines.AsArray() }.Run(1);
+                new SdfTileJob { Tiles = tiles, Lines = lines.AsArray(),  }.Run(1);
 
                 uint index = colorIndices[i];
                 uint argb = index < (uint)palette.Length ? palette[index] : 0xFF000000u;
@@ -451,7 +463,7 @@ namespace FirstSymbol.Lettera
 
             s_Evicted.Clear();
             foreach (KeyValuePair<ulong, AtlasGlyph> pair in s_Glyphs)
-                if (pair.Value.Page == oldest && pair.Value.Kind == (set == s_Sdf ? AtlasGlyph.Sdf : AtlasGlyph.Color))
+                if (pair.Value.Page == oldest && pair.Value.Kind == (set == s_Sdf ? AtlasGlyph.Sdf : set == s_Msdf ? AtlasGlyph.Msdf : AtlasGlyph.Color))
                     s_Evicted.Add(pair.Key);
             foreach (ulong key in s_Evicted) s_Glyphs.Remove(key);
             for (int i = s_Uploads.Count - 1; i >= 0; i--)
@@ -481,7 +493,7 @@ namespace FirstSymbol.Lettera
             DestroyTexture(set.Texture);
             var texture = new Texture2DArray(PageSize, PageSize, set.Pixels.Count, FormatOf(set), TextureCreationFlags.None)
             {
-                name = set == s_Sdf ? "Lettera SDF Atlas" : "Lettera Color Atlas",
+                name = set == s_Sdf ? "Lettera SDF Atlas" : set == s_Msdf ? "Lettera MSDF Atlas" : "Lettera Color Atlas",
                 hideFlags = HideFlags.HideAndDontSave,
                 filterMode = FilterMode.Bilinear,
                 wrapMode = TextureWrapMode.Clamp,
@@ -517,10 +529,13 @@ namespace FirstSymbol.Lettera
             if (s_Tiles.Count == 0) return;
             var tiles = new NativeArray<SdfTile>(s_Tiles.Count, Allocator.TempJob);
             for (int i = 0; i < s_Tiles.Count; i++) tiles[i] = s_Tiles[i];
-            new SdfTileJob { Tiles = tiles, Lines = s_Lines.AsArray() }.Schedule(tiles.Length, 4).Complete();
+            // Plain tiles read no colors, but the two lists stay in step because they share line indices.
+            while (s_LineColors.Length < s_Lines.Length) s_LineColors.Add(0);
+            new SdfTileJob { Tiles = tiles, Lines = s_Lines.AsArray(), LineColors = s_LineColors.GetUnsafePtr() }.Schedule(tiles.Length, 4).Complete();
             tiles.Dispose();
             s_Tiles.Clear();
             s_Lines.Clear();
+            s_LineColors.Clear();
         }
 
         /// <summary>Computes pending pixels and uploads them. Cheap when nothing is pending.</summary>
@@ -528,7 +543,7 @@ namespace FirstSymbol.Lettera
         {
             s_Tick++;
             EnsureBound();
-            if (s_Uploads.Count > 0 || s_Tiles.Count > 0 || s_Sdf.NeedsFullUpload || s_Color.NeedsFullUpload)
+            if (s_Uploads.Count > 0 || s_Tiles.Count > 0 || s_Sdf.NeedsFullUpload || s_Color.NeedsFullUpload || s_Msdf.NeedsFullUpload)
             {
                 CompleteRaster();
                 UploadPending();
@@ -552,16 +567,25 @@ namespace FirstSymbol.Lettera
                 s_EmptyColor.Apply(false, true);
                 s_Rebind = true;
             }
+            if (s_Msdf.Texture == null && s_Msdf.Pixels.Count > 0) RecreateTexture(s_Msdf);
+            if (s_Msdf.Texture == null && s_EmptyMsdf == null)
+            {
+                s_EmptyMsdf = new Texture2DArray(4, 4, 1, GraphicsFormat.R8G8B8A8_UNorm, TextureCreationFlags.None) { hideFlags = HideFlags.HideAndDontSave };
+                s_EmptyMsdf.Apply(false, true);
+                s_Rebind = true;
+            }
             if (!s_Rebind) return;
             s_Rebind = false;
             Shader.SetGlobalTexture(s_SdfAtlasId, s_Sdf.Texture);
             Shader.SetGlobalTexture(s_ColorAtlasId, s_Color.Texture != null ? s_Color.Texture : s_EmptyColor);
+            Shader.SetGlobalTexture(s_MsdfAtlasId, s_Msdf.Texture != null ? s_Msdf.Texture : s_EmptyMsdf);
         }
 
         static void UploadPending()
         {
             UploadSet(s_Sdf, ref s_StagingSdf, TextureFormat.R8);
             UploadSet(s_Color, ref s_StagingColor, TextureFormat.RGBA32);
+            UploadSet(s_Msdf, ref s_StagingMsdf, TextureFormat.RGBA32);
             s_Uploads.Clear();
         }
 
@@ -653,6 +677,11 @@ namespace FirstSymbol.Lettera
             FreePages(s_Color);
             s_Color.ShelfX = s_Color.ShelfY = s_Color.ShelfHeight = 0;
             if (hadColor) AddPage(s_Color);
+            bool hadMsdf = s_Msdf.Pixels.Count > 0;
+            FreePages(s_Msdf);
+            s_Msdf.ShelfX = s_Msdf.ShelfY = s_Msdf.ShelfHeight = 0;
+            if (hadMsdf) AddPage(s_Msdf);
+            s_MinDensity.Clear();
             s_ClearPending = true;
         }
 
@@ -676,6 +705,7 @@ namespace FirstSymbol.Lettera
         {
             if (s_Sdf.Pixels.Count > 0) RecreateTexture(s_Sdf);
             if (s_Color.Pixels.Count > 0) RecreateTexture(s_Color);
+            if (s_Msdf.Pixels.Count > 0) RecreateTexture(s_Msdf);
             EnsureBound();
         }
 
@@ -687,19 +717,28 @@ namespace FirstSymbol.Lettera
             s_Glyphs.Clear();
             FreePages(s_Sdf);
             FreePages(s_Color);
+            FreePages(s_Msdf);
             s_Sdf.ShelfX = s_Sdf.ShelfY = s_Sdf.ShelfHeight = 0;
             s_Color.ShelfX = s_Color.ShelfY = s_Color.ShelfHeight = 0;
+            s_Msdf.ShelfX = s_Msdf.ShelfY = s_Msdf.ShelfHeight = 0;
             DestroyTexture(s_Sdf.Texture);
             DestroyTexture(s_Color.Texture);
+            DestroyTexture(s_Msdf.Texture);
+            s_Msdf.Texture = null;
             DestroyTexture(s_StagingSdf);
             DestroyTexture(s_StagingColor);
+            DestroyTexture(s_StagingMsdf);
             DestroyTexture(s_EmptyColor);
+            DestroyTexture(s_EmptyMsdf);
             s_EmptyColor = null;
+            s_EmptyMsdf = null;
+            s_MinDensity.Clear();
             s_Rebind = false;
             s_ClearPending = false;
             s_Sdf.Texture = s_Color.Texture = null;
             s_StagingSdf = s_StagingColor = null;
             if (s_Lines.IsCreated) s_Lines.Dispose();
+            if (s_LineColors.IsCreated) s_LineColors.Dispose();
         }
     }
 }

@@ -2,11 +2,12 @@
 #define LETTERA_SHADE_CORE_INCLUDED
 
 // The glyph shading every pass shares. The file that includes this one defines how textures are sampled:
-//   LETTERA_SAMPLE_SDF(uv, page), LETTERA_SAMPLE_COLOR(uv, page), LETTERA_SAMPLE_RAMP(uv), LETTERA_SAMPLE_PAINT(uv)
+//   LETTERA_SAMPLE_SDF(uv, page), LETTERA_SAMPLE_MSDF(uv, page), LETTERA_SAMPLE_COLOR(uv, page), LETTERA_SAMPLE_RAMP(uv), LETTERA_SAMPLE_PAINT(uv)
 // and the types of colors: LETTERA_COLOR4.
 //
 // uv0: atlas uv, page, mode (0 SDF, 1 color glyph, 2 color glyph silhouette, 3 solid, 4 inner shadow, 5 color glyph halo,
 //      6 decoration line: position along and across it, line style; 7 rounded box: position from the center).
+//      8 multi-channel field, median; 9 multi-channel field, true distance; 10 inner shadow on a multi-channel field.
 // uv1: x = the SDF value of the edge, y = extra softness in SDF values, z = the SDF value where a band ends (0 = no end).
 // uv2 (styled): paint position xy, gradient row, paint code (0 solid, 1-9 gradient, 10 texture).
 // uv3 (styled): inner shadow: uv offset xy; z = the SDF value of the shadow's edge. Halo: the glyph's tile in the atlas.
@@ -19,10 +20,28 @@ float LetteraEdge(float d, float edge, float softness)
     return smoothstep(edge - w, edge + w, d);
 }
 
+float LetteraMedian(float3 c)
+{
+    return max(min(c.r, c.g), min(max(c.r, c.g), c.b));
+}
+
+// The distance a distance mode reads: the plain field, the median of the channels, or the true distance kept in alpha.
+float LetteraDistance(float2 uv, float page, float mode)
+{
+    if (mode < 7.5) return LETTERA_SAMPLE_SDF(uv, page).r;
+    float4 c = LETTERA_SAMPLE_MSDF(uv, page);
+    return mode < 8.5 ? LetteraMedian(c.rgb) : c.a;
+}
+
 // Without a paint or a band: the only shading the plain tier needs, and the shape shadow casters use.
 LETTERA_COLOR4 LetteraShadePlain(float4 uv0, float2 params, LETTERA_COLOR4 color)
 {
     float mode = uv0.w;
+    if (mode > 7.5)
+    {
+        color.a *= LetteraEdge(LetteraDistance(uv0.xy, uv0.z, mode), params.x, params.y);
+        return color;
+    }
     if (mode < 0.5 || (mode > 3.5 && mode < 4.5))
     {
         float d = LETTERA_SAMPLE_SDF(uv0.xy, uv0.z).r;
@@ -132,6 +151,21 @@ float LetteraBoxDistance(float2 p, float2 size, float4 radii)
 LETTERA_COLOR4 LetteraShadeStyled(float4 uv0, float3 params, LETTERA_COLOR4 color, float4 paint, float4 extra, float2 screen)
 {
     float mode = uv0.w;
+    if (mode > 9.5)
+    {
+        float d = LETTERA_SAMPLE_MSDF(uv0.xy, uv0.z).a;
+        float moved = LETTERA_SAMPLE_MSDF(uv0.xy - extra.xy, uv0.z).a;
+        color.a *= LetteraEdge(d, params.x, 0) * (1 - LetteraEdge(moved, extra.z, params.y));
+        return LetteraApplyPaint(paint, color, screen);
+    }
+    if (mode > 7.5)
+    {
+        float d = LetteraDistance(uv0.xy, uv0.z, mode);
+        float alpha = LetteraEdge(d, params.x, params.y);
+        if (params.z > 0) alpha *= 1 - LetteraEdge(d, params.z, params.y);
+        color.a *= alpha;
+        return LetteraApplyPaint(paint, color, screen);
+    }
     if (mode > 6.5)
     {
         float d = LetteraBoxDistance(uv0.xy, params.xy, extra);

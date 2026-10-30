@@ -16,6 +16,7 @@ namespace FirstSymbol.Lettera
     internal sealed partial class TextEngine
     {
         const float ModeSdf = 0, ModeColor = 1, ModeColorSilhouette = 2, ModeSolid = 3, ModeInnerShadow = 4, ModeColorHalo = 5;
+        const float ModeMedian = 8, ModeTrueDistance = 9, ModeInnerShadowMulti = 10;
 
         // How far a softness of 1 reaches, in em.
         const float SoftnessEm = GlyphAtlas.SpreadEm;
@@ -135,7 +136,7 @@ namespace FirstSymbol.Lettera
                 int density = PixelsPerEm(g.Size, rasterScale);
                 byte boost = m_Attributes.Chars[g.Cluster].Boost;
                 if (boost > 0) density = GlyphAtlas.Boost(g.Instance, g.Glyph, density << boost);
-                m_PlacedAtlas[i] = GlyphAtlas.Get(g.Instance, g.Glyph, density, m_PlacedReach[i]);
+                m_PlacedAtlas[i] = GlyphAtlas.Get(g.Instance, g.Glyph, density, m_PlacedReach[i], m_Host.Data.RenderMode == LetteraRenderMode.MSDF);
             }
 
             // A halo around a color glyph blurs its alpha, which only the styled shader does; so does a line's glow.
@@ -249,7 +250,7 @@ namespace FirstSymbol.Lettera
                 {
                     Color32 color = attr.HasColor ? attr.Color : new Color32(baseColor.r, baseColor.g, baseColor.b, 255);
                     color.a = (byte)(color.a * attr.Alpha);
-                    AddQuad(g, atlas, color, ModeSdf, 0.5f, 0, 0, s_NoPaint, default, 0, 0);
+                    AddQuad(g, atlas, color, atlas.Kind == AtlasGlyph.Msdf ? ModeMedian : ModeSdf, 0.5f, 0, 0, s_NoPaint, default, 0, 0);
                 }
             }
         }
@@ -304,7 +305,9 @@ namespace FirstSymbol.Lettera
             float toEm = g.Size > 0 ? 1f / g.Size : 0;
             float toSdf = 1f / (2f * atlas.Spread);
             float softness = record.Softness * SoftnessEm * toSdf;
-            float mode = colorGlyph ? ModeColorSilhouette : ModeSdf;
+            bool multi = atlas.Kind == AtlasGlyph.Msdf;
+            // The median keeps corners sharp at the edge; beyond the edge only the true distance is smooth and round.
+            float mode = colorGlyph ? ModeColorSilhouette : multi ? ModeMedian : ModeSdf;
             float threshold = 0.5f, upper = 0, dx = 0, dy = 0;
             Vector4 extra = default;
 
@@ -321,11 +324,13 @@ namespace FirstSymbol.Lettera
                     // Under an opaque face a stroke can run through the glyph, which leaves no seam at the edge.
                     // Under a see-through face the middle must stay empty.
                     else if (FaceIsSeeThrough(g.Cluster)) upper = 0.5f;
+                    if (multi && !record.SharpCorners) mode = ModeTrueDistance;
                     break;
                 case LayerKind.Shadow:
                     dx = record.OffsetX.Of(size);
                     dy = record.OffsetY.Of(size);
                     threshold = 0.5f - record.Dilate.Of(size) * toEm * toSdf;
+                    if (multi && (record.Softness > 0 || threshold != 0.5f)) mode = ModeTrueDistance;
                     break;
                 case LayerKind.Glow:
                     float radius = record.Width.Of(size) * toEm;
@@ -335,13 +340,14 @@ namespace FirstSymbol.Lettera
                         AddColorHalo(g, atlas, color, record, radius * g.Size);
                         return;
                     }
+                    if (multi) mode = ModeTrueDistance;
                     float ramp = radius * Mathf.Max(record.Softness, 0.01f);
                     threshold = 0.5f - (record.Dilate.Of(size) * toEm + radius - ramp * 0.5f) * toSdf;
                     softness = ramp * 0.5f * toSdf;
                     break;
                 case LayerKind.InnerShadow:
                     if (colorGlyph) return;
-                    mode = ModeInnerShadow;
+                    mode = multi ? ModeInnerShadowMulti : ModeInnerShadow;
                     float quadWidth = (atlas.Right - atlas.Left) * g.Unit, quadHeight = (atlas.Top - atlas.Bottom) * g.Unit;
                     extra.x = quadWidth > 0 ? record.OffsetX.Of(size) / quadWidth * (atlas.U1 - atlas.U0) : 0;
                     extra.y = quadHeight > 0 ? record.OffsetY.Of(size) / quadHeight * (atlas.V1 - atlas.V0) : 0;

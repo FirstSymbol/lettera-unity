@@ -1,3 +1,4 @@
+using System;
 using Unity.Burst;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
@@ -14,6 +15,9 @@ namespace FirstSymbol.Lettera
         public int X, Y, Width, Height;
         public int LineStart, LineCount;
         public float Spread;
+
+        /// <summary>Four bytes per pixel: the three color channels of a multi-channel field, and the true distance in alpha.</summary>
+        public bool Multi;
     }
 
     /// <summary>
@@ -27,10 +31,67 @@ namespace FirstSymbol.Lettera
         [ReadOnly] public NativeArray<SdfTile> Tiles;
         [ReadOnly] public NativeArray<float4> Lines;
 
+        // How each line is colored, for multi-channel tiles: bits 0-2 the channels it belongs to, 3 and 4 whether its start and end are corners.
+        [NativeDisableUnsafePtrRestriction] public byte* LineColors;
+
         public void Execute(int index)
         {
             SdfTile tile = Tiles[index];
-            float4* lines = (float4*)Lines.GetUnsafeReadOnlyPtr() + tile.LineStart;
+            float4* source = (float4*)Lines.GetUnsafeReadOnlyPtr() + tile.LineStart;
+            var kept = new NativeArray<float4>(tile.LineCount, Allocator.Temp, NativeArrayOptions.UninitializedMemory);
+            var keptColors = new NativeArray<byte>(tile.LineCount, Allocator.Temp, NativeArrayOptions.UninitializedMemory);
+            float4* lines = (float4*)kept.GetUnsafePtr();
+            byte* colors = (byte*)keptColors.GetUnsafePtr();
+            byte* sourceColors = tile.Multi ? LineColors + tile.LineStart : null;
+            int lineCount = RemoveInteriorEdges(source, sourceColors, tile.LineCount, lines, colors);
+
+            if (tile.Multi) RasterMulti(tile, source, tile.LineCount, lines, colors, lineCount);
+            else RasterSingle(tile, source, tile.LineCount, lines, lineCount);
+            kept.Dispose();
+            keptColors.Dispose();
+        }
+
+        static bool Better(float squared, float align, float best, float bestAlign)
+        {
+            if (squared < best - 1e-3f) return true;
+            return squared <= best + 1e-3f && align < bestAlign;
+        }
+
+        static int WindingAt(float4* lines, int count, float2 p)
+        {
+            int winding = 0;
+            for (int i = 0; i < count; i++)
+            {
+                float2 a = lines[i].xy, b = lines[i].zw;
+                if ((a.y <= p.y) == (b.y <= p.y)) continue;
+                float crossing = a.x + (p.y - a.y) / (b.y - a.y) * (b.x - a.x);
+                if (crossing > p.x) winding += b.y > a.y ? 1 : -1;
+            }
+            return winding;
+        }
+
+        // Edges with the fill on both sides are where contours overlap. They are no outline, and a field that kept them would show a seam there.
+        static int RemoveInteriorEdges(float4* lines, byte* colors, int count, float4* output, byte* outputColors)
+        {
+            int kept = 0;
+            for (int i = 0; i < count; i++)
+            {
+                float2 a = lines[i].xy, b = lines[i].zw, edge = b - a;
+                float length = math.length(edge);
+                if (length <= 0) continue;
+                float2 normal = new float2(-edge.y, edge.x) / length * 0.1f, middle = (a + b) * 0.5f;
+                bool left = WindingAt(lines, count, middle + normal) != 0, right = WindingAt(lines, count, middle - normal) != 0;
+                if (left == right) continue;
+                output[kept] = lines[i];
+                if (colors != null) outputColors[kept] = colors[i];
+                kept++;
+            }
+            return kept;
+        }
+
+        // Distances are to the outline alone; the fill comes from every contour, or overlaps would count wrong.
+        static void RasterSingle(in SdfTile tile, float4* all, int allCount, float4* lines, int lineCount)
+        {
             float toValue = 0.5f / tile.Spread;
 
             for (int row = 0; row < tile.Height; row++)
@@ -41,8 +102,7 @@ namespace FirstSymbol.Lettera
                 {
                     float px = column + 0.5f;
                     float nearest = float.MaxValue;
-                    int winding = 0;
-                    for (int i = 0; i < tile.LineCount; i++)
+                    for (int i = 0; i < lineCount; i++)
                     {
                         float4 line = lines[i];
                         float2 a = line.xy, b = line.zw, p = new float2(px, py);
@@ -51,17 +111,134 @@ namespace FirstSymbol.Lettera
                         float t = lengthSquared > 0 ? math.saturate(math.dot(toPoint, edge) / lengthSquared) : 0;
                         float2 offset = toPoint - edge * t;
                         nearest = math.min(nearest, math.dot(offset, offset));
-
-                        if ((a.y <= py) != (b.y <= py))
-                        {
-                            float crossing = a.x + (py - a.y) / (b.y - a.y) * edge.x;
-                            if (crossing > px) winding += b.y > a.y ? 1 : -1;
-                        }
                     }
                     float distance = math.sqrt(nearest);
-                    if (winding == 0) distance = -distance;
+                    if (WindingAt(all, allCount, new float2(px, py)) == 0) distance = -distance;
                     output[column] = (byte)(math.saturate(0.5f + distance * toValue) * 255f + 0.5f);
                 }
+            }
+        }
+
+        // Each channel measures to the nearest line of its color. Beyond a corner a line's distance extends straight past its end, so at
+        // the corner two channels disagree and their median keeps the corner sharp at any scale. The method is Chlumsky's multi-channel
+        // distance field; pixels where the median's sign contradicts the true fill fall back to the true distance, removing artifacts.
+        static void RasterMulti(in SdfTile tile, float4* all, int allCount, float4* lines, byte* colors, int lineCount)
+        {
+            float toValue = 0.5f / tile.Spread;
+            float area = 0;
+            for (int i = 0; i < lineCount; i++) area += lines[i].x * lines[i].w - lines[i].z * lines[i].y;
+            float insideSign = area >= 0 ? 1 : -1;
+
+            for (int row = 0; row < tile.Height; row++)
+            {
+                byte* output = tile.Target + (tile.Y + row) * tile.Stride + tile.X * 4;
+                float py = row + 0.5f;
+                for (int column = 0; column < tile.Width; column++)
+                {
+                    var p = new float2(column + 0.5f, py);
+                    float nearest = float.MaxValue;
+                    float3 best = float.MaxValue, bestAlign = 2, bestSigned = 0;
+                    for (int i = 0; i < lineCount; i++)
+                    {
+                        float4 line = lines[i];
+                        float2 a = line.xy, b = line.zw;
+                        float2 edge = b - a, toPoint = p - a;
+                        float lengthSquared = math.dot(edge, edge);
+                        float raw = lengthSquared > 0 ? math.dot(toPoint, edge) / lengthSquared : 0;
+                        float t = math.saturate(raw);
+                        float2 offset = toPoint - edge * t;
+                        float squared = math.dot(offset, offset);
+                        nearest = math.min(nearest, squared);
+
+                        byte color = colors[i];
+                        if ((color & 7) == 0) continue;
+                        float cross = edge.x * toPoint.y - edge.y * toPoint.x;
+                        float sign = cross >= 0 ? insideSign : -insideSign;
+                        float distance = math.sqrt(squared);
+                        if (lengthSquared > 0 && ((raw < 0 && (color & 8) != 0) || (raw > 1 && (color & 16) != 0)))
+                            distance = math.abs(cross) / math.sqrt(lengthSquared);
+                        float signedDistance = sign * distance;
+                        // Two lines that meet at a corner are equally near past it. The one the point lies less straight ahead of wins, or
+                        // a channel would follow a line's extension out into empty space.
+                        float align = 2;
+                        if (lengthSquared > 0 && squared > 0) align = math.abs(math.dot(edge, offset)) / math.sqrt(lengthSquared * squared);
+                        if ((color & 1) != 0 && Better(squared, align, best.x, bestAlign.x)) { best.x = squared; bestAlign.x = align; bestSigned.x = signedDistance; }
+                        if ((color & 2) != 0 && Better(squared, align, best.y, bestAlign.y)) { best.y = squared; bestAlign.y = align; bestSigned.y = signedDistance; }
+                        if ((color & 4) != 0 && Better(squared, align, best.z, bestAlign.z)) { best.z = squared; bestAlign.z = align; bestSigned.z = signedDistance; }
+                    }
+                    float trueDistance = math.sqrt(nearest);
+                    if (WindingAt(all, allCount, p) == 0) trueDistance = -trueDistance;
+                    float median = math.max(math.min(bestSigned.x, bestSigned.y), math.min(math.max(bestSigned.x, bestSigned.y), bestSigned.z));
+                    if ((median >= 0) != (trueDistance >= 0) || best.x == float.MaxValue || best.y == float.MaxValue || best.z == float.MaxValue)
+                        bestSigned = trueDistance;
+                    output[column * 4] = (byte)(math.saturate(0.5f + bestSigned.x * toValue) * 255f + 0.5f);
+                    output[column * 4 + 1] = (byte)(math.saturate(0.5f + bestSigned.y * toValue) * 255f + 0.5f);
+                    output[column * 4 + 2] = (byte)(math.saturate(0.5f + bestSigned.z * toValue) * 255f + 0.5f);
+                    output[column * 4 + 3] = (byte)(math.saturate(0.5f + trueDistance * toValue) * 255f + 0.5f);
+                }
+            }
+        }
+    }
+
+    /// <summary>Gives each stretch of an outline between corners a color, so that the two lines at a corner share exactly one channel.</summary>
+    internal static class EdgeColoring
+    {
+        const byte Cyan = 6, Magenta = 5, Yellow = 3, White = 7, StartCorner = 8, EndCorner = 16;
+        static readonly float s_CornerCos = math.cos(math.radians(20f));
+
+        /// <summary>Colors the lines from an index on. Contours are the runs of lines that connect end to start.</summary>
+        public static void Color(NativeList<float4> lines, NativeList<byte> colors, int first)
+        {
+            while (colors.Length < lines.Length) colors.Add(0);
+            int start = first;
+            while (start < lines.Length)
+            {
+                int end = start + 1;
+                while (end < lines.Length && math.all(lines[end - 1].zw == lines[end].xy)) end++;
+                ColorContour(lines, colors, start, end);
+                start = end;
+            }
+        }
+
+        static bool IsCorner(float4 before, float4 after)
+        {
+            float2 a = before.zw - before.xy, b = after.zw - after.xy;
+            float la = math.length(a), lb = math.length(b);
+            return la > 0 && lb > 0 && math.dot(a, b) / (la * lb) < s_CornerCos;
+        }
+
+        static void ColorContour(NativeList<float4> lines, NativeList<byte> colors, int start, int end)
+        {
+            int count = end - start;
+            int corners = 0, firstCorner = -1;
+            for (int i = 0; i < count; i++)
+            {
+                float4 before = lines[start + (i + count - 1) % count], after = lines[start + i];
+                if (!IsCorner(before, after)) continue;
+                corners++;
+                if (firstCorner < 0) firstCorner = i;
+            }
+
+            if (corners == 0)
+            {
+                for (int i = 0; i < count; i++) colors[start + i] = White;
+                return;
+            }
+
+            // Walk from the first corner, changing color at each corner; one corner still needs three stretches.
+            int stretches = Math.Max(corners, 3);
+            int stretch = 0;
+            for (int n = 0; n < count; n++)
+            {
+                int i = (firstCorner + n) % count;
+                float4 before = lines[start + (i + count - 1) % count], after = lines[start + i], next = lines[start + (i + 1) % count];
+                bool cornerAtStart = IsCorner(before, after), cornerAtEnd = IsCorner(after, next);
+                if (corners == 1) stretch = n * 3 / count;
+                else if (cornerAtStart && n > 0) stretch++;
+                byte color;
+                if (stretches % 3 == 1 && stretch == stretches - 1) color = Magenta;
+                else color = stretch % 3 == 0 ? Cyan : stretch % 3 == 1 ? Magenta : Yellow;
+                colors[start + i] = (byte)(color | (cornerAtStart ? StartCorner : 0) | (cornerAtEnd ? EndCorner : 0));
             }
         }
     }

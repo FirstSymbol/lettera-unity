@@ -8,9 +8,12 @@ TEXTURE2D_ARRAY(_LetteraSdfAtlas);
 SAMPLER(sampler_LetteraSdfAtlas);
 TEXTURE2D_ARRAY(_LetteraColorAtlas);
 SAMPLER(sampler_LetteraColorAtlas);
+TEXTURE2D_ARRAY(_LetteraMsdfAtlas);
+SAMPLER(sampler_LetteraMsdfAtlas);
 
 #define LETTERA_COLOR4 half4
 #define LETTERA_SAMPLE_SDF(uv, page) SAMPLE_TEXTURE2D_ARRAY(_LetteraSdfAtlas, sampler_LetteraSdfAtlas, uv, page)
+#define LETTERA_SAMPLE_MSDF(uv, page) SAMPLE_TEXTURE2D_ARRAY(_LetteraMsdfAtlas, sampler_LetteraMsdfAtlas, uv, page)
 #define LETTERA_SAMPLE_COLOR(uv, page) SAMPLE_TEXTURE2D_ARRAY(_LetteraColorAtlas, sampler_LetteraColorAtlas, uv, page)
 
 #ifdef LETTERA_STYLED

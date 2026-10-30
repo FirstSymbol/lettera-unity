@@ -43,6 +43,7 @@ namespace FirstSymbol.Lettera
         public int Group;
         public Rect RangeRect;
         public int Highlight;
+        public bool SharpCorners;
     }
 
     /// <summary>All ranges of one effect that draw one kind of layer. Cover holds, per codepoint, a record index plus one.</summary>
@@ -167,9 +168,11 @@ namespace FirstSymbol.Lettera
         }
     }
 
+    public enum LetteraStrokeCorners : byte { Round, Sharp }
+
     /// <summary>
     /// A band following the outline. Slots: 1 paint, 2 width (em), 3 align (inside, center, outside or -1 to 1),
-    /// 4 softness 0-1, then the paint settings.
+    /// 4 softness 0-1, 5 corners (sharp needs the MSDF render mode), then the paint settings.
     /// </summary>
     [Serializable]
     public class StrokeEffect : LetteraLayerEffect
@@ -177,7 +180,9 @@ namespace FirstSymbol.Lettera
         [SerializeField] float m_Width = 0.1f;
         [SerializeField, Range(-1, 1)] float m_Align = 1f;
         [SerializeField, Range(0, 1)] float m_Softness;
+        [SerializeField] LetteraStrokeCorners m_Corners;
 
+        public LetteraStrokeCorners Corners { get => m_Corners; set => m_Corners = value; }
         public float Width { get => m_Width; set => m_Width = value; }
         public float Align { get => m_Align; set => m_Align = value; }
         public float Softness { get => m_Softness; set => m_Softness = value; }
@@ -190,9 +195,10 @@ namespace FirstSymbol.Lettera
             attributes.AddLayer(start, end, band, new LayerRecord
             {
                 Kind = LayerKind.Stroke,
-                Paint = ResolvePaint(slots, 0, 4, new Color32(0, 0, 0, 255), false),
+                Paint = ResolvePaint(slots, 0, 5, new Color32(0, 0, 0, 255), false),
                 Width = new EmLength(slots.Length(1, new LetteraLength(m_Width))),
                 Align = align,
+                SharpCorners = slots.Enum(4, m_Corners) == LetteraStrokeCorners.Sharp,
                 Softness = Mathf.Clamp01(slots.Float(3, m_Softness)),
                 OnColorGlyphs = m_OnColorGlyphs == LetteraOnColorGlyphs.Apply,
                 FixedSize = m_FixedPixelSize,
