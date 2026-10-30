@@ -4,7 +4,7 @@ All notable changes to this package are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
-## [Unreleased] - 0.1.0
+## [0.1.0] - 2026-10-30
 
 ### Added
 - `LetteraText` (Canvas) and `LetteraWorldText` (world space, merged batches).
@@ -23,7 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 ### Verified
 - Unicode conformance: all five official test files pass at 100%.
 - Windows: player self-test passes on D3D12.
-- Web: player self-test passes in Chromium and WebKit, on WebGL 2.
+- Web: player self-test passes in Chromium and in WebKit on Windows, on WebGL 2. Safari on a real iPhone has not been tried.
 - Builds without errors, not run: Linux, macOS, Android, iOS (Xcode project export; not compiled by Xcode).
 
 ### Known limits
