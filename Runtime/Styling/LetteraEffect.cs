@@ -1,0 +1,326 @@
+using System;
+using System.Globalization;
+using UnityEngine;
+
+namespace FirstSymbol.Lettera
+{
+    /// <summary>Rebuild levels, lowest to highest; a higher level includes all lower ones.</summary>
+    public enum DirtyLevel : byte { None, Alpha, Tint, Mesh, Positions, Layout, Shape, Parse }
+
+    /// <summary>
+    /// Changes the appearance or layout of the ranges a matcher found. Custom effects derive from this
+    /// class; they are serialized by reference.
+    /// </summary>
+    [Serializable]
+    public abstract class LetteraEffect
+    {
+        /// <summary>Writes this effect's attributes for one range. Slots are the resolved parameter strings; any may be null.</summary>
+        public abstract void Apply(LetteraAttributes attributes, int start, int end, in LetteraSlots slots);
+    }
+
+    /// <summary>The positional parameters of one range: tag slot first, then the style's default.</summary>
+    public readonly struct LetteraSlots
+    {
+        readonly string[] m_Tag;
+        readonly string[] m_Default;
+
+        internal LetteraSlots(string[] tag, string[] defaults)
+        {
+            m_Tag = tag;
+            m_Default = defaults;
+        }
+
+        /// <summary>The value at a position: the tag's, else the style's default, else null.</summary>
+        public string this[int index]
+        {
+            get
+            {
+                if (m_Tag != null && index < m_Tag.Length && m_Tag[index] != null) return m_Tag[index];
+                if (m_Default != null && index < m_Default.Length) return m_Default[index];
+                return null;
+            }
+        }
+
+        /// <summary>Parses a number with invariant culture. NaN, infinity and huge values count as absent.</summary>
+        public static bool TryNumber(string value, out float number)
+        {
+            number = 0;
+            if (string.IsNullOrEmpty(value)) return false;
+            if (!float.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out number)) return false;
+            return !float.IsNaN(number) && !float.IsInfinity(number) && Mathf.Abs(number) <= 10000000f;
+        }
+
+        /// <summary>Parses #RGB, #RRGGBB, #RRGGBBAA or a named color.</summary>
+        public static bool TryColor(string value, out Color32 color)
+        {
+            color = new Color32(255, 255, 255, 255);
+            if (string.IsNullOrEmpty(value)) return false;
+            if (value[0] == '#')
+            {
+                int digits = value.Length - 1;
+                if (digits != 3 && digits != 4 && digits != 6 && digits != 8) return false;
+                uint v = 0;
+                for (int i = 1; i < value.Length; i++)
+                {
+                    int d = Hex(value[i]);
+                    if (d < 0) return false;
+                    v = (v << 4) | (uint)d;
+                }
+                if (digits == 3) v = (v << 4) | 0xF;
+                if (digits <= 4)
+                {
+                    uint r = (v >> 12) & 15, g = (v >> 8) & 15, b = (v >> 4) & 15, a = v & 15;
+                    color = new Color32((byte)(r * 17), (byte)(g * 17), (byte)(b * 17), (byte)(a * 17));
+                    return true;
+                }
+                if (digits == 6) v = (v << 8) | 0xFF;
+                color = new Color32((byte)(v >> 24), (byte)(v >> 16), (byte)(v >> 8), (byte)v);
+                return true;
+            }
+            switch (value.ToLowerInvariant())
+            {
+                case "white": color = new Color32(255, 255, 255, 255); return true;
+                case "black": color = new Color32(0, 0, 0, 255); return true;
+                case "red": color = new Color32(255, 0, 0, 255); return true;
+                case "green": color = new Color32(0, 128, 0, 255); return true;
+                case "blue": color = new Color32(0, 0, 255, 255); return true;
+                case "yellow": color = new Color32(255, 255, 0, 255); return true;
+                case "cyan": color = new Color32(0, 255, 255, 255); return true;
+                case "magenta": color = new Color32(255, 0, 255, 255); return true;
+                case "orange": color = new Color32(255, 165, 0, 255); return true;
+                case "purple": color = new Color32(128, 0, 128, 255); return true;
+                case "gray": case "grey": color = new Color32(128, 128, 128, 255); return true;
+                case "lime": color = new Color32(0, 255, 0, 255); return true;
+                case "brown": color = new Color32(165, 42, 42, 255); return true;
+                case "pink": color = new Color32(255, 192, 203, 255); return true;
+                case "navy": color = new Color32(0, 0, 128, 255); return true;
+                case "teal": color = new Color32(0, 128, 128, 255); return true;
+                case "olive": color = new Color32(128, 128, 0, 255); return true;
+                case "maroon": color = new Color32(128, 0, 0, 255); return true;
+                case "silver": color = new Color32(192, 192, 192, 255); return true;
+                case "gold": color = new Color32(255, 215, 0, 255); return true;
+                default: return false;
+            }
+        }
+
+        static int Hex(char c)
+        {
+            if (c >= '0' && c <= '9') return c - '0';
+            if (c >= 'a' && c <= 'f') return c - 'a' + 10;
+            if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+            return -1;
+        }
+    }
+
+    /// <summary>Per-codepoint attributes effects write to. Indices are rendered codepoints.</summary>
+    public sealed class LetteraAttributes
+    {
+        internal struct Cp
+        {
+            public float SizeAbsolute, SizeMul, SizeAdd;
+            public short Weight;
+            public byte BoldMode;       // 0 auto, 1 force synthetic, 2 real faces only.
+            public bool Italic;
+            public float Slant;
+            public Color32 Color;
+            public bool HasColor;
+            public float Alpha;
+            public short Family;        // Index into FamilyRequests, -1 none.
+            public short Language;      // Index into Languages, -1 none.
+            public byte Underline, Strike, Outline, Shadow; // 1-based indices into the spec lists.
+        }
+
+        internal struct DecorationSpec
+        {
+            public bool HasColor;
+            public Color32 Color;
+        }
+
+        internal struct OutlineSpec
+        {
+            public Color32 Color;
+            public float WidthEm, WidthUnits;
+        }
+
+        internal struct ShadowSpec
+        {
+            public Color32 Color;
+            public float OffsetX, OffsetY, Softness, Dilate;
+        }
+
+        internal struct ElideRequest
+        {
+            public int Start, End;
+            public float Position;
+            public bool Marker;
+        }
+
+        internal Cp[] Chars = new Cp[64];
+        internal int Length;
+        internal readonly System.Collections.Generic.List<string> FamilyRequests = new System.Collections.Generic.List<string>();
+        internal readonly System.Collections.Generic.List<string> Languages = new System.Collections.Generic.List<string>();
+        internal readonly System.Collections.Generic.List<DecorationSpec> Decorations = new System.Collections.Generic.List<DecorationSpec>();
+        internal readonly System.Collections.Generic.List<OutlineSpec> Outlines = new System.Collections.Generic.List<OutlineSpec>();
+        internal readonly System.Collections.Generic.List<ShadowSpec> Shadows = new System.Collections.Generic.List<ShadowSpec>();
+        internal readonly System.Collections.Generic.List<ElideRequest> Elides = new System.Collections.Generic.List<ElideRequest>();
+
+        /// <summary>A base direction forced by an effect: -1 none, 0 ltr, 1 rtl, 2 auto.</summary>
+        internal int DirectionOverride = -1;
+
+        internal void Reset(int length)
+        {
+            if (Chars.Length < length) Chars = new Cp[Mathf.Max(length, Chars.Length * 2)];
+            Length = length;
+            for (int i = 0; i < length; i++)
+                Chars[i] = new Cp { SizeMul = 1, Weight = 0, Alpha = 1, Family = -1, Language = -1, Slant = -1 };
+            FamilyRequests.Clear();
+            Languages.Clear();
+            Decorations.Clear();
+            Outlines.Clear();
+            Shadows.Clear();
+            Elides.Clear();
+            DirectionOverride = -1;
+        }
+
+        /// <summary>Length of the rendered text in codepoints.</summary>
+        public int TextLength => Length;
+
+        void Clamp(ref int start, ref int end)
+        {
+            start = Mathf.Clamp(start, 0, Length);
+            end = Mathf.Clamp(end, start, Length);
+        }
+
+        public void SetWeight(int start, int end, int weight, int mode)
+        {
+            Clamp(ref start, ref end);
+            for (int i = start; i < end; i++)
+            {
+                Chars[i].Weight = (short)weight;
+                Chars[i].BoldMode = (byte)mode;
+            }
+        }
+
+        public void SetItalic(int start, int end, float slantPercent)
+        {
+            Clamp(ref start, ref end);
+            for (int i = start; i < end; i++)
+            {
+                Chars[i].Italic = true;
+                Chars[i].Slant = slantPercent;
+            }
+        }
+
+        /// <summary>Sets an absolute size in local units.</summary>
+        public void SetSizeAbsolute(int start, int end, float size)
+        {
+            Clamp(ref start, ref end);
+            for (int i = start; i < end; i++)
+            {
+                Chars[i].SizeAbsolute = size;
+                Chars[i].SizeMul = 1;
+                Chars[i].SizeAdd = 0;
+            }
+        }
+
+        /// <summary>Scales the enclosing size.</summary>
+        public void MultiplySize(int start, int end, float factor)
+        {
+            Clamp(ref start, ref end);
+            for (int i = start; i < end; i++)
+            {
+                Chars[i].SizeMul *= factor;
+                Chars[i].SizeAdd *= factor;
+            }
+        }
+
+        /// <summary>Adds to the enclosing size.</summary>
+        public void AddSize(int start, int end, float delta)
+        {
+            Clamp(ref start, ref end);
+            for (int i = start; i < end; i++) Chars[i].SizeAdd += delta;
+        }
+
+        public void SetColor(int start, int end, Color32 color)
+        {
+            Clamp(ref start, ref end);
+            for (int i = start; i < end; i++)
+            {
+                Chars[i].Color = color;
+                Chars[i].HasColor = true;
+            }
+        }
+
+        /// <summary>The innermost range's alpha applies; ranges do not compound.</summary>
+        public void SetAlpha(int start, int end, float alpha)
+        {
+            Clamp(ref start, ref end);
+            for (int i = start; i < end; i++) Chars[i].Alpha = alpha;
+        }
+
+        public void SetFamily(int start, int end, string family)
+        {
+            Clamp(ref start, ref end);
+            short index = Intern(FamilyRequests, family);
+            for (int i = start; i < end; i++) Chars[i].Family = index;
+        }
+
+        public void SetLanguage(int start, int end, string language)
+        {
+            Clamp(ref start, ref end);
+            short index = Intern(Languages, language);
+            for (int i = start; i < end; i++) Chars[i].Language = index;
+        }
+
+        public void SetUnderline(int start, int end, bool hasColor, Color32 color)
+        {
+            Clamp(ref start, ref end);
+            Decorations.Add(new DecorationSpec { HasColor = hasColor, Color = color });
+            byte index = (byte)Mathf.Min(Decorations.Count, 255);
+            for (int i = start; i < end; i++) Chars[i].Underline = index;
+        }
+
+        public void SetStrike(int start, int end, bool hasColor, Color32 color)
+        {
+            Clamp(ref start, ref end);
+            Decorations.Add(new DecorationSpec { HasColor = hasColor, Color = color });
+            byte index = (byte)Mathf.Min(Decorations.Count, 255);
+            for (int i = start; i < end; i++) Chars[i].Strike = index;
+        }
+
+        public void SetOutline(int start, int end, Color32 color, float widthEm, float widthUnits)
+        {
+            Clamp(ref start, ref end);
+            Outlines.Add(new OutlineSpec { Color = color, WidthEm = widthEm, WidthUnits = widthUnits });
+            byte index = (byte)Mathf.Min(Outlines.Count, 255);
+            for (int i = start; i < end; i++) Chars[i].Outline = index;
+        }
+
+        public void SetShadow(int start, int end, Color32 color, float offsetX, float offsetY, float softness, float dilate)
+        {
+            Clamp(ref start, ref end);
+            Shadows.Add(new ShadowSpec { Color = color, OffsetX = offsetX, OffsetY = offsetY, Softness = softness, Dilate = dilate });
+            byte index = (byte)Mathf.Min(Shadows.Count, 255);
+            for (int i = start; i < end; i++) Chars[i].Shadow = index;
+        }
+
+        /// <summary>Asks layout to remove clusters of the range at a position (0 start, 0.5 middle, 1 end) when the text does not fit.</summary>
+        public void RequestElide(int start, int end, float position, bool marker)
+        {
+            Clamp(ref start, ref end);
+            Elides.Add(new ElideRequest { Start = start, End = end, Position = Mathf.Clamp01(position), Marker = marker });
+        }
+
+        /// <summary>Forces the base direction of every paragraph: 0 ltr, 1 rtl, 2 auto.</summary>
+        public void SetDirection(int direction) => DirectionOverride = direction;
+
+        static short Intern(System.Collections.Generic.List<string> list, string value)
+        {
+            for (int i = 0; i < list.Count; i++)
+                if (list[i] == value)
+                    return (short)i;
+            list.Add(value);
+            return (short)(list.Count - 1);
+        }
+    }
+}

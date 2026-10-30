@@ -1,0 +1,20 @@
+{
+    "name": "FirstSymbol.Lettera.Editor",
+    "rootNamespace": "FirstSymbol.Lettera.Editor",
+    "references": [
+        "FirstSymbol.Lettera",
+        "UnityEngine.UI",
+        "UnityEditor.UI"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

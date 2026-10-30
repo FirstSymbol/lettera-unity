@@ -1,0 +1,43 @@
+{
+  "name": "com.firstsymbol.lettera",
+  "version": "0.1.0",
+  "displayName": "Lettera Text Engine",
+  "description": "Text engine for Unity UI and world space: full OpenType shaping (HarfBuzz), bidirectional text, Unicode line breaking, system fonts and fallback, color emoji, a shared SDF atlas, and styles driven by extensible markup.",
+  "unity": "6000.0",
+  "author": {
+    "name": "FirstSymbol",
+    "email": "firstsymbol.0@gmail.com"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/FirstSymbol/lettera-unity.git"
+  },
+  "documentationUrl": "https://github.com/FirstSymbol/lettera-unity#readme",
+  "keywords": [
+    "text",
+    "unicode",
+    "rtl",
+    "arabic",
+    "hebrew",
+    "bidi",
+    "harfbuzz",
+    "shaping",
+    "emoji",
+    "sdf",
+    "ui"
+  ],
+  "dependencies": {
+    "com.unity.burst": "1.8.18",
+    "com.unity.collections": "2.5.1",
+    "com.unity.mathematics": "1.3.2",
+    "com.unity.ugui": "2.0.0",
+    "com.unity.modules.imageconversion": "1.0.0"
+  },
+  "samples": [
+    {
+      "displayName": "Basic",
+      "description": "A Canvas built from code: mixed scripts, emoji, tags, wrapping, eliding, auto size and runtime text, with no fonts in the project.",
+      "path": "Samples~/Basic"
+    }
+  ]
+}

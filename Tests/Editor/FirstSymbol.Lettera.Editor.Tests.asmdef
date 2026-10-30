@@ -1,0 +1,23 @@
+{
+    "name": "FirstSymbol.Lettera.Editor.Tests",
+    "rootNamespace": "FirstSymbol.Lettera.Editor.Tests",
+    "references": [
+        "UnityEngine.TestRunner",
+        "UnityEditor.TestRunner",
+        "FirstSymbol.Lettera",
+        "FirstSymbol.Lettera.Editor",
+        "FirstSymbol.Lettera.Unicode",
+        "Unity.Collections",
+        "Unity.Mathematics",
+        "Unity.Burst"
+    ],
+    "includePlatforms": ["Editor"],
+    "excludePlatforms": [],
+    "allowUnsafeCode": true,
+    "overrideReferences": true,
+    "precompiledReferences": ["nunit.framework.dll"],
+    "autoReferenced": false,
+    "defineConstraints": ["UNITY_INCLUDE_TESTS"],
+    "versionDefines": [],
+    "noEngineReferences": false
+}
