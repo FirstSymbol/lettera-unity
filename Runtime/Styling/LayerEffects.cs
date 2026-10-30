@@ -29,7 +29,7 @@ namespace FirstSymbol.Lettera
         public float Of(float size) => Em * size + Units;
     }
 
-    internal enum LayerKind : byte { Fill, Stroke, Shadow, Glow, InnerShadow }
+    internal enum LayerKind : byte { Fill, Stroke, Shadow, Glow, InnerShadow, Highlight }
 
     /// <summary>One painted range of a layer effect, with its parameters resolved.</summary>
     internal struct LayerRecord
@@ -42,6 +42,7 @@ namespace FirstSymbol.Lettera
         public int Start, End;
         public int Group;
         public Rect RangeRect;
+        public int Highlight;
     }
 
     /// <summary>All ranges of one effect that draw one kind of layer. Cover holds, per codepoint, a record index plus one.</summary>

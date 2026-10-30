@@ -83,6 +83,7 @@ namespace FirstSymbol.Lettera
             LetteraStyle.ForTag(new FillEffect(), "fill"),
             LetteraStyle.ForTag(new GlowEffect(), "glow"),
             LetteraStyle.ForTag(new InnerShadowEffect(), "inner-shadow"),
+            LetteraStyle.ForTag(new HighlightEffect(), "mark"),
             LetteraStyle.ForTag(new UppercaseEffect(), "uppercase"),
             LetteraStyle.ForTag(new LowercaseEffect(), "lowercase"),
             LetteraStyle.ForTag(new SmallCapsEffect(), "smallcaps"),

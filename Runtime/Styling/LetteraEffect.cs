@@ -267,8 +267,11 @@ namespace FirstSymbol.Lettera
 
         internal struct DecorationSpec
         {
-            public bool HasColor;
-            public Color32 Color;
+            public ResolvedPaint Paint;
+            public LetteraLineStyle Style;
+            public EmLength Thickness, Offset;
+            public bool AutoThickness, AutoOffset, SkipInk, Overlay;
+            public Rect RangeRect;
         }
 
         internal struct ElideRequest
@@ -325,6 +328,7 @@ namespace FirstSymbol.Lettera
             Languages.Clear();
             Decorations.Clear();
             Layers.Clear();
+            Highlights.Clear();
             m_GroupPool.AddRange(m_Groups);
             m_Groups.Clear();
             m_GroupsSorted = false;
@@ -425,18 +429,12 @@ namespace FirstSymbol.Lettera
 
         public void SetUnderline(int start, int end, bool hasColor, Color32 color)
         {
-            Clamp(ref start, ref end);
-            Decorations.Add(new DecorationSpec { HasColor = hasColor, Color = color });
-            ushort index = (ushort)Mathf.Min(Decorations.Count, ushort.MaxValue);
-            for (int i = start; i < end; i++) Chars[i].Underline = index;
+            AddDecoration(start, end, false, new DecorationSpec { Paint = PaintOf(hasColor, color), AutoThickness = true, AutoOffset = true });
         }
 
         public void SetStrike(int start, int end, bool hasColor, Color32 color)
         {
-            Clamp(ref start, ref end);
-            Decorations.Add(new DecorationSpec { HasColor = hasColor, Color = color });
-            ushort index = (ushort)Mathf.Min(Decorations.Count, ushort.MaxValue);
-            for (int i = start; i < end; i++) Chars[i].Strike = index;
+            AddDecoration(start, end, true, new DecorationSpec { Paint = PaintOf(hasColor, color), AutoThickness = true, AutoOffset = true });
         }
 
         public void SetOutline(int start, int end, Color32 color, float widthEm, float widthUnits)
@@ -649,6 +647,31 @@ namespace FirstSymbol.Lettera
             }
         }
 
+        static ResolvedPaint PaintOf(bool hasColor, Color32 color) => new ResolvedPaint { Color = color, UsesGlyphColor = !hasColor, Blend = LetteraBlend.Normal };
+
+        internal void AddDecoration(int start, int end, bool strike, in DecorationSpec spec)
+        {
+            Clamp(ref start, ref end);
+            Decorations.Add(spec);
+            ushort index = (ushort)Mathf.Min(Decorations.Count, ushort.MaxValue);
+            for (int i = start; i < end; i++)
+            {
+                if (strike) Chars[i].Strike = index;
+                else Chars[i].Underline = index;
+            }
+        }
+
+        internal readonly System.Collections.Generic.List<HighlightSpec> Highlights = new System.Collections.Generic.List<HighlightSpec>();
+
+        internal void AddHighlight(int start, int end, in LayerRecord record, in HighlightSpec spec)
+        {
+            LayerRecord copy = record;
+            copy.Kind = LayerKind.Highlight;
+            copy.Highlight = Highlights.Count;
+            Highlights.Add(spec);
+            AddLayer(start, end, LetteraLayerBand.Back, copy);
+        }
+
         /// <summary>Called before an effect applies a range: its layers belong to this effect.</summary>
         internal void BeginEffect(object effect, int style)
         {
@@ -726,7 +749,11 @@ namespace FirstSymbol.Lettera
                 LayerRecord record = Layers[i];
                 if (!record.Paint.IsSolid || record.Kind == LayerKind.InnerShadow || (record.Kind == LayerKind.Stroke && record.Align < 1)) return true;
                 if (record.Kind == LayerKind.Fill && record.Paint.Color.a < 255) return true;
+                if (record.Kind == LayerKind.Highlight) return true;
             }
+            for (int i = 0; i < Decorations.Count; i++)
+                if (!Decorations[i].Paint.IsSolid || Decorations[i].Style != LetteraLineStyle.Solid)
+                    return true;
             return false;
         }
 

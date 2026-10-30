@@ -140,26 +140,50 @@ namespace FirstSymbol.Lettera
         }
     }
 
-    /// <summary>Slot: an optional color; the default is each run's glyph color.</summary>
+    /// <summary>
+    /// The base of underline and strikethrough. Slots: 1 paint (default: the glyph's color), 2 line style, 3 thickness (em, or auto),
+    /// 4 offset from the baseline (em, or auto), 5 skip ink, 6 overlay, then the paint settings.
+    /// </summary>
     [Serializable]
-    public class UnderlineEffect : LetteraEffect
+    public abstract class LetteraLineEffect : LetteraLayerEffect
     {
-        public override void Apply(LetteraAttributes attributes, int start, int end, in LetteraSlots slots)
+        [SerializeField] LetteraLineStyle m_LineStyle;
+        [SerializeField] bool m_SkipInk;
+        [SerializeField] bool m_Overlay;
+
+        public LetteraLineStyle LineStyle { get => m_LineStyle; set => m_LineStyle = value; }
+        public bool SkipInk { get => m_SkipInk; set => m_SkipInk = value; }
+        public bool Overlay { get => m_Overlay; set => m_Overlay = value; }
+
+        private protected void AddLine(LetteraAttributes attributes, int start, int end, in LetteraSlots slots, bool strike)
         {
-            bool has = LetteraSlots.TryColor(slots[0], out Color32 color);
-            attributes.SetUnderline(start, end, has, color);
+            var spec = new LetteraAttributes.DecorationSpec
+            {
+                Paint = ResolvePaint(slots, 0, 6, default, true),
+                Style = slots.Enum(1, m_LineStyle),
+                SkipInk = slots.Bool(4, m_SkipInk),
+                Overlay = slots.Bool(5, m_Overlay),
+            };
+            spec.AutoThickness = !LetteraLength.TryParse(slots[2], out LetteraLength thickness);
+            if (!spec.AutoThickness) spec.Thickness = new EmLength(thickness);
+            spec.AutoOffset = !LetteraLength.TryParse(slots[3], out LetteraLength offset);
+            if (!spec.AutoOffset) spec.Offset = new EmLength(offset);
+            attributes.AddDecoration(start, end, strike, spec);
         }
     }
 
-    /// <summary>Slot: an optional color; the default is each run's glyph color.</summary>
+    /// <summary>A line under the range. See the base class for its slots.</summary>
     [Serializable]
-    public class StrikethroughEffect : LetteraEffect
+    public class UnderlineEffect : LetteraLineEffect
     {
-        public override void Apply(LetteraAttributes attributes, int start, int end, in LetteraSlots slots)
-        {
-            bool has = LetteraSlots.TryColor(slots[0], out Color32 color);
-            attributes.SetStrike(start, end, has, color);
-        }
+        public override void Apply(LetteraAttributes attributes, int start, int end, in LetteraSlots slots) => AddLine(attributes, start, end, slots, false);
+    }
+
+    /// <summary>A line through the range. See the base class for its slots.</summary>
+    [Serializable]
+    public class StrikethroughEffect : LetteraLineEffect
+    {
+        public override void Apply(LetteraAttributes attributes, int start, int end, in LetteraSlots slots) => AddLine(attributes, start, end, slots, true);
     }
 
     /// <summary>A stroke fully outside the glyph. Slots: 1 paint, 2 width in em (or with a px suffix, in local units), then the paint settings. Not applied to color glyphs.</summary>

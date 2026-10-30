@@ -63,11 +63,12 @@ namespace FirstSymbol.Lettera
 
             m_Faces.Clear();
             foreach (LayerGroup group in groups)
-                if (group.Band == LetteraLayerBand.Face)
+                if (group.Band == LetteraLayerBand.Face && group.Layer != LayerKind.Highlight)
                     m_Faces.Add(group);
 
+            DrawHighlights(groups, false);
             foreach (LayerGroup group in groups)
-                if (group.Band < LetteraLayerBand.Face)
+                if (group.Band < LetteraLayerBand.Face && group.Layer != LayerKind.Highlight)
                     DrawGroup(group);
 
             DrawFaces();
@@ -75,8 +76,13 @@ namespace FirstSymbol.Lettera
             AddDecorationLayer(null);
 
             foreach (LayerGroup group in groups)
-                if (group.Band > LetteraLayerBand.Face)
+                if (group.Band > LetteraLayerBand.Face && group.Layer != LayerKind.Highlight)
                     DrawGroup(group);
+
+            // Lines with Overlay on, and their layers, go above the glyphs they cross.
+            foreach (LayerGroup group in groups) AddDecorationLayer(group, true);
+            AddDecorationLayer(null, true);
+            DrawHighlights(groups, true);
 
             FinishSegment();
             ComputeBounds();
@@ -110,7 +116,7 @@ namespace FirstSymbol.Lettera
                     LayerRecord record = records[index];
                     float reach = ReachOf(record, g);
                     if (reach > m_PlacedReach[i]) m_PlacedReach[i] = reach;
-                    if (record.Paint.Span == LetteraPaintSpan.Range && !record.Paint.IsSolid)
+                    if ((record.Paint.Span == LetteraPaintSpan.Range || record.Kind == LayerKind.Highlight) && !record.Paint.IsSolid)
                     {
                         LetteraLine line = m_Lines[g.Line];
                         Rect grown = Union(record.RangeRect, g.X, line.Baseline - line.Descent, g.X + g.Advance, line.Baseline + line.Ascent);
@@ -119,6 +125,8 @@ namespace FirstSymbol.Lettera
                     }
                 }
             }
+
+            PrepareDecorationRects();
 
             float rasterScale = m_Host.RasterScale;
             for (int i = 0; i < m_PlacedCount; i++)
@@ -130,16 +138,47 @@ namespace FirstSymbol.Lettera
                 m_PlacedAtlas[i] = GlyphAtlas.Get(g.Instance, g.Glyph, density, m_PlacedReach[i]);
             }
 
-            // A halo around a color glyph blurs its alpha, which only the styled shader does.
+            // A halo around a color glyph blurs its alpha, which only the styled shader does; so does a line's glow.
             if (Styled) return;
             foreach (LayerGroup group in groups)
             {
                 if (group.Layer != LayerKind.Glow) continue;
+                if (m_Attributes.Decorations.Count > 0)
+                {
+                    Styled = true;
+                    return;
+                }
                 for (int i = 0; i < m_PlacedCount; i++)
                 {
                     if (m_PlacedAtlas[i].Kind != AtlasGlyph.Color || group.Cover[m_Placed[i].Cluster] == 0) continue;
                     Styled = true;
                     return;
+                }
+            }
+        }
+
+        void PrepareDecorationRects()
+        {
+            List<LetteraAttributes.DecorationSpec> decorations = m_Attributes.Decorations;
+            if (decorations.Count == 0) return;
+            for (int d = 0; d < decorations.Count; d++)
+            {
+                LetteraAttributes.DecorationSpec spec = decorations[d];
+                spec.RangeRect = new Rect(float.MaxValue, float.MaxValue, 0, 0);
+                decorations[d] = spec;
+            }
+            for (int i = 0; i < m_RealCount; i++)
+            {
+                ref PlacedGlyph g = ref m_Placed[i];
+                ref LetteraAttributes.Cp attr = ref m_Attributes.Chars[g.Cluster];
+                LetteraLine line = m_Lines[g.Line];
+                for (int pass = 0; pass < 2; pass++)
+                {
+                    int index = (pass == 0 ? attr.Underline : attr.Strike) - 1;
+                    if (index < 0 || decorations[index].Paint.IsSolid) continue;
+                    LetteraAttributes.DecorationSpec spec = decorations[index];
+                    spec.RangeRect = Union(spec.RangeRect, g.X, line.Baseline - line.Descent, g.X + g.Advance, line.Baseline + line.Ascent);
+                    decorations[index] = spec;
                 }
             }
         }
@@ -554,93 +593,6 @@ namespace FirstSymbol.Lettera
             VertexCount += 4;
             IndexCount += 6;
             return v;
-        }
-
-        // Decoration lines follow the glyphs in visual order: one line per fragment with the same setting.
-        // A group draws the line's copy of that layer; no group draws the line itself.
-        void AddDecorationLayer(LayerGroup group)
-        {
-            if (m_Attributes.Decorations.Count == 0) return;
-            if (group != null && group.Layer != LayerKind.Shadow && group.Layer != LayerKind.Stroke) return;
-            AddLinesOf(group, false);
-            AddLinesOf(group, true);
-        }
-
-        void AddLinesOf(LayerGroup group, bool strike)
-        {
-            LetteraAttributes.Cp[] attrs = m_Attributes.Chars;
-            int i = 0;
-            while (i < m_RealCount)
-            {
-                ref PlacedGlyph first = ref m_Placed[i];
-                ref LetteraAttributes.Cp attr = ref attrs[first.Cluster];
-                int index = strike ? attr.Strike : attr.Underline;
-                int layer = group != null ? group.Cover[first.Cluster] : 0;
-                if (index == 0)
-                {
-                    i++;
-                    continue;
-                }
-                float left = first.X, right = first.X + first.Advance;
-                int j = i + 1;
-                while (j < m_RealCount)
-                {
-                    ref PlacedGlyph next = ref m_Placed[j];
-                    ref LetteraAttributes.Cp nextAttr = ref attrs[next.Cluster];
-                    if (next.Line != first.Line || (strike ? nextAttr.Strike : nextAttr.Underline) != index || next.Size != first.Size ||
-                        nextAttr.Color.r != attr.Color.r || nextAttr.Color.g != attr.Color.g || nextAttr.Color.b != attr.Color.b || nextAttr.HasColor != attr.HasColor ||
-                        (group != null && group.Cover[next.Cluster] != layer)) break;
-                    left = Mathf.Min(left, next.X);
-                    right = Mathf.Max(right, next.X + next.Advance);
-                    j++;
-                }
-                if (group == null || layer != 0) AddDecorationLine(first, attr, index, strike, left, right, group, layer - 1);
-                i = j;
-            }
-        }
-
-        void AddDecorationLine(in PlacedGlyph glyph, in LetteraAttributes.Cp attr, int index, bool strike, float left, float right, LayerGroup group, int recordIndex)
-        {
-            FaceMetrics metrics = glyph.Instance.Face.Metrics;
-            float offset = (strike ? metrics.StrikeOffset : metrics.UnderlineOffset) * glyph.Unit;
-            float thickness = (strike ? metrics.StrikeSize : metrics.UnderlineSize) * glyph.Unit;
-            float y = glyph.Line < m_Lines.Count ? m_Lines[glyph.Line].Baseline : glyph.Y;
-            float top = y + offset + thickness * 0.5f, bottom = y + offset - thickness * 0.5f;
-
-            if (group != null)
-            {
-                LayerRecord record = m_Attributes.Layers[recordIndex];
-                float size = MeasureSize(record, glyph);
-                Color32 color = record.Paint.Color;
-                if (record.Paint.UsesGlyphColor)
-                {
-                    Color32 own = m_Host.BaseColor;
-                    color = attr.HasColor ? attr.Color : new Color32(own.r, own.g, own.b, 255);
-                }
-                color.a = (byte)(color.a * attr.Alpha);
-                Rect rect = PaintRect(record, glyph);
-                UseSegment(record.Paint);
-                if (group.Layer == LayerKind.Shadow)
-                {
-                    float sx = record.OffsetX.Of(size), sy = record.OffsetY.Of(size);
-                    AddSolid(left + sx, bottom + sy, right + sx, top + sy, color, record.Paint, rect, sx, sy);
-                }
-                else
-                {
-                    float width = record.Width.Of(size);
-                    if (width <= 0) return;
-                    float outer = width * (1 + record.Align) * 0.5f;
-                    AddSolid(left - outer, bottom - outer, right + outer, top + outer, color, record.Paint, rect, 0, 0);
-                }
-                return;
-            }
-
-            LetteraAttributes.DecorationSpec spec = m_Attributes.Decorations[index - 1];
-            Color32 baseColor = m_Host.BaseColor;
-            Color32 lineColor = spec.HasColor ? spec.Color : attr.HasColor ? attr.Color : new Color32(baseColor.r, baseColor.g, baseColor.b, 255);
-            lineColor.a = (byte)(lineColor.a * attr.Alpha);
-            UseSegment(s_NoPaint);
-            AddSolid(left, bottom, right, top, lineColor, s_NoPaint, default, 0, 0);
         }
 
         void ComputeBounds()
