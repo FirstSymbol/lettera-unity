@@ -179,7 +179,7 @@ namespace FirstSymbol.Lettera
                 m_Placed[m_PlacedCount++] = new PlacedGlyph
                 {
                     Glyph = g.Glyph, Instance = run.Instance, Cluster = g.Cluster, Line = lineIndex,
-                    X = x + g.XOffset * unit, Y = baseline + g.YOffset * unit, Advance = advance, Unit = unit, Size = size,
+                    X = x + g.XOffset * unit, Y = baseline + g.YOffset * unit + run.BaselineShift * baseSize, Advance = advance, Unit = unit, Size = size,
                 };
                 x += advance;
 

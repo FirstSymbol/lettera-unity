@@ -383,9 +383,13 @@ namespace FirstSymbol.Lettera.Editor.Tests
         [Test]
         public void UnknownNameUsesTheDefaultPaint()
         {
-            UnityEngine.TestTools.LogAssert.Expect(LogType.Warning, new System.Text.RegularExpressions.Regex("nosuch"));
-            LetteraWorldText text = Make("<fill=nosuch>x</fill>");
+            // Each name warns once per session, so every run needs a new one.
+            string name = "nosuch" + System.Guid.NewGuid().ToString("N");
+            UnityEngine.TestTools.LogAssert.Expect(LogType.Warning, new System.Text.RegularExpressions.Regex(name));
+            LetteraWorldText text = Make($"<fill={name}>x</fill>");
             Assert.AreEqual(new Color32(255, 255, 255, 255), text.Engine.Colors[0]);
+            text.MarkStylesDirty();
+            text.ForceRebuild();
         }
 
         // ------------------------------------------------------------- segments

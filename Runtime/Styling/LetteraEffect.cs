@@ -81,6 +81,9 @@ namespace FirstSymbol.Lettera
             Raw = raw;
         }
 
+        /// <summary>How many positions the tag or the style's default gives.</summary>
+        public int Count => Math.Max(m_Tag?.Length ?? 0, m_Default?.Length ?? 0);
+
         /// <summary>The number at a position, or a fallback when it is absent or unreadable.</summary>
         public float Float(int index, float fallback) => TryNumber(this[index], out float value) ? value : fallback;
 
@@ -233,6 +236,11 @@ namespace FirstSymbol.Lettera
             public short Family;        // Index into FamilyRequests, -1 none.
             public short Language;      // Index into Languages, -1 none.
             public ushort Underline, Strike; // 1-based indices into Decorations.
+            public short Features, Axes;    // Indices into FeatureSets and AxisSets, -1 none.
+            public byte CaseMap;            // 0 none, 1 upper, 2 lower.
+            public byte SuperSub;           // 0 none, 1 super, 2 sub.
+            public byte Boost;
+            public float SmallCaps;         // The scale of synthetic small capitals, 0 off.
         }
 
         internal struct DecorationSpec
@@ -261,6 +269,13 @@ namespace FirstSymbol.Lettera
         bool m_GroupsSorted;
         internal readonly System.Collections.Generic.List<ElideRequest> Elides = new System.Collections.Generic.List<ElideRequest>();
 
+        internal readonly System.Collections.Generic.List<FeatureSet> FeatureSets = new System.Collections.Generic.List<FeatureSet>();
+        readonly System.Collections.Generic.Dictionary<string, short> m_FeatureIds = new System.Collections.Generic.Dictionary<string, short>();
+        internal readonly System.Collections.Generic.List<AxisSet> AxisSets = new System.Collections.Generic.List<AxisSet>();
+
+        /// <summary>The metric fallback faces match on for this text, or -1 for the project's.</summary>
+        internal int SizeMatchOverride = -1;
+
         /// <summary>A base direction forced by an effect: -1 none, 0 ltr, 1 rtl, 2 auto.</summary>
         internal int DirectionOverride = -1;
 
@@ -269,7 +284,11 @@ namespace FirstSymbol.Lettera
             if (Chars.Length < length) Chars = new Cp[Mathf.Max(length, Chars.Length * 2)];
             Length = length;
             for (int i = 0; i < length; i++)
-                Chars[i] = new Cp { SizeMul = 1, Weight = 0, Alpha = 1, Family = -1, Language = -1, Slant = -1 };
+                Chars[i] = new Cp { SizeMul = 1, Weight = 0, Alpha = 1, Family = -1, Language = -1, Slant = -1, Features = -1, Axes = -1 };
+            FeatureSets.Clear();
+            m_FeatureIds.Clear();
+            AxisSets.Clear();
+            SizeMatchOverride = -1;
             FamilyRequests.Clear();
             Languages.Clear();
             Decorations.Clear();
@@ -411,6 +430,98 @@ namespace FirstSymbol.Lettera
                 Dilate = new EmLength { Em = dilate },
                 OnColorGlyphs = true,
             });
+        }
+
+        internal void SetCase(int start, int end, byte map)
+        {
+            Clamp(ref start, ref end);
+            for (int i = start; i < end; i++) Chars[i].CaseMap = map;
+        }
+
+        internal void SetSmallCaps(int start, int end, float scale)
+        {
+            Clamp(ref start, ref end);
+            for (int i = start; i < end; i++) Chars[i].SmallCaps = scale;
+        }
+
+        internal void SetSuperSub(int start, int end, byte placement)
+        {
+            Clamp(ref start, ref end);
+            for (int i = start; i < end; i++) Chars[i].SuperSub = placement;
+        }
+
+        internal void SetBoost(int start, int end, byte boost)
+        {
+            Clamp(ref start, ref end);
+            for (int i = start; i < end; i++) Chars[i].Boost = boost;
+        }
+
+        internal void SetSizeMatch(LetteraSizeMatchMetric metric) => SizeMatchOverride = (int)metric;
+
+        /// <summary>Merges features into the range: the innermost value wins for a tag. Equal sets share an id, so they do not split runs.</summary>
+        internal void AddFeatures(int start, int end, System.Collections.Generic.List<uint> tags, System.Collections.Generic.List<uint> values)
+        {
+            Clamp(ref start, ref end);
+            short lastOld = -2, lastNew = -1;
+            for (int i = start; i < end; i++)
+            {
+                short old = Chars[i].Features;
+                if (old != lastOld)
+                {
+                    lastOld = old;
+                    lastNew = MergeFeatures(old, tags, values);
+                }
+                Chars[i].Features = lastNew;
+            }
+        }
+
+        short MergeFeatures(short existing, System.Collections.Generic.List<uint> tags, System.Collections.Generic.List<uint> values)
+        {
+            var merged = new System.Collections.Generic.SortedDictionary<uint, uint>();
+            if (existing >= 0)
+            {
+                FeatureSet set = FeatureSets[existing];
+                for (int i = 0; i < set.Tags.Length; i++) merged[set.Tags[i]] = set.Values[i];
+            }
+            for (int i = 0; i < tags.Count; i++) merged[tags[i]] = values[i];
+
+            var key = new System.Text.StringBuilder();
+            foreach (var pair in merged) key.Append(pair.Key).Append('=').Append(pair.Value).Append(';');
+            string text = key.ToString();
+            if (m_FeatureIds.TryGetValue(text, out short id)) return id;
+
+            var result = new FeatureSet { Tags = new uint[merged.Count], Values = new uint[merged.Count] };
+            merged.Keys.CopyTo(result.Tags, 0);
+            merged.Values.CopyTo(result.Values, 0);
+            id = (short)FeatureSets.Count;
+            FeatureSets.Add(result);
+            m_FeatureIds[text] = id;
+            return id;
+        }
+
+        /// <summary>Merges axis requests into the range: the innermost value wins for an axis.</summary>
+        internal void AddAxes(int start, int end, System.Collections.Generic.List<AxisSet.Entry> entries)
+        {
+            Clamp(ref start, ref end);
+            AxisSet request = AxisSet.Of(entries);
+            short lastOld = -2, lastNew = -1;
+            for (int i = start; i < end; i++)
+            {
+                short old = Chars[i].Axes;
+                if (old != lastOld)
+                {
+                    lastOld = old;
+                    AxisSet merged = old >= 0 ? request.Over(AxisSets[old]) : request;
+                    int index = AxisSets.IndexOf(merged);
+                    if (index < 0)
+                    {
+                        index = AxisSets.Count;
+                        AxisSets.Add(merged);
+                    }
+                    lastNew = (short)index;
+                }
+                Chars[i].Axes = lastNew;
+            }
         }
 
         /// <summary>Called before an effect applies a range: its layers belong to this effect.</summary>

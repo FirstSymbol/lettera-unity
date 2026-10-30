@@ -113,8 +113,22 @@ namespace FirstSymbol.Lettera
         // Reach only grows: an entry rasterized for more reach serves every text that needs less.
         static float SpreadFor(float reach) => reach <= SpreadEm ? SpreadEm : reach <= 0.375f ? 0.375f : reach <= 0.75f ? 0.75f : MaxReachEm;
 
+        // Glyphs someone asked to keep sharper: every text showing them uses at least this density.
+        static readonly Dictionary<ulong, int> s_MinDensity = new Dictionary<ulong, int>();
+
+        /// <summary>Raises a glyph's density for all its users. It grows only.</summary>
+        public static int Boost(FontInstance instance, uint glyph, int pixelsPerEm)
+        {
+            ulong key = ((ulong)(uint)instance.Id << 32) | glyph;
+            if (s_MinDensity.TryGetValue(key, out int known) && known >= pixelsPerEm) return known;
+            s_MinDensity[key] = pixelsPerEm;
+            return pixelsPerEm;
+        }
+
         public static AtlasGlyph Get(FontInstance instance, uint glyph, int pixelsPerEm, float reach = 0)
         {
+            if (s_MinDensity.Count > 0 && s_MinDensity.TryGetValue(((ulong)(uint)instance.Id << 32) | glyph, out int raised) && raised > pixelsPerEm)
+                pixelsPerEm = raised;
             ulong key = ((ulong)(uint)instance.Id << 36) | ((ulong)glyph << 8) | (uint)(pixelsPerEm >> 2 & 0xFF);
             if (s_Glyphs.TryGetValue(key, out AtlasGlyph entry))
             {

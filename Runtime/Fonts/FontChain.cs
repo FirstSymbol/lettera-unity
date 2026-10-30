@@ -217,7 +217,7 @@ namespace FirstSymbol.Lettera
         }
 
         /// <summary>Picks a cut of the family for a weight and slope, using real faces first and synthesis otherwise.</summary>
-        public static FontInstance Style(FontFace face, Family family, int weight, int boldMode, bool italic, float slantPercent)
+        public static FontInstance Style(FontFace face, Family family, int weight, int boldMode, bool italic, float slantPercent, AxisSet axes = null)
         {
             FontFace chosen = face;
             LetteraFontAsset asset = null;
@@ -248,7 +248,7 @@ namespace FirstSymbol.Lettera
             if (italic && !chosen.IsItalic && !chosen.IsColor)
                 slant = (slantPercent >= 0 ? slantPercent : asset != null ? asset.SyntheticItalicSlant : 20f) / 100f;
 
-            return chosen.GetInstance(axis, embolden, slant);
+            return chosen.GetInstance(axis, embolden, slant, axes);
         }
 
         // CSS Fonts nearest weight matching, restricted to the requested slope when possible.

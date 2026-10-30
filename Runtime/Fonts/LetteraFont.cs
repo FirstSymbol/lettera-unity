@@ -50,6 +50,9 @@ namespace FirstSymbol.Lettera
             NotifyChanged();
         }
 
+        /// <summary>The font file, for a variant that shows the same file another way.</summary>
+        internal byte[] ReadBytes() => Decompress();
+
         byte[] Decompress()
         {
             if (m_RuntimeBytes != null) return m_RuntimeBytes;

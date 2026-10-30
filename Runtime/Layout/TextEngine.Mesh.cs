@@ -123,7 +123,10 @@ namespace FirstSymbol.Lettera
             for (int i = 0; i < m_PlacedCount; i++)
             {
                 ref PlacedGlyph g = ref m_Placed[i];
-                m_PlacedAtlas[i] = GlyphAtlas.Get(g.Instance, g.Glyph, PixelsPerEm(g.Size, rasterScale), m_PlacedReach[i]);
+                int density = PixelsPerEm(g.Size, rasterScale);
+                byte boost = m_Attributes.Chars[g.Cluster].Boost;
+                if (boost > 0) density = GlyphAtlas.Boost(g.Instance, g.Glyph, density << boost);
+                m_PlacedAtlas[i] = GlyphAtlas.Get(g.Instance, g.Glyph, density, m_PlacedReach[i]);
             }
 
             // A halo around a color glyph blurs its alpha, which only the styled shader does.

@@ -9,6 +9,7 @@ namespace FirstSymbol.Lettera
     {
         public int Upem, Ascender, Descender, LineGap, CapHeight, XHeight;
         public int UnderlineOffset, UnderlineSize, StrikeOffset, StrikeSize;
+        public int SuperSize, SuperOffset, SubSize, SubOffset;
     }
 
     /// <summary>A shaping font: a face at one variation and synthesis setting. Immutable, safe across threads.</summary>
@@ -33,7 +34,11 @@ namespace FirstSymbol.Lettera
         const int ColorStrikePpem = 128;
         static readonly List<FontFace> s_All = new List<FontFace>();
 
-        readonly Dictionary<long, FontInstance> m_Instances = new Dictionary<long, FontInstance>();
+        readonly Dictionary<(long, int), FontInstance> m_Instances = new Dictionary<(long, int), FontInstance>();
+        readonly Dictionary<long, bool> m_FeatureProbes = new Dictionary<long, bool>();
+        AxisSet m_Pinned;
+        uint[] m_AxisTags = new uint[0];
+        float[] m_AxisRanges = new float[0];
         readonly List<IntPtr> m_Fonts = new List<IntPtr>();
 
         public IntPtr Face { get; private set; }
@@ -130,31 +135,100 @@ namespace FirstSymbol.Lettera
         public bool HasGlyph(int codepoint) => IsVirtual || LetteraNative.lt_font_glyph(Regular.Font, (uint)codepoint, 0) != 0;
 
         /// <summary>Returns the instance for a weight axis value (-1 = default) and synthesis amounts.</summary>
-        public FontInstance GetInstance(float weightAxis, float embolden, float slant)
+        public FontInstance GetInstance(float weightAxis, float embolden, float slant, AxisSet axes = null)
         {
-            if (IsVirtual || (weightAxis < 0 && embolden == 0 && slant == 0)) return Regular;
-            long key = ((long)(int)(weightAxis * 8) << 40) ^ ((long)(int)(embolden * 4096) << 20) ^ (int)(slant * 4096);
+            if (IsVirtual || m_AxisTags.Length == 0) axes = null;
+            if (IsVirtual || (weightAxis < 0 && embolden == 0 && slant == 0 && axes == null)) return Regular;
+            var key = (((long)(int)(weightAxis * 8) << 40) ^ ((long)(int)(embolden * 4096) << 20) ^ (int)(slant * 4096), axes?.Id ?? 0);
             if (!m_Instances.TryGetValue(key, out var instance))
             {
-                instance = CreateInstance(weightAxis, embolden, slant);
+                instance = CreateInstance(weightAxis, embolden, slant, axes);
                 m_Instances[key] = instance;
             }
             return instance;
         }
 
-        FontInstance CreateInstance(float weightAxis, float embolden, float slant)
+        FontInstance CreateInstance(float weightAxis, float embolden, float slant, AxisSet axes = null)
         {
             IntPtr font = LetteraNative.lt_font_create(Face);
-            if (weightAxis >= 0)
-            {
-                uint tag = LetteraNative.Tag("wght");
-                LetteraNative.lt_font_set_variations(font, &tag, &weightAxis, 1);
-            }
+            ApplyVariations(font, weightAxis, axes);
             if (embolden != 0 || slant != 0) LetteraNative.lt_font_set_synthetic(font, embolden, slant);
             if (HasColorBitmaps) LetteraNative.lt_font_set_ppem(font, ColorStrikePpem);
             LetteraNative.lt_font_make_immutable(font);
             m_Fonts.Add(font);
             return new FontInstance(this, font);
+        }
+
+        // Pinned values lie under what a range asks for; a weight applies unless the range names wght itself.
+        void ApplyVariations(IntPtr font, float weightAxis, AxisSet axes)
+        {
+            AxisSet all = axes != null ? axes.Over(m_Pinned) : m_Pinned;
+            int count = (all?.Entries.Length ?? 0) + 1;
+            uint* tags = stackalloc uint[count];
+            float* values = stackalloc float[count];
+            int used = 0;
+            uint weightTag = LetteraNative.Tag("wght");
+            if (weightAxis >= 0 && (axes == null || !axes.Has(weightTag)))
+            {
+                tags[used] = weightTag;
+                values[used++] = weightAxis;
+            }
+            if (all != null)
+            {
+                foreach (AxisSet.Entry entry in all.Entries)
+                {
+                    if (!TryAxis(entry, out float value)) continue;
+                    tags[used] = entry.Tag;
+                    values[used++] = value;
+                }
+            }
+            if (used > 0) LetteraNative.lt_font_set_variations(font, tags, values, used);
+        }
+
+        bool TryAxis(in AxisSet.Entry entry, out float value)
+        {
+            value = 0;
+            for (int i = 0; i < m_AxisTags.Length; i++)
+            {
+                if (m_AxisTags[i] != entry.Tag) continue;
+                float min = m_AxisRanges[i * 3], standard = m_AxisRanges[i * 3 + 1], max = m_AxisRanges[i * 3 + 2];
+                value = entry.Kind == AxisSet.Mode.PercentOfDefault ? standard * entry.Value * 0.01f
+                    : entry.Kind == AxisSet.Mode.DeltaFromDefault ? standard + entry.Value : entry.Value;
+                value = value < min ? min : value > max ? max : value;
+                return true;
+            }
+            return false;
+        }
+
+        /// <summary>Whether this face has axes at all.</summary>
+        public bool IsVariable => m_AxisTags.Length > 0;
+
+        /// <summary>A variant asset pins a point of the design space and overrides what the file states about itself.</summary>
+        public void Customize(AxisSet pinned, string family, int weight, bool italic)
+        {
+            m_Pinned = pinned;
+            if (pinned != null) Regular = CreateInstance(-1, 0, 0);
+            if (!string.IsNullOrEmpty(family)) Family = family;
+            if (weight > 0) Weight = weight;
+            if (italic) IsItalic = true;
+        }
+
+        /// <summary>Whether shaping a codepoint with a feature on gives another glyph than with it off: the face really has it for this character.</summary>
+        public bool ChangesGlyph(uint feature, int codepoint)
+        {
+            if (IsVirtual) return false;
+            long key = ((long)feature << 32) | (uint)codepoint;
+            if (m_FeatureProbes.TryGetValue(key, out bool known)) return known;
+            NativeGlyph* output = stackalloc NativeGlyph[8];
+            var on = new NativeFeature { Tag = feature, Value = 1, Start = 0, End = uint.MaxValue };
+            int text = codepoint;
+            uint script = FirstSymbol.Lettera.Unicode.LetteraUnicode.ScriptToOpenTypeTag(FirstSymbol.Lettera.Unicode.LetteraUnicode.GetScript(codepoint));
+            int plainCount = LetteraNative.lt_shape(Regular.Font, &text, 1, 0, 1, 4, script, null, null, 0, output, 8);
+            uint plain = plainCount > 0 ? output[0].Glyph : 0;
+            int count = LetteraNative.lt_shape(Regular.Font, &text, 1, 0, 1, 4, script, null, &on, 1, output, 8);
+            bool changed = plainCount > 0 && count > 0 && output[0].Glyph != plain && output[0].Glyph != 0;
+            m_FeatureProbes[key] = changed;
+            return changed;
         }
 
         void ReadInfo()
@@ -175,8 +249,15 @@ namespace FirstSymbol.Lettera
             float* ranges = stackalloc float[96];
             int axes = LetteraNative.lt_face_axes(Face, tags, ranges, 32);
             uint wght = LetteraNative.Tag("wght");
-            for (int i = 0; i < axes && i < 32; i++)
+            int axisCount = Math.Min(axes, 32);
+            m_AxisTags = new uint[axisCount];
+            m_AxisRanges = new float[axisCount * 3];
+            for (int i = 0; i < axisCount; i++)
             {
+                m_AxisTags[i] = tags[i];
+                m_AxisRanges[i * 3] = ranges[i * 3];
+                m_AxisRanges[i * 3 + 1] = ranges[i * 3 + 1];
+                m_AxisRanges[i * 3 + 2] = ranges[i * 3 + 2];
                 if (tags[i] != wght) continue;
                 HasWeightAxis = true;
                 WeightAxisMin = ranges[i * 3];
@@ -201,6 +282,10 @@ namespace FirstSymbol.Lettera
             if (m.UnderlineOffset == 0) m.UnderlineOffset = -m.Upem / 10;
             if (m.StrikeSize <= 0) m.StrikeSize = m.UnderlineSize;
             if (m.StrikeOffset == 0) m.StrikeOffset = m.XHeight / 2;
+            m.SuperSize = Metric(font, "spys");
+            m.SuperOffset = Math.Abs(Metric(font, "spyo"));
+            m.SubSize = Metric(font, "sbys");
+            m.SubOffset = Math.Abs(Metric(font, "sbyo"));
             Metrics = m;
         }
 
