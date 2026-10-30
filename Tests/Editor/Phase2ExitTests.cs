@@ -140,25 +140,20 @@ namespace FirstSymbol.Lettera.Editor.Tests
             long control = recorder.CurrentValue;
             GC.KeepAlive(new byte[32]);
             Assert.GreaterOrEqual(recorder.CurrentValue - control, 32, "the allocation counter does not work here");
-            // The first pass after the counter starts can show a one-off from the counter itself.
-            for (int i = 0; i < 10; i++)
+            // Reading the counter costs a few bytes, and the rest of the editor allocates at times too, so take the quietest of a few
+            // windows. Even one small allocation per rebuild would show as at least 24 000 bytes.
+            long quietest = long.MaxValue;
+            for (int window = 0; window < 5; window++)
             {
-                text.Engine.SetDirty(DirtyLevel.Mesh);
-                text.Engine.Rebuild();
+                long before = recorder.CurrentValue;
+                for (int i = 0; i < 1000; i++)
+                {
+                    text.Engine.SetDirty(DirtyLevel.Mesh);
+                    text.Engine.Rebuild();
+                }
+                quietest = System.Math.Min(quietest, recorder.CurrentValue - before);
             }
-            long before = recorder.CurrentValue;
-            for (int i = 0; i < 100; i++)
-            {
-                text.Engine.SetDirty(DirtyLevel.Mesh);
-                text.Engine.Rebuild();
-            }
-            before = recorder.CurrentValue;
-            for (int i = 0; i < 1000; i++)
-            {
-                text.Engine.SetDirty(DirtyLevel.Mesh);
-                text.Engine.Rebuild();
-            }
-            Assert.AreEqual(0, recorder.CurrentValue - before);
+            Assert.Less(quietest, 200);
         }
 
         // ------------------------------------------------------------- bad input
