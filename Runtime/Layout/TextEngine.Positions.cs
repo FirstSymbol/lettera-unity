@@ -72,6 +72,8 @@ namespace FirstSymbol.Lettera
                 y -= line.Height;
             }
             m_RealCount = m_PlacedCount;
+            if (m_ListItems.Count > 0) PlaceListMarkers();
+            if (m_RubyItems.Count > 0) PlaceRubies();
             foreach (PlacedGlyph glyph in m_VirtualGlyphs)
             {
                 EnsureSize(ref m_Placed, m_PlacedCount + 1);

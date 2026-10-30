@@ -270,7 +270,8 @@ namespace FirstSymbol.Lettera
         {
             if (!m_Attributes.HasLayout || cp >= m_TextLength) return 0;
             ref LetteraAttributes.CpLayout layout = ref m_Attributes.Layout[cp];
-            float indent = layout.Indent.Of(SizeOf(m_Runs[m_CpRun[cp]], baseSize));
+            float size = SizeOf(m_Runs[m_CpRun[cp]], baseSize);
+            float indent = layout.Indent.Of(size) + (m_ListItems.Count > 0 ? m_CpListIndent[cp] * size : 0);
             if (layout.IndentPercent != 0) indent += layout.IndentPercent * 0.01f * m_Host.LayoutRect.width;
             return indent < 0 ? 0 : indent;
         }
@@ -527,6 +528,14 @@ namespace FirstSymbol.Lettera
             float leading = height - (ascent + descent);
             float above = leadingMode == (int)LetteraLeading.Above ? leading : leadingMode == (int)LetteraLeading.Below ? 0 : leading * 0.5f;
 
+            float rubyOver = 0, rubyUnder = 0;
+            if (m_RubyItems.Count > 0)
+            {
+                RubyExtents(start, end, em, out rubyOver, out rubyUnder, out _);
+                height += rubyOver + rubyUnder;
+                above += rubyOver;
+            }
+
             float gap = lines.Count > 0 ? m_PendingGap : 0;
             if (lines.Count > 0 && m_Attributes.LineGaps.Count > 0)
             {
@@ -541,7 +550,7 @@ namespace FirstSymbol.Lettera
             {
                 Start = start, End = end, VisibleEnd = visibleEnd, Paragraph = paragraph, Width = width, Height = height,
                 Ascent = ascent + above, Descent = height - (ascent + above), EndedByMandatoryBreak = mandatory,
-                GapBefore = gap, Margin = margin,
+                GapBefore = gap, Margin = margin, RubyOver = rubyOver, RubyUnder = rubyUnder,
             });
             if (width + margin > stats.MaxWidth) stats.MaxWidth = width + margin;
             stats.Height += height + gap;

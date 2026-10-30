@@ -126,6 +126,19 @@ namespace FirstSymbol.Lettera
             Claims.Add(new Claim { Start = start, Length = length, OpenRange = -1, CloseRange = handle });
         }
 
+        /// <summary>Puts text into the rendered text at a source position, removing nothing.</summary>
+        public void InsertAt(int position, string text) => Claims.Add(new Claim { Start = position, Length = 0, Replacement = text, OpenRange = -1, CloseRange = -1 });
+
+        /// <summary>A range over source text other matchers can still claim inside, such as tags in a ruby base.</summary>
+        public int AddSoftRange(int start, int length, string[] slots)
+        {
+            int index = Ranges.Count;
+            Ranges.Add(new RangeRecord { StyleIndex = CurrentStyle, RenderedStart = -1, RenderedEnd = -1, Slots = slots });
+            Claims.Add(new Claim { Start = start, Length = 0, OpenRange = index, CloseRange = -1 });
+            Claims.Add(new Claim { Start = start + length, Length = 0, OpenRange = -1, CloseRange = index });
+            return index;
+        }
+
         /// <summary>Ends a range at a source position, without removing anything there.</summary>
         public void CloseRangeAt(int handle, int position) => Claims.Add(new Claim { Start = position, Length = 0, OpenRange = -1, CloseRange = handle });
 

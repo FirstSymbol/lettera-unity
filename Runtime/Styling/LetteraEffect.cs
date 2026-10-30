@@ -318,6 +318,8 @@ namespace FirstSymbol.Lettera
             Aligns.Clear();
             NoBreaks.Clear();
             Dividers.Clear();
+            ListItems.Clear();
+            Rubies.Clear();
             TrimTop = LetteraTrimTop.None;
             TrimBottom = LetteraTrimBottom.None;
             m_CellGroups = 0;
@@ -548,6 +550,21 @@ namespace FirstSymbol.Lettera
             Aligns.Add(spec);
             short index = (short)(Aligns.Count - 1);
             for (int i = start; i < end; i++) Layout[i].Align = index;
+        }
+
+        internal readonly System.Collections.Generic.List<ListItemSpec> ListItems = new System.Collections.Generic.List<ListItemSpec>();
+        internal readonly System.Collections.Generic.List<RubySpec> Rubies = new System.Collections.Generic.List<RubySpec>();
+
+        internal void AddListItem(in ListItemSpec item)
+        {
+            EnsureLayout();
+            ListItems.Add(item);
+        }
+
+        internal void AddRuby(in RubySpec ruby)
+        {
+            EnsureLayout();
+            Rubies.Add(ruby);
         }
 
         internal readonly System.Collections.Generic.List<Vector2Int> Dividers = new System.Collections.Generic.List<Vector2Int>();

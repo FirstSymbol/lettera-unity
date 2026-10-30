@@ -93,6 +93,8 @@ namespace FirstSymbol.Lettera
             LetteraStyle.ForTag(new AxesEffect(), "axes"),
             LetteraStyle.ForTag(new SizeMatchEffect(), "size-match"),
             LetteraStyle.ForMatcher(new DividerMatcher(), new DividerEffect()),
+            LetteraStyle.ForMatcher(new ListItemMatcher(), new ListEffect()),
+            LetteraStyle.ForMatcher(new RubyMatcher(), new RubyEffect()),
             LetteraStyle.ForTag(new LinkEffect(), "link"),
             LetteraStyle.ForTag(new TrackingEffect(), "tracking"),
             LetteraStyle.ForTag(new WordSpacingEffect(), "word-spacing"),

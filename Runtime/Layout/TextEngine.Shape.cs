@@ -121,7 +121,16 @@ namespace FirstSymbol.Lettera
                     break;
                 }
             }
-            if (m_Attributes.HasLayout) ComputeExtras();
+            if (m_Attributes.HasLayout)
+            {
+                ComputeExtras();
+                PrepareVirtual();
+            }
+            else
+            {
+                m_ListItems.Clear();
+                m_RubyItems.Clear();
+            }
         }
 
         void AddParagraph(int start, int contentEnd, int end, int baseLevel)

@@ -117,6 +117,9 @@ namespace FirstSymbol.Lettera
 
         /// <summary>The distance from the box's start edge that indents ask for.</summary>
         public float Margin;
+
+        /// <summary>How much of Ascent and Descent ruby readings take.</summary>
+        public float RubyOver, RubyUnder;
     }
 
     /// <summary>A positioned glyph. Valid until the next rebuild.</summary>
