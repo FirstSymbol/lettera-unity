@@ -59,6 +59,31 @@ A tag means something only because a style binds it to an effect; a tag nothing 
 | `<u>`, `<s>` | Underline, strikethrough | optional color |
 | `<outline>` | Outline | color, width in em or `2px` |
 | `<shadow>` | Shadow | color, x, y, softness, dilate |
+| `<fill>` | Face paint | paint, dilate, softness, then paint settings |
+| `<stroke>` | Band along the outline | paint, width (em or `2px`), `inside` `center` `outside` or -1 to 1, softness, `round` or `sharp` |
+| `<glow>` | Halo | paint, radius, softness, dilate |
+| `<inner-shadow>` | Shadow cast inward | paint, x, y, softness, choke |
+| `<extrude>` | Stacked copies | x, y, near color, far color, dilate, softness |
+| `<filter>` | Color filter | intensity, `grayscale` `invert` `sepia` |
+| `<union>`, `<warp>` | Merge overlaps; distort the outline | none; amplitude, scale, travel |
+| `<mark>` | Highlight | paint, `glyph` `line` `range` `block`, paint span, radius, padding, `behind` `above`, height |
+| `<uppercase>`, `<lowercase>`, `<smallcaps>` | Case | small caps: scale of synthetic ones |
+| `<sup>`, `<sub>` | Superior, inferior | |
+| `<otf>` | OpenType features | `onum`, `-dlig`, `cv02 3` |
+| `<axes>` | Variable axes | wght, wdth, ital, slnt, opsz; `640`, `120%`, `+80`, `~`; `GRAD 50` |
+| `<size-match>` | Match fallbacks on | `XHeight` or `CapHeight` |
+| `<ruby>`, `<rt>`, `<rp>` | Readings above text | `<ruby=reading>` or `<rt>` |
+| `<tracking>`, `<word-spacing>` | Spacing | local units or `em` |
+| `<cell>` | Equal width cells | width, or `auto` |
+| `<line-height>`, `<para-spacing>`, `<line-gap>` | Vertical space | multiplier, mode, leading; after, before; amount |
+| `<nobr>` | Keep together | |
+| `<li>` | List item | level, number, marker text |
+| `<indent>` | Margin | local units, `em`, `%` of the rect |
+| `<align>` | Paragraph alignment | alignment, justify mode, last line |
+| `<trim>` | Text box trim | top edge, bottom edge |
+| `<curve>` | Curved baseline | radius, anchor |
+| `<divider>` | Separator a line can break at | string |
+| `<link>`, `<a>` | A URL; a URL with a look | URL |
 | `<ellipsis>`, `<truncate>` | Elide a range | position: 0 start, 0.5 middle, 1 end |
 | `<dir>` | Base direction | `ltr`, `rtl`, `auto` |
 | `<br>` | Line break | |
@@ -74,6 +99,41 @@ label.MarkStylesDirty();
 ```
 
 Custom behavior derives from `LetteraEffect` (what a range looks like) and `LetteraMatcher` (how ranges are found).
+
+## Styling
+
+Every colored surface takes a paint: a color, a gradient or a texture. Build styles in the inspector's **Styles** tab, where **+ Add Style** offers everything by how it is driven and what it does, or in code:
+
+```csharp
+var fill = new FillEffect();
+fill.SetPaint(LetteraPaint.Of(LetteraGradient.Of(orange, pink, blue), LetteraPaintSpan.Range));
+label.Styles.Add(LetteraStyle.ForTag(fill, "sunset"));
+label.MarkStylesDirty();
+label.Text = "<sunset>A gradient across the whole range</sunset>";
+```
+
+A gradient measured on the **Range** runs across a sentence, on the **Glyph** or **Line** it restarts. Solid and gradient paints never split a batch; a texture or a blend other than normal gets its own material, and order is kept.
+
+Layers draw in bands: shadow and glow, stroke, face, inner shadow. Within a band, later styles draw on top. Filters reach what lies below them in the style list and the face, so a filter last in the list recolors everything.
+
+Change a parameter at the cost of its level, with no parsing:
+
+```csharp
+stroke.Width = 0.05f;
+label.MarkEffectsDirty();          // Mesh level by default.
+
+LetteraHold<Color32> hold = label.Ranges(color).WithLabel("warn").Hold<Color32>(0);
+hold.Value = red;                  // Every <color #warn=...> range, without touching the field.
+hold.Release();                    // Back to what the markup says.
+```
+
+Several effects share a style through `CompositeEffect`, whose tag value has one semicolon-separated segment per child: `<badge=(mailto:a@b.io);teal;wavy>`. Save one as an effect preset asset to reuse it.
+
+**Ranges can come from more than tags:** Markdown (`**bold**`, `- lists`, `[links](url)`, `` `code` ``), bare URLs, trigger words such as `@mentions`, literal strings. Those are not in the default vocabulary, because they change plain text: add them from the picker.
+
+**MSDF:** set **Render Mode** to MSDF for sharp corners at any size, at more atlas memory. **Pixel fonts:** set a font asset's **Pixels Per Em**, or press **Find Pixel Grid**; at multiples of the grid every font pixel is exact, and effects come in whole font pixels.
+
+**Your own effect:** **Assets → Create → Lettera → Custom Effect** writes a shader whose one function you edit, for a **Custom Material** style. It works on Canvas and world text, with the Built-in and Universal pipelines.
 
 ## Platforms
 

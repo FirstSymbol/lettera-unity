@@ -54,6 +54,80 @@ namespace FirstSymbol.Lettera.Tests
         }
 
         [UnityTest]
+        public IEnumerator StyledTextAsksForTheStreamsItNeeds()
+        {
+            const AdditionalCanvasShaderChannels extra = AdditionalCanvasShaderChannels.TexCoord2 | AdditionalCanvasShaderChannels.TexCoord3;
+            Make("plain");
+            yield return null;
+            Assert.AreEqual((AdditionalCanvasShaderChannels)0, m_Canvas.additionalShaderChannels & extra, "Plain text does not need them.");
+            LetteraText styled = Make("<inner-shadow>x</inner-shadow>");
+            yield return null;
+            yield return null;
+            Assert.AreEqual(extra, m_Canvas.additionalShaderChannels & extra);
+            Assert.IsTrue(styled.materialForRendering.IsKeywordEnabled("LETTERA_STYLED"));
+        }
+
+        [UnityTest]
+        public IEnumerator DifferentPaintsShareOneMaterial()
+        {
+            var a = new FillEffect();
+            a.SetPaint(LetteraPaint.Of(LetteraGradient.Of(Color.red, Color.blue)));
+            var b = new FillEffect();
+            b.SetPaint(LetteraPaint.Of(LetteraGradient.Of(Color.green, Color.white)));
+            LetteraText first = Make("");
+            first.Styles.Add(LetteraStyle.ForWholeText(a));
+            first.Text = "one";
+            LetteraText second = Make("");
+            second.Styles.Add(LetteraStyle.ForWholeText(b));
+            second.Text = "two";
+            yield return null;
+            yield return null;
+            Assert.AreSame(first.materialForRendering, second.materialForRendering);
+        }
+
+        [UnityTest]
+        public IEnumerator EachStretchGetsItsOwnMaterialInOrder()
+        {
+            var texture = new Texture2D(1, 1);
+            var fill = new FillEffect();
+            fill.SetPaint(LetteraPaint.Of(texture));
+            LetteraText text = Make("");
+            text.Styles.Add(LetteraStyle.ForTag(fill, "k"));
+            text.Text = "a<k>b</k>c";
+            yield return null;
+            yield return null;
+            CanvasRenderer renderer = text.GetComponent<CanvasRenderer>();
+            Assert.AreEqual(3, renderer.materialCount);
+            Assert.IsFalse(renderer.GetMaterial(0).GetTexture("_LetteraPaintTex") == texture);
+            Assert.AreSame(texture, renderer.GetMaterial(1).GetTexture("_LetteraPaintTex"));
+            text.Text = "abc";
+            yield return null;
+            yield return null;
+            Assert.AreEqual(1, renderer.materialCount, "Back to one when the texture is gone.");
+            Object.Destroy(texture);
+        }
+
+        [UnityTest]
+        public IEnumerator SegmentsKeepTheirStencilUnderAMask()
+        {
+            var maskObject = new GameObject("Mask", typeof(RectTransform), typeof(Image), typeof(Mask));
+            maskObject.transform.SetParent(m_Canvas.transform, false);
+            var texture = new Texture2D(1, 1);
+            var fill = new FillEffect();
+            fill.SetPaint(LetteraPaint.Of(texture));
+            LetteraText text = Make("");
+            text.transform.SetParent(maskObject.transform, false);
+            text.Styles.Add(LetteraStyle.ForTag(fill, "k"));
+            text.Text = "a<k>b</k>";
+            yield return null;
+            yield return null;
+            CanvasRenderer renderer = text.GetComponent<CanvasRenderer>();
+            Assert.AreEqual(2, renderer.materialCount);
+            Assert.Greater(renderer.GetMaterial(1).GetFloat("_Stencil"), 0f);
+            Object.Destroy(texture);
+        }
+
+        [UnityTest]
         public IEnumerator SteadyFramesDoNotRebuild()
         {
             LetteraText text = Make("Steady");
