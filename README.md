@@ -82,7 +82,7 @@ Custom behavior derives from `LetteraEffect` (what a range looks like) and `Lett
 | Windows x64, ARM64 | prebuilt | yes |
 | macOS universal | prebuilt | yes |
 | Linux x64, ARM64 | prebuilt | yes, read from the font folders |
-| iOS device and simulator | prebuilt static library | yes, read from the system font folders |
+| iOS device and simulator | prebuilt XCFramework | yes, through CoreText |
 | Android ARM64, ARMv7, x86-64 | prebuilt | yes |
 | Web (WebGL 2), including Safari on iOS | prebuilt | emoji through the browser; text fonts must be assigned |
 
@@ -99,7 +99,7 @@ Browsers expose no font files, so on the web:
 
 ## Rebuilding the native plugin
 
-`Native~/build.py` builds HarfBuzz and the C wrapper for every platform with [zig](https://ziglang.org), and Android with the NDK from Unity's Android module. Shaping comes from [HarfBuzz](https://harfbuzz.github.io), compiled from source in `Native~/third_party`; see [third-party notices](THIRD-PARTY-NOTICES.md). The iOS and web libraries rename HarfBuzz's symbols, because Unity's own player links a copy of it there.
+`Native~/build.py` builds HarfBuzz and the C wrapper for every platform with [zig](https://ziglang.org), and Android with the NDK from Unity's Android module. Shaping comes from [HarfBuzz](https://harfbuzz.github.io), compiled from source in `Native~/third_party`; see [third-party notices](THIRD-PARTY-NOTICES.md). The iOS and web libraries link statically, so they rename HarfBuzz's symbols to avoid the copy Unity's web player links.
 
 ## Tests
 

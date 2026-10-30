@@ -82,7 +82,7 @@ label.MarkStylesDirty();
 | Windows x64, ARM64 | собран | да |
 | macOS universal | собран | да |
 | Linux x64, ARM64 | собран | да, из папок шрифтов |
-| iOS, устройство и симулятор | собрана статическая библиотека | да, из системных папок шрифтов |
+| iOS, устройство и симулятор | собран XCFramework | да, через CoreText |
 | Android ARM64, ARMv7, x86-64 | собран | да |
 | Web (WebGL 2), включая Safari на iOS | собран | эмодзи через браузер; шрифты для текста нужно назначить |
 
@@ -99,7 +99,7 @@ label.MarkStylesDirty();
 
 ## Пересборка нативного плагина
 
-`Native~/build.py` собирает HarfBuzz и обёртку на C для всех платформ с помощью [zig](https://ziglang.org), а Android — с помощью NDK из модуля Android в Unity. Шейпинг выполняет [HarfBuzz](https://harfbuzz.github.io), собранный из исходников в `Native~/third_party`; см. [сторонние лицензии](THIRD-PARTY-NOTICES.md). В библиотеках для iOS и web символы HarfBuzz переименованы, потому что плеер Unity сам содержит его копию.
+`Native~/build.py` собирает HarfBuzz и обёртку на C для всех платформ с помощью [zig](https://ziglang.org), а Android — с помощью NDK из модуля Android в Unity. Шейпинг выполняет [HarfBuzz](https://harfbuzz.github.io), собранный из исходников в `Native~/third_party`; см. [сторонние лицензии](THIRD-PARTY-NOTICES.md). Библиотеки для iOS и web линкуются статически, поэтому символы HarfBuzz в них переименованы, чтобы не конфликтовать с копией в web-плеере Unity.
 
 ## Тесты
 
