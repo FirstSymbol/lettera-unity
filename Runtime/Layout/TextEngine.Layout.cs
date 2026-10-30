@@ -314,7 +314,8 @@ namespace FirstSymbol.Lettera
                         width += MarkerWidthAt(c, baseSize);
                         if (IsRemoved(c)) { space &= false; continue; }
                         width += CpWidth(c, SizeOf(m_Runs[m_CpRun[c]], baseSize));
-                        space &= LetteraUnicode.IsWhiteSpace(m_Text[c]);
+                        // A divider never forces a break by itself: it hangs out of a line it ends, like a space.
+                        space &= LetteraUnicode.IsWhiteSpace(m_Text[c]) || m_CpDivider[c];
                     }
 
                     if (wrap && !space && x + width > maxWidth - margin + Epsilon && x > 0)
@@ -453,9 +454,10 @@ namespace FirstSymbol.Lettera
             return ink == float.MinValue ? fallback : ink;
         }
 
-        // The end of the line's content with trailing whitespace hanging out of it.
+        // The end of the line's content with trailing whitespace, and a divider it broke at, hanging out of it.
         int visibleBefore(int end, in Paragraph paragraph)
         {
+            if (m_Attributes.Dividers.Count > 0 && end < paragraph.ContentEnd && IsDividerEnd(end, out int dividerStart)) end = dividerStart;
             while (end > paragraph.Start && LetteraUnicode.IsWhiteSpace(m_Text[end - 1]) && !IsRemoved(end - 1)) end--;
             return end;
         }

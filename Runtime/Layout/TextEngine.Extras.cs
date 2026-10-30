@@ -9,6 +9,7 @@ namespace FirstSymbol.Lettera
         float[] m_CpExtraEm = new float[64], m_CpExtraUnits = new float[64];
         float[] m_CpLeadEm = new float[64], m_CpLeadUnits = new float[64];
         bool[] m_CpKashida = new bool[64];
+        bool[] m_CpDivider = new bool[64];
 
         void EnsureExtras(int length)
         {
@@ -17,6 +18,8 @@ namespace FirstSymbol.Lettera
             EnsureSize(ref m_CpLeadEm, length + 1);
             EnsureSize(ref m_CpLeadUnits, length + 1);
             EnsureSize(ref m_CpKashida, length + 1);
+            EnsureSize(ref m_CpDivider, length + 1);
+            Array.Clear(m_CpDivider, 0, length + 1);
             Array.Clear(m_CpExtraEm, 0, length + 1);
             Array.Clear(m_CpExtraUnits, 0, length + 1);
             Array.Clear(m_CpLeadEm, 0, length + 1);
@@ -63,6 +66,8 @@ namespace FirstSymbol.Lettera
             }
             ComputeCells();
 
+            ApplyDividers();
+
             foreach (UnityEngine.Vector2Int range in m_Attributes.NoBreaks)
             {
                 for (int c = range.x; c < range.y - 1; c++)
@@ -71,6 +76,34 @@ namespace FirstSymbol.Lettera
                 if (range.x > 0 && m_Breaks[range.x - 1] != LineBreakOpportunity.Mandatory) m_Breaks[range.x - 1] = LineBreakOpportunity.Allowed;
                 if (m_Breaks[range.y - 1] != LineBreakOpportunity.Mandatory) m_Breaks[range.y - 1] = LineBreakOpportunity.Allowed;
             }
+        }
+
+        // Lines break only between pieces while they fit. A piece too wide for the box still breaks inside by the emergency rule.
+        void ApplyDividers()
+        {
+            System.Collections.Generic.List<UnityEngine.Vector2Int> dividers = m_Attributes.Dividers;
+            if (dividers.Count == 0) return;
+            for (int i = 0; i < m_TextLength; i++)
+                if (m_Breaks[i] == LineBreakOpportunity.Allowed)
+                    m_Breaks[i] = LineBreakOpportunity.None;
+            foreach (UnityEngine.Vector2Int divider in dividers)
+            {
+                m_Breaks[divider.y - 1] = LineBreakOpportunity.Allowed;
+                for (int i = divider.x; i < divider.y; i++) m_CpDivider[i] = true;
+            }
+        }
+
+        // A divider that ends a line hangs out of it, like trailing whitespace.
+        bool IsDividerEnd(int end, out int start)
+        {
+            foreach (UnityEngine.Vector2Int divider in m_Attributes.Dividers)
+            {
+                if (divider.y != end) continue;
+                start = divider.x;
+                return true;
+            }
+            start = end;
+            return false;
         }
 
         // Each cluster's width becomes the cell's, half of the difference on each side. Tracking comes on top.

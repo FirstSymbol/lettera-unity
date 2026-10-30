@@ -92,6 +92,8 @@ namespace FirstSymbol.Lettera
             LetteraStyle.ForTag(new OpenTypeEffect(), "otf"),
             LetteraStyle.ForTag(new AxesEffect(), "axes"),
             LetteraStyle.ForTag(new SizeMatchEffect(), "size-match"),
+            LetteraStyle.ForMatcher(new DividerMatcher(), new DividerEffect()),
+            LetteraStyle.ForTag(new LinkEffect(), "link"),
             LetteraStyle.ForTag(new TrackingEffect(), "tracking"),
             LetteraStyle.ForTag(new WordSpacingEffect(), "word-spacing"),
             LetteraStyle.ForTag(new CellWidthEffect(), "cell"),

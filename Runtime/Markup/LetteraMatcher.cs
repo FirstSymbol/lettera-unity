@@ -39,6 +39,7 @@ namespace FirstSymbol.Lettera
             public string[] Slots;
             public string Raw;      // The tag's value before it was split into slots.
             public string Label;
+            public string Primary;  // A URL or a name the range stands for.
             public bool WholeText;
             public int SpanStart, SpanLength;
             public bool IsSpan;
@@ -123,6 +124,38 @@ namespace FirstSymbol.Lettera
         {
             Protect(start, length);
             Claims.Add(new Claim { Start = start, Length = length, OpenRange = -1, CloseRange = handle });
+        }
+
+        /// <summary>Ends a range at a source position, without removing anything there.</summary>
+        public void CloseRangeAt(int handle, int position) => Claims.Add(new Claim { Start = position, Length = 0, OpenRange = -1, CloseRange = handle });
+
+        /// <summary>Gives a range the value it stands for, such as a URL.</summary>
+        public void SetPrimary(int handle, string primary)
+        {
+            RangeRecord range = Ranges[handle];
+            range.Primary = primary;
+            Ranges[handle] = range;
+        }
+
+        /// <summary>A range over source text that stays visible. Slots and a primary value are optional.</summary>
+        public int AddRawRange(int start, int length, string[] slots, string primary)
+        {
+            int index = Ranges.Count;
+            Ranges.Add(new RangeRecord { StyleIndex = CurrentStyle, RenderedStart = -1, RenderedEnd = -1, Slots = slots, Primary = primary });
+            Claims.Add(new Claim { Start = start, Length = 0, OpenRange = index, CloseRange = -1 });
+            Claims.Add(new Claim { Start = start + length, Length = 0, OpenRange = -1, CloseRange = index });
+            Protect(start, length);
+            return index;
+        }
+
+        /// <summary>Swaps source text for a replacement, with a range over what replaced it.</summary>
+        public int ReplaceAndRange(int start, int length, string replacement, string[] slots, string label)
+        {
+            Protect(start, length);
+            int index = Ranges.Count;
+            Ranges.Add(new RangeRecord { StyleIndex = CurrentStyle, RenderedStart = -1, RenderedEnd = -1, Slots = slots, Label = label });
+            Claims.Add(new Claim { Start = start, Length = length, Replacement = replacement, OpenRange = index, CloseRange = index });
+            return index;
         }
 
         /// <summary>A range over the whole rendered text.</summary>

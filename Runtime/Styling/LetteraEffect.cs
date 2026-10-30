@@ -317,6 +317,7 @@ namespace FirstSymbol.Lettera
             LineGaps.Clear();
             Aligns.Clear();
             NoBreaks.Clear();
+            Dividers.Clear();
             TrimTop = LetteraTrimTop.None;
             TrimBottom = LetteraTrimBottom.None;
             m_CellGroups = 0;
@@ -547,6 +548,15 @@ namespace FirstSymbol.Lettera
             Aligns.Add(spec);
             short index = (short)(Aligns.Count - 1);
             for (int i = start; i < end; i++) Layout[i].Align = index;
+        }
+
+        internal readonly System.Collections.Generic.List<Vector2Int> Dividers = new System.Collections.Generic.List<Vector2Int>();
+
+        internal void AddDivider(int start, int end)
+        {
+            Clamp(ref start, ref end);
+            EnsureLayout();
+            if (end > start) Dividers.Add(new Vector2Int(start, end));
         }
 
         internal void SetTrim(LetteraTrimTop top, LetteraTrimBottom bottom)

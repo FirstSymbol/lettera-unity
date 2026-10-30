@@ -129,6 +129,7 @@ namespace FirstSymbol.Lettera
                 if (nextClaim >= claims.Count) break;
 
                 LetteraMatchContext.Claim claim = claims[nextClaim++];
+                if (claim.Length == 0 && claim.Start > at) at = claim.Start;
                 if (claim.OpenRange >= 0)
                 {
                     LetteraMatchContext.RangeRecord range = ranges[claim.OpenRange];
@@ -152,13 +153,21 @@ namespace FirstSymbol.Lettera
                     range.RenderedEnd = count;
                     ranges[claim.CloseRange] = range;
                 }
-                at = claim.Start + claim.Length;
+                if (claim.Start + claim.Length > at) at = claim.Start + claim.Length;
             }
             m_TextLength = count;
             m_SourceIndex[count] = source.Length;
         }
 
-        static readonly Comparison<LetteraMatchContext.Claim> s_ByStart = (a, b) => a.Start.CompareTo(b.Start);
+        // At one position, what ends comes before what starts, so adjacent ranges do not overlap. Longer claims come last,
+        // because empty ones mark positions before the text a longer one takes away.
+        static readonly Comparison<LetteraMatchContext.Claim> s_ByStart = (a, b) =>
+        {
+            if (a.Start != b.Start) return a.Start.CompareTo(b.Start);
+            if (a.Length != b.Length) return a.Length.CompareTo(b.Length);
+            bool aCloses = a.OpenRange < 0, bCloses = b.OpenRange < 0;
+            return aCloses == bCloses ? 0 : aCloses ? -1 : 1;
+        };
 
         void ApplyEffects(LetteraMatchContext context)
         {
@@ -260,6 +269,18 @@ namespace FirstSymbol.Lettera
                 for (int i = 0; i < m_TextLength; i++) builder.Append(char.ConvertFromUtf32(m_Text[i] >= 0xD800 && m_Text[i] < 0xE000 ? 0xFFFD : m_Text[i]));
                 return builder.ToString();
             }
+        }
+
+        /// <summary>The value a range stands for, such as a URL, for ranges whose effect is of a type. Results are in text order.</summary>
+        public void GetPrimaryValues<T>(List<(int start, int end, string primary)> results) where T : class
+        {
+            List<LetteraMatchContext.RangeRecord> ranges = m_MatchContext.Ranges;
+            for (int i = 0; i < ranges.Count; i++)
+            {
+                LetteraMatchContext.RangeRecord r = ranges[i];
+                if (m_EffectiveStyles[r.StyleIndex]?.Effect is T) results.Add((r.RenderedStart, r.RenderedEnd, r.Primary ?? (r.Slots != null && r.Slots.Length > 0 ? r.Slots[0] : null)));
+            }
+            results.Sort((a, b) => a.start.CompareTo(b.start));
         }
 
         public T GetEffect<T>() where T : class

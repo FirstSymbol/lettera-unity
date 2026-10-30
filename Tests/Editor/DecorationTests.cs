@@ -313,7 +313,8 @@ namespace FirstSymbol.Lettera.Editor.Tests
                 Color c = image.GetPixel(10 + W / 2 - 80, y);
                 if (c.g < 0.1f) redest = Mathf.Max(redest, c.r);
             }
-            Assert.Less(redest, 0.75f, "A single layer of 53 percent red; two layers would reach about 0.78.");
+            Assert.Less(redest, 0.82f, "One layer of 53 percent red shows as 0.76 in sRGB; two layers would show as about 0.9.");
+            Assert.Greater(redest, 0.6f);
         }
 
         [Test]
