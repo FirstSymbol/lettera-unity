@@ -176,7 +176,7 @@ namespace FirstSymbol.Lettera
             TextEngine e = Engine;
             bool changed = m_LastStyled != e.Styled || m_LastSegments.Count != e.Segments.Count;
             for (int i = 0; !changed && i < e.Segments.Count; i++)
-                changed = m_LastSegments[i].Blend != e.Segments[i].Blend || m_LastSegments[i].Texture != e.Segments[i].Texture;
+                changed = m_LastSegments[i].Blend != e.Segments[i].Blend || m_LastSegments[i].Texture != e.Segments[i].Texture || m_LastSegments[i].Custom != e.Segments[i].Custom;
             if (!changed) return false;
             m_LastStyled = e.Styled;
             m_LastSegments.Clear();
@@ -200,7 +200,7 @@ namespace FirstSymbol.Lettera
             for (int i = 0; i < count; i++)
             {
                 MeshSegment segment = e.Segments[i];
-                Material material = LetteraMaterials.Variant(source, e.Styled, segment.Blend, segment.Texture);
+                Material material = segment.Custom != null ? segment.Custom : LetteraMaterials.Variant(source, e.Styled, segment.Blend, segment.Texture);
                 if (maskable && m_StencilValue > 0)
                 {
                     int bits = (1 << m_StencilValue) - 1;

@@ -9,10 +9,10 @@
 //      6 decoration line: position along and across it, line style; 7 rounded box: position from the center).
 //      8 multi-channel field, median; 9 multi-channel field, true distance; 10 inner shadow on a multi-channel field;
 //      11 pixel font; 12 inner shadow on a pixel font.
-// uv1: x = the SDF value of the edge, y = extra softness in SDF values, z = the SDF value where a band ends (0 = no end).
+// uv1: x = the SDF value of the edge, y = extra softness in SDF values, z = the SDF value where a band ends (0 = no end), w = the filter's row (0 = none).
 // uv2 (styled): paint position xy, gradient row, paint code (0 solid, 1-9 gradient, 10 texture).
 // uv3 (styled): inner shadow: uv offset xy; z = the SDF value of the shadow's edge. Halo: the glyph's tile in the atlas.
-//      Line: x = softness. Box: corner radii, top left, top right, bottom right, bottom left.
+//      Line: x = softness. Box: corner radii, top left, top right, bottom right, bottom left. Distance modes: a warp's size, fineness, phase, and 1 when on.
 // For a line, uv1 is thickness, how far a layer grows it, its length. For a box, half its size.
 
 float LetteraEdge(float d, float edge, float softness)
@@ -131,6 +131,31 @@ float LetteraHalo(float2 uv, float page, float2 radius, float4 tile, float2 scre
     return saturate(sum / 18.0);
 }
 
+// A row of the filter table: one matrix of four factors and an offset per output channel.
+LETTERA_COLOR4 LetteraApplyFilter(LETTERA_COLOR4 color, float row)
+{
+    if (row < 0.5) return color;
+    float v = (row + 0.5) / 256.0;
+    float4 r = LETTERA_SAMPLE_FILTER(float2(0.1, v));
+    float4 g = LETTERA_SAMPLE_FILTER(float2(0.3, v));
+    float4 b = LETTERA_SAMPLE_FILTER(float2(0.5, v));
+    float4 a = LETTERA_SAMPLE_FILTER(float2(0.7, v));
+    float4 offset = LETTERA_SAMPLE_FILTER(float2(0.9, v));
+    float4 c = color;
+    float4 result = r * c.r + g * c.g + b * c.b + a * c.a + offset;
+    return saturate(result);
+}
+
+// Where a warp reads the field: its own position plus a smooth offset that does not depend on the size of the text.
+float2 LetteraWarpedUv(float2 uv, float4 warp)
+{
+    if (warp.w < 0.5) return uv;
+    float2 p = uv * warp.y;
+    float2 n = float2(sin(p.y * 6.2831853 + warp.z) + 0.5 * sin(p.y * 13.1 + p.x * 3.7 + warp.z * 1.3),
+                      sin(p.x * 6.2831853 + warp.z * 0.7) + 0.5 * sin(p.x * 11.3 + p.y * 4.1 + warp.z * 1.7));
+    return uv + n * warp.x / 1.5;
+}
+
 // Distance to a decoration line, negative inside. Every style is drawn from its formula, so it stays smooth at any zoom.
 float LetteraLineDistance(float along, float across, float style, float thickness, float span)
 {
@@ -168,7 +193,7 @@ float LetteraBoxDistance(float2 p, float2 size, float4 radii)
     return length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - r;
 }
 
-LETTERA_COLOR4 LetteraShadeStyled(float4 uv0, float3 params, LETTERA_COLOR4 color, float4 paint, float4 extra, float2 screen)
+LETTERA_COLOR4 LetteraShadeGlyph(float4 uv0, float4 params, LETTERA_COLOR4 color, float4 paint, float4 extra, float2 screen)
 {
     float mode = uv0.w;
     if (mode > 11.5)
@@ -195,7 +220,7 @@ LETTERA_COLOR4 LetteraShadeStyled(float4 uv0, float3 params, LETTERA_COLOR4 colo
     }
     if (mode > 7.5)
     {
-        float d = LetteraDistance(uv0.xy, uv0.z, mode);
+        float d = LetteraDistance(LetteraWarpedUv(uv0.xy, extra), uv0.z, mode);
         float alpha = LetteraEdge(d, params.x, params.y);
         if (params.z > 0) alpha *= 1 - LetteraEdge(d, params.z, params.y);
         color.a *= alpha;
@@ -222,7 +247,7 @@ LETTERA_COLOR4 LetteraShadeStyled(float4 uv0, float3 params, LETTERA_COLOR4 colo
     }
     if (mode < 0.5)
     {
-        float d = LETTERA_SAMPLE_SDF(uv0.xy, uv0.z).r;
+        float d = LETTERA_SAMPLE_SDF(LetteraWarpedUv(uv0.xy, extra), uv0.z).r;
         float alpha = LetteraEdge(d, params.x, params.y);
         if (params.z > 0) alpha *= 1 - LetteraEdge(d, params.z, params.y);
         color.a *= alpha;
@@ -243,6 +268,11 @@ LETTERA_COLOR4 LetteraShadeStyled(float4 uv0, float3 params, LETTERA_COLOR4 colo
         return LetteraApplyPaint(paint, color, screen);
     }
     return LetteraApplyPaint(paint, color, screen);
+}
+
+LETTERA_COLOR4 LetteraShadeStyled(float4 uv0, float4 params, LETTERA_COLOR4 color, float4 paint, float4 extra, float2 screen)
+{
+    return LetteraApplyFilter(LetteraShadeGlyph(uv0, params, color, paint, extra, screen), params.w);
 }
 
 #endif

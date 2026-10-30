@@ -85,6 +85,8 @@ namespace FirstSymbol.Lettera.Editor.Tests
             camera.aspect = (float)width / height;
             var target = RenderTexture.GetTemporary(width, height, 24, RenderTextureFormat.ARGB32, RenderTextureReadWrite.sRGB);
             camera.targetTexture = target;
+            // The first draw of a new shader variant can come out empty even with background compiling off.
+            camera.Render();
             camera.Render();
             RenderTexture.active = target;
             var result = new Texture2D(width, height, TextureFormat.RGBA32, false);

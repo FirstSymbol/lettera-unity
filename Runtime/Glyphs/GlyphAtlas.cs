@@ -249,6 +249,106 @@ namespace FirstSymbol.Lettera
             };
         }
 
+        readonly struct UnionPart
+        {
+            public readonly uint Glyph;
+            public readonly float X, Y;
+
+            public UnionPart(uint glyph, float x, float y)
+            {
+                Glyph = glyph;
+                X = x;
+                Y = y;
+            }
+        }
+
+        static readonly List<UnionPart> s_UnionParts = new List<UnionPart>();
+        static readonly Dictionary<ulong, AtlasGlyph> s_Unions = new Dictionary<ulong, AtlasGlyph>();
+
+        /// <summary>Starts describing a merged shape. Parts are at font unit offsets from the first glyph.</summary>
+        public static void BeginUnion() => s_UnionParts.Clear();
+
+        public static void AddUnionPart(uint glyph, float x, float y) => s_UnionParts.Add(new UnionPart(glyph, x, y));
+
+        /// <summary>One atlas entry for several glyphs: its field has one outline, where they merge, so nothing inside it can show a seam.</summary>
+        public static AtlasGlyph GetUnion(FontInstance instance, int pixelsPerEm, float reach, bool multi)
+        {
+            float spread = SpreadFor(reach);
+            ulong key = 14695981039346656037UL;
+            key = (key ^ (uint)instance.Id) * 1099511628211UL;
+            key = (key ^ (uint)pixelsPerEm) * 1099511628211UL;
+            key = (key ^ (uint)Mathf.RoundToInt(spread * 64) ^ (multi ? 0x10000u : 0)) * 1099511628211UL;
+            foreach (UnionPart part in s_UnionParts)
+            {
+                key = (key ^ part.Glyph) * 1099511628211UL;
+                key = (key ^ (uint)Mathf.RoundToInt(part.X)) * 1099511628211UL;
+                key = (key ^ (uint)Mathf.RoundToInt(part.Y)) * 1099511628211UL;
+            }
+            if (s_Unions.TryGetValue(key, out AtlasGlyph known) && (multi ? s_Msdf : s_Sdf).Pixels.Count > known.Page)
+            {
+                (multi ? s_Msdf : s_Sdf).LastUsed[known.Page] = s_Tick;
+                return known;
+            }
+
+            if (!s_Lines.IsCreated) s_Lines = new NativeList<float4>(4096, Allocator.Persistent);
+            if (!s_LineColors.IsCreated) s_LineColors = new NativeList<byte>(4096, Allocator.Persistent);
+            PageSet set = multi ? s_Msdf : s_Sdf;
+            int upem = instance.Face.Metrics.Upem;
+            float minX = float.MaxValue, minY = float.MaxValue, maxX = float.MinValue, maxY = float.MinValue;
+            foreach (UnionPart part in s_UnionParts)
+            {
+                int count = ReadOutline(instance, part.Glyph);
+                if (count == 0) continue;
+                Bounds2(s_Commands, count, out float a, out float b, out float c, out float d);
+                minX = Mathf.Min(minX, a + part.X); minY = Mathf.Min(minY, b + part.Y);
+                maxX = Mathf.Max(maxX, c + part.X); maxY = Mathf.Max(maxY, d + part.Y);
+            }
+            if (maxX <= minX || maxY <= minY) return default;
+
+            float largest = Mathf.Max(maxX - minX, maxY - minY) / upem + 2 * spread;
+            int density = Mathf.Min(pixelsPerEm, Mathf.FloorToInt((StagingSize - 2 * Bleed) / Mathf.Max(largest, 0.01f)));
+            float scale = (float)density / upem;
+            float spreadPixels = spread * density;
+            int width = Mathf.CeilToInt((maxX - minX) * scale + 2 * spreadPixels);
+            int height = Mathf.CeilToInt((maxY - minY) * scale + 2 * spreadPixels);
+            if (!Allocate(set, width + 2 * Bleed, height + 2 * Bleed, out int page, out int x, out int y)) return default;
+            x += Bleed;
+            y += Bleed;
+
+            float offsetX = spreadPixels - minX * scale, offsetY = spreadPixels - minY * scale;
+            int lineStart = s_Lines.Length;
+            foreach (UnionPart part in s_UnionParts)
+            {
+                int count = ReadOutline(instance, part.Glyph);
+                if (count == 0) continue;
+                OutlineFlattener.Flatten(s_Commands, count, scale, offsetX + part.X * scale, offsetY + part.Y * scale, s_Lines);
+            }
+            if (multi) EdgeColoring.Color(s_Lines, s_LineColors, lineStart);
+            s_Tiles.Add(new SdfTile
+            {
+                Target = (byte*)set.Pixels[page],
+                Stride = PageSize * set.Bytes,
+                Multi = multi,
+                X = x, Y = y, Width = width, Height = height,
+                LineStart = lineStart,
+                LineCount = s_Lines.Length - lineStart,
+                Spread = spreadPixels,
+            });
+            s_Uploads.Add(new PendingUpload { Set = set, Page = page, X = x, Y = y, Width = width, Height = height });
+            var entry = new AtlasGlyph
+            {
+                Kind = multi ? AtlasGlyph.Msdf : AtlasGlyph.Sdf,
+                Page = (ushort)page,
+                U0 = (float)x / PageSize, V0 = (float)y / PageSize,
+                U1 = (float)(x + width) / PageSize, V1 = (float)(y + height) / PageSize,
+                Left = -offsetX / scale, Bottom = -offsetY / scale,
+                Right = (width - offsetX) / scale, Top = (height - offsetY) / scale,
+                Spread = spread,
+            };
+            s_Unions[key] = entry;
+            return entry;
+        }
+
         // A cell of the grid is filled when its center is inside the outline. Each other cell stores its distance to the nearest filled
         // cell's square, so a stroke of N covers the cells whose centers are within N of the glyph.
         static AtlasGlyph CreatePixel(FontInstance instance, uint glyph, int grid, float spread)
@@ -558,6 +658,11 @@ namespace FirstSymbol.Lettera
                 if (pair.Value.Page == oldest && pair.Value.Kind == (set == s_Sdf ? AtlasGlyph.Sdf : set == s_Msdf ? AtlasGlyph.Msdf : AtlasGlyph.Color))
                     s_Evicted.Add(pair.Key);
             foreach (ulong key in s_Evicted) s_Glyphs.Remove(key);
+            s_Evicted.Clear();
+            foreach (KeyValuePair<ulong, AtlasGlyph> pair in s_Unions)
+                if (pair.Value.Page == oldest && pair.Value.Kind == (set == s_Sdf ? AtlasGlyph.Sdf : set == s_Msdf ? AtlasGlyph.Msdf : AtlasGlyph.Color))
+                    s_Evicted.Add(pair.Key);
+            foreach (ulong key in s_Evicted) s_Unions.Remove(key);
             for (int i = s_Uploads.Count - 1; i >= 0; i--)
                 if (s_Uploads[i].Set == set && s_Uploads[i].Page == oldest)
                     s_Uploads.RemoveAt(i);
@@ -764,6 +869,7 @@ namespace FirstSymbol.Lettera
             CompleteRaster();
             s_Uploads.Clear();
             s_Glyphs.Clear();
+            s_Unions.Clear();
             ResetSet(s_Sdf);
             bool hadColor = s_Color.Pixels.Count > 0;
             FreePages(s_Color);
@@ -807,6 +913,7 @@ namespace FirstSymbol.Lettera
             s_Tiles.Clear();
             s_Uploads.Clear();
             s_Glyphs.Clear();
+            s_Unions.Clear();
             FreePages(s_Sdf);
             FreePages(s_Color);
             FreePages(s_Msdf);

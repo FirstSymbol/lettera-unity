@@ -91,7 +91,7 @@ Shader "Lettera/World"
                 float4 vertex : SV_POSITION;
                 fixed4 color : COLOR;
                 float4 uv0 : TEXCOORD0;
-                float3 params : TEXCOORD1;
+                float4 params : TEXCOORD1;
                 UNITY_FOG_COORDS(2)
                 #ifdef LETTERA_STYLED
                 float4 paint : TEXCOORD3;
@@ -107,7 +107,7 @@ Shader "Lettera/World"
                 UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(o);
                 o.vertex = UnityObjectToClipPos(v.vertex);
                 o.uv0 = v.uv0;
-                o.params = v.uv1.xyz;
+                o.params = v.uv1;
                 #ifdef LETTERA_STYLED
                 o.paint = v.uv2;
                 o.extra = v.uv3;
@@ -181,7 +181,7 @@ Shader "Lettera/World"
 
             float4 frag(v2f i) : SV_Target
             {
-                clip(LetteraShadePlain(i.uv0, i.params, i.color).a - 0.5);
+                clip(LetteraShadePlain(i.uv0, i.params.xy, i.color).a - 0.5);
                 SHADOW_CASTER_FRAGMENT(i);
             }
             ENDCG

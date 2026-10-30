@@ -14,6 +14,7 @@ namespace FirstSymbol.Lettera
             public int Cluster, Line;
             public float X, Y, Advance, Unit, Size;
             public float XScale;    // Added to 1: justification, a fit and connecting strokes widen or narrow a glyph.
+            public float Angle;     // Radians around the origin, on curved text.
         }
 
         PlacedGlyph[] m_Placed = new PlacedGlyph[64];
@@ -24,6 +25,9 @@ namespace FirstSymbol.Lettera
 
         public IReadOnlyList<LetteraLine> Lines => m_Lines;
         public int GlyphCount => m_RealCount;
+
+        /// <summary>How far a glyph is turned, in radians, on curved text.</summary>
+        internal float AngleOf(int index) => m_Placed[index].Angle;
 
         public LetteraGlyphInfo GetGlyph(int index)
         {
@@ -79,6 +83,7 @@ namespace FirstSymbol.Lettera
                 EnsureSize(ref m_Placed, m_PlacedCount + 1);
                 m_Placed[m_PlacedCount++] = glyph;
             }
+            if (m_Attributes.HasCurve) CurveLines();
             if (left > right) left = right = m_Box.x;
             LayoutBounds = new Rect(left, top - m_ContentHeight, right - left, m_ContentHeight);
         }
@@ -460,6 +465,31 @@ namespace FirstSymbol.Lettera
             }
         }
 
+        // Each line goes onto its own arc of one set of concentric circles, by arc length, with glyphs turned to the tangent.
+        void CurveLines()
+        {
+            float radius = m_Attributes.CurveRadius.Of(CurrentFontSize);
+            if (Mathf.Abs(radius) < 0.001f || float.IsInfinity(radius) || m_Lines.Count == 0) return;
+            LetteraLine first = m_Lines[0];
+            float anchorX = first.X + first.Width * m_Attributes.CurveAnchor;
+            float centerY = first.Baseline - radius;
+            for (int i = 0; i < m_PlacedCount; i++)
+            {
+                ref PlacedGlyph g = ref m_Placed[i];
+                float middle = g.X + g.Advance * 0.5f;
+                // A signed radius covers both bends: a negative one puts the center above and turns glyphs the other way.
+                float lineRadius = radius + (g.Y - first.Baseline);
+                float angle = (middle - anchorX) / radius;
+                float sin = Mathf.Sin(angle), cos = Mathf.Cos(angle);
+                float px = anchorX + lineRadius * sin;
+                float py = centerY + lineRadius * cos;
+                // The glyph's origin lies half an advance back along the tangent.
+                g.Angle = -angle;
+                g.X = px - g.Advance * 0.5f * cos;
+                g.Y = py + g.Advance * 0.5f * sin;
+            }
+        }
+
         // ------------------------------------------------------------- hit testing
 
         /// <summary>The glyph at a local point, within a distance.</summary>
@@ -473,8 +503,16 @@ namespace FirstSymbol.Lettera
                 ref PlacedGlyph g = ref m_Placed[i];
                 LetteraLine line = m_Lines[g.Line];
                 var rect = new Rect(g.X, line.Baseline - line.Descent, g.Advance, line.Height);
-                float dx = Mathf.Max(Mathf.Max(rect.xMin - point.x, 0), point.x - rect.xMax);
-                float dy = Mathf.Max(Mathf.Max(rect.yMin - point.y, 0), point.y - rect.yMax);
+                Vector2 test = point;
+                if (g.Angle != 0)
+                {
+                    // Into the glyph's own frame, where its box is straight.
+                    float cos = Mathf.Cos(-g.Angle), sin = Mathf.Sin(-g.Angle);
+                    Vector2 local = point - new Vector2(g.X, g.Y);
+                    test = new Vector2(g.X + local.x * cos - local.y * sin, line.Baseline + local.x * sin + local.y * cos);
+                }
+                float dx = Mathf.Max(Mathf.Max(rect.xMin - test.x, 0), test.x - rect.xMax);
+                float dy = Mathf.Max(Mathf.Max(rect.yMin - test.y, 0), test.y - rect.yMax);
                 float distance = Mathf.Sqrt(dx * dx + dy * dy);
                 if (distance > best || (found && distance == best)) continue;
                 best = distance;

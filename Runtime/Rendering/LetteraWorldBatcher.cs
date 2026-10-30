@@ -82,6 +82,7 @@ namespace FirstSymbol.Lettera
             public bool Styled;
             public LetteraBlend Blend;
             public Texture2D Texture;
+            public Material Custom;
         }
 
         static readonly List<MaterialRun> s_Runs = new List<MaterialRun>();
@@ -200,7 +201,7 @@ namespace FirstSymbol.Lettera
                 }
                 for (int i = 0; i < e.IndexCount; i++) s_Indices[indexCount + i] = e.Indices[i] + vertexCount;
                 s_ShardStyled |= e.Styled;
-                foreach (MeshSegment segment in e.Segments) AddRun(indexCount + segment.IndexStart, segment.IndexCount, e.Styled, segment.Blend, segment.Texture);
+                foreach (MeshSegment segment in e.Segments) AddRun(indexCount + segment.IndexStart, segment.IndexCount, e.Styled, segment.Blend, segment.Texture, segment.Custom);
                 vertexCount += e.VertexCount;
                 indexCount += e.IndexCount;
             }
@@ -211,19 +212,19 @@ namespace FirstSymbol.Lettera
             }
         }
 
-        static void AddRun(int start, int count, bool styled, LetteraBlend blend, Texture2D texture)
+        static void AddRun(int start, int count, bool styled, LetteraBlend blend, Texture2D texture, Material custom)
         {
             if (s_Runs.Count > 0)
             {
                 MaterialRun last = s_Runs[s_Runs.Count - 1];
-                if (last.Styled == styled && last.Blend == blend && last.Texture == texture)
+                if (last.Styled == styled && last.Blend == blend && last.Texture == texture && last.Custom == custom)
                 {
                     last.IndexCount += count;
                     s_Runs[s_Runs.Count - 1] = last;
                     return;
                 }
             }
-            s_Runs.Add(new MaterialRun { IndexStart = start, IndexCount = count, Styled = styled, Blend = blend, Texture = texture });
+            s_Runs.Add(new MaterialRun { IndexStart = start, IndexCount = count, Styled = styled, Blend = blend, Texture = texture, Custom = custom });
         }
 
         static void EnsureCapacity(int vertices, int indices)
@@ -268,7 +269,7 @@ namespace FirstSymbol.Lettera
                 mesh.subMeshCount = 1;
                 mesh.SetIndices(s_Indices, 0, indexCount, MeshTopology.Triangles, 0, true);
                 MaterialRun only = runs == 1 ? s_Runs[0] : default;
-                SetMaterials(shard, 1, 0, LetteraMaterials.Variant(source, only.Styled, only.Blend, only.Texture));
+                SetMaterials(shard, 1, 0, only.Custom != null ? only.Custom : LetteraMaterials.Variant(source, only.Styled, only.Blend, only.Texture));
             }
             else
             {
@@ -277,7 +278,7 @@ namespace FirstSymbol.Lettera
                 {
                     MaterialRun run = s_Runs[i];
                     mesh.SetIndices(s_Indices, run.IndexStart, run.IndexCount, MeshTopology.Triangles, i, true);
-                    SetMaterials(shard, runs, i, LetteraMaterials.Variant(source, run.Styled, run.Blend, run.Texture));
+                    SetMaterials(shard, runs, i, run.Custom != null ? run.Custom : LetteraMaterials.Variant(source, run.Styled, run.Blend, run.Texture));
                 }
             }
             renderer.sortingLayerID = key.SortingLayer;

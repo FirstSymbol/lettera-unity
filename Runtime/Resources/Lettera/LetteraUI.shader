@@ -69,7 +69,7 @@ Shader "Lettera/UI"
                 float4 vertex : SV_POSITION;
                 fixed4 color : COLOR;
                 float4 uv0 : TEXCOORD0;
-                float3 params : TEXCOORD1;
+                float4 params : TEXCOORD1;
                 float4 world : TEXCOORD2;
                 float4 mask : TEXCOORD3;
                 #ifdef LETTERA_STYLED
@@ -93,7 +93,7 @@ Shader "Lettera/UI"
                 o.world = v.vertex;
                 o.vertex = UnityObjectToClipPos(v.vertex);
                 o.uv0 = v.uv0;
-                o.params = v.uv1.xyz;
+                o.params = v.uv1;
                 #ifdef LETTERA_STYLED
                 o.paint = v.uv2;
                 o.extra = v.uv3;

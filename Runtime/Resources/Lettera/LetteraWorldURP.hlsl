@@ -21,8 +21,11 @@ TEXTURE2D(_LetteraRamps);
 SAMPLER(sampler_LetteraRamps);
 TEXTURE2D(_LetteraPaintTex);
 SAMPLER(sampler_LetteraPaintTex);
+TEXTURE2D(_LetteraFilters);
+SAMPLER(sampler_LetteraFilters);
 #define LETTERA_SAMPLE_RAMP(uv) SAMPLE_TEXTURE2D_LOD(_LetteraRamps, sampler_LetteraRamps, uv, 0)
 #define LETTERA_SAMPLE_PAINT(uv) SAMPLE_TEXTURE2D(_LetteraPaintTex, sampler_LetteraPaintTex, uv)
+#define LETTERA_SAMPLE_FILTER(uv) SAMPLE_TEXTURE2D_LOD(_LetteraFilters, sampler_LetteraFilters, uv, 0)
 #endif
 
 #include "LetteraShadeCore.hlsl"
@@ -46,7 +49,7 @@ struct Varyings
     float4 positionCS : SV_POSITION;
     half4 color : COLOR;
     float4 uv0 : TEXCOORD0;
-    float3 params : TEXCOORD1;
+    float4 params : TEXCOORD1;
     float3 normalWS : TEXCOORD2;
     float fog : TEXCOORD3;
     #ifdef LETTERA_STYLED
@@ -63,7 +66,7 @@ Varyings TextVertex(Attributes input)
     UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(output);
     output.positionCS = TransformObjectToHClip(input.positionOS.xyz);
     output.uv0 = input.uv0;
-    output.params = input.uv1.xyz;
+    output.params = input.uv1;
     #ifdef LETTERA_STYLED
     output.paint = input.uv2;
     output.extra = input.uv3;
@@ -119,7 +122,7 @@ Varyings ShadowVertex(Attributes input)
     #endif
     output.positionCS = positionCS;
     output.uv0 = input.uv0;
-    output.params = input.uv1.xyz;
+    output.params = input.uv1;
     output.color = input.color;
     return output;
 }

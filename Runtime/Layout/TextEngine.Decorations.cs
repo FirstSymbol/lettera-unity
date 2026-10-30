@@ -14,7 +14,7 @@ namespace FirstSymbol.Lettera
         // A group draws the line's copy of that layer; no group draws the line itself.
         void AddDecorationLayer(LayerGroup group, bool overlay = false)
         {
-            if (m_Attributes.Decorations.Count == 0) return;
+            if (m_Attributes.Decorations.Count == 0 || m_Attributes.HasCurve) return;
             if (group != null && group.Layer != LayerKind.Shadow && group.Layer != LayerKind.Stroke && group.Layer != LayerKind.Glow) return;
             AddLinesOf(group, false, overlay);
             AddLinesOf(group, true, overlay);
@@ -103,6 +103,7 @@ namespace FirstSymbol.Lettera
             }
             color.a = (byte)(color.a * attr.Alpha);
             UseSegment(paint);
+            m_FilterRow = FilterFor(glyph.Cluster, group != null ? m_Attributes.Layers[recordIndex].Style : -1);
 
             if (!spec.SkipInk)
             {
@@ -177,7 +178,7 @@ namespace FirstSymbol.Lettera
             Uv0[v + 1] = new Vector4(a0, reach, page, ModeLine);
             Uv0[v + 2] = new Vector4(a1, reach, page, ModeLine);
             Uv0[v + 3] = new Vector4(a1, -reach, page, ModeLine);
-            var parameters = new Vector4(thickness, grow, right - origin, 0);
+            var parameters = new Vector4(thickness, grow, right - origin, m_FilterRow);
             Uv1[v] = Uv1[v + 1] = Uv1[v + 2] = Uv1[v + 3] = parameters;
             SetColor(v, color);
             SetPaint(v, paint, rect, dx, dy, new Vector4(soft, 0, 0, 0));
@@ -397,6 +398,7 @@ namespace FirstSymbol.Lettera
             }
 
             UseSegment(record.Paint);
+            m_FilterRow = FilterFor(glyph.Cluster, record.Style);
             int v = Reserve();
             Vertices[v] = new Vector3(quad.xMin, quad.yMin);
             Vertices[v + 1] = new Vector3(quad.xMin, quad.yMax);
@@ -408,7 +410,7 @@ namespace FirstSymbol.Lettera
             Uv0[v + 1] = new Vector4(quad.xMin - center.x, quad.yMax - center.y, 0, ModeRoundedBox);
             Uv0[v + 2] = new Vector4(quad.xMax - center.x, quad.yMax - center.y, 0, ModeRoundedBox);
             Uv0[v + 3] = new Vector4(quad.xMax - center.x, quad.yMin - center.y, 0, ModeRoundedBox);
-            var parameters = new Vector4(shape.width * 0.5f, shape.height * 0.5f, 0, 0);
+            var parameters = new Vector4(shape.width * 0.5f, shape.height * 0.5f, 0, m_FilterRow);
             Uv1[v] = Uv1[v + 1] = Uv1[v + 2] = Uv1[v + 3] = parameters;
             SetColor(v, color);
             SetPaint(v, record.Paint, rect, 0, 0, radii);

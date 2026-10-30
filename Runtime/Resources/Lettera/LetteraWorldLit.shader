@@ -94,7 +94,7 @@ Shader "Lettera/World Lit"
                 float4 vertex : SV_POSITION;
                 fixed4 color : COLOR;
                 float4 uv0 : TEXCOORD0;
-                float3 params : TEXCOORD1;
+                float4 params : TEXCOORD1;
                 float3 normal : TEXCOORD2;
                 UNITY_FOG_COORDS(3)
                 #ifdef LETTERA_STYLED
@@ -111,7 +111,7 @@ Shader "Lettera/World Lit"
                 UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(o);
                 o.vertex = UnityObjectToClipPos(v.vertex);
                 o.uv0 = v.uv0;
-                o.params = v.uv1.xyz;
+                o.params = v.uv1;
                 #ifdef LETTERA_STYLED
                 o.paint = v.uv2;
                 o.extra = v.uv3;

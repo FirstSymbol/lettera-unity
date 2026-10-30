@@ -295,6 +295,8 @@ namespace FirstSymbol.Lettera
             public byte SuperSub;           // 0 none, 1 super, 2 sub.
             public byte Boost;
             public float SmallCaps;         // The scale of synthetic small capitals, 0 off.
+            public bool Union;
+            public short Warp;              // Index into Warps, -1 none.
         }
 
         /// <summary>Layout attributes, kept apart so a text with no layout effects pays nothing for them.</summary>
@@ -364,7 +366,14 @@ namespace FirstSymbol.Lettera
             if (Chars.Length < length) Chars = new Cp[Mathf.Max(length, Chars.Length * 2)];
             Length = length;
             for (int i = 0; i < length; i++)
-                Chars[i] = new Cp { SizeMul = 1, Weight = 0, Alpha = 1, Family = -1, Language = -1, Slant = -1, Features = -1, Axes = -1 };
+                Chars[i] = new Cp { SizeMul = 1, Weight = 0, Alpha = 1, Family = -1, Language = -1, Slant = -1, Features = -1, Axes = -1, Warp = -1 };
+            Filters.Clear();
+            Warps.Clear();
+            PaintOrder = LetteraPaintOrder.LayerMajor;
+            PaintReverse = false;
+            HasUnion = false;
+            CurveRadius = default;
+            HasCurve = false;
             HasLayout = false;
             LineHeights.Clear();
             ParagraphSpacings.Clear();
@@ -636,6 +645,53 @@ namespace FirstSymbol.Lettera
             TrimBottom = bottom;
         }
 
+        internal struct FilterRange
+        {
+            public int Style, Start, End;
+            public float[] Matrix;
+        }
+
+        internal readonly System.Collections.Generic.List<FilterRange> Filters = new System.Collections.Generic.List<FilterRange>();
+        internal readonly System.Collections.Generic.List<WarpSpec> Warps = new System.Collections.Generic.List<WarpSpec>();
+        internal LetteraPaintOrder PaintOrder;
+        internal bool PaintReverse, HasUnion, HasCurve;
+        internal LayoutLength CurveRadius;
+        internal float CurveAnchor;
+
+        internal void AddFilter(int start, int end, float[] matrix)
+        {
+            Clamp(ref start, ref end);
+            Filters.Add(new FilterRange { Style = m_CurrentStyle, Start = start, End = end, Matrix = matrix });
+        }
+
+        internal void SetUnion(int start, int end)
+        {
+            Clamp(ref start, ref end);
+            HasUnion = true;
+            for (int i = start; i < end; i++) Chars[i].Union = true;
+        }
+
+        internal void SetWarp(int start, int end, in WarpSpec spec)
+        {
+            Clamp(ref start, ref end);
+            Warps.Add(spec);
+            short index = (short)(Warps.Count - 1);
+            for (int i = start; i < end; i++) Chars[i].Warp = index;
+        }
+
+        internal void SetPaintOrder(LetteraPaintOrder order, bool reverse)
+        {
+            PaintOrder = order;
+            PaintReverse = reverse;
+        }
+
+        internal void SetCurve(LayoutLength radius, float anchor)
+        {
+            HasCurve = true;
+            CurveRadius = radius;
+            CurveAnchor = anchor;
+        }
+
         internal void SetCase(int start, int end, byte map)
         {
             Clamp(ref start, ref end);
@@ -775,6 +831,7 @@ namespace FirstSymbol.Lettera
             LayerRecord copy = record;
             copy.Start = start;
             copy.End = end;
+            copy.Style = m_CurrentStyle;
             Layers.Add(copy);
             int[] cover = group.Cover;
             for (int i = start; i < end; i++) cover[i] = index + 1;
@@ -835,6 +892,7 @@ namespace FirstSymbol.Lettera
                 if (record.Kind == LayerKind.Fill && record.Paint.Color.a < 255) return true;
                 if (record.Kind == LayerKind.Highlight) return true;
             }
+            if (Filters.Count > 0 || Warps.Count > 0) return true;
             for (int i = 0; i < Decorations.Count; i++)
                 if (!Decorations[i].Paint.IsSolid || Decorations[i].Style != LetteraLineStyle.Solid)
                     return true;

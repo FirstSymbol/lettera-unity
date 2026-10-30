@@ -143,6 +143,7 @@ namespace FirstSymbol.Lettera
             LetteraWorldBatcher.Shutdown();
             GlyphAtlas.Shutdown();
             GradientAtlas.Shutdown();
+            FilterAtlas.Shutdown();
             FontFace.DisposeAll();
             LetteraSystemFonts.Reset();
         }

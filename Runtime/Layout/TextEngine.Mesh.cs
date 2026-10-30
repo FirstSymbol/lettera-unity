@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using FirstSymbol.Lettera.Unicode;
 using UnityEngine;
 
 namespace FirstSymbol.Lettera
@@ -9,8 +10,9 @@ namespace FirstSymbol.Lettera
         public int IndexStart, IndexCount;
         public LetteraBlend Blend;
         public Texture2D Texture;
+        public Material Custom;
 
-        public bool IsDefault => Blend == LetteraBlend.Normal && Texture == null;
+        public bool IsDefault => Blend == LetteraBlend.Normal && Texture == null && Custom == null;
     }
 
     internal sealed partial class TextEngine
@@ -35,9 +37,13 @@ namespace FirstSymbol.Lettera
 
         // The text uses paints, bands or inner shadows, so it draws with the styled shader and needs UV2 and UV3.
         public bool Styled { get; private set; }
+
+        // The filter row the next quad gets.
+        float m_FilterRow;
         public readonly List<MeshSegment> Segments = new List<MeshSegment>();
         LetteraBlend m_SegmentBlend;
         Texture2D m_SegmentTexture;
+        Material m_SegmentCustom;
         int m_SegmentStart;
 
         AtlasGlyph[] m_PlacedAtlas = new AtlasGlyph[64];
@@ -54,7 +60,9 @@ namespace FirstSymbol.Lettera
             Segments.Clear();
             m_SegmentBlend = LetteraBlend.Normal;
             m_SegmentTexture = null;
+            m_SegmentCustom = null;
             m_SegmentStart = 0;
+            m_FilterRow = 0;
             GlyphAtlasRegistration.EnsureRegistered();
 
             List<LayerGroup> groups = m_Attributes.SortedGroups();
@@ -68,17 +76,25 @@ namespace FirstSymbol.Lettera
                     m_Faces.Add(group);
 
             DrawHighlights(groups, false);
-            foreach (LayerGroup group in groups)
-                if (group.Band < LetteraLayerBand.Face && group.Layer != LayerKind.Highlight)
-                    DrawGroup(group);
+            if (m_Attributes.PaintOrder == LetteraPaintOrder.GlyphMajor)
+            {
+                DrawGlyphMajor(groups);
+                AddDecorationLayer(null);
+            }
+            else
+            {
+                foreach (LayerGroup group in groups)
+                    if (group.Band < LetteraLayerBand.Face && group.Layer != LayerKind.Highlight)
+                        DrawGroup(group);
 
-            DrawFaces();
-            foreach (LayerGroup group in m_Faces) DrawExtraFills(group);
-            AddDecorationLayer(null);
+                DrawFaces();
+                foreach (LayerGroup group in m_Faces) DrawExtraFills(group);
+                AddDecorationLayer(null);
 
-            foreach (LayerGroup group in groups)
-                if (group.Band > LetteraLayerBand.Face && group.Layer != LayerKind.Highlight)
-                    DrawGroup(group);
+                foreach (LayerGroup group in groups)
+                    if (group.Band > LetteraLayerBand.Face && group.Layer != LayerKind.Highlight)
+                        DrawGroup(group);
+            }
 
             // Lines with Overlay on, and their layers, go above the glyphs they cross.
             foreach (LayerGroup group in groups) AddDecorationLayer(group, true);
@@ -142,6 +158,8 @@ namespace FirstSymbol.Lettera
                 m_PlacedAtlas[i] = GlyphAtlas.Get(g.Instance, g.Glyph, density, m_PlacedReach[i], m_Host.Data.RenderMode == LetteraRenderMode.MSDF);
             }
 
+            if (m_Attributes.HasUnion) PrepareUnions(rasterScale);
+
             // A halo around a color glyph blurs its alpha, which only the styled shader does; so does a line's glow.
             if (Styled) return;
             foreach (LayerGroup group in groups)
@@ -158,6 +176,56 @@ namespace FirstSymbol.Lettera
                     Styled = true;
                     return;
                 }
+            }
+        }
+
+        // Glyphs in a union range whose ink overlaps the next one's merge into one atlas entry, drawn by the first of them.
+        unsafe void PrepareUnions(float rasterScale)
+        {
+            int* first = stackalloc int[4];
+            int* second = stackalloc int[4];
+            bool multi = m_Host.Data.RenderMode == LetteraRenderMode.MSDF;
+            int i = 0;
+            while (i < m_RealCount)
+            {
+                ref PlacedGlyph g = ref m_Placed[i];
+                if (!m_Attributes.Chars[g.Cluster].Union || !m_PlacedAtlas[i].HasDistance || m_PlacedAtlas[i].Pixel)
+                {
+                    i++;
+                    continue;
+                }
+                int end = i + 1;
+                float inkRight = float.MinValue;
+                if (LetteraNative.lt_glyph_extents(g.Instance.Font, g.Glyph, first) != 0) inkRight = g.X + (first[0] + first[2]) * g.Unit;
+                while (end < m_RealCount)
+                {
+                    ref PlacedGlyph next = ref m_Placed[end];
+                    if (next.Line != g.Line || next.Instance != g.Instance || next.Size != g.Size || !m_Attributes.Chars[next.Cluster].Union || !m_PlacedAtlas[end].HasDistance) break;
+                    if (LetteraNative.lt_glyph_extents(next.Instance.Font, next.Glyph, second) == 0 || second[2] == 0) break;
+                    float inkLeft = next.X + second[0] * next.Unit;
+                    if (inkLeft > inkRight + 0.01f * next.Size) break;
+                    inkRight = Mathf.Max(inkRight, next.X + (second[0] + second[2]) * next.Unit);
+                    end++;
+                }
+                if (end - i < 2)
+                {
+                    i = end;
+                    continue;
+                }
+                GlyphAtlas.BeginUnion();
+                float reach = 0;
+                for (int k = i; k < end; k++)
+                {
+                    GlyphAtlas.AddUnionPart(m_Placed[k].Glyph, (m_Placed[k].X - g.X) / g.Unit, (m_Placed[k].Y - g.Y) / g.Unit);
+                    reach = Mathf.Max(reach, m_PlacedReach[k]);
+                }
+                AtlasGlyph merged = GlyphAtlas.GetUnion(g.Instance, PixelsPerEm(g.Size, rasterScale), reach, multi);
+                if (merged.Kind != AtlasGlyph.Empty)
+                {
+                    m_PlacedAtlas[i] = merged;
+                    for (int k = i + 1; k < end; k++) m_PlacedAtlas[k] = default;
+                }
+                i = end;
             }
         }
 
@@ -229,33 +297,125 @@ namespace FirstSymbol.Lettera
 
         void DrawFaces()
         {
-            List<LayerRecord> records = m_Attributes.Layers;
-            LetteraAttributes.Cp[] attrs = m_Attributes.Chars;
-            Color32 baseColor = m_Host.BaseColor;
-            for (int i = 0; i < m_PlacedCount; i++)
+            for (int i = 0; i < m_PlacedCount; i++) DrawFace(i);
+        }
+
+        void DrawFace(int i)
+        {
+            ref PlacedGlyph g = ref m_Placed[i];
+            ref AtlasGlyph atlas = ref m_PlacedAtlas[i];
+            if (atlas.Kind == AtlasGlyph.Empty) return;
+            if (FirstFill(g.Cluster, atlas.Kind, out int record))
             {
-                ref PlacedGlyph g = ref m_Placed[i];
-                ref AtlasGlyph atlas = ref m_PlacedAtlas[i];
-                if (atlas.Kind == AtlasGlyph.Empty) continue;
-                if (FirstFill(g.Cluster, atlas.Kind, out int record))
+                DrawLayer(i, m_Attributes.Layers[record]);
+                return;
+            }
+            ref LetteraAttributes.Cp attr = ref m_Attributes.Chars[g.Cluster];
+            Color32 baseColor = m_Host.BaseColor;
+            UseSegment(s_NoPaint);
+            // The face lies below every filter in the list.
+            m_FilterRow = FilterFor(g.Cluster, -1);
+            if (atlas.Kind == AtlasGlyph.Color)
+            {
+                // Color glyphs keep their own colors; only alpha applies.
+                AddQuad(g, atlas, new Color32(255, 255, 255, (byte)(attr.Alpha * 255f)), ModeColor, 0.5f, 0, 0, s_NoPaint, default, 0, 0);
+            }
+            else
+            {
+                Color32 color = attr.HasColor ? attr.Color : new Color32(baseColor.r, baseColor.g, baseColor.b, 255);
+                color.a = (byte)(color.a * attr.Alpha);
+                AddQuad(g, atlas, color, atlas.Pixel ? ModePixel : atlas.Kind == AtlasGlyph.Msdf ? ModeMedian : ModeSdf, 0.5f, 0, 0, s_NoPaint, default, 0, 0, WarpOf(g, atlas));
+            }
+        }
+
+        // Every layer of a glyph before the next glyph's. Texture paints and custom materials still split the text into segments, in this order.
+        void DrawGlyphMajor(List<LayerGroup> groups)
+        {
+            List<LayerRecord> records = m_Attributes.Layers;
+            bool reverse = m_Attributes.PaintReverse;
+            int at = reverse ? m_PlacedCount - 1 : 0;
+            int count = 0;
+            while (count < m_PlacedCount)
+            {
+                // A cursively connected stretch composes as one unit, so its joins stay clean either way.
+                int stretch = 1;
+                if (reverse)
+                    while (at - stretch >= 0 && IsConnected(m_Placed[at - stretch].Cluster, m_Placed[at - stretch + 1].Cluster)) stretch++;
+                int first = reverse ? at - stretch + 1 : at;
+                for (int n = 0; n < stretch; n++)
                 {
-                    DrawLayer(i, records[record]);
-                    continue;
+                    int i = first + n;
+                    int cluster = m_Placed[i].Cluster;
+                    foreach (LayerGroup group in groups)
+                    {
+                        if (group.Band >= LetteraLayerBand.Face || group.Layer == LayerKind.Highlight) continue;
+                        int index = group.Cover[cluster] - 1;
+                        if (index >= 0) DrawLayer(i, records[index]);
+                    }
+                    DrawFace(i);
+                    foreach (LayerGroup group in m_Faces)
+                    {
+                        int index = group.Cover[cluster] - 1;
+                        if (index < 0) continue;
+                        if (FirstFill(cluster, m_PlacedAtlas[i].Kind, out int firstFill) && firstFill == index) continue;
+                        DrawLayer(i, records[index]);
+                    }
+                    foreach (LayerGroup group in groups)
+                    {
+                        if (group.Band <= LetteraLayerBand.Face || group.Layer == LayerKind.Highlight) continue;
+                        int index = group.Cover[cluster] - 1;
+                        if (index >= 0) DrawLayer(i, records[index]);
+                    }
                 }
-                ref LetteraAttributes.Cp attr = ref attrs[g.Cluster];
-                UseSegment(s_NoPaint);
-                if (atlas.Kind == AtlasGlyph.Color)
+                count += stretch;
+                at += reverse ? -stretch : stretch;
+            }
+        }
+
+        bool IsConnected(int a, int b)
+        {
+            if (a < 0 || b < 0 || a >= m_TextLength || b >= m_TextLength) return false;
+            return IsCursive(m_Scripts[a]) && IsCursive(m_Scripts[b]) && !LetteraUnicode.IsWhiteSpace(m_Text[a]) && !LetteraUnicode.IsWhiteSpace(m_Text[b]);
+        }
+
+        readonly float[] m_FilterA = new float[20], m_FilterB = new float[20];
+
+        // The filters of later styles that cover a codepoint, composed in style order; an inner range after an outer one.
+        float FilterFor(int cluster, int style)
+        {
+            List<LetteraAttributes.FilterRange> filters = m_Attributes.Filters;
+            if (filters.Count == 0) return 0;
+            bool any = false;
+            for (int f = 0; f < filters.Count; f++)
+            {
+                LetteraAttributes.FilterRange filter = filters[f];
+                if (filter.Style <= style || cluster < filter.Start || cluster >= filter.End) continue;
+                if (!any)
                 {
-                    // Color glyphs keep their own colors; only alpha applies.
-                    AddQuad(g, atlas, new Color32(255, 255, 255, (byte)(attr.Alpha * 255f)), ModeColor, 0.5f, 0, 0, s_NoPaint, default, 0, 0);
+                    System.Array.Copy(filter.Matrix, m_FilterA, 20);
+                    any = true;
                 }
                 else
                 {
-                    Color32 color = attr.HasColor ? attr.Color : new Color32(baseColor.r, baseColor.g, baseColor.b, 255);
-                    color.a = (byte)(color.a * attr.Alpha);
-                    AddQuad(g, atlas, color, atlas.Pixel ? ModePixel : atlas.Kind == AtlasGlyph.Msdf ? ModeMedian : ModeSdf, 0.5f, 0, 0, s_NoPaint, default, 0, 0);
+                    FilterAtlas.Compose(m_FilterA, filter.Matrix, m_FilterB);
+                    System.Array.Copy(m_FilterB, m_FilterA, 20);
                 }
             }
+            return any ? FilterAtlas.RowOf(m_FilterA) : 0;
+        }
+
+        // A warp reads the field a little to the side per pixel; uv3 carries how far and how fine, in the tile's own uv.
+        Vector4 WarpOf(in PlacedGlyph g, in AtlasGlyph atlas)
+        {
+            short index = m_Attributes.Chars[g.Cluster].Warp;
+            if (index < 0 || !atlas.HasDistance || atlas.Pixel) return default;
+            WarpSpec warp = m_Attributes.Warps[index];
+            float height = atlas.Top - atlas.Bottom;
+            if (height <= 0 || g.Unit <= 0) return default;
+            FontFace face = g.Instance.Face;
+            float heightEm = height / face.Metrics.Upem;
+            float uvPerEm = (atlas.V1 - atlas.V0) / heightEm;
+            return new Vector4(warp.Amplitude * uvPerEm, 1f / (warp.Scale * uvPerEm), warp.Phase, 1);
         }
 
         // The first fill replaces the face: it costs no extra quad.
@@ -296,6 +456,7 @@ namespace FirstSymbol.Lettera
             if (colorGlyph && !record.OnColorGlyphs) return;
 
             ref LetteraAttributes.Cp attr = ref m_Attributes.Chars[g.Cluster];
+            m_FilterRow = FilterFor(g.Cluster, record.Style);
             Color32 color = record.Paint.Color;
             if (record.Paint.UsesGlyphColor)
             {
@@ -322,6 +483,7 @@ namespace FirstSymbol.Lettera
                 case LayerKind.Stroke:
                     float width = record.Width.Of(size) * toEm;
                     if (width <= 0) return;
+                    extra = WarpOf(g, atlas);
                     threshold = 0.5f - width * (1 + record.Align) * 0.5f * toSdf;
                     if (record.Align < 1) upper = 0.5f + width * (1 - record.Align) * 0.5f * toSdf;
                     // Under an opaque face a stroke can run through the glyph, which leaves no seam at the edge.
@@ -358,7 +520,14 @@ namespace FirstSymbol.Lettera
                     break;
             }
 
-            UseSegment(record.Paint);
+            if (record.Kind == LayerKind.Extrude)
+            {
+                DrawExtrude(g, atlas, record, mode, attr.Alpha, size, toEm, toSdf);
+                return;
+            }
+            if (record.Kind != LayerKind.InnerShadow && extra.w == 0) extra = WarpOf(g, atlas);
+
+            UseSegment(record.Paint, record.Custom);
             PlacedGlyph moved = g;
             moved.X += dx;
             moved.Y += dy;
@@ -372,6 +541,25 @@ namespace FirstSymbol.Lettera
             if (face.PixelGrid <= 0 || !face.PixelSnap) return offset;
             float cell = g.Size / face.PixelGrid;
             return cell > 0 ? Mathf.Round(offset / cell) * cell : offset;
+        }
+
+        // From the far end to the near one, so the nearest copy lies right under the face.
+        void DrawExtrude(in PlacedGlyph g, in AtlasGlyph atlas, in LayerRecord record, float mode, float alpha, float size, float toEm, float toSdf)
+        {
+            float dx = SnappedOffset(g, record.OffsetX.Of(size)), dy = SnappedOffset(g, record.OffsetY.Of(size));
+            float threshold = 0.5f - record.Dilate.Of(size) * toEm * toSdf;
+            float softness = record.Softness * SoftnessEm * toSdf;
+            UseSegment(record.Paint);
+            for (int step = record.Steps; step >= 1; step--)
+            {
+                float t = (float)step / record.Steps;
+                Color32 color = Color32.Lerp(record.Paint.Color, record.FarColor, t);
+                color.a = (byte)(color.a * alpha);
+                PlacedGlyph moved = g;
+                moved.X += dx * t;
+                moved.Y += dy * t;
+                AddQuad(moved, atlas, color, mode, threshold, softness, 0, record.Paint, default, 0, 0);
+            }
         }
 
         bool FaceIsSeeThrough(int cluster)
@@ -404,7 +592,7 @@ namespace FirstSymbol.Lettera
             Uv0[v + 1] = new Vector4(atlas.U0 - du, atlas.V1 + dv, atlas.Page, ModeColorHalo);
             Uv0[v + 2] = new Vector4(atlas.U1 + du, atlas.V1 + dv, atlas.Page, ModeColorHalo);
             Uv0[v + 3] = new Vector4(atlas.U1 + du, atlas.V0 - dv, atlas.Page, ModeColorHalo);
-            var parameters = new Vector4(du, dv, 0, 0);
+            var parameters = new Vector4(du, dv, 0, m_FilterRow);
             Uv1[v] = Uv1[v + 1] = Uv1[v + 2] = Uv1[v + 3] = parameters;
             SetColor(v, color);
             SetPaint(v, record.Paint, PaintRect(record, g), 0, 0, new Vector4(atlas.U0, atlas.V0, atlas.U1, atlas.V1));
@@ -470,38 +658,50 @@ namespace FirstSymbol.Lettera
             return new Vector2(px / radiusX / scale - paint.Offset.x * 2, py / radiusY / scale - paint.Offset.y * 2);
         }
 
-        void UseSegment(in ResolvedPaint paint)
+        void UseSegment(in ResolvedPaint paint, Material custom = null)
         {
             LetteraBlend blend = paint.Blend == LetteraBlend.Inherit ? LetteraBlend.Normal : paint.Blend;
-            if (blend == m_SegmentBlend && paint.Texture == m_SegmentTexture) return;
+            if (blend == m_SegmentBlend && paint.Texture == m_SegmentTexture && custom == m_SegmentCustom) return;
             FinishSegment();
             m_SegmentBlend = blend;
             m_SegmentTexture = paint.Texture;
+            m_SegmentCustom = custom;
             m_SegmentStart = IndexCount;
         }
 
         void FinishSegment()
         {
             if (IndexCount > m_SegmentStart)
-                Segments.Add(new MeshSegment { IndexStart = m_SegmentStart, IndexCount = IndexCount - m_SegmentStart, Blend = m_SegmentBlend, Texture = m_SegmentTexture });
+                Segments.Add(new MeshSegment { IndexStart = m_SegmentStart, IndexCount = IndexCount - m_SegmentStart, Blend = m_SegmentBlend, Texture = m_SegmentTexture, Custom = m_SegmentCustom });
             m_SegmentStart = IndexCount;
         }
 
         void AddQuad(in PlacedGlyph g, in AtlasGlyph atlas, Color32 color, float mode, float threshold, float softness, float upper, in ResolvedPaint paint, in Rect paintRect, float paintDx, float paintDy, Vector4 extra = default)
         {
             float xUnit = g.Unit * (1 + g.XScale);
-            float left = g.X + atlas.Left * xUnit, right = g.X + atlas.Right * xUnit;
-            float bottom = g.Y + atlas.Bottom * g.Unit, top = g.Y + atlas.Top * g.Unit;
+            float left = atlas.Left * xUnit, right = atlas.Right * xUnit;
+            float bottom = atlas.Bottom * g.Unit, top = atlas.Top * g.Unit;
             int v = Reserve();
-            Vertices[v] = new Vector3(left, bottom);
-            Vertices[v + 1] = new Vector3(left, top);
-            Vertices[v + 2] = new Vector3(right, top);
-            Vertices[v + 3] = new Vector3(right, bottom);
+            if (g.Angle == 0)
+            {
+                Vertices[v] = new Vector3(g.X + left, g.Y + bottom);
+                Vertices[v + 1] = new Vector3(g.X + left, g.Y + top);
+                Vertices[v + 2] = new Vector3(g.X + right, g.Y + top);
+                Vertices[v + 3] = new Vector3(g.X + right, g.Y + bottom);
+            }
+            else
+            {
+                float cos = Mathf.Cos(g.Angle), sin = Mathf.Sin(g.Angle);
+                Vertices[v] = new Vector3(g.X + left * cos - bottom * sin, g.Y + left * sin + bottom * cos);
+                Vertices[v + 1] = new Vector3(g.X + left * cos - top * sin, g.Y + left * sin + top * cos);
+                Vertices[v + 2] = new Vector3(g.X + right * cos - top * sin, g.Y + right * sin + top * cos);
+                Vertices[v + 3] = new Vector3(g.X + right * cos - bottom * sin, g.Y + right * sin + bottom * cos);
+            }
             Uv0[v] = new Vector4(atlas.U0, atlas.V0, atlas.Page, mode);
             Uv0[v + 1] = new Vector4(atlas.U0, atlas.V1, atlas.Page, mode);
             Uv0[v + 2] = new Vector4(atlas.U1, atlas.V1, atlas.Page, mode);
             Uv0[v + 3] = new Vector4(atlas.U1, atlas.V0, atlas.Page, mode);
-            var parameters = new Vector4(threshold, softness, upper, 0);
+            var parameters = new Vector4(threshold, softness, upper, m_FilterRow);
             Uv1[v] = Uv1[v + 1] = Uv1[v + 2] = Uv1[v + 3] = parameters;
             SetColor(v, color);
             if (Styled) SetPaint(v, paint, paintRect, paintDx, paintDy, extra);
@@ -558,7 +758,7 @@ namespace FirstSymbol.Lettera
             Vertices[v + 3] = new Vector3(right, bottom);
             var uv = new Vector4(0, 0, 0, ModeSolid);
             Uv0[v] = Uv0[v + 1] = Uv0[v + 2] = Uv0[v + 3] = uv;
-            Uv1[v] = Uv1[v + 1] = Uv1[v + 2] = Uv1[v + 3] = default;
+            Uv1[v] = Uv1[v + 1] = Uv1[v + 2] = Uv1[v + 3] = new Vector4(0, 0, 0, m_FilterRow);
             SetColor(v, color);
             if (Styled) SetPaint(v, paint, paintRect, paintDx, paintDy, default);
         }

@@ -29,7 +29,7 @@ namespace FirstSymbol.Lettera
         public float Of(float size) => Em * size + Units;
     }
 
-    internal enum LayerKind : byte { Fill, Stroke, Shadow, Glow, InnerShadow, Highlight }
+    internal enum LayerKind : byte { Fill, Stroke, Shadow, Glow, InnerShadow, Highlight, Extrude }
 
     /// <summary>One painted range of a layer effect, with its parameters resolved.</summary>
     internal struct LayerRecord
@@ -39,11 +39,14 @@ namespace FirstSymbol.Lettera
         public bool OnColorGlyphs, FixedSize;
         public EmLength OffsetX, OffsetY, Width, Dilate;
         public float Align, Softness;
-        public int Start, End;
+        public int Start, End, Style;
         public int Group;
         public Rect RangeRect;
         public int Highlight;
         public bool SharpCorners;
+        public Color32 FarColor;
+        public int Steps;
+        public Material Custom;
     }
 
     /// <summary>All ranges of one effect that draw one kind of layer. Cover holds, per codepoint, a record index plus one.</summary>
