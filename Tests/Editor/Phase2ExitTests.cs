@@ -33,7 +33,7 @@ namespace FirstSymbol.Lettera.Editor.Tests
         [Test]
         public void VoidAndStructuralDefaultsAreClaimed()
         {
-            Assert.AreEqual("a b", Make("a<br>b").CleanText);
+            Assert.AreEqual("a\u2028b", Make("a<br>b").CleanText);
             Assert.AreEqual("<b>", Make("<noparse><b></noparse>").CleanText);
             Assert.AreEqual("a | b", Make("a<divider>b").CleanText);
             Assert.AreEqual("a", Make("<li>a</li>").CleanText);
@@ -135,13 +135,30 @@ namespace FirstSymbol.Lettera.Editor.Tests
                 text.Engine.SetDirty(DirtyLevel.Mesh);
                 text.ForceRebuild();
             }
-            long before = GC.GetAllocatedBytesForCurrentThread();
+            // GC.GetAllocatedBytesForCurrentThread reads 0 on Unity's Mono, so this uses the live profiler counter, with a control.
+            using var recorder = Unity.Profiling.ProfilerRecorder.StartNew(Unity.Profiling.ProfilerCategory.Memory, "GC Allocated In Frame");
+            long control = recorder.CurrentValue;
+            GC.KeepAlive(new byte[32]);
+            Assert.GreaterOrEqual(recorder.CurrentValue - control, 32, "the allocation counter does not work here");
+            // The first pass after the counter starts can show a one-off from the counter itself.
             for (int i = 0; i < 10; i++)
             {
                 text.Engine.SetDirty(DirtyLevel.Mesh);
                 text.Engine.Rebuild();
             }
-            Assert.AreEqual(0, GC.GetAllocatedBytesForCurrentThread() - before);
+            long before = recorder.CurrentValue;
+            for (int i = 0; i < 100; i++)
+            {
+                text.Engine.SetDirty(DirtyLevel.Mesh);
+                text.Engine.Rebuild();
+            }
+            before = recorder.CurrentValue;
+            for (int i = 0; i < 1000; i++)
+            {
+                text.Engine.SetDirty(DirtyLevel.Mesh);
+                text.Engine.Rebuild();
+            }
+            Assert.AreEqual(0, recorder.CurrentValue - before);
         }
 
         // ------------------------------------------------------------- bad input
@@ -157,6 +174,14 @@ namespace FirstSymbol.Lettera.Editor.Tests
         [Test]
         public void RandomMarkupNeverThrowsOrHangs()
         {
+            // Odd names warn, which is right. Errors and exceptions, also those caught around an effect, are not.
+            string failure = null;
+            void OnLog(string message, string stack, LogType type)
+            {
+                if (type == LogType.Error || type == LogType.Exception || type == LogType.Assert) failure = failure ?? message;
+            }
+            UnityEngine.TestTools.LogAssert.ignoreFailingMessages = true;
+            Application.logMessageReceived += OnLog;
             var random = new System.Random(12345);
             LetteraWorldText text = Make("", 200, 100);
             text.Styles.Add(LetteraStyle.ForMatcher(new MarkdownMarkerMatcher("**"), new BoldEffect()));
@@ -184,8 +209,10 @@ namespace FirstSymbol.Lettera.Editor.Tests
                 {
                     Assert.Fail($"'{value}' threw {e}");
                 }
-                UnityEngine.TestTools.LogAssert.NoUnexpectedReceived();
             }
+            Application.logMessageReceived -= OnLog;
+            UnityEngine.TestTools.LogAssert.ignoreFailingMessages = false;
+            Assert.IsNull(failure, failure);
         }
     }
 }

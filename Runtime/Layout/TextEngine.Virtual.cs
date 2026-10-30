@@ -248,7 +248,7 @@ namespace FirstSymbol.Lettera
         {
             foreach (ListItem item in m_ListItems)
             {
-                if (item.Marker.Count == 0 || IsRemoved(item.Start)) continue;
+                if (item.Marker.Count == 0 || item.Start >= m_TextLength || IsRemoved(item.Start)) continue;
                 for (int l = 0; l < m_Lines.Count; l++)
                 {
                     LetteraLine line = m_Lines[l];
