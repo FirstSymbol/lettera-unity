@@ -18,6 +18,9 @@ namespace FirstSymbol.Lettera
         public ushort Page;
         public float U0, V0, U1, V1;
         public float Left, Bottom, Right, Top;
+
+        /// <summary>How far the distance field of this entry reaches beyond the outline, in em.</summary>
+        public float Spread;
     }
 
     /// <summary>
@@ -27,8 +30,11 @@ namespace FirstSymbol.Lettera
     /// </summary>
     internal static unsafe class GlyphAtlas
     {
-        /// <summary>The SDF reaches this far from the edge, in em; it bounds outline and shadow widths.</summary>
+        /// <summary>The SDF reaches this far from the edge, in em, until a layer asks for more.</summary>
         public const float SpreadEm = 0.1875f;
+
+        /// <summary>The farthest a layer can reach from the edge, in em.</summary>
+        public const float MaxReachEm = 1f;
 
         const int PageSize = 2048;
         // Browsers on phones stop a page long before desktops run out, so the web keeps fewer pages.
@@ -104,21 +110,36 @@ namespace FirstSymbol.Lettera
 
         internal static (int sdf, int color) PageLimits => (s_Sdf.MaxPages, s_Color.MaxPages);
 
-        public static AtlasGlyph Get(FontInstance instance, uint glyph, int pixelsPerEm)
+        // Reach only grows: an entry rasterized for more reach serves every text that needs less.
+        static float SpreadFor(float reach) => reach <= SpreadEm ? SpreadEm : reach <= 0.375f ? 0.375f : reach <= 0.75f ? 0.75f : MaxReachEm;
+
+        public static AtlasGlyph Get(FontInstance instance, uint glyph, int pixelsPerEm, float reach = 0)
         {
             ulong key = ((ulong)(uint)instance.Id << 36) | ((ulong)glyph << 8) | (uint)(pixelsPerEm >> 2 & 0xFF);
             if (s_Glyphs.TryGetValue(key, out AtlasGlyph entry))
             {
-                if (entry.Kind == AtlasGlyph.Sdf) s_Sdf.LastUsed[entry.Page] = s_Tick;
+                if (entry.Kind == AtlasGlyph.Sdf)
+                {
+                    if (entry.Spread < reach)
+                    {
+                        AtlasGlyph wider = CreateSdf(instance, glyph, pixelsPerEm, SpreadFor(reach));
+                        if (wider.Kind == AtlasGlyph.Sdf)
+                        {
+                            s_Glyphs[key] = wider;
+                            return wider;
+                        }
+                    }
+                    s_Sdf.LastUsed[entry.Page] = s_Tick;
+                }
                 else if (entry.Kind == AtlasGlyph.Color) s_Color.LastUsed[entry.Page] = s_Tick;
                 return entry;
             }
-            entry = Create(instance, glyph, pixelsPerEm);
+            entry = Create(instance, glyph, pixelsPerEm, SpreadFor(reach));
             s_Glyphs[key] = entry;
             return entry;
         }
 
-        static AtlasGlyph Create(FontInstance instance, uint glyph, int pixelsPerEm)
+        static AtlasGlyph Create(FontInstance instance, uint glyph, int pixelsPerEm, float spread)
         {
             FontFace face = instance.Face;
             if (face.IsVirtual) return CreateBrowserEmoji(glyph);
@@ -129,7 +150,7 @@ namespace FirstSymbol.Lettera
                 AtlasGlyph bitmap = CreateBitmap(instance, glyph);
                 if (bitmap.Kind != AtlasGlyph.Empty) return bitmap;
             }
-            return CreateSdf(instance, glyph, pixelsPerEm);
+            return CreateSdf(instance, glyph, pixelsPerEm, spread);
         }
 
         static int ReadOutline(FontInstance instance, uint glyph)
@@ -144,7 +165,7 @@ namespace FirstSymbol.Lettera
             return needed;
         }
 
-        static AtlasGlyph CreateSdf(FontInstance instance, uint glyph, int pixelsPerEm)
+        static AtlasGlyph CreateSdf(FontInstance instance, uint glyph, int pixelsPerEm, float spread)
         {
             int count = ReadOutline(instance, glyph);
             if (count == 0) return default;
@@ -155,10 +176,10 @@ namespace FirstSymbol.Lettera
             if (maxX <= minX || maxY <= minY) return default;
 
             // A glyph too large for a tile at this density simply uses fewer pixels per em.
-            float largest = Mathf.Max(maxX - minX, maxY - minY) / upem + 2 * SpreadEm;
+            float largest = Mathf.Max(maxX - minX, maxY - minY) / upem + 2 * spread;
             int density = Mathf.Min(pixelsPerEm, Mathf.FloorToInt((StagingSize - 2 * Bleed) / Mathf.Max(largest, 0.01f)));
             float scale = (float)density / upem;
-            float spreadPixels = SpreadEm * density;
+            float spreadPixels = spread * density;
 
             int width = Mathf.CeilToInt((maxX - minX) * scale + 2 * spreadPixels);
             int height = Mathf.CeilToInt((maxY - minY) * scale + 2 * spreadPixels);
@@ -189,6 +210,7 @@ namespace FirstSymbol.Lettera
                 U1 = (float)(x + width) / PageSize, V1 = (float)(y + height) / PageSize,
                 Left = -offsetX / scale, Bottom = -offsetY / scale,
                 Right = (width - offsetX) / scale, Top = (height - offsetY) / scale,
+                Spread = spread,
             };
         }
 

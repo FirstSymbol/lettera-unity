@@ -11,6 +11,9 @@ Shader "Lettera/UI"
         _StencilReadMask ("Stencil Read Mask", Float) = 255
         _ColorMask ("Color Mask", Float) = 15
         [Toggle(UNITY_UI_ALPHACLIP)] _UseUIAlphaClip ("Use Alpha Clip", Float) = 0
+        [HideInInspector] _SrcBlend ("Source Blend", Float) = 1
+        [HideInInspector] _DstBlend ("Destination Blend", Float) = 10
+        [HideInInspector] _LetteraPaintTex ("Paint Texture", 2D) = "white" {}
     }
 
     SubShader
@@ -30,7 +33,7 @@ Shader "Lettera/UI"
         Lighting Off
         ZWrite Off
         ZTest [unity_GUIZTestMode]
-        Blend One OneMinusSrcAlpha
+        Blend [_SrcBlend] [_DstBlend]
         ColorMask [_ColorMask]
 
         Pass
@@ -42,6 +45,7 @@ Shader "Lettera/UI"
             #pragma require 2darray
             #pragma multi_compile_local _ UNITY_UI_CLIP_RECT
             #pragma multi_compile_local _ UNITY_UI_ALPHACLIP
+            #pragma multi_compile_local _ LETTERA_STYLED
 
             #include "UnityCG.cginc"
             #include "UnityUI.cginc"
@@ -53,6 +57,10 @@ Shader "Lettera/UI"
                 float4 color : COLOR;
                 float4 uv0 : TEXCOORD0;
                 float4 uv1 : TEXCOORD1;
+                #ifdef LETTERA_STYLED
+                float4 uv2 : TEXCOORD2;
+                float4 uv3 : TEXCOORD3;
+                #endif
                 UNITY_VERTEX_INPUT_INSTANCE_ID
             };
 
@@ -61,9 +69,13 @@ Shader "Lettera/UI"
                 float4 vertex : SV_POSITION;
                 fixed4 color : COLOR;
                 float4 uv0 : TEXCOORD0;
-                float2 params : TEXCOORD1;
+                float3 params : TEXCOORD1;
                 float4 world : TEXCOORD2;
                 float4 mask : TEXCOORD3;
+                #ifdef LETTERA_STYLED
+                float4 paint : TEXCOORD4;
+                float4 extra : TEXCOORD5;
+                #endif
                 UNITY_VERTEX_OUTPUT_STEREO
             };
 
@@ -81,7 +93,11 @@ Shader "Lettera/UI"
                 o.world = v.vertex;
                 o.vertex = UnityObjectToClipPos(v.vertex);
                 o.uv0 = v.uv0;
-                o.params = v.uv1.xy;
+                o.params = v.uv1.xyz;
+                #ifdef LETTERA_STYLED
+                o.paint = v.uv2;
+                o.extra = v.uv3;
+                #endif
 
                 float2 pixelSize = o.vertex.w;
                 pixelSize /= float2(1, 1) * abs(mul((float2x2)UNITY_MATRIX_P, _ScreenParams.xy));
@@ -97,7 +113,11 @@ Shader "Lettera/UI"
 
             fixed4 frag(v2f i) : SV_Target
             {
-                fixed4 color = LetteraShade(i.uv0, i.params, i.color);
+                #ifdef LETTERA_STYLED
+                fixed4 color = LetteraShadeStyled(i.uv0, i.params, i.color, i.paint, i.extra, i.vertex.xy);
+                #else
+                fixed4 color = LetteraShadePlain(i.uv0, i.params.xy, i.color);
+                #endif
 
                 #ifdef UNITY_UI_CLIP_RECT
                 half2 m = saturate((_ClipRect.zw - _ClipRect.xy - abs(i.mask.xy)) * i.mask.zw);

@@ -162,44 +162,38 @@ namespace FirstSymbol.Lettera
         }
     }
 
-    /// <summary>Slots: 1 color, 2 width in em (or with a px suffix, in local units). Not applied to color glyphs.</summary>
+    /// <summary>A stroke fully outside the glyph. Slots: 1 paint, 2 width in em (or with a px suffix, in local units), then the paint settings. Not applied to color glyphs.</summary>
     [Serializable]
-    public class OutlineEffect : LetteraEffect
+    public class OutlineEffect : LetteraLayerEffect
     {
         [SerializeField] Color32 m_Color = new Color32(0, 0, 0, 255);
-        [SerializeField, Range(0, GlyphAtlas.SpreadEm)] float m_Width = 0.1f;
+        [SerializeField, Range(0, 1)] float m_Width = 0.1f;
 
         public Color32 Color { get => m_Color; set => m_Color = value; }
         public float Width { get => m_Width; set => m_Width = value; }
 
         public override void Apply(LetteraAttributes attributes, int start, int end, in LetteraSlots slots)
         {
-            Color32 color = LetteraSlots.TryColor(slots[0], out Color32 parsed) ? parsed : m_Color;
-            float em = m_Width, units = 0;
-            string width = slots[1];
-            if (!string.IsNullOrEmpty(width))
+            attributes.AddLayer(start, end, m_Band == LetteraLayerBand.Auto ? LetteraLayerBand.Rim : m_Band, new LayerRecord
             {
-                if (width.EndsWith("px", StringComparison.OrdinalIgnoreCase))
-                {
-                    if (LetteraSlots.TryNumber(width.Substring(0, width.Length - 2), out float px)) { units = px; em = 0; }
-                }
-                else if (LetteraSlots.TryNumber(width, out float value))
-                {
-                    em = value;
-                }
-            }
-            attributes.SetOutline(start, end, color, em, units);
+                Kind = LayerKind.Stroke,
+                Paint = ResolvePaint(slots, 0, 2, m_Color, false),
+                Width = new EmLength(slots.Length(1, new LetteraLength(m_Width))),
+                Align = 1,
+                OnColorGlyphs = m_OnColorGlyphs == LetteraOnColorGlyphs.Apply,
+                FixedSize = m_FixedPixelSize,
+            });
         }
     }
 
-    /// <summary>Slots: 1 color, 2 offset x, 3 offset y (em), 4 softness 0-1, 5 dilate (em). Applies to color glyphs via alpha.</summary>
+    /// <summary>Slots: 1 paint, 2 offset x, 3 offset y (em), 4 softness 0-1, 5 dilate (em), then the paint settings. Applies to color glyphs via alpha.</summary>
     [Serializable]
-    public class ShadowEffect : LetteraEffect
+    public class ShadowEffect : LetteraLayerEffect
     {
         [SerializeField] Color32 m_Color = new Color32(0, 0, 0, 128);
         [SerializeField] Vector2 m_Offset = new Vector2(0.05f, -0.05f);
         [SerializeField, Range(0, 1)] float m_Softness = 0.1f;
-        [SerializeField, Range(0, GlyphAtlas.SpreadEm)] float m_Dilate;
+        [SerializeField] float m_Dilate;
 
         public Color32 Color { get => m_Color; set => m_Color = value; }
         public Vector2 Offset { get => m_Offset; set => m_Offset = value; }
@@ -208,12 +202,17 @@ namespace FirstSymbol.Lettera
 
         public override void Apply(LetteraAttributes attributes, int start, int end, in LetteraSlots slots)
         {
-            Color32 color = LetteraSlots.TryColor(slots[0], out Color32 parsed) ? parsed : m_Color;
-            float x = LetteraSlots.TryNumber(slots[1], out float px) ? px : m_Offset.x;
-            float y = LetteraSlots.TryNumber(slots[2], out float py) ? py : m_Offset.y;
-            float softness = LetteraSlots.TryNumber(slots[3], out float s) ? Mathf.Clamp01(s) : m_Softness;
-            float dilate = LetteraSlots.TryNumber(slots[4], out float d) ? d : m_Dilate;
-            attributes.SetShadow(start, end, color, x, y, softness, dilate);
+            attributes.AddLayer(start, end, m_Band == LetteraLayerBand.Auto ? LetteraLayerBand.Back : m_Band, new LayerRecord
+            {
+                Kind = LayerKind.Shadow,
+                Paint = ResolvePaint(slots, 0, 5, m_Color, false),
+                OffsetX = new EmLength(slots.Length(1, new LetteraLength(m_Offset.x))),
+                OffsetY = new EmLength(slots.Length(2, new LetteraLength(m_Offset.y))),
+                Softness = Mathf.Clamp01(slots.Float(3, m_Softness)),
+                Dilate = new EmLength(slots.Length(4, new LetteraLength(m_Dilate))),
+                OnColorGlyphs = m_OnColorGlyphs != LetteraOnColorGlyphs.Skip,
+                FixedSize = m_FixedPixelSize,
+            });
         }
     }
 

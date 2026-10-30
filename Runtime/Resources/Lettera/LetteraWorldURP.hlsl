@@ -9,31 +9,20 @@ SAMPLER(sampler_LetteraSdfAtlas);
 TEXTURE2D_ARRAY(_LetteraColorAtlas);
 SAMPLER(sampler_LetteraColorAtlas);
 
-// uv0: atlas uv, page, mode (0 SDF, 1 color glyph, 2 color glyph silhouette, 3 solid).
-// params: x = the SDF value of the edge, y = extra softness in SDF values.
-half4 LetteraShade(float4 uv0, float2 params, half4 color)
-{
-    float mode = uv0.w;
-    if (mode < 0.5)
-    {
-        float d = SAMPLE_TEXTURE2D_ARRAY(_LetteraSdfAtlas, sampler_LetteraSdfAtlas, uv0.xy, uv0.z).r;
-        float w = max(fwidth(d) * 0.75, params.y) + 1e-5;
-        color.a *= smoothstep(params.x - w, params.x + w, d);
-        return color;
-    }
-    if (mode < 2.5)
-    {
-        half4 sampled = SAMPLE_TEXTURE2D_ARRAY(_LetteraColorAtlas, sampler_LetteraColorAtlas, uv0.xy, uv0.z);
-        if (mode < 1.5)
-        {
-            sampled.a *= color.a;
-            return sampled;
-        }
-        color.a *= sampled.a;
-        return color;
-    }
-    return color;
-}
+#define LETTERA_COLOR4 half4
+#define LETTERA_SAMPLE_SDF(uv, page) SAMPLE_TEXTURE2D_ARRAY(_LetteraSdfAtlas, sampler_LetteraSdfAtlas, uv, page)
+#define LETTERA_SAMPLE_COLOR(uv, page) SAMPLE_TEXTURE2D_ARRAY(_LetteraColorAtlas, sampler_LetteraColorAtlas, uv, page)
+
+#ifdef LETTERA_STYLED
+TEXTURE2D(_LetteraRamps);
+SAMPLER(sampler_LetteraRamps);
+TEXTURE2D(_LetteraPaintTex);
+SAMPLER(sampler_LetteraPaintTex);
+#define LETTERA_SAMPLE_RAMP(uv) SAMPLE_TEXTURE2D_LOD(_LetteraRamps, sampler_LetteraRamps, uv, 0)
+#define LETTERA_SAMPLE_PAINT(uv) SAMPLE_TEXTURE2D(_LetteraPaintTex, sampler_LetteraPaintTex, uv)
+#endif
+
+#include "LetteraShadeCore.hlsl"
 
 struct Attributes
 {
@@ -42,6 +31,10 @@ struct Attributes
     half4 color : COLOR;
     float4 uv0 : TEXCOORD0;
     float4 uv1 : TEXCOORD1;
+    #ifdef LETTERA_STYLED
+    float4 uv2 : TEXCOORD2;
+    float4 uv3 : TEXCOORD3;
+    #endif
     UNITY_VERTEX_INPUT_INSTANCE_ID
 };
 
@@ -50,9 +43,13 @@ struct Varyings
     float4 positionCS : SV_POSITION;
     half4 color : COLOR;
     float4 uv0 : TEXCOORD0;
-    float2 params : TEXCOORD1;
+    float3 params : TEXCOORD1;
     float3 normalWS : TEXCOORD2;
     float fog : TEXCOORD3;
+    #ifdef LETTERA_STYLED
+    float4 paint : TEXCOORD4;
+    float4 extra : TEXCOORD5;
+    #endif
     UNITY_VERTEX_OUTPUT_STEREO
 };
 
@@ -63,7 +60,11 @@ Varyings TextVertex(Attributes input)
     UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(output);
     output.positionCS = TransformObjectToHClip(input.positionOS.xyz);
     output.uv0 = input.uv0;
-    output.params = input.uv1.xy;
+    output.params = input.uv1.xyz;
+    #ifdef LETTERA_STYLED
+    output.paint = input.uv2;
+    output.extra = input.uv3;
+    #endif
     output.normalWS = TransformObjectToWorldNormal(input.normalOS);
     output.color = input.color;
     #ifndef UNITY_COLORSPACE_GAMMA
@@ -76,7 +77,11 @@ Varyings TextVertex(Attributes input)
 half4 TextFragment(Varyings input) : SV_Target
 {
     UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX(input);
-    half4 color = LetteraShade(input.uv0, input.params, input.color);
+    #ifdef LETTERA_STYLED
+    half4 color = LetteraShadeStyled(input.uv0, input.params, input.color, input.paint, input.extra, input.positionCS.xy);
+    #else
+    half4 color = LetteraShadePlain(input.uv0, input.params.xy, input.color);
+    #endif
     #ifdef LETTERA_LIT
     // Text is two-sided, so light reaches whichever side faces it.
     float3 normal = normalize(input.normalWS);
@@ -111,14 +116,14 @@ Varyings ShadowVertex(Attributes input)
     #endif
     output.positionCS = positionCS;
     output.uv0 = input.uv0;
-    output.params = input.uv1.xy;
+    output.params = input.uv1.xyz;
     output.color = input.color;
     return output;
 }
 
 half4 ShadowFragment(Varyings input) : SV_Target
 {
-    clip(LetteraShade(input.uv0, input.params, input.color).a - 0.5);
+    clip(LetteraShadePlain(input.uv0, input.params.xy, input.color).a - 0.5);
     return 0;
 }
 

@@ -188,6 +188,7 @@ namespace FirstSymbol.Lettera
                 LetteraMatchContext.RangeRecord r = ranges[index];
                 LetteraStyle style = m_EffectiveStyles[r.StyleIndex];
                 if (style.Effect == null) continue;
+                attributes.BeginEffect(style.Effect, r.StyleIndex);
                 try
                 {
                     style.Effect.Apply(attributes, r.RenderedStart, r.RenderedEnd, new LetteraSlots(r.Slots, style.ParsedDefault(), r.Raw));

@@ -1,5 +1,12 @@
 Shader "Lettera/World"
 {
+    Properties
+    {
+        [HideInInspector] _SrcBlend ("Source Blend", Float) = 1
+        [HideInInspector] _DstBlend ("Destination Blend", Float) = 10
+        [HideInInspector] _LetteraPaintTex ("Paint Texture", 2D) = "white" {}
+    }
+
     SubShader
     {
         PackageRequirements { "com.unity.render-pipelines.universal" }
@@ -11,7 +18,7 @@ Shader "Lettera/World"
             Tags { "LightMode"="SRPDefaultUnlit" }
             Cull Off
             ZWrite Off
-            Blend One OneMinusSrcAlpha
+            Blend [_SrcBlend] [_DstBlend]
 
             HLSLPROGRAM
             #pragma vertex TextVertex
@@ -19,6 +26,7 @@ Shader "Lettera/World"
             #pragma target 3.5
             #pragma require 2darray
             #pragma multi_compile_fog
+            #pragma multi_compile_local _ LETTERA_STYLED
             #include "LetteraWorldURP.hlsl"
             ENDHLSL
         }
@@ -52,7 +60,7 @@ Shader "Lettera/World"
             Cull Off
             Lighting Off
             ZWrite Off
-            Blend One OneMinusSrcAlpha
+            Blend [_SrcBlend] [_DstBlend]
 
             CGPROGRAM
             #pragma vertex vert
@@ -60,6 +68,7 @@ Shader "Lettera/World"
             #pragma target 3.5
             #pragma require 2darray
             #pragma multi_compile_fog
+            #pragma multi_compile_local _ LETTERA_STYLED
 
             #include "UnityCG.cginc"
             #include "LetteraGlyph.cginc"
@@ -70,6 +79,10 @@ Shader "Lettera/World"
                 float4 color : COLOR;
                 float4 uv0 : TEXCOORD0;
                 float4 uv1 : TEXCOORD1;
+                #ifdef LETTERA_STYLED
+                float4 uv2 : TEXCOORD2;
+                float4 uv3 : TEXCOORD3;
+                #endif
                 UNITY_VERTEX_INPUT_INSTANCE_ID
             };
 
@@ -78,8 +91,12 @@ Shader "Lettera/World"
                 float4 vertex : SV_POSITION;
                 fixed4 color : COLOR;
                 float4 uv0 : TEXCOORD0;
-                float2 params : TEXCOORD1;
+                float3 params : TEXCOORD1;
                 UNITY_FOG_COORDS(2)
+                #ifdef LETTERA_STYLED
+                float4 paint : TEXCOORD3;
+                float4 extra : TEXCOORD4;
+                #endif
                 UNITY_VERTEX_OUTPUT_STEREO
             };
 
@@ -90,7 +107,11 @@ Shader "Lettera/World"
                 UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(o);
                 o.vertex = UnityObjectToClipPos(v.vertex);
                 o.uv0 = v.uv0;
-                o.params = v.uv1.xy;
+                o.params = v.uv1.xyz;
+                #ifdef LETTERA_STYLED
+                o.paint = v.uv2;
+                o.extra = v.uv3;
+                #endif
                 o.color = v.color;
                 #ifndef UNITY_COLORSPACE_GAMMA
                 o.color.rgb = GammaToLinearSpace(o.color.rgb);
@@ -101,7 +122,11 @@ Shader "Lettera/World"
 
             fixed4 frag(v2f i) : SV_Target
             {
-                fixed4 color = LetteraShade(i.uv0, i.params, i.color);
+                #ifdef LETTERA_STYLED
+                fixed4 color = LetteraShadeStyled(i.uv0, i.params, i.color, i.paint, i.extra, i.vertex.xy);
+                #else
+                fixed4 color = LetteraShadePlain(i.uv0, i.params.xy, i.color);
+                #endif
                 UNITY_APPLY_FOG(i.fogCoord, color);
                 color.rgb *= color.a;
                 return color;
@@ -156,7 +181,7 @@ Shader "Lettera/World"
 
             float4 frag(v2f i) : SV_Target
             {
-                clip(LetteraShade(i.uv0, i.params, i.color).a - 0.5);
+                clip(LetteraShadePlain(i.uv0, i.params, i.color).a - 0.5);
                 SHADOW_CASTER_FRAGMENT(i);
             }
             ENDCG

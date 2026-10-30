@@ -232,25 +232,13 @@ namespace FirstSymbol.Lettera
             public float Alpha;
             public short Family;        // Index into FamilyRequests, -1 none.
             public short Language;      // Index into Languages, -1 none.
-            public byte Underline, Strike, Outline, Shadow; // 1-based indices into the spec lists.
+            public ushort Underline, Strike; // 1-based indices into Decorations.
         }
 
         internal struct DecorationSpec
         {
             public bool HasColor;
             public Color32 Color;
-        }
-
-        internal struct OutlineSpec
-        {
-            public Color32 Color;
-            public float WidthEm, WidthUnits;
-        }
-
-        internal struct ShadowSpec
-        {
-            public Color32 Color;
-            public float OffsetX, OffsetY, Softness, Dilate;
         }
 
         internal struct ElideRequest
@@ -265,8 +253,12 @@ namespace FirstSymbol.Lettera
         internal readonly System.Collections.Generic.List<string> FamilyRequests = new System.Collections.Generic.List<string>();
         internal readonly System.Collections.Generic.List<string> Languages = new System.Collections.Generic.List<string>();
         internal readonly System.Collections.Generic.List<DecorationSpec> Decorations = new System.Collections.Generic.List<DecorationSpec>();
-        internal readonly System.Collections.Generic.List<OutlineSpec> Outlines = new System.Collections.Generic.List<OutlineSpec>();
-        internal readonly System.Collections.Generic.List<ShadowSpec> Shadows = new System.Collections.Generic.List<ShadowSpec>();
+        internal readonly System.Collections.Generic.List<LayerRecord> Layers = new System.Collections.Generic.List<LayerRecord>();
+        readonly System.Collections.Generic.List<LayerGroup> m_Groups = new System.Collections.Generic.List<LayerGroup>();
+        readonly System.Collections.Generic.List<LayerGroup> m_GroupPool = new System.Collections.Generic.List<LayerGroup>();
+        object m_CurrentEffect;
+        int m_CurrentStyle;
+        bool m_GroupsSorted;
         internal readonly System.Collections.Generic.List<ElideRequest> Elides = new System.Collections.Generic.List<ElideRequest>();
 
         /// <summary>A base direction forced by an effect: -1 none, 0 ltr, 1 rtl, 2 auto.</summary>
@@ -281,8 +273,11 @@ namespace FirstSymbol.Lettera
             FamilyRequests.Clear();
             Languages.Clear();
             Decorations.Clear();
-            Outlines.Clear();
-            Shadows.Clear();
+            Layers.Clear();
+            m_GroupPool.AddRange(m_Groups);
+            m_Groups.Clear();
+            m_GroupsSorted = false;
+            m_CurrentEffect = null;
             Elides.Clear();
             DirectionOverride = -1;
         }
@@ -381,7 +376,7 @@ namespace FirstSymbol.Lettera
         {
             Clamp(ref start, ref end);
             Decorations.Add(new DecorationSpec { HasColor = hasColor, Color = color });
-            byte index = (byte)Mathf.Min(Decorations.Count, 255);
+            ushort index = (ushort)Mathf.Min(Decorations.Count, ushort.MaxValue);
             for (int i = start; i < end; i++) Chars[i].Underline = index;
         }
 
@@ -389,24 +384,114 @@ namespace FirstSymbol.Lettera
         {
             Clamp(ref start, ref end);
             Decorations.Add(new DecorationSpec { HasColor = hasColor, Color = color });
-            byte index = (byte)Mathf.Min(Decorations.Count, 255);
+            ushort index = (ushort)Mathf.Min(Decorations.Count, ushort.MaxValue);
             for (int i = start; i < end; i++) Chars[i].Strike = index;
         }
 
         public void SetOutline(int start, int end, Color32 color, float widthEm, float widthUnits)
         {
-            Clamp(ref start, ref end);
-            Outlines.Add(new OutlineSpec { Color = color, WidthEm = widthEm, WidthUnits = widthUnits });
-            byte index = (byte)Mathf.Min(Outlines.Count, 255);
-            for (int i = start; i < end; i++) Chars[i].Outline = index;
+            AddLayer(start, end, LetteraLayerBand.Rim, new LayerRecord
+            {
+                Kind = LayerKind.Stroke,
+                Paint = new ResolvedPaint { Color = color, Blend = LetteraBlend.Normal },
+                Width = new EmLength { Em = widthEm, Units = widthUnits },
+                Align = 1,
+            });
         }
 
         public void SetShadow(int start, int end, Color32 color, float offsetX, float offsetY, float softness, float dilate)
         {
+            AddLayer(start, end, LetteraLayerBand.Back, new LayerRecord
+            {
+                Kind = LayerKind.Shadow,
+                Paint = new ResolvedPaint { Color = color, Blend = LetteraBlend.Normal },
+                OffsetX = new EmLength { Em = offsetX },
+                OffsetY = new EmLength { Em = offsetY },
+                Softness = softness,
+                Dilate = new EmLength { Em = dilate },
+                OnColorGlyphs = true,
+            });
+        }
+
+        /// <summary>Called before an effect applies a range: its layers belong to this effect.</summary>
+        internal void BeginEffect(object effect, int style)
+        {
+            m_CurrentEffect = effect;
+            m_CurrentStyle = style;
+        }
+
+        /// <summary>
+        /// Adds a painted range. Inside one effect the innermost range wins for a codepoint; different
+        /// effects both draw. Later styles draw above earlier ones in a band.
+        /// </summary>
+        internal void AddLayer(int start, int end, LetteraLayerBand band, in LayerRecord record)
+        {
             Clamp(ref start, ref end);
-            Shadows.Add(new ShadowSpec { Color = color, OffsetX = offsetX, OffsetY = offsetY, Softness = softness, Dilate = dilate });
-            byte index = (byte)Mathf.Min(Shadows.Count, 255);
-            for (int i = start; i < end; i++) Chars[i].Shadow = index;
+            LayerGroup group = GroupOf(band, record.Kind);
+            int index = Layers.Count;
+            LayerRecord copy = record;
+            copy.Start = start;
+            copy.End = end;
+            Layers.Add(copy);
+            int[] cover = group.Cover;
+            for (int i = start; i < end; i++) cover[i] = index + 1;
+        }
+
+        LayerGroup GroupOf(LetteraLayerBand band, LayerKind kind)
+        {
+            for (int i = 0; i < m_Groups.Count; i++)
+            {
+                LayerGroup existing = m_Groups[i];
+                if (existing.Key == m_CurrentEffect && existing.Layer == kind) return existing;
+            }
+            LayerGroup group;
+            if (m_GroupPool.Count > 0)
+            {
+                group = m_GroupPool[m_GroupPool.Count - 1];
+                m_GroupPool.RemoveAt(m_GroupPool.Count - 1);
+            }
+            else
+            {
+                group = new LayerGroup();
+            }
+            if (group.Cover == null || group.Cover.Length < Length) group.Cover = new int[Mathf.Max(Length, 64)];
+            else System.Array.Clear(group.Cover, 0, Length);
+            group.Key = m_CurrentEffect;
+            group.Band = band;
+            group.Layer = kind;
+            group.Style = m_CurrentStyle;
+            group.Sequence = m_Groups.Count;
+            m_Groups.Add(group);
+            m_GroupsSorted = false;
+            return group;
+        }
+
+        /// <summary>The groups in drawing order: by band, then style.</summary>
+        internal System.Collections.Generic.List<LayerGroup> SortedGroups()
+        {
+            if (!m_GroupsSorted)
+            {
+                m_GroupsSorted = true;
+                m_Groups.Sort(s_GroupOrder);
+            }
+            return m_Groups;
+        }
+
+        static readonly Comparison<LayerGroup> s_GroupOrder = (a, b) =>
+        {
+            if (a.Band != b.Band) return a.Band.CompareTo(b.Band);
+            return a.Style != b.Style ? a.Style.CompareTo(b.Style) : a.Sequence.CompareTo(b.Sequence);
+        };
+
+        internal bool NeedsStyledShader()
+        {
+            for (int i = 0; i < Layers.Count; i++)
+            {
+                LayerRecord record = Layers[i];
+                if (!record.Paint.IsSolid || record.Kind == LayerKind.InnerShadow || (record.Kind == LayerKind.Stroke && record.Align < 1)) return true;
+                if (record.Kind == LayerKind.Fill && record.Paint.Color.a < 255) return true;
+            }
+            return false;
         }
 
         /// <summary>Asks layout to remove clusters of the range at a position (0 start, 0.5 middle, 1 end) when the text does not fit.</summary>

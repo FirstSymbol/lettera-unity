@@ -27,6 +27,8 @@ namespace FirstSymbol.Lettera
         [SerializeField] LetteraSizeMatchMetric m_FontSizeMatchMetric;
         [Tooltip("Used on WebGL when a text has no font, because browsers expose no OS fonts.")]
         [SerializeField] LetteraFontAsset m_WebGLFallbackFont;
+        [Tooltip("The paints effects find by name, by default.")]
+        [SerializeField] LetteraPaintLibrary m_Paints;
         [SerializeField] GameObject m_TextPrefab;
         [SerializeField] GameObject m_WorldTextPrefab;
 
@@ -55,6 +57,7 @@ namespace FirstSymbol.Lettera
         public float DefaultLineHeightValue { get => m_DefaultLineHeightValue; set { m_DefaultLineHeightValue = value; Changed?.Invoke(); } }
         public LetteraSizeMatchMetric FontSizeMatchMetric { get => m_FontSizeMatchMetric; set { m_FontSizeMatchMetric = value; Changed?.Invoke(); } }
         public LetteraFontAsset WebGLFallbackFont { get => m_WebGLFallbackFont; set { m_WebGLFallbackFont = value; Changed?.Invoke(); } }
+        public LetteraPaintLibrary Paints { get => m_Paints; set { m_Paints = value; Changed?.Invoke(); } }
         public GameObject TextPrefab { get => m_TextPrefab; set => m_TextPrefab = value; }
         public GameObject WorldTextPrefab { get => m_WorldTextPrefab; set => m_WorldTextPrefab = value; }
 

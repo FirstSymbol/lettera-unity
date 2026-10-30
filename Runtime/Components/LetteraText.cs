@@ -27,7 +27,7 @@ namespace FirstSymbol.Lettera
 
         TextEngine Engine => m_Engine ?? (m_Engine = new TextEngine(this));
 
-        public override Material defaultMaterial => LetteraMaterials.Ui;
+        public override Material defaultMaterial => LetteraMaterials.Variant(LetteraMaterials.Ui, Engine.Styled, LetteraBlend.Normal, null);
 
         public override Color color
         {
@@ -65,6 +65,9 @@ namespace FirstSymbol.Lettera
         protected override void OnDisable()
         {
             RemoveListeners();
+            foreach (Material mask in m_SegmentMasks) StencilMaterial.Remove(mask);
+            m_SegmentMasks.Clear();
+            m_LastSegments.Clear();
             base.OnDisable();
             if (m_Mesh != null)
             {
@@ -91,7 +94,8 @@ namespace FirstSymbol.Lettera
         {
             Canvas root = canvas != null ? canvas.rootCanvas : null;
             if (root == null) return;
-            const AdditionalCanvasShaderChannels needed = AdditionalCanvasShaderChannels.TexCoord1;
+            AdditionalCanvasShaderChannels needed = AdditionalCanvasShaderChannels.TexCoord1;
+            if (Engine.Styled) needed |= AdditionalCanvasShaderChannels.TexCoord2 | AdditionalCanvasShaderChannels.TexCoord3;
             if ((root.additionalShaderChannels & needed) != needed) root.additionalShaderChannels |= needed;
         }
 
@@ -123,6 +127,11 @@ namespace FirstSymbol.Lettera
             if (Engine.Dirty == DirtyLevel.None) Engine.SetDirty(DirtyLevel.Mesh);
             if (!Engine.Rebuild()) return;
             UploadMesh();
+            if (MaterialsChanged())
+            {
+                EnableCanvasChannels();
+                UpdateMaterial();
+            }
             canvasRenderer.SetMesh(m_Mesh);
             RaiseRebuilt(Engine.LastChanges);
         }
@@ -136,8 +145,69 @@ namespace FirstSymbol.Lettera
             m_Mesh.SetColors(e.Colors, 0, e.VertexCount);
             m_Mesh.SetUVs(0, e.Uv0, 0, e.VertexCount);
             m_Mesh.SetUVs(1, e.Uv1, 0, e.VertexCount);
-            m_Mesh.SetIndices(e.Indices, 0, e.IndexCount, MeshTopology.Triangles, 0, false);
+            if (e.Styled)
+            {
+                m_Mesh.SetUVs(2, e.Uv2, 0, e.VertexCount);
+                m_Mesh.SetUVs(3, e.Uv3, 0, e.VertexCount);
+            }
+            int segments = e.Segments.Count;
+            if (segments <= 1)
+            {
+                m_Mesh.subMeshCount = 1;
+                m_Mesh.SetIndices(e.Indices, 0, e.IndexCount, MeshTopology.Triangles, 0, false);
+            }
+            else
+            {
+                m_Mesh.subMeshCount = segments;
+                for (int i = 0; i < segments; i++)
+                    m_Mesh.SetIndices(e.Indices, e.Segments[i].IndexStart, e.Segments[i].IndexCount, MeshTopology.Triangles, i, false);
+            }
             m_Mesh.bounds = e.MeshBounds;
+        }
+
+        // The materials of the last rebuild's stretches, to see when the renderer needs new ones.
+        readonly System.Collections.Generic.List<MeshSegment> m_LastSegments = new System.Collections.Generic.List<MeshSegment>();
+        readonly System.Collections.Generic.List<Material> m_SegmentMasks = new System.Collections.Generic.List<Material>();
+        bool m_LastStyled;
+
+        bool MaterialsChanged()
+        {
+            TextEngine e = Engine;
+            bool changed = m_LastStyled != e.Styled || m_LastSegments.Count != e.Segments.Count;
+            for (int i = 0; !changed && i < e.Segments.Count; i++)
+                changed = m_LastSegments[i].Blend != e.Segments[i].Blend || m_LastSegments[i].Texture != e.Segments[i].Texture;
+            if (!changed) return false;
+            m_LastStyled = e.Styled;
+            m_LastSegments.Clear();
+            m_LastSegments.AddRange(e.Segments);
+            return true;
+        }
+
+        protected override void UpdateMaterial()
+        {
+            base.UpdateMaterial();
+            if (!IsActive()) return;
+            TextEngine e = Engine;
+            foreach (Material mask in m_SegmentMasks) StencilMaterial.Remove(mask);
+            m_SegmentMasks.Clear();
+            int count = e.Segments.Count;
+            if (count == 0 || (count == 1 && e.Segments[0].IsDefault)) return;
+
+            // A material of the user's own stays; only the variant of the default one changes per stretch.
+            Material source = m_Material != null ? m_Material : LetteraMaterials.Ui;
+            canvasRenderer.materialCount = count;
+            for (int i = 0; i < count; i++)
+            {
+                MeshSegment segment = e.Segments[i];
+                Material material = LetteraMaterials.Variant(source, e.Styled, segment.Blend, segment.Texture);
+                if (maskable && m_StencilValue > 0)
+                {
+                    int bits = (1 << m_StencilValue) - 1;
+                    material = StencilMaterial.Add(material, bits, UnityEngine.Rendering.StencilOp.Keep, UnityEngine.Rendering.CompareFunction.Equal, UnityEngine.Rendering.ColorWriteMask.All, bits, 0);
+                    m_SegmentMasks.Add(material);
+                }
+                canvasRenderer.SetMaterial(material, i);
+            }
         }
 
 #if UNITY_EDITOR

@@ -42,6 +42,8 @@ namespace FirstSymbol.Lettera
             public GameObject Object;
             public MeshRenderer Renderer;
             public Mesh Mesh;
+            public Material[] Materials;
+            public bool MaterialsDirty;
         }
 
         sealed class Batch
@@ -69,7 +71,21 @@ namespace FirstSymbol.Lettera
         static Color32[] s_Colors = new Color32[ShardVertices + 1024];
         static Vector4[] s_Uv0 = new Vector4[ShardVertices + 1024];
         static Vector4[] s_Uv1 = new Vector4[ShardVertices + 1024];
+        static Vector4[] s_Uv2 = new Vector4[ShardVertices + 1024];
+        static Vector4[] s_Uv3 = new Vector4[ShardVertices + 1024];
         static int[] s_Indices = new int[(ShardVertices + 1024) * 3 / 2];
+
+        // The stretches of one shard that need different materials, in drawing order.
+        struct MaterialRun
+        {
+            public int IndexStart, IndexCount;
+            public bool Styled;
+            public LetteraBlend Blend;
+            public Texture2D Texture;
+        }
+
+        static readonly List<MaterialRun> s_Runs = new List<MaterialRun>();
+        static bool s_ShardStyled;
 
         public static void Register(LetteraWorldText text)
         {
@@ -152,6 +168,8 @@ namespace FirstSymbol.Lettera
         static void Upload(Batch batch)
         {
             int shardIndex = 0, vertexCount = 0, indexCount = 0;
+            s_Runs.Clear();
+            s_ShardStyled = false;
             batch.Texts.Sort((a, b) => a.SortingOrder != b.SortingOrder ? a.SortingOrder.CompareTo(b.SortingOrder) : a.GetHashCode().CompareTo(b.GetHashCode()));
             foreach (LetteraWorldText text in batch.Texts)
             {
@@ -162,6 +180,8 @@ namespace FirstSymbol.Lettera
                 {
                     Commit(batch, shardIndex++, vertexCount, indexCount);
                     vertexCount = indexCount = 0;
+                    s_Runs.Clear();
+                    s_ShardStyled = false;
                 }
                 EnsureCapacity(vertexCount + e.VertexCount, indexCount + e.IndexCount);
                 Matrix4x4 m = text.transform.localToWorldMatrix;
@@ -175,8 +195,12 @@ namespace FirstSymbol.Lettera
                     s_Colors[vertexCount + i] = e.Colors[i];
                     s_Uv0[vertexCount + i] = e.Uv0[i];
                     s_Uv1[vertexCount + i] = e.Uv1[i];
+                    s_Uv2[vertexCount + i] = e.Styled ? e.Uv2[i] : default;
+                    s_Uv3[vertexCount + i] = e.Styled ? e.Uv3[i] : default;
                 }
                 for (int i = 0; i < e.IndexCount; i++) s_Indices[indexCount + i] = e.Indices[i] + vertexCount;
+                s_ShardStyled |= e.Styled;
+                foreach (MeshSegment segment in e.Segments) AddRun(indexCount + segment.IndexStart, segment.IndexCount, e.Styled, segment.Blend, segment.Texture);
                 vertexCount += e.VertexCount;
                 indexCount += e.IndexCount;
             }
@@ -185,6 +209,21 @@ namespace FirstSymbol.Lettera
             {
                 if (batch.Shards[i].Mesh != null) batch.Shards[i].Mesh.Clear(false);
             }
+        }
+
+        static void AddRun(int start, int count, bool styled, LetteraBlend blend, Texture2D texture)
+        {
+            if (s_Runs.Count > 0)
+            {
+                MaterialRun last = s_Runs[s_Runs.Count - 1];
+                if (last.Styled == styled && last.Blend == blend && last.Texture == texture)
+                {
+                    last.IndexCount += count;
+                    s_Runs[s_Runs.Count - 1] = last;
+                    return;
+                }
+            }
+            s_Runs.Add(new MaterialRun { IndexStart = start, IndexCount = count, Styled = styled, Blend = blend, Texture = texture });
         }
 
         static void EnsureCapacity(int vertices, int indices)
@@ -197,6 +236,8 @@ namespace FirstSymbol.Lettera
                 Array.Resize(ref s_Colors, capacity);
                 Array.Resize(ref s_Uv0, capacity);
                 Array.Resize(ref s_Uv1, capacity);
+                Array.Resize(ref s_Uv2, capacity);
+                Array.Resize(ref s_Uv3, capacity);
             }
             if (indices > s_Indices.Length) Array.Resize(ref s_Indices, Math.Max(indices, s_Indices.Length * 2));
         }
@@ -212,14 +253,58 @@ namespace FirstSymbol.Lettera
             mesh.SetColors(s_Colors, 0, vertexCount);
             mesh.SetUVs(0, s_Uv0, 0, vertexCount);
             mesh.SetUVs(1, s_Uv1, 0, vertexCount);
-            mesh.SetIndices(s_Indices, 0, indexCount, MeshTopology.Triangles, 0, true);
+            if (s_ShardStyled)
+            {
+                mesh.SetUVs(2, s_Uv2, 0, vertexCount);
+                mesh.SetUVs(3, s_Uv3, 0, vertexCount);
+            }
 
             BatchKey key = batch.Key;
             MeshRenderer renderer = shard.Renderer;
+            Material source = key.Lit ? LetteraMaterials.WorldLit : LetteraMaterials.World;
+            int runs = s_Runs.Count;
+            if (runs <= 1)
+            {
+                mesh.subMeshCount = 1;
+                mesh.SetIndices(s_Indices, 0, indexCount, MeshTopology.Triangles, 0, true);
+                MaterialRun only = runs == 1 ? s_Runs[0] : default;
+                SetMaterials(shard, 1, 0, LetteraMaterials.Variant(source, only.Styled, only.Blend, only.Texture));
+            }
+            else
+            {
+                mesh.subMeshCount = runs;
+                for (int i = 0; i < runs; i++)
+                {
+                    MaterialRun run = s_Runs[i];
+                    mesh.SetIndices(s_Indices, run.IndexStart, run.IndexCount, MeshTopology.Triangles, i, true);
+                    SetMaterials(shard, runs, i, LetteraMaterials.Variant(source, run.Styled, run.Blend, run.Texture));
+                }
+            }
             renderer.sortingLayerID = key.SortingLayer;
             renderer.sortingOrder = key.SortingOrder;
             renderer.shadowCastingMode = key.Shadows ? ShadowCastingMode.On : ShadowCastingMode.Off;
             shard.Object.layer = key.Layer;
+        }
+
+        // Reassigns the renderer's materials only when they changed, so a steady shard allocates nothing.
+        static void SetMaterials(Shard shard, int count, int index, Material material)
+        {
+            if (shard.Materials == null || shard.Materials.Length != count)
+            {
+                shard.Materials = new Material[count];
+                shard.Materials[index] = material;
+                shard.MaterialsDirty = true;
+            }
+            else if (shard.Materials[index] != material)
+            {
+                shard.Materials[index] = material;
+                shard.MaterialsDirty = true;
+            }
+            if (index == count - 1 && shard.MaterialsDirty)
+            {
+                shard.MaterialsDirty = false;
+                shard.Renderer.sharedMaterials = shard.Materials;
+            }
         }
 
         static Shard GetShard(Batch batch, int index)
@@ -228,6 +313,7 @@ namespace FirstSymbol.Lettera
             Shard shard = batch.Shards[index];
             if (shard.Object != null) return shard;
 
+            shard.Materials = null;
             shard.Object = new GameObject("Lettera World Batch") { hideFlags = HideFlags.HideAndDontSave };
             var filter = shard.Object.AddComponent<MeshFilter>();
             shard.Renderer = shard.Object.AddComponent<MeshRenderer>();

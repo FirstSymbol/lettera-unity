@@ -1,7 +1,9 @@
 using System;
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.LowLevel;
 using UnityEngine.PlayerLoop;
+using UnityEngine.Rendering;
 
 namespace FirstSymbol.Lettera
 {
@@ -18,6 +20,44 @@ namespace FirstSymbol.Lettera
         {
             var shader = Resources.Load<Shader>(resource);
             return new Material(shader) { hideFlags = HideFlags.HideAndDontSave, name = resource };
+        }
+
+        static readonly int s_SrcBlend = Shader.PropertyToID("_SrcBlend");
+        static readonly int s_DstBlend = Shader.PropertyToID("_DstBlend");
+        static readonly int s_PaintTex = Shader.PropertyToID("_LetteraPaintTex");
+        static readonly Dictionary<(Material, bool, LetteraBlend, Texture2D), Material> s_Variants = new Dictionary<(Material, bool, LetteraBlend, Texture2D), Material>();
+
+        /// <summary>
+        /// The material a stretch of text draws with: a variant of a base material with the styled shader tier,
+        /// a blend and a paint texture. Variants are shared across texts.
+        /// </summary>
+        internal static Material Variant(Material source, bool styled, LetteraBlend blend, Texture2D texture)
+        {
+            if (blend == LetteraBlend.Inherit) blend = LetteraBlend.Normal;
+            if (!styled && blend == LetteraBlend.Normal && texture == null) return source;
+            var key = (source, styled, blend, texture);
+            if (s_Variants.TryGetValue(key, out Material variant) && variant != null) return variant;
+            variant = new Material(source) { hideFlags = HideFlags.HideAndDontSave, name = source.name + " Variant" };
+            if (styled) variant.EnableKeyword("LETTERA_STYLED");
+            if (texture != null) variant.SetTexture(s_PaintTex, texture);
+            SetBlend(variant, blend);
+            s_Variants[key] = variant;
+            return variant;
+        }
+
+        // The shaders output premultiplied color.
+        static void SetBlend(Material material, LetteraBlend blend)
+        {
+            BlendMode src = BlendMode.One, dst = BlendMode.OneMinusSrcAlpha;
+            switch (blend)
+            {
+                case LetteraBlend.Multiply: src = BlendMode.DstColor; break;
+                case LetteraBlend.Screen: dst = BlendMode.OneMinusSrcColor; break;
+                case LetteraBlend.Additive: dst = BlendMode.One; break;
+                case LetteraBlend.Exclusion: src = BlendMode.OneMinusDstColor; dst = BlendMode.OneMinusSrcColor; break;
+            }
+            material.SetFloat(s_SrcBlend, (float)src);
+            material.SetFloat(s_DstBlend, (float)dst);
         }
     }
 
@@ -102,6 +142,7 @@ namespace FirstSymbol.Lettera
         {
             LetteraWorldBatcher.Shutdown();
             GlyphAtlas.Shutdown();
+            GradientAtlas.Shutdown();
             FontFace.DisposeAll();
             LetteraSystemFonts.Reset();
         }

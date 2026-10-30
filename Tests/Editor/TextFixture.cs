@@ -67,6 +67,34 @@ namespace FirstSymbol.Lettera.Editor.Tests
             return label;
         }
 
+        /// <summary>Renders world text in edit mode, one local unit to a pixel, centered on the origin, over a background.</summary>
+        protected Texture2D Render(int width, int height, Color background)
+        {
+            LetteraWorldBatcher.Update();
+            GlyphAtlas.Flush();
+            var cameraObject = new GameObject("Test Camera");
+            m_Created.Add(cameraObject);
+            var camera = cameraObject.AddComponent<Camera>();
+            camera.orthographic = true;
+            camera.orthographicSize = height * 0.5f;
+            camera.transform.position = new Vector3(0, 0, -100);
+            camera.clearFlags = CameraClearFlags.SolidColor;
+            camera.backgroundColor = background;
+            camera.aspect = (float)width / height;
+            var target = RenderTexture.GetTemporary(width, height, 24, RenderTextureFormat.ARGB32, RenderTextureReadWrite.sRGB);
+            camera.targetTexture = target;
+            camera.Render();
+            RenderTexture.active = target;
+            var result = new Texture2D(width, height, TextureFormat.RGBA32, false);
+            m_Created.Add(result);
+            result.ReadPixels(new Rect(0, 0, width, height), 0, 0);
+            result.Apply();
+            RenderTexture.active = null;
+            camera.targetTexture = null;
+            RenderTexture.ReleaseTemporary(target);
+            return result;
+        }
+
         protected static List<uint> Glyphs(LetteraWorldText text)
         {
             var glyphs = new List<uint>();
