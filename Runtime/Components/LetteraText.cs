@@ -24,6 +24,7 @@ namespace FirstSymbol.Lettera
         float ITextHost.RasterScale => canvas != null ? canvas.scaleFactor : 1f;
         bool ITextHost.ClipsOverflow => m_ClipsOverflow;
         Component ITextHost.Owner => this;
+        void ITextHost.RequestRebuild(DirtyLevel level) => MarkDirty(level);
 
         TextEngine Engine => m_Engine ?? (m_Engine = new TextEngine(this));
 

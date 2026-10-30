@@ -96,6 +96,7 @@ namespace FirstSymbol.Lettera
             LetteraStyle.ForMatcher(new ListItemMatcher(), new ListEffect()),
             LetteraStyle.ForMatcher(new RubyMatcher(), new RubyEffect()),
             LetteraStyle.ForTag(new LinkEffect(), "link"),
+            LetteraStyle.ForTag(new CompositeEffect(new LinkEffect(), new ColorEffect { Color = new Color32(77, 163, 255, 255) }, new UnderlineEffect()), "a"),
             LetteraStyle.ForTag(new TrackingEffect(), "tracking"),
             LetteraStyle.ForTag(new WordSpacingEffect(), "word-spacing"),
             LetteraStyle.ForTag(new CellWidthEffect(), "cell"),

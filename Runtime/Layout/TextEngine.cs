@@ -13,6 +13,9 @@ namespace FirstSymbol.Lettera
         float RasterScale { get; }
         bool ClipsOverflow { get; }
         Component Owner { get; }
+
+        /// <summary>Something other than the component changed what the text shows.</summary>
+        void RequestRebuild(DirtyLevel level);
     }
 
     /// <summary>
@@ -186,6 +189,7 @@ namespace FirstSymbol.Lettera
             public float RasterScale => 1f;
             public bool ClipsOverflow => false;
             public Component Owner { get; set; }
+            public void RequestRebuild(DirtyLevel level) { }
         }
 
         /// <summary>Measures a text without touching what a component displays.</summary>

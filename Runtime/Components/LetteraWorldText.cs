@@ -31,6 +31,7 @@ namespace FirstSymbol.Lettera
         float ITextHost.RasterScale => 1f;
         bool ITextHost.ClipsOverflow => false;
         Component ITextHost.Owner => this;
+        void ITextHost.RequestRebuild(DirtyLevel level) => MarkDirty(level);
 
         RectTransform Rect => m_Rect != null ? m_Rect : m_Rect = (RectTransform)transform;
         internal TextEngine Engine => m_Engine ?? (m_Engine = new TextEngine(this));

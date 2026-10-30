@@ -112,6 +112,9 @@ namespace FirstSymbol.Lettera
         /// After changing a parameter of an effect already in use: runs the effects again on the ranges already found,
         /// without running matchers. Pass the level the parameter needs, for example Mesh for a color or Shape for a font feature.
         /// </summary>
+        /// <summary>The ranges of an effect in this text, as a query to filter or to hold a parameter on.</summary>
+        public LetteraRangeQuery Ranges(LetteraEffect effect) => new LetteraRangeQuery(Engine, effect);
+
         public void MarkEffectsDirty(DirtyLevel level = DirtyLevel.Mesh)
         {
             Engine.ReapplyEffects(level);
@@ -203,6 +206,12 @@ namespace FirstSymbol.Lettera
             MarkDirty(DirtyLevel.Shape);
         }
 
+        void OnEffectPresetChanged(LetteraEffectPreset preset)
+        {
+            Engine.InvalidateStyleCopies();
+            MarkDirty(DirtyLevel.Parse);
+        }
+
         void OnPresetChanged(LetteraStylePreset preset)
         {
             Engine.InvalidateStyleCopies();
@@ -223,6 +232,7 @@ namespace FirstSymbol.Lettera
             LetteraFontAsset.FontAssetChanged += OnFontAssetChanged;
             LetteraFontStack.StackChanged += OnStackChanged;
             LetteraStylePreset.PresetChanged += OnPresetChanged;
+            LetteraEffectPreset.PresetChanged += OnEffectPresetChanged;
             LetteraSettings.Changed += OnSettingsChanged;
             GlyphAtlas.Cleared += OnAtlasCleared;
         }
@@ -232,6 +242,7 @@ namespace FirstSymbol.Lettera
             LetteraFontAsset.FontAssetChanged -= OnFontAssetChanged;
             LetteraFontStack.StackChanged -= OnStackChanged;
             LetteraStylePreset.PresetChanged -= OnPresetChanged;
+            LetteraEffectPreset.PresetChanged -= OnEffectPresetChanged;
             LetteraSettings.Changed -= OnSettingsChanged;
             GlyphAtlas.Cleared -= OnAtlasCleared;
         }

@@ -75,7 +75,7 @@ namespace FirstSymbol.Lettera
 
         public override void Apply(LetteraAttributes attributes, int start, int end, in LetteraSlots slots)
         {
-            attributes.SetColor(start, end, LetteraSlots.TryColor(slots[0], out Color32 color) ? color : m_Color);
+            attributes.SetColor(start, end, slots.Color(0, m_Color));
         }
     }
 

@@ -91,7 +91,104 @@ namespace FirstSymbol.Lettera
             }
 
             BuildRenderedText(source, context);
+            ResolveRangeEnds(context);
+            m_RangesApplied = false;
+            foreach (IHoldSource hold in m_Holds) hold.Refresh();
             ApplyEffects(context);
+            m_RangesApplied = true;
+        }
+
+        void ResolveRangeEnds(LetteraMatchContext context)
+        {
+            List<LetteraMatchContext.RangeRecord> ranges = context.Ranges;
+            for (int i = 0; i < ranges.Count; i++)
+            {
+                LetteraMatchContext.RangeRecord r = ranges[i];
+                if (r.WholeText) { r.RenderedStart = 0; r.RenderedEnd = m_TextLength; }
+                else if (r.IsSpan)
+                {
+                    r.RenderedStart = Math.Min(Math.Max(r.SpanStart, 0), m_TextLength);
+                    r.RenderedEnd = Math.Min(r.RenderedStart + Math.Max(r.SpanLength, 0), m_TextLength);
+                }
+                else if (r.RenderedEnd < 0) r.RenderedEnd = m_TextLength; // An unclosed tag runs to the end.
+                ranges[i] = r;
+            }
+        }
+
+        // ------------------------------------------------------------- queries and holds
+
+        readonly List<IHoldSource> m_Holds = new List<IHoldSource>();
+        readonly List<HoldEntry> m_HoldEntries = new List<HoldEntry>();
+        bool m_RangesApplied;
+
+        internal void AddHold(IHoldSource hold)
+        {
+            m_Holds.Add(hold);
+            m_Holds.Sort((a, b) => a.Priority.CompareTo(b.Priority));
+        }
+
+        internal void RemoveHold(IHoldSource hold) => m_Holds.Remove(hold);
+
+        internal void ChangeHeld(DirtyLevel level)
+        {
+            ReapplyEffects(level);
+            m_Host.RequestRebuild(level);
+        }
+
+        List<HoldEntry> HoldsOf(int rangeIndex)
+        {
+            if (m_Holds.Count == 0) return null;
+            m_HoldEntries.Clear();
+            foreach (IHoldSource hold in m_Holds) hold.Contribute(rangeIndex, m_HoldEntries);
+            return m_HoldEntries.Count > 0 ? m_HoldEntries : null;
+        }
+
+        /// <summary>Makes the ranges current, for a query before the frame's rebuild.</summary>
+        public void EnsureParsed()
+        {
+            if (m_Dirty < DirtyLevel.Parse) return;
+            Parse();
+            m_Dirty = DirtyLevel.Shape;
+        }
+
+        static bool Contains(LetteraEffect root, LetteraEffect target, int depth)
+        {
+            if (root == target) return true;
+            if (root == null || depth > 16) return false;
+            s_Children.Clear();
+            root.CollectChildren(s_Children);
+            var children = s_Children.ToArray();
+            foreach (LetteraEffect child in children)
+                if (Contains(child, target, depth + 1))
+                    return true;
+            return false;
+        }
+
+        static readonly List<LetteraEffect> s_Children = new List<LetteraEffect>();
+
+        internal void ForEachRange(LetteraEffect effect, List<LetteraRangeInfo> results, Func<LetteraRangeInfo, bool>[] filters, int skip, int take)
+        {
+            List<LetteraMatchContext.RangeRecord> ranges = m_MatchContext.Ranges;
+            var order = new List<int>(ranges.Count);
+            for (int i = 0; i < ranges.Count; i++)
+                if (Contains(m_EffectiveStyles[ranges[i].StyleIndex]?.Effect, effect, 0))
+                    order.Add(i);
+            order.Sort((a, b) => ranges[a].RenderedStart != ranges[b].RenderedStart ? ranges[a].RenderedStart.CompareTo(ranges[b].RenderedStart) : a.CompareTo(b));
+            foreach (int index in order)
+            {
+                LetteraMatchContext.RangeRecord r = ranges[index];
+                var info = new LetteraRangeInfo { Index = index, Start = r.RenderedStart, End = r.RenderedEnd, Primary = r.Primary, Label = r.Label, Slots = r.Slots };
+                bool passes = true;
+                foreach (Func<LetteraRangeInfo, bool> filter in filters) passes &= filter(info);
+                if (!passes) continue;
+                if (skip > 0)
+                {
+                    skip--;
+                    continue;
+                }
+                if (take-- <= 0) break;
+                results.Add(info);
+            }
         }
 
         void BuildRenderedText(ReadOnlySpan<char> source, LetteraMatchContext context)
@@ -174,18 +271,6 @@ namespace FirstSymbol.Lettera
             LetteraAttributes attributes = m_Attributes;
             attributes.Reset(m_TextLength);
             List<LetteraMatchContext.RangeRecord> ranges = context.Ranges;
-            for (int i = 0; i < ranges.Count; i++)
-            {
-                LetteraMatchContext.RangeRecord r = ranges[i];
-                if (r.WholeText) { r.RenderedStart = 0; r.RenderedEnd = m_TextLength; }
-                else if (r.IsSpan)
-                {
-                    r.RenderedStart = Math.Min(Math.Max(r.SpanStart, 0), m_TextLength);
-                    r.RenderedEnd = Math.Min(r.RenderedStart + Math.Max(r.SpanLength, 0), m_TextLength);
-                }
-                else if (r.RenderedEnd < 0) r.RenderedEnd = m_TextLength; // An unclosed tag runs to the end.
-                ranges[i] = r;
-            }
 
             // Outer ranges first, so inner ones refine them: innermost wins.
             m_RangeOrder.Clear();
@@ -200,7 +285,8 @@ namespace FirstSymbol.Lettera
                 attributes.BeginEffect(style.Effect, r.StyleIndex);
                 try
                 {
-                    style.Effect.Apply(attributes, r.RenderedStart, r.RenderedEnd, new LetteraSlots(r.Slots, style.ParsedDefault(), r.Raw));
+                    List<HoldEntry> holds = HoldsOf(index);
+                    style.Effect.Apply(attributes, r.RenderedStart, r.RenderedEnd, new LetteraSlots(r.Slots, style.ParsedDefault(), r.Raw, style.DefaultParameter, holds, style.Effect));
                 }
                 catch (Exception e)
                 {
@@ -286,18 +372,29 @@ namespace FirstSymbol.Lettera
         public T GetEffect<T>() where T : class
         {
             EnsureOwnCopies();
+            var results = new List<T>(1);
             foreach (LetteraStyle style in m_EffectiveStyles)
-                if (style?.Effect is T match)
-                    return match;
+            {
+                Gather(style?.Effect, results, 0);
+                if (results.Count > 0) return results[0];
+            }
             return null;
         }
 
         public void GetEffects<T>(List<T> results) where T : class
         {
             EnsureOwnCopies();
-            foreach (LetteraStyle style in m_EffectiveStyles)
-                if (style?.Effect is T match)
-                    results.Add(match);
+            foreach (LetteraStyle style in m_EffectiveStyles) Gather(style?.Effect, results, 0);
+        }
+
+        // Children of composites and presets count too.
+        static void Gather<T>(LetteraEffect effect, List<T> results, int depth) where T : class
+        {
+            if (effect == null || depth > 16) return;
+            if (effect is T match) results.Add(match);
+            var children = new List<LetteraEffect>();
+            effect.CollectChildren(children);
+            foreach (LetteraEffect child in children) Gather(child, results, depth + 1);
         }
     }
 }

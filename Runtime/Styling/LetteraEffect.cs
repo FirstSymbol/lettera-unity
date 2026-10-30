@@ -19,6 +19,9 @@ namespace FirstSymbol.Lettera
 
         /// <summary>A copy for one text. Override when the effect holds a list or another nested object; references to assets stay shared.</summary>
         public virtual LetteraEffect Clone() => (LetteraEffect)MemberwiseClone();
+
+        /// <summary>The effects this one runs inside it.</summary>
+        internal virtual void CollectChildren(System.Collections.Generic.List<LetteraEffect> results) { }
     }
 
     /// <summary>A length token: 12, 12px, 0.5em, 40%, +2, -0.1em.</summary>
@@ -70,28 +73,72 @@ namespace FirstSymbol.Lettera
     {
         readonly string[] m_Tag;
         readonly string[] m_Default;
+        readonly System.Collections.Generic.List<HoldEntry> m_Holds;
+        readonly object m_Owner;
 
         /// <summary>The tag's whole value before it was split into slots, or null. Composite effects split it their own way.</summary>
         public string Raw { get; }
 
-        internal LetteraSlots(string[] tag, string[] defaults, string raw = null)
+        /// <summary>The style's default parameter before it was split, or null.</summary>
+        public string DefaultRaw { get; }
+
+        internal LetteraSlots(string[] tag, string[] defaults, string raw = null, string defaultRaw = null, System.Collections.Generic.List<HoldEntry> holds = null, object owner = null)
         {
             m_Tag = tag;
             m_Default = defaults;
             Raw = raw;
+            DefaultRaw = defaultRaw;
+            m_Holds = holds;
+            m_Owner = owner;
+        }
+
+        /// <summary>The slots of a child effect: its own segment of the tag and of the default.</summary>
+        internal LetteraSlots ForChild(object child, string segment, string fallback) =>
+            new LetteraSlots(TagSyntax.SplitSlots(segment), TagSyntax.SplitSlots(fallback), segment, fallback, m_Holds, child);
+
+        // The value a hold composes over a number, or the number itself.
+        float HeldNumber(int index, float underlying)
+        {
+            if (m_Holds == null) return underlying;
+            foreach (HoldEntry hold in m_Holds)
+            {
+                if (hold.Slot != index || !hold.HasNumber || hold.Effect != m_Owner) continue;
+                underlying = hold.Composition == LetteraHoldComposition.Add ? underlying + hold.Number
+                    : hold.Composition == LetteraHoldComposition.Multiply ? underlying * hold.Number : hold.Number;
+            }
+            return underlying;
+        }
+
+        Color32 HeldColor(int index, Color32 underlying)
+        {
+            if (m_Holds == null) return underlying;
+            foreach (HoldEntry hold in m_Holds)
+            {
+                if (hold.Slot != index || !hold.HasColor || hold.Effect != m_Owner) continue;
+                underlying = hold.Composition == LetteraHoldComposition.Multiply ? (Color32)((Color)underlying * hold.Color) : hold.Color;
+            }
+            return underlying;
+        }
+
+        // What the tag or default says, under any hold.
+        string Unheld(int index)
+        {
+            if (m_Tag != null && index < m_Tag.Length && m_Tag[index] != null) return m_Tag[index];
+            if (m_Default != null && index < m_Default.Length) return m_Default[index];
+            return null;
         }
 
         /// <summary>How many positions the tag or the style's default gives.</summary>
         public int Count => Math.Max(m_Tag?.Length ?? 0, m_Default?.Length ?? 0);
 
         /// <summary>The number at a position, or a fallback when it is absent or unreadable.</summary>
-        public float Float(int index, float fallback) => TryNumber(this[index], out float value) ? value : fallback;
+        public float Float(int index, float fallback) => HeldNumber(index, TryNumber(Unheld(index), out float value) ? value : fallback);
 
         /// <summary>The whole number at a position, or a fallback.</summary>
-        public int Int(int index, int fallback) => TryNumber(this[index], out float value) ? (int)value : fallback;
+        public int Int(int index, int fallback) => (int)HeldNumber(index, TryNumber(Unheld(index), out float value) ? value : fallback);
 
         /// <summary>The color at a position, or a fallback.</summary>
-        public Color32 Color(int index, Color32 fallback) => TryColor(this[index], out Color32 value) ? value : fallback;
+        public Color32 Color(int index, Color32 fallback) => HeldColor(index, TryColor(Unheld(index), out Color32 value) ? value : fallback);
 
         /// <summary>The length at a position, or a fallback.</summary>
         public LetteraLength Length(int index, LetteraLength fallback) => LetteraLength.TryParse(this[index], out LetteraLength value) ? value : fallback;
@@ -143,9 +190,16 @@ namespace FirstSymbol.Lettera
         {
             get
             {
-                if (m_Tag != null && index < m_Tag.Length && m_Tag[index] != null) return m_Tag[index];
-                if (m_Default != null && index < m_Default.Length) return m_Default[index];
-                return null;
+                if (m_Holds != null)
+                {
+                    // Reading a token gives what a replacing hold holds; composing ones need a typed reader, which knows the field.
+                    string held = null;
+                    foreach (HoldEntry hold in m_Holds)
+                        if (hold.Slot == index && hold.Effect == m_Owner && hold.Composition == LetteraHoldComposition.Replace)
+                            held = hold.Token;
+                    if (held != null) return held;
+                }
+                return Unheld(index);
             }
         }
 
@@ -705,6 +759,9 @@ namespace FirstSymbol.Lettera
             m_CurrentEffect = effect;
             m_CurrentStyle = style;
         }
+
+        /// <summary>A child of a composite draws as its own layers, in the composite's place in the style order.</summary>
+        internal void BeginChildEffect(object child, int index) => m_CurrentEffect = child;
 
         /// <summary>
         /// Adds a painted range. Inside one effect the innermost range wins for a codepoint; different
