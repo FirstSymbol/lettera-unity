@@ -135,6 +135,11 @@ namespace FirstSymbol.Lettera
                     if (index < 0) continue;
                     LayerRecord record = records[index];
                     float reach = ReachOf(record, g);
+                    if (reach > GlyphAtlas.MaxReachEm)
+                    {
+                        WarnReach(group.Key);
+                        reach = GlyphAtlas.MaxReachEm;
+                    }
                     if (reach > m_PlacedReach[i]) m_PlacedReach[i] = reach;
                     if ((record.Paint.Span == LetteraPaintSpan.Range || record.Kind == LayerKind.Highlight) && !record.Paint.IsSolid)
                     {
@@ -227,6 +232,15 @@ namespace FirstSymbol.Lettera
                 }
                 i = end;
             }
+        }
+
+        static readonly System.Runtime.CompilerServices.ConditionalWeakTable<object, object> s_ReachWarned = new System.Runtime.CompilerServices.ConditionalWeakTable<object, object>();
+
+        static void WarnReach(object effect)
+        {
+            if (effect == null || s_ReachWarned.TryGetValue(effect, out _)) return;
+            s_ReachWarned.Add(effect, effect);
+            Debug.LogWarning($"Lettera: a {effect.GetType().Name} reaches farther than {GlyphAtlas.MaxReachEm} em from the glyph, so it is cut there.");
         }
 
         void PrepareDecorationRects()
@@ -527,6 +541,7 @@ namespace FirstSymbol.Lettera
             }
             if (record.Kind != LayerKind.InnerShadow && extra.w == 0) extra = WarpOf(g, atlas);
 
+            if (threshold < 0.002f) threshold = 0.002f;
             UseSegment(record.Paint, record.Custom);
             PlacedGlyph moved = g;
             moved.X += dx;

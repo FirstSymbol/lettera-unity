@@ -106,7 +106,30 @@ namespace FirstSymbol.Lettera.Editor
                 m_Chips.Add(LtUI.Text(stat, "lt-chip"));
             string reason = m_Override();
             if (!string.IsNullOrEmpty(reason)) m_Chips.Add(LtUI.Text(reason, "lt-chip lt-chip--orange"));
+            foreach (string warning in Warnings()) m_Chips.Add(LtUI.Text(warning, "lt-chip lt-chip--orange"));
             if (m_StyleBadge != null) m_StyleBadge.text = P("Styles").arraySize.ToString();
+        }
+
+        // What a user would otherwise find out only by looking closely at the result.
+        IEnumerable<string> Warnings()
+        {
+            if (P("Font").objectReferenceValue is LetteraFontAsset font && font.FontPixelsPerEm > 0 && !P("AutoSize").boolValue)
+            {
+                float size = P("FontSize").floatValue, cells = size / font.FontPixelsPerEm;
+                if (Mathf.Abs(cells - Mathf.Round(cells)) > 0.001f) yield return $"size is not a multiple of {font.FontPixelsPerEm}: pixels will not be even";
+            }
+            SerializedProperty budgets = P("FitBudgets");
+            for (int i = 0; i < budgets.arraySize; i++)
+                if (budgets.GetArrayElementAtIndex(i).managedReferenceValue is FitByGlyphWidth width && width.Limit > 3)
+                    yield return "glyph compression above 3% shows";
+
+            var tags = new HashSet<string>();
+            SerializedProperty styles = P("Styles");
+            for (int i = 0; i < styles.arraySize; i++)
+            {
+                if (!(styles.GetArrayElementAtIndex(i).FindPropertyRelative("m_Matcher").managedReferenceValue is TagMatcher tag) || string.IsNullOrEmpty(tag.Name)) continue;
+                if (!tags.Add(tag.Name)) yield return $"<{tag.Name}> is bound twice";
+            }
         }
 
         string FontLabel()
@@ -168,6 +191,7 @@ namespace FirstSymbol.Lettera.Editor
             VisualElement autoRows = new VisualElement();
             autoRows.Add(LtUI.Field("Min Size", P("MinFontSize")));
             autoRows.Add(LtUI.Field("Max Size", P("MaxFontSize")));
+            autoRows.Add(BuildFitBudgets());
             VisualElement sizeRow = LtUI.Row("Size", LtUI.SizeSlider(P("FontSize"), 1, 200));
             ShowWhen(autoRows, P("AutoSize"), p => p.boolValue);
             ShowWhen(sizeRow, P("AutoSize"), p => !p.boolValue);
@@ -179,6 +203,56 @@ namespace FirstSymbol.Lettera.Editor
                 LtUI.Row("Direction", LtUI.Segments(P("BaseDirection"), "Auto", "LTR", "RTL"), "Auto picks each paragraph's direction from its first strong character."),
                 LtUI.Field("Language", P("Language"), "BCP 47 tag such as ar, ja or zh-Hans. Selects localized glyph forms and font preferences.")));
             return page;
+        }
+
+        // Ways to save room before the font size drops, spent in this order.
+        VisualElement BuildFitBudgets()
+        {
+            var holder = new VisualElement();
+            void Rebuild()
+            {
+                holder.Clear();
+                m_Object.Update();
+                SerializedProperty budgets = P("FitBudgets");
+                for (int i = 0; i < budgets.arraySize; i++)
+                {
+                    int index = i;
+                    SerializedProperty budget = budgets.GetArrayElementAtIndex(i);
+                    if (budget.managedReferenceValue == null) continue;
+                    VisualElement row = LtUI.El("lt-budget");
+                    foreach (SerializedProperty child in LetteraStyleList.Children(budget))
+                        row.Add(LtUI.Field(LetteraStyleList.Pretty(budget.managedReferenceValue.GetType().Name, "") + " limit", child.Copy()));
+                    row.Add(LtUI.Clickable("×", "lt-icon-btn lt-icon-btn--danger", "Remove", () =>
+                    {
+                        m_Object.Update();
+                        P("FitBudgets").DeleteArrayElementAtIndex(index);
+                        m_Object.ApplyModifiedProperties();
+                        Rebuild();
+                    }));
+                    holder.Add(row);
+                }
+                Label add = LtUI.Clickable("+ Fit Budget", "lt-add lt-add--small", "Save room before reducing the size", () =>
+                {
+                    var menu = new GenericMenu();
+                    foreach (Type type in new[] { typeof(FitByTracking), typeof(FitByGlyphWidth), typeof(FitByLineHeight) })
+                    {
+                        Type chosen = type;
+                        menu.AddItem(new GUIContent(type.Name), false, () =>
+                        {
+                            m_Object.Update();
+                            SerializedProperty list = P("FitBudgets");
+                            list.InsertArrayElementAtIndex(list.arraySize);
+                            list.GetArrayElementAtIndex(list.arraySize - 1).managedReferenceValue = Activator.CreateInstance(chosen);
+                            m_Object.ApplyModifiedProperties();
+                            Rebuild();
+                        });
+                    }
+                    menu.ShowAsContext();
+                });
+                holder.Add(add);
+            }
+            Rebuild();
+            return holder;
         }
 
         VisualElement BuildLayoutPage()
@@ -223,13 +297,17 @@ namespace FirstSymbol.Lettera.Editor
         VisualElement BuildStylesPage()
         {
             VisualElement page = new VisualElement();
-            m_StyleList = new VisualElement();
-            page.Add(m_StyleList);
-            page.Add(LtUI.Clickable("+ Add Style", "lt-add", "Add a tag or range style", ShowAddMenu));
-            RebuildStyles();
+            page.Add(new LetteraStyleList(m_Object, m_Data.propertyPath + ".Styles").Build());
 
             VisualElement vocabulary = LtUI.El("lt-vocab");
-            foreach (string tag in new[] { "b", "i", "size", "color", "alpha", "font", "lang", "u", "s", "outline", "shadow", "ellipsis", "truncate", "dir", "br", "noparse" })
+            foreach (string tag in new[]
+            {
+                "b", "i", "size", "color", "alpha", "font", "lang", "u", "s", "br", "noparse", "dir", "ellipsis", "truncate",
+                "fill", "stroke", "outline", "shadow", "glow", "inner-shadow", "extrude", "filter", "union", "warp", "mark",
+                "uppercase", "lowercase", "smallcaps", "sup", "sub", "otf", "axes", "size-match", "ruby",
+                "tracking", "word-spacing", "cell", "line-height", "para-spacing", "line-gap", "nobr", "li", "indent", "align", "trim", "curve",
+                "link", "a", "divider",
+            })
                 vocabulary.Add(LtUI.Text("<" + tag + ">", "lt-vocab__tag"));
             ShowWhen(vocabulary, P("UseGlobalStylePreset"), p => p.boolValue);
 
@@ -247,145 +325,6 @@ namespace FirstSymbol.Lettera.Editor
             list.tooltip = "Style lists shared between texts.";
             return list;
         }
-
-        void ShowAddMenu()
-        {
-            var menu = new GenericMenu();
-            foreach (Type effect in EffectTypes())
-            {
-                Type type = effect;
-                string name = Pretty(type.Name, "Effect");
-                menu.AddItem(new GUIContent("Tag/" + name), false, () => AddStyle(new TagMatcher(name.ToLowerInvariant()), type));
-                menu.AddItem(new GUIContent("Whole Text/" + name), false, () => AddStyle(new WholeTextMatcher(), type));
-            }
-            menu.ShowAsContext();
-        }
-
-        void AddStyle(LetteraMatcher matcher, Type effectType)
-        {
-            m_Object.Update();
-            SerializedProperty styles = P("Styles");
-            styles.InsertArrayElementAtIndex(styles.arraySize);
-            SerializedProperty style = styles.GetArrayElementAtIndex(styles.arraySize - 1);
-            style.FindPropertyRelative("m_Matcher").managedReferenceValue = matcher;
-            style.FindPropertyRelative("m_Effect").managedReferenceValue = Activator.CreateInstance(effectType);
-            style.FindPropertyRelative("m_Enabled").boolValue = true;
-            style.FindPropertyRelative("m_DefaultParameter").stringValue = "";
-            m_Object.ApplyModifiedProperties();
-            RebuildStyles();
-        }
-
-        void RebuildStyles()
-        {
-            m_StyleList.Clear();
-            m_Object.Update();
-            SerializedProperty styles = P("Styles");
-            if (styles.arraySize == 0)
-                m_StyleList.Add(LtUI.Text("This text has no styles of its own. The shared styles below still apply.", "lt-hint"));
-            for (int i = 0; i < styles.arraySize; i++) m_StyleList.Add(BuildStyleCard(i, styles.GetArrayElementAtIndex(i)));
-        }
-
-        VisualElement BuildStyleCard(int index, SerializedProperty style)
-        {
-            SerializedProperty matcher = style.FindPropertyRelative("m_Matcher");
-            SerializedProperty effect = style.FindPropertyRelative("m_Effect");
-            SerializedProperty enabled = style.FindPropertyRelative("m_Enabled");
-
-            VisualElement card = LtUI.El("lt-style");
-            VisualElement body = LtUI.El("lt-style__body");
-            body.style.display = DisplayStyle.None;
-
-            void RefreshEnabled(SerializedProperty p) => card.EnableInClassList("lt-style--off", !p.boolValue);
-            RefreshEnabled(enabled);
-            card.TrackPropertyValue(enabled, RefreshEnabled);
-
-            VisualElement header = LtUI.El("lt-style__header");
-            VisualElement enableSwitch = LtUI.Switch(enabled);
-            enableSwitch.RegisterCallback<ClickEvent>(e => e.StopPropagation());
-            header.Add(enableSwitch);
-            header.Add(LtUI.Text(MatcherLabel(matcher), "lt-style__tag"));
-            header.Add(LtUI.Text(effect.managedReferenceValue == null ? "No effect" : Pretty(effect.managedReferenceValue.GetType().Name, "Effect"), "lt-style__type"));
-            header.Add(LtUI.Clickable("▲", "lt-icon-btn", "Move up", () => Move(index, index - 1)));
-            header.Add(LtUI.Clickable("▼", "lt-icon-btn", "Move down", () => Move(index, index + 1)));
-            header.Add(LtUI.Clickable("×", "lt-icon-btn lt-icon-btn--danger", "Remove", () => Remove(index)));
-            header.RegisterCallback<ClickEvent>(_ =>
-                body.style.display = body.resolvedStyle.display == DisplayStyle.None ? DisplayStyle.Flex : DisplayStyle.None);
-            card.Add(header);
-
-            body.Add(TypePicker("Matcher", matcher, typeof(LetteraMatcher), "Matcher"));
-            AddChildren(body, matcher);
-            body.Add(TypePicker("Effect", effect, typeof(LetteraEffect), "Effect"));
-            AddChildren(body, effect);
-            body.Add(LtUI.Field("Defaults", style.FindPropertyRelative("m_DefaultParameter"), "Parameters used when a tag gives none, in the tag's syntax."));
-            card.Add(body);
-            return card;
-        }
-
-        static string MatcherLabel(SerializedProperty matcher)
-        {
-            object value = matcher.managedReferenceValue;
-            if (value is TagMatcher tag) return "<" + tag.Name + ">";
-            return value == null ? "None" : Pretty(value.GetType().Name, "Matcher");
-        }
-
-        VisualElement TypePicker(string label, SerializedProperty reference, Type baseType, string suffix)
-        {
-            Type[] types = TypeCache.GetTypesDerivedFrom(baseType).Where(t => !t.IsAbstract).OrderBy(t => t.Name).ToArray();
-            var names = new List<string> { "None" };
-            names.AddRange(types.Select(t => Pretty(t.Name, suffix)));
-            object value = reference.managedReferenceValue;
-            int current = value == null ? 0 : Array.IndexOf(types, value.GetType()) + 1;
-            var popup = new PopupField<string>(names, Mathf.Max(current, 0));
-            SerializedProperty bound = reference.Copy();
-            popup.RegisterValueChangedCallback(e =>
-            {
-                int chosen = names.IndexOf(e.newValue);
-                bound.serializedObject.Update();
-                bound.managedReferenceValue = chosen <= 0 ? null : Activator.CreateInstance(types[chosen - 1]);
-                bound.serializedObject.ApplyModifiedProperties();
-                RebuildStyles();
-            });
-            return LtUI.Row(label, popup);
-        }
-
-        static void AddChildren(VisualElement parent, SerializedProperty reference)
-        {
-            if (reference.managedReferenceValue == null) return;
-            SerializedProperty end = reference.GetEndProperty();
-            SerializedProperty child = reference.Copy();
-            bool enter = true;
-            while (child.NextVisible(enter) && !SerializedProperty.EqualContents(child, end))
-            {
-                enter = false;
-                parent.Add(LtUI.Field(child.displayName, child.Copy()));
-            }
-        }
-
-        void Move(int from, int to)
-        {
-            SerializedProperty styles = P("Styles");
-            if (to < 0 || to >= styles.arraySize) return;
-            m_Object.Update();
-            styles.MoveArrayElement(from, to);
-            m_Object.ApplyModifiedProperties();
-            RebuildStyles();
-        }
-
-        void Remove(int index)
-        {
-            m_Object.Update();
-            P("Styles").DeleteArrayElementAtIndex(index);
-            m_Object.ApplyModifiedProperties();
-            RebuildStyles();
-        }
-
-        // ------------------------------------------------------------- helpers
-
-        static IEnumerable<Type> EffectTypes() =>
-            TypeCache.GetTypesDerivedFrom<LetteraEffect>().Where(t => !t.IsAbstract).OrderBy(t => t.Name);
-
-        static string Pretty(string typeName, string suffix) =>
-            typeName.EndsWith(suffix, StringComparison.Ordinal) ? typeName.Substring(0, typeName.Length - suffix.Length) : typeName;
 
         // A switch sits at the left of its row's field area.
         static VisualElement WithSpacer(VisualElement control)
@@ -407,6 +346,12 @@ namespace FirstSymbol.Lettera.Editor
     [CustomEditor(typeof(LetteraText)), CanEditMultipleObjects]
     internal sealed class LetteraTextEditor : UnityEditor.Editor
     {
+        void OnSceneGUI()
+        {
+            var text = (LetteraText)target;
+            LetteraSceneHandles.Draw(text, text.Padding, text.Styles, text.FontSize);
+        }
+
         public override VisualElement CreateInspectorGUI()
         {
             var text = (LetteraText)target;
@@ -448,6 +393,12 @@ namespace FirstSymbol.Lettera.Editor
     [CustomEditor(typeof(LetteraWorldText)), CanEditMultipleObjects]
     internal sealed class LetteraWorldTextEditor : UnityEditor.Editor
     {
+        void OnSceneGUI()
+        {
+            var text = (LetteraWorldText)target;
+            LetteraSceneHandles.Draw(text, text.Padding, text.Styles, text.FontSize);
+        }
+
         public override VisualElement CreateInspectorGUI()
         {
             var text = (LetteraWorldText)target;
@@ -468,109 +419,6 @@ namespace FirstSymbol.Lettera.Editor
                         LtUI.Row("Cast Shadows", LetteraTextEditor.Holder(LtUI.Switch(P("m_CastShadows")))),
                         LtUI.Row("Raycast Target", LetteraTextEditor.Holder(LtUI.Switch(P("m_RaycastTarget"))))));
                 }).Build();
-        }
-    }
-
-    /// <summary>Draws a style inside preset assets, where the text inspector's cards are not available.</summary>
-    [CustomPropertyDrawer(typeof(LetteraStyle))]
-    internal sealed class LetteraStyleDrawer : PropertyDrawer
-    {
-        const float Gap = 2f;
-
-        static float Line => EditorGUIUtility.singleLineHeight + Gap;
-
-        public override float GetPropertyHeight(SerializedProperty property, GUIContent label)
-        {
-            float height = Line * 2;
-            height += ReferenceHeight(property.FindPropertyRelative("m_Matcher"));
-            height += ReferenceHeight(property.FindPropertyRelative("m_Effect"));
-            return height + Gap * 2;
-        }
-
-        static float ReferenceHeight(SerializedProperty reference)
-        {
-            float height = Line;
-            foreach (SerializedProperty child in Children(reference)) height += EditorGUI.GetPropertyHeight(child, true) + Gap;
-            return height;
-        }
-
-        static IEnumerable<SerializedProperty> Children(SerializedProperty reference)
-        {
-            if (reference.managedReferenceValue == null) yield break;
-            SerializedProperty end = reference.GetEndProperty();
-            SerializedProperty child = reference.Copy();
-            bool enter = true;
-            while (child.NextVisible(enter) && !SerializedProperty.EqualContents(child, end))
-            {
-                enter = false;
-                yield return child.Copy();
-            }
-        }
-
-        public override void OnGUI(Rect position, SerializedProperty property, GUIContent label)
-        {
-            var rect = new Rect(position.x, position.y, position.width, EditorGUIUtility.singleLineHeight);
-            EditorGUI.PropertyField(rect, property.FindPropertyRelative("m_Enabled"));
-            rect.y += Line;
-            DrawReference(ref rect, property.FindPropertyRelative("m_Matcher"), typeof(LetteraMatcher), "Matcher");
-            DrawReference(ref rect, property.FindPropertyRelative("m_Effect"), typeof(LetteraEffect), "Effect");
-            EditorGUI.PropertyField(rect, property.FindPropertyRelative("m_DefaultParameter"));
-        }
-
-        static void DrawReference(ref Rect rect, SerializedProperty reference, Type baseType, string label)
-        {
-            Type[] types = TypeCache.GetTypesDerivedFrom(baseType).Where(t => !t.IsAbstract).OrderBy(t => t.Name).ToArray();
-            var names = new string[types.Length + 1];
-            names[0] = "None";
-            int current = 0;
-            object value = reference.managedReferenceValue;
-            for (int i = 0; i < types.Length; i++)
-            {
-                names[i + 1] = types[i].Name;
-                if (value != null && value.GetType() == types[i]) current = i + 1;
-            }
-            int chosen = EditorGUI.Popup(rect, label, current, names);
-            if (chosen != current)
-            {
-                reference.managedReferenceValue = chosen == 0 ? null : Activator.CreateInstance(types[chosen - 1]);
-                reference.serializedObject.ApplyModifiedProperties();
-            }
-            rect.y += Line;
-            EditorGUI.indentLevel++;
-            foreach (SerializedProperty child in Children(reference))
-            {
-                rect.height = EditorGUI.GetPropertyHeight(child, true);
-                EditorGUI.PropertyField(rect, child, true);
-                rect.y += rect.height + Gap;
-            }
-            rect.height = EditorGUIUtility.singleLineHeight;
-            EditorGUI.indentLevel--;
-        }
-    }
-
-    [CustomEditor(typeof(LetteraFont), true)]
-    internal sealed class LetteraFontEditor : UnityEditor.Editor
-    {
-        public override void OnInspectorGUI()
-        {
-            var font = (LetteraFont)target;
-            serializedObject.Update();
-            DrawPropertiesExcluding(serializedObject, "m_Script");
-            serializedObject.ApplyModifiedProperties();
-
-            EditorGUILayout.Space();
-            if (!font.HasData)
-            {
-                EditorGUILayout.HelpBox("This asset holds no font. Select a font file and use Create > Lettera > Font Asset From Selection.", MessageType.Warning);
-                return;
-            }
-            if (font.LoadFailed)
-            {
-                EditorGUILayout.HelpBox("The stored font could not be read.", MessageType.Error);
-                return;
-            }
-            EditorGUILayout.LabelField("Family", font.FamilyName);
-            EditorGUILayout.LabelField("Stored", $"{font.CompressedSize / 1024} KB of {font.OriginalSize / 1024} KB");
         }
     }
 }

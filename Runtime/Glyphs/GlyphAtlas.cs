@@ -110,6 +110,9 @@ namespace FirstSymbol.Lettera
         public static int SdfPageCount => s_Sdf.Pixels.Count;
         public static int ColorPageCount => s_Color.Pixels.Count;
         public static int MsdfPageCount => s_Msdf.Pixels.Count;
+
+        /// <summary>The GPU copy of an atlas, for an inspector's preview; null while it has no pages.</summary>
+        internal static Texture2DArray TextureOf(int set) => set == 0 ? s_Sdf.Texture : set == 1 ? s_Msdf.Texture : s_Color.Texture;
         public static int GlyphCount => s_Glyphs.Count;
 
         /// <summary>Limits the page counts, e.g. for tests; a set at its limit recycles its least recently used page.</summary>
