@@ -16,6 +16,9 @@ namespace FirstSymbol.Lettera
 
         /// <summary>Scans the source text and reports claims and ranges to the context.</summary>
         public abstract void Find(LetteraMatchContext context);
+
+        /// <summary>A copy for one text. Override when the matcher holds a list or another nested object.</summary>
+        public virtual LetteraMatcher Clone() => (LetteraMatcher)MemberwiseClone();
     }
 
     /// <summary>What a matcher sees and reports while the source text is parsed.</summary>
@@ -34,6 +37,7 @@ namespace FirstSymbol.Lettera
             public int StyleIndex;
             public int RenderedStart, RenderedEnd;
             public string[] Slots;
+            public string Raw;      // The tag's value before it was split into slots.
             public string Label;
             public bool WholeText;
             public int SpanStart, SpanLength;
@@ -105,11 +109,11 @@ namespace FirstSymbol.Lettera
         }
 
         /// <summary>Removes a tag and opens a range for the current style. Returns its handle for <see cref="CloseRange"/>.</summary>
-        public int OpenRange(int start, int length, string[] slots, string label = null, bool selfClosing = false)
+        public int OpenRange(int start, int length, string[] slots, string label = null, bool selfClosing = false, string raw = null)
         {
             Protect(start, length);
             int index = Ranges.Count;
-            Ranges.Add(new RangeRecord { StyleIndex = CurrentStyle, RenderedStart = -1, RenderedEnd = -1, Slots = slots, Label = label, SelfClosing = selfClosing });
+            Ranges.Add(new RangeRecord { StyleIndex = CurrentStyle, RenderedStart = -1, RenderedEnd = -1, Slots = slots, Raw = raw, Label = label, SelfClosing = selfClosing });
             Claims.Add(new Claim { Start = start, Length = length, OpenRange = index, CloseRange = selfClosing ? index : -1 });
             return index;
         }
@@ -167,9 +171,9 @@ namespace FirstSymbol.Lettera
                     }
                     continue;
                 }
-                if (!TagSyntax.MatchOpen(source, at, m_Name, out int length, out string[] slots, out string label, out bool selfClosing)) continue;
+                if (!TagSyntax.MatchOpen(source, at, m_Name, out int length, out string[] slots, out string label, out bool selfClosing, out string raw)) continue;
                 if (!context.IsFree(at, length)) continue;
-                int handle = context.OpenRange(at, length, slots, label, selfClosing);
+                int handle = context.OpenRange(at, length, slots, label, selfClosing, raw);
                 if (!selfClosing) m_Open.Add(handle);
             }
         }
@@ -208,10 +212,14 @@ namespace FirstSymbol.Lettera
             return true;
         }
 
-        public static bool MatchOpen(ReadOnlySpan<char> source, int at, string name, out int length, out string[] slots, out string label, out bool selfClosing)
+        public static bool MatchOpen(ReadOnlySpan<char> source, int at, string name, out int length, out string[] slots, out string label, out bool selfClosing) =>
+            MatchOpen(source, at, name, out length, out slots, out label, out selfClosing, out _);
+
+        public static bool MatchOpen(ReadOnlySpan<char> source, int at, string name, out int length, out string[] slots, out string label, out bool selfClosing, out string raw)
         {
             length = 0;
             slots = null;
+            raw = null;
             label = null;
             selfClosing = false;
             if (source[at] != '<' || at + 1 >= source.Length) return false;
@@ -234,7 +242,9 @@ namespace FirstSymbol.Lettera
             if (source[i] == '=')
             {
                 i++;
-                if (!ParseSlots(source, ref i, out slots)) return false;
+                int valueStart = i;
+                if (!ParseSlots(source, ref i, true, out slots)) return false;
+                raw = source.Slice(valueStart, i - valueStart).Trim().ToString();
             }
             while (i < source.Length && source[i] == ' ') i++;
             if (i < source.Length && source[i] == '/')
@@ -247,14 +257,42 @@ namespace FirstSymbol.Lettera
             return true;
         }
 
-        static bool ParseSlots(ReadOnlySpan<char> source, ref int i, out string[] slots)
+        /// <summary>Splits a parameter string outside a tag with the tag's rules. Empty slots are null.</summary>
+        public static string[] SplitSlots(string value)
+        {
+            if (string.IsNullOrEmpty(value)) return null;
+            int i = 0;
+            ParseSlots(value.AsSpan(), ref i, false, out string[] slots);
+            return slots;
+        }
+
+        // The index past a parenthesis group that opens at 'open', or -1 when it does not close inside the value.
+        static int SkipGroup(ReadOnlySpan<char> source, int open, bool inTag)
+        {
+            int depth = 0;
+            for (int i = open; i < source.Length; i++)
+            {
+                char c = source[i];
+                if (c == '(') depth++;
+                else if (c == ')' && --depth == 0) return i + 1;
+                else if (inTag && c == '>') return -1;
+            }
+            return -1;
+        }
+
+        static bool ParseSlots(ReadOnlySpan<char> source, ref int i, bool inTag, out string[] slots)
         {
             var list = new List<string>(4);
             slots = null;
             while (true)
             {
                 while (i < source.Length && source[i] == ' ') i++;
-                if (i >= source.Length) return false;
+                if (i >= source.Length)
+                {
+                    if (inTag) return false;
+                    list.Add(null);
+                    break;
+                }
                 char quote = source[i];
                 if (quote == '"' || quote == '\'')
                 {
@@ -267,10 +305,20 @@ namespace FirstSymbol.Lettera
                 else
                 {
                     int start = i;
-                    while (i < source.Length && source[i] != ',' && source[i] != '>')
+                    while (i < source.Length && source[i] != ',' && !(inTag && source[i] == '>'))
                     {
                         // A '/' right before '>' closes the tag rather than belonging to the value.
-                        if (source[i] == '/' && i + 1 < source.Length && source[i + 1] == '>') break;
+                        if (inTag && source[i] == '/' && i + 1 < source.Length && source[i + 1] == '>') break;
+                        // A comma inside balanced parentheses stays in the slot, so rgb(9,8,7) is one token.
+                        if (source[i] == '(')
+                        {
+                            int after = SkipGroup(source, i, inTag);
+                            if (after > 0)
+                            {
+                                i = after;
+                                continue;
+                            }
+                        }
                         i++;
                     }
                     ReadOnlySpan<char> slot = source.Slice(start, i - start).Trim();
@@ -386,6 +434,13 @@ namespace FirstSymbol.Lettera
 
         /// <summary>Each span is (start, length).</summary>
         public List<Vector2Int> Spans => m_Spans;
+
+        public override LetteraMatcher Clone()
+        {
+            var copy = (SpanMatcher)base.Clone();
+            copy.m_Spans = new List<Vector2Int>(m_Spans);
+            return copy;
+        }
 
         public override void Find(LetteraMatchContext context)
         {

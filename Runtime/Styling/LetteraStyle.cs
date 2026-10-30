@@ -37,8 +37,8 @@ namespace FirstSymbol.Lettera
         /// <summary>A deep copy, so changing it affects only its owner.</summary>
         internal LetteraStyle Clone() => new LetteraStyle
         {
-            m_Matcher = m_Matcher == null ? null : (LetteraMatcher)JsonUtility.FromJson(JsonUtility.ToJson(m_Matcher), m_Matcher.GetType()),
-            m_Effect = m_Effect == null ? null : (LetteraEffect)JsonUtility.FromJson(JsonUtility.ToJson(m_Effect), m_Effect.GetType()),
+            m_Matcher = m_Matcher?.Clone(),
+            m_Effect = m_Effect?.Clone(),
             m_Enabled = m_Enabled,
             m_DefaultParameter = m_DefaultParameter,
         };
@@ -47,19 +47,8 @@ namespace FirstSymbol.Lettera
         {
             if (m_ParsedFrom == m_DefaultParameter) return m_ParsedDefault;
             m_ParsedFrom = m_DefaultParameter;
-            if (string.IsNullOrEmpty(m_DefaultParameter))
-            {
-                m_ParsedDefault = null;
-                return null;
-            }
-            string[] parts = m_DefaultParameter.Split(',');
-            for (int i = 0; i < parts.Length; i++)
-            {
-                parts[i] = parts[i].Trim();
-                if (parts[i].Length == 0) parts[i] = null;
-            }
-            m_ParsedDefault = parts;
-            return parts;
+            m_ParsedDefault = TagSyntax.SplitSlots(m_DefaultParameter);
+            return m_ParsedDefault;
         }
     }
 

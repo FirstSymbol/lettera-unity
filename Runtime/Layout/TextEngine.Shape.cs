@@ -61,6 +61,7 @@ namespace FirstSymbol.Lettera
 
         void ShapeText()
         {
+            ShapeCount++;
             int length = m_TextLength;
             EnsureSize(ref m_Levels, length + 1);
             EnsureSize(ref m_Boundaries, length + 2);

@@ -16,6 +16,53 @@ namespace FirstSymbol.Lettera
     {
         /// <summary>Writes this effect's attributes for one range. Slots are the resolved parameter strings; any may be null.</summary>
         public abstract void Apply(LetteraAttributes attributes, int start, int end, in LetteraSlots slots);
+
+        /// <summary>A copy for one text. Override when the effect holds a list or another nested object; references to assets stay shared.</summary>
+        public virtual LetteraEffect Clone() => (LetteraEffect)MemberwiseClone();
+    }
+
+    /// <summary>A length token: 12, 12px, 0.5em, 40%, +2, -0.1em.</summary>
+    public struct LetteraLength
+    {
+        public enum Unit : byte { Bare, Pixels, Em, Percent }
+
+        public float Value;
+        public Unit Kind;
+        public bool IsDelta;
+
+        public LetteraLength(float value, Unit kind = Unit.Bare)
+        {
+            Value = value;
+            Kind = kind;
+            IsDelta = false;
+        }
+
+        /// <summary>Reads a token. One that does not parse, or is not finite, counts as absent.</summary>
+        public static bool TryParse(string token, out LetteraLength length)
+        {
+            length = default;
+            if (string.IsNullOrEmpty(token)) return false;
+            Unit kind = Unit.Bare;
+            int digits = token.Length;
+            if (token.EndsWith("%", StringComparison.Ordinal)) { kind = Unit.Percent; digits -= 1; }
+            else if (token.EndsWith("px", StringComparison.OrdinalIgnoreCase)) { kind = Unit.Pixels; digits -= 2; }
+            else if (token.EndsWith("em", StringComparison.OrdinalIgnoreCase)) { kind = Unit.Em; digits -= 2; }
+            if (!LetteraSlots.TryNumber(digits == token.Length ? token : token.Substring(0, digits), out float value)) return false;
+            length = new LetteraLength { Value = value, Kind = kind, IsDelta = token[0] == '+' || token[0] == '-' };
+            return true;
+        }
+
+        /// <summary>The length in local units. A bare number counts as em or as local units, as the caller's parameter defines.</summary>
+        public float ToUnits(float emSize, float percentBase, bool bareIsEm)
+        {
+            switch (Kind)
+            {
+                case Unit.Pixels: return Value;
+                case Unit.Em: return Value * emSize;
+                case Unit.Percent: return Value * 0.01f * percentBase;
+                default: return bareIsEm ? Value * emSize : Value;
+            }
+        }
     }
 
     /// <summary>The positional parameters of one range: tag slot first, then the style's default.</summary>
@@ -24,10 +71,68 @@ namespace FirstSymbol.Lettera
         readonly string[] m_Tag;
         readonly string[] m_Default;
 
-        internal LetteraSlots(string[] tag, string[] defaults)
+        /// <summary>The tag's whole value before it was split into slots, or null. Composite effects split it their own way.</summary>
+        public string Raw { get; }
+
+        internal LetteraSlots(string[] tag, string[] defaults, string raw = null)
         {
             m_Tag = tag;
             m_Default = defaults;
+            Raw = raw;
+        }
+
+        /// <summary>The number at a position, or a fallback when it is absent or unreadable.</summary>
+        public float Float(int index, float fallback) => TryNumber(this[index], out float value) ? value : fallback;
+
+        /// <summary>The whole number at a position, or a fallback.</summary>
+        public int Int(int index, int fallback) => TryNumber(this[index], out float value) ? (int)value : fallback;
+
+        /// <summary>The color at a position, or a fallback.</summary>
+        public Color32 Color(int index, Color32 fallback) => TryColor(this[index], out Color32 value) ? value : fallback;
+
+        /// <summary>The length at a position, or a fallback.</summary>
+        public LetteraLength Length(int index, LetteraLength fallback) => LetteraLength.TryParse(this[index], out LetteraLength value) ? value : fallback;
+
+        /// <summary>true, false, 1, 0, on or off at a position, or a fallback.</summary>
+        public bool Bool(int index, bool fallback)
+        {
+            string value = this[index];
+            if (string.IsNullOrEmpty(value)) return fallback;
+            if (value == "1" || value.Equals("true", StringComparison.OrdinalIgnoreCase) || value.Equals("on", StringComparison.OrdinalIgnoreCase)) return true;
+            if (value == "0" || value.Equals("false", StringComparison.OrdinalIgnoreCase) || value.Equals("off", StringComparison.OrdinalIgnoreCase)) return false;
+            return fallback;
+        }
+
+        /// <summary>An enum member by name, or by an initial only that member has; else a fallback.</summary>
+        public T Enum<T>(int index, T fallback) where T : struct, Enum => EnumTokens<T>.TryParse(this[index], out T value) ? value : fallback;
+
+        static class EnumTokens<T> where T : struct, Enum
+        {
+            static readonly string[] s_Names = System.Enum.GetNames(typeof(T));
+            static readonly T[] s_Values = (T[])System.Enum.GetValues(typeof(T));
+
+            public static bool TryParse(string token, out T value)
+            {
+                value = default;
+                if (string.IsNullOrEmpty(token)) return false;
+                int initial = -1, initials = 0;
+                for (int i = 0; i < s_Names.Length; i++)
+                {
+                    if (s_Names[i].Equals(token, StringComparison.OrdinalIgnoreCase))
+                    {
+                        value = s_Values[i];
+                        return true;
+                    }
+                    if (token.Length == 1 && char.ToLowerInvariant(s_Names[i][0]) == char.ToLowerInvariant(token[0]))
+                    {
+                        initial = i;
+                        initials++;
+                    }
+                }
+                if (initials != 1) return false;
+                value = s_Values[initial];
+                return true;
+            }
         }
 
         /// <summary>The value at a position: the tag's, else the style's default, else null.</summary>

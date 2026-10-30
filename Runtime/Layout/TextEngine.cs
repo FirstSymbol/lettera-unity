@@ -41,9 +41,29 @@ namespace FirstSymbol.Lettera
         public LetteraChanges LastChanges { get; private set; }
         public int RebuildCount { get; private set; }
 
+        // How often each expensive pass ran, to prove that a change stayed at its level.
+        public int ParseCount { get; private set; }
+        public int ShapeCount { get; private set; }
+
         public void SetDirty(DirtyLevel level)
         {
             if (level > m_Dirty) m_Dirty = level;
+        }
+
+        bool m_Reapply;
+
+        /// <summary>An effect's parameter changed: runs the effects again on the ranges already found, then the passes from a level up.</summary>
+        public void ReapplyEffects(DirtyLevel level)
+        {
+            m_Reapply = true;
+            SetDirty(level);
+        }
+
+        void ReapplyIfNeeded()
+        {
+            if (!m_Reapply) return;
+            m_Reapply = false;
+            ApplyEffects(m_MatchContext);
         }
 
         /// <summary>Clears any runtime override; the serialized text applies again.</summary>
@@ -109,6 +129,10 @@ namespace FirstSymbol.Lettera
                 Parse();
                 LastChanges |= LetteraChanges.Text;
             }
+            else
+            {
+                ReapplyIfNeeded();
+            }
             if (level >= DirtyLevel.Shape) ShapeText();
             if (level >= DirtyLevel.Layout)
             {
@@ -140,6 +164,10 @@ namespace FirstSymbol.Lettera
             {
                 Parse();
                 m_Dirty = DirtyLevel.Shape;
+            }
+            else
+            {
+                ReapplyIfNeeded();
             }
             if (m_Dirty >= DirtyLevel.Shape)
             {

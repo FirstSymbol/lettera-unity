@@ -63,6 +63,8 @@ namespace FirstSymbol.Lettera
 
         void Parse()
         {
+            ParseCount++;
+            m_Reapply = false;
             ReadOnlySpan<char> source = RawChars;
             if (m_Resolver != null)
             {
@@ -188,7 +190,7 @@ namespace FirstSymbol.Lettera
                 if (style.Effect == null) continue;
                 try
                 {
-                    style.Effect.Apply(attributes, r.RenderedStart, r.RenderedEnd, new LetteraSlots(r.Slots, style.ParsedDefault()));
+                    style.Effect.Apply(attributes, r.RenderedStart, r.RenderedEnd, new LetteraSlots(r.Slots, style.ParsedDefault(), r.Raw));
                 }
                 catch (Exception e)
                 {

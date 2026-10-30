@@ -68,7 +68,7 @@ namespace FirstSymbol.Lettera
         public LetteraFontAsset Font { get => m_Data.Font; set { if (m_Data.Font == value) return; m_Data.Font = value; MarkDirty(DirtyLevel.Shape); } }
         public LetteraFontStack FontStack { get => m_Data.FontStack; set { if (m_Data.FontStack == value) return; m_Data.FontStack = value; MarkDirty(DirtyLevel.Shape); } }
         public float FontSize { get => m_Data.FontSize; set { value = Mathf.Max(value, 0.01f); if (m_Data.FontSize == value) return; m_Data.FontSize = value; MarkDirty(DirtyLevel.Layout); } }
-        public LetteraRenderMode RenderMode { get => m_Data.RenderMode; set { if (m_Data.RenderMode == value) return; m_Data.RenderMode = value; MarkDirty(DirtyLevel.Mesh); } }
+        public LetteraRenderMode RenderMode { get => m_Data.RenderMode; set { if (m_Data.RenderMode == value) return; m_Data.RenderMode = value; MarkDirty(DirtyLevel.Shape); } }
         public LetteraHorizontalAlignment HorizontalAlignment { get => m_Data.HorizontalAlignment; set { if (m_Data.HorizontalAlignment == value) return; m_Data.HorizontalAlignment = value; MarkDirty(DirtyLevel.Positions); } }
         public LetteraVerticalAlignment VerticalAlignment { get => m_Data.VerticalAlignment; set { if (m_Data.VerticalAlignment == value) return; m_Data.VerticalAlignment = value; MarkDirty(DirtyLevel.Positions); } }
         public bool WordWrap { get => m_Data.WordWrap; set { if (m_Data.WordWrap == value) return; m_Data.WordWrap = value; MarkDirty(DirtyLevel.Layout); } }
@@ -105,6 +105,16 @@ namespace FirstSymbol.Lettera
         /// <summary>Tells the text its style list, or a style in it, changed.</summary>
         public void MarkStylesDirty() => MarkDirty(DirtyLevel.Parse);
 
+        /// <summary>
+        /// After changing a parameter of an effect already in use: runs the effects again on the ranges already found,
+        /// without running matchers. Pass the level the parameter needs, for example Mesh for a color or Shape for a font feature.
+        /// </summary>
+        public void MarkEffectsDirty(DirtyLevel level = DirtyLevel.Mesh)
+        {
+            Engine.ReapplyEffects(level);
+            MarkDirty(level);
+        }
+
         public ILetteraTextResolver TextResolver { get => Engine.Resolver; set { if (Engine.Resolver == value) return; Engine.Resolver = value; MarkDirty(DirtyLevel.Parse); } }
 
         /// <summary>Tells the text its resolver's output changed, e.g. after a locale switch.</summary>
@@ -134,6 +144,8 @@ namespace FirstSymbol.Lettera
 
         /// <summary>How many rebuild passes ran; useful to verify a change caused none.</summary>
         public int RebuildCount => Engine.RebuildCount;
+        internal int ParseCount => Engine.ParseCount;
+        internal int ShapeCount => Engine.ShapeCount;
 
         public float GetMinContentWidth() => Engine.GetMinContentWidth();
         public float GetMaxContentWidth() => Engine.GetMaxContentWidth();
