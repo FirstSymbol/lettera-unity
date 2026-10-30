@@ -97,6 +97,7 @@ namespace FirstSymbol.Lettera
             m_Paragraphs.Clear();
             m_Runs.Clear();
             m_ShapedCount = 0;
+            EnsureExtras(length);
             if (length == 0) return;
 
             int direction = m_Attributes.DirectionOverride >= 0 ? m_Attributes.DirectionOverride
@@ -120,6 +121,7 @@ namespace FirstSymbol.Lettera
                     break;
                 }
             }
+            if (m_Attributes.HasLayout) ComputeExtras();
         }
 
         void AddParagraph(int start, int contentEnd, int end, int baseLevel)

@@ -59,6 +59,7 @@ namespace FirstSymbol.Lettera
             List<LayerGroup> groups = m_Attributes.SortedGroups();
             Styled = m_Attributes.NeedsStyledShader();
             PrepareGlyphs(groups);
+            PrepareFade();
 
             m_Faces.Clear();
             foreach (LayerGroup group in groups)
@@ -431,7 +432,8 @@ namespace FirstSymbol.Lettera
 
         void AddQuad(in PlacedGlyph g, in AtlasGlyph atlas, Color32 color, float mode, float threshold, float softness, float upper, in ResolvedPaint paint, in Rect paintRect, float paintDx, float paintDy, Vector4 extra = default)
         {
-            float left = g.X + atlas.Left * g.Unit, right = g.X + atlas.Right * g.Unit;
+            float xUnit = g.Unit * (1 + g.XScale);
+            float left = g.X + atlas.Left * xUnit, right = g.X + atlas.Right * xUnit;
             float bottom = g.Y + atlas.Bottom * g.Unit, top = g.Y + atlas.Top * g.Unit;
             int v = Reserve();
             Vertices[v] = new Vector3(left, bottom);
@@ -446,6 +448,48 @@ namespace FirstSymbol.Lettera
             Uv1[v] = Uv1[v + 1] = Uv1[v + 2] = Uv1[v + 3] = parameters;
             SetColor(v, color);
             if (Styled) SetPaint(v, paint, paintRect, paintDx, paintDy, extra);
+            if (m_FadeActive && g.Line == m_FadeLine) ApplyFade(v);
+        }
+
+        // Alpha falls off towards a truncated edge, per vertex, so it runs smoothly across a glyph.
+        bool m_FadeActive;
+        int m_FadeLine;
+        float m_FadeCut, m_FadeDistance, m_FadeSign;
+
+        void PrepareFade()
+        {
+            m_FadeActive = false;
+            foreach (Removal removal in m_Removals)
+            {
+                if (removal.FadeDistance.IsZero) continue;
+                float size = CurrentFontSize;
+                float distance = removal.FadeDistance.Of(size);
+                if (distance <= 0) continue;
+                // The cut is where the glyphs before the removal stop, on the line that holds it.
+                for (int l = 0; l < m_Lines.Count; l++)
+                {
+                    LetteraLine line = m_Lines[l];
+                    if (removal.Start < line.Start || removal.Start > line.End) continue;
+                    bool rtl = (m_Paragraphs[line.Paragraph].Level & 1) != 0;
+                    m_FadeActive = true;
+                    m_FadeLine = l;
+                    m_FadeSign = rtl ? -1 : 1;
+                    m_FadeDistance = distance;
+                    m_FadeCut = (rtl ? line.X : line.X + line.Width) - m_FadeSign * removal.FadeShift.Of(size);
+                    return;
+                }
+            }
+        }
+
+        void ApplyFade(int v)
+        {
+            for (int i = 0; i < 4; i++)
+            {
+                float toCut = (m_FadeCut - Vertices[v + i].x) * m_FadeSign;
+                float fade = Mathf.Clamp01(toCut / m_FadeDistance);
+                Colors[v + i].a = (byte)(Colors[v + i].a * fade);
+                m_OwnAlpha[v + i] = Colors[v + i].a;
+            }
         }
 
         void AddSolid(float left, float bottom, float right, float top, Color32 color, in ResolvedPaint paint, in Rect paintRect, float paintDx, float paintDy)
@@ -526,7 +570,7 @@ namespace FirstSymbol.Lettera
         {
             LetteraAttributes.Cp[] attrs = m_Attributes.Chars;
             int i = 0;
-            while (i < m_PlacedCount)
+            while (i < m_RealCount)
             {
                 ref PlacedGlyph first = ref m_Placed[i];
                 ref LetteraAttributes.Cp attr = ref attrs[first.Cluster];
@@ -539,7 +583,7 @@ namespace FirstSymbol.Lettera
                 }
                 float left = first.X, right = first.X + first.Advance;
                 int j = i + 1;
-                while (j < m_PlacedCount)
+                while (j < m_RealCount)
                 {
                     ref PlacedGlyph next = ref m_Placed[j];
                     ref LetteraAttributes.Cp nextAttr = ref attrs[next.Cluster];

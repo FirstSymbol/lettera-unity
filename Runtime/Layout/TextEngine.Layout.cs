@@ -13,11 +13,20 @@ namespace FirstSymbol.Lettera
         readonly List<LetteraLine> m_MeasureLines = new List<LetteraLine>();
         Rect m_Box;
         float m_ContentWidth, m_ContentHeight;
-        int m_RemoveStart = -1, m_RemoveEnd = -1;
-        float m_MarkerEm;
-        FontInstance m_MarkerInstance;
-        int m_MarkerAnchor;
-        readonly List<ShapedGlyph> m_MarkerGlyphs = new List<ShapedGlyph>();
+        readonly List<Removal> m_Removals = new List<Removal>();
+        float m_PendingGap, m_TrimTop;
+
+        // What the last auto-size fit spends, on top of the shaped widths.
+        float m_FitTracking, m_FitGlyphScale = 1, m_FitLineHeight = 1;
+
+        struct Removal
+        {
+            public int Start, End, Anchor, Repeat, Advance;
+            public float MarkerEm;
+            public FontInstance Instance;
+            public uint Glyph;
+            public LayoutLength FadeDistance, FadeShift;
+        }
 
         struct LineStats
         {
@@ -51,6 +60,7 @@ namespace FirstSymbol.Lettera
             float height = m_Box.height <= 0 ? float.PositiveInfinity : m_Box.height;
 
             ClearRemoval();
+            ResetFit();
 
             float size = data.FontSize;
             if (data.AutoSize) size = FitFontSize(data, width, height, wrap);
@@ -68,6 +78,7 @@ namespace FirstSymbol.Lettera
             float max = data.MaxFontSize;
             float min = Mathf.Min(data.MinFontSize, max);
             if (Fits(max, width, height, wrap, false)) return max;
+            if (SpendBudgets(data, max, width, height, wrap)) return max;
             if (!Fits(min, width, height, wrap, false)) return min;
             float low = min, high = max;
             for (int i = 0; i < 16 && high - low > 0.005f; i++)
@@ -85,40 +96,103 @@ namespace FirstSymbol.Lettera
             return !stats.WordOverflow && stats.MaxWidth <= width + Epsilon && stats.Height <= height + Epsilon;
         }
 
-        void ClearRemoval()
+        void ResetFit()
         {
-            m_RemoveStart = m_RemoveEnd = -1;
-            m_MarkerEm = 0;
-            m_MarkerInstance = null;
-            m_MarkerGlyphs.Clear();
+            m_FitTracking = 0;
+            m_FitGlyphScale = 1;
+            m_FitLineHeight = 1;
+            foreach (LetteraFitBudget budget in m_Host.Data.FitBudgets)
+                if (budget != null)
+                    budget.Spent = 0;
         }
 
-        // Removing clusters from one place makes the text fit: find the fewest, by bisection.
+        // Tries each budget in list order at a size, spending the least that makes the text fit. False leaves them all fully spent.
+        bool SpendBudgets(LetteraTextData data, float size, float width, float height, bool wrap)
+        {
+            foreach (LetteraFitBudget budget in data.FitBudgets)
+            {
+                if (budget == null) continue;
+                SetBudget(budget, 1f);
+                if (!Fits(size, width, height, wrap, false)) continue;
+                float low = 0, high = 1;
+                for (int i = 0; i < 10; i++)
+                {
+                    float middle = (low + high) * 0.5f;
+                    SetBudget(budget, middle);
+                    if (Fits(size, width, height, wrap, false)) high = middle;
+                    else low = middle;
+                }
+                SetBudget(budget, high);
+                return true;
+            }
+            return false;
+        }
+
+        void SetBudget(LetteraFitBudget budget, float fraction)
+        {
+            switch (budget)
+            {
+                case FitByTracking tracking:
+                    m_FitTracking = -tracking.Limit * fraction;
+                    budget.Spent = tracking.Limit * fraction;
+                    break;
+                case FitByGlyphWidth glyphs:
+                    m_FitGlyphScale = 1 - glyphs.Limit * 0.01f * fraction;
+                    budget.Spent = glyphs.Limit * fraction;
+                    break;
+                case FitByLineHeight lines:
+                    m_FitLineHeight = 1 - (100 - lines.Limit) * 0.01f * fraction;
+                    budget.Spent = 100 - (100 - lines.Limit) * fraction;
+                    break;
+            }
+        }
+
+        void ClearRemoval()
+        {
+            m_Removals.Clear();
+        }
+
+        // Each request removes clusters from its own range to make the text fit, the last range first.
+        // The component's Overflow was added last, but it covers everything, so it is the last resort.
         void ApplyElide(float size, float width, float height, bool wrap)
         {
-            if (Fits(size, width, height, wrap, true)) return;
-            LetteraAttributes.ElideRequest request = m_Attributes.Elides[0];
+            List<LetteraAttributes.ElideRequest> elides = m_Attributes.Elides;
+            int component = m_Host.Data.Overflow != LetteraOverflow.Visible ? elides.Count - 1 : -1;
+            for (int r = component >= 0 ? elides.Count - 2 : elides.Count - 1; r >= -1; r--)
+            {
+                int index = r >= 0 ? r : component;
+                if (index < 0) break;
+                if (Fits(size, width, height, wrap, true)) return;
+                ElideOne(elides[index], size, width, height, wrap);
+            }
+        }
+
+        // Find the fewest clusters to remove, by bisection.
+        void ElideOne(in LetteraAttributes.ElideRequest request, float size, float width, float height, bool wrap)
+        {
             int start = request.Start, end = Mathf.Min(request.End, m_TextLength);
             if (end <= start) return;
 
             int clusters = 0;
             for (int i = start; i < end; i++)
-                if (m_Boundaries[i])
+                if (m_Boundaries[i] && !IsRemoved(i))
                     clusters++;
             if (clusters == 0) return;
 
+            int slot = m_Removals.Count;
+            m_Removals.Add(default);
             int low = 1, high = clusters;
             while (low < high)
             {
                 int middle = (low + high) / 2;
-                SetRemoval(request, start, end, clusters, middle);
+                SetRemoval(slot, request, start, end, clusters, middle);
                 if (Fits(size, width, height, wrap, true)) high = middle;
                 else low = middle + 1;
             }
-            SetRemoval(request, start, end, clusters, low);
+            SetRemoval(slot, request, start, end, clusters, low);
         }
 
-        void SetRemoval(in LetteraAttributes.ElideRequest request, int start, int end, int clusters, int remove)
+        void SetRemoval(int slot, in LetteraAttributes.ElideRequest request, int start, int end, int clusters, int remove)
         {
             int kept = clusters - remove;
             int skip = Mathf.RoundToInt(kept * request.Position);
@@ -137,19 +211,16 @@ namespace FirstSymbol.Lettera
             }
             // Whitespace next to the marker would only leave a gap.
             while (a > start && LetteraUnicode.IsWhiteSpace(m_Text[a - 1])) a--;
-            m_RemoveStart = a;
-            m_RemoveEnd = b;
-            if (request.Marker) PrepareMarker(a > 0 ? a - 1 : a);
+            var removal = new Removal { Start = a, End = b, FadeDistance = request.FadeDistance, FadeShift = request.FadeShift };
+            if (request.Marker) PrepareMarker(ref removal, a > 0 ? a - 1 : a);
+            m_Removals[slot] = removal;
         }
 
-        void PrepareMarker(int anchor)
+        void PrepareMarker(ref Removal removal, int anchor)
         {
-            m_MarkerAnchor = Mathf.Min(anchor, m_TextLength - 1);
-            m_MarkerGlyphs.Clear();
-            m_MarkerEm = 0;
-            m_MarkerInstance = null;
+            removal.Anchor = Mathf.Min(anchor, m_TextLength - 1);
             if (m_Runs.Count == 0) return;
-            Run run = m_Runs[m_CpRun[m_MarkerAnchor]];
+            Run run = m_Runs[m_CpRun[removal.Anchor]];
             FontInstance instance = run.Instance;
             if (instance == null) return;
 
@@ -170,62 +241,99 @@ namespace FirstSymbol.Lettera
                     repeat = 3;
                 }
             }
-            m_MarkerInstance = instance;
-            uint glyph = LetteraNative.lt_font_glyph(instance.Font, (uint)codepoint, 0);
-            int advance = LetteraNative.lt_glyph_advance(instance.Font, glyph);
+            removal.Instance = instance;
+            removal.Glyph = LetteraNative.lt_font_glyph(instance.Font, (uint)codepoint, 0);
+            removal.Repeat = repeat;
+            removal.Advance = LetteraNative.lt_glyph_advance(instance.Font, removal.Glyph);
             float unit = instance == run.Instance ? run.UnitEm : 1f / instance.Face.Metrics.Upem;
-            for (int i = 0; i < repeat; i++)
-            {
-                m_MarkerGlyphs.Add(new ShapedGlyph { Glyph = glyph, Cluster = m_RemoveStart, XAdvance = advance });
-                m_MarkerEm += advance * unit;
-            }
+            removal.MarkerEm = removal.Advance * unit * repeat;
         }
 
-        bool IsRemoved(int cp) => cp >= m_RemoveStart && cp < m_RemoveEnd;
+        bool IsRemoved(int cp)
+        {
+            for (int i = 0; i < m_Removals.Count; i++)
+                if (cp >= m_Removals[i].Start && cp < m_Removals[i].End)
+                    return true;
+            return false;
+        }
+
+        // The marker of the removal that starts at a codepoint, in local units.
+        float MarkerWidthAt(int cp, float baseSize)
+        {
+            for (int i = 0; i < m_Removals.Count; i++)
+                if (m_Removals[i].Start == cp && m_Removals[i].MarkerEm > 0)
+                    return m_Removals[i].MarkerEm * SizeOf(m_Runs[m_CpRun[m_Removals[i].Anchor]], baseSize);
+            return 0;
+        }
+
+        float IndentOf(int cp, float baseSize)
+        {
+            if (!m_Attributes.HasLayout || cp >= m_TextLength) return 0;
+            ref LetteraAttributes.CpLayout layout = ref m_Attributes.Layout[cp];
+            float indent = layout.Indent.Of(SizeOf(m_Runs[m_CpRun[cp]], baseSize));
+            if (layout.IndentPercent != 0) indent += layout.IndentPercent * 0.01f * m_Host.LayoutRect.width;
+            return indent < 0 ? 0 : indent;
+        }
+
+        // A range that opens inside a line moves what follows it: the rise in indent at a codepoint.
+        float IndentRiseAt(int cp, int lineStart, float baseSize)
+        {
+            if (!m_Attributes.HasLayout || cp <= lineStart) return 0;
+            float here = IndentOf(cp, baseSize), before = IndentOf(cp - 1, baseSize);
+            return here > before ? here - before : 0;
+        }
 
         LineStats BreakLines(List<LetteraLine> lines, float baseSize, float maxWidth, bool wrap, bool emergency)
         {
             lines.Clear();
             var stats = new LineStats();
+            m_PendingGap = 0;
+            int previousParagraph = -1;
             for (int p = 0; p < m_Paragraphs.Count; p++)
             {
                 Paragraph paragraph = m_Paragraphs[p];
-                if (m_RemoveStart >= 0 && paragraph.Start > m_RemoveStart && paragraph.ContentEnd <= m_RemoveEnd && paragraph.Start < m_RemoveEnd)
-                    continue; // Wholly elided.
+                if (m_Removals.Count > 0 && IsWhollyRemoved(paragraph)) continue;
+
+                if (previousParagraph >= 0 && m_Attributes.ParagraphSpacings.Count > 0)
+                    m_PendingGap += ParagraphGap(m_Paragraphs[previousParagraph], paragraph, baseSize);
+                previousParagraph = p;
 
                 int lineStart = paragraph.Start, lastBreak = -1;
                 float x = 0, visible = 0, xAtBreak = 0;
+                float margin = IndentOf(lineStart, baseSize);
                 int i = paragraph.Start;
                 while (i < paragraph.ContentEnd)
                 {
                     int clusterEnd = i + 1;
                     while (clusterEnd < paragraph.ContentEnd && !m_Boundaries[clusterEnd]) clusterEnd++;
 
-                    float width = 0;
+                    float width = IndentRiseAt(i, lineStart, baseSize);
                     bool space = true;
                     for (int c = i; c < clusterEnd; c++)
                     {
-                        if (c == m_RemoveStart) width += m_MarkerEm * SizeOf(m_Runs[m_CpRun[m_MarkerAnchor]], baseSize);
+                        width += MarkerWidthAt(c, baseSize);
                         if (IsRemoved(c)) { space &= false; continue; }
-                        width += m_CpAdvanceEm[c] * SizeOf(m_Runs[m_CpRun[c]], baseSize);
+                        width += CpWidth(c, SizeOf(m_Runs[m_CpRun[c]], baseSize));
                         space &= LetteraUnicode.IsWhiteSpace(m_Text[c]);
                     }
 
-                    if (wrap && !space && x + width > maxWidth + Epsilon && x > 0)
+                    if (wrap && !space && x + width > maxWidth - margin + Epsilon && x > 0)
                     {
                         if (lastBreak > lineStart)
                         {
-                            AddLine(lines, ref stats, baseSize, lineStart, lastBreak, Math.Min(visibleBefore(lastBreak, paragraph), lastBreak), p, false);
+                            AddLine(lines, ref stats, baseSize, lineStart, lastBreak, Math.Min(visibleBefore(lastBreak, paragraph), lastBreak), p, false, margin);
                             x -= xAtBreak;
                             visible = Mathf.Max(visible - xAtBreak, 0);
                             lineStart = lastBreak;
+                            margin = IndentOf(lineStart, baseSize);
                             lastBreak = -1;
                             continue;
                         }
                         if (emergency)
                         {
-                            AddLine(lines, ref stats, baseSize, lineStart, i, i, p, false);
+                            AddLine(lines, ref stats, baseSize, lineStart, i, Math.Min(visibleBefore(i, paragraph), i), p, false, margin);
                             lineStart = i;
+                            margin = IndentOf(lineStart, baseSize);
                             x = visible = 0;
                             continue;
                         }
@@ -239,8 +347,9 @@ namespace FirstSymbol.Lettera
                     LineBreakOpportunity opportunity = m_Breaks[i - 1];
                     if (opportunity == LineBreakOpportunity.Mandatory && i < paragraph.ContentEnd)
                     {
-                        AddLine(lines, ref stats, baseSize, lineStart, i, i - 1, p, true);
+                        AddLine(lines, ref stats, baseSize, lineStart, i, i - 1, p, true, margin);
                         lineStart = i;
+                        margin = IndentOf(lineStart, baseSize);
                         lastBreak = -1;
                         x = visible = 0;
                     }
@@ -250,9 +359,98 @@ namespace FirstSymbol.Lettera
                         xAtBreak = x;
                     }
                 }
-                AddLine(lines, ref stats, baseSize, lineStart, paragraph.End, visibleBefore(paragraph.ContentEnd, paragraph), p, true);
+                AddLine(lines, ref stats, baseSize, lineStart, paragraph.End, visibleBefore(paragraph.ContentEnd, paragraph), p, true, margin);
             }
+            if (m_Attributes.TrimTop != LetteraTrimTop.None || m_Attributes.TrimBottom != LetteraTrimBottom.None) ApplyTrim(lines, ref stats, baseSize);
+            else m_TrimTop = 0;
             return stats;
+        }
+
+        bool IsWhollyRemoved(in Paragraph paragraph)
+        {
+            foreach (Removal removal in m_Removals)
+                if (paragraph.Start > removal.Start && paragraph.ContentEnd <= removal.End && paragraph.Start < removal.End)
+                    return true;
+            return false;
+        }
+
+        float ParagraphGap(in Paragraph above, in Paragraph below, float baseSize)
+        {
+            float gap = 0;
+            if (above.Start < m_TextLength)
+            {
+                short index = m_Attributes.Layout[above.Start].ParagraphSpacing;
+                if (index >= 0) gap += m_Attributes.ParagraphSpacings[index].After.Of(SizeOf(m_Runs[m_CpRun[above.Start]], baseSize));
+            }
+            if (below.Start < m_TextLength)
+            {
+                short index = m_Attributes.Layout[below.Start].ParagraphSpacing;
+                if (index >= 0) gap += m_Attributes.ParagraphSpacings[index].Before.Of(SizeOf(m_Runs[m_CpRun[below.Start]], baseSize));
+            }
+            return gap;
+        }
+
+        // The first and last lines lose what lies beyond the chosen edges. Nothing drawn after shaping moves an edge.
+        void ApplyTrim(List<LetteraLine> lines, ref LineStats stats, float baseSize)
+        {
+            m_TrimTop = 0;
+            if (lines.Count == 0) return;
+            LetteraLine first = lines[0], last = lines[lines.Count - 1];
+            float top = 0;
+            switch (m_Attributes.TrimTop)
+            {
+                case LetteraTrimTop.Ascent: top = first.Ascent - LineMetric(first, baseSize, 0); break;
+                case LetteraTrimTop.CapHeight: top = first.Ascent - LineMetric(first, baseSize, 1); break;
+                case LetteraTrimTop.XHeight: top = first.Ascent - LineMetric(first, baseSize, 2); break;
+                case LetteraTrimTop.Ink: top = first.Ascent - InkOf(first, baseSize, true, first.Ascent); break;
+            }
+            float bottom = 0;
+            switch (m_Attributes.TrimBottom)
+            {
+                case LetteraTrimBottom.Descent: bottom = last.Descent - LineMetric(last, baseSize, 3); break;
+                case LetteraTrimBottom.Baseline: bottom = last.Descent; break;
+                case LetteraTrimBottom.Ink: bottom = last.Descent - InkOf(last, baseSize, false, last.Descent); break;
+            }
+            m_TrimTop = top;
+            stats.Height -= top + bottom;
+        }
+
+        // 0 ascent, 1 cap height, 2 x-height, 3 descent of the primary face at the line's largest size.
+        float LineMetric(in LetteraLine line, float baseSize, int metric)
+        {
+            FontFace primary = m_Chain.PrimaryFace;
+            float em = 0;
+            for (int c = line.Start; c < line.End && c < m_TextLength; c++) em = Mathf.Max(em, SizeOf(m_Runs[m_CpRun[c]], baseSize));
+            if (em <= 0) em = baseSize;
+            if (primary == null) return metric == 3 ? em * 0.2f : em * 0.8f;
+            FaceMetrics m = primary.Metrics;
+            int units = metric == 0 ? m.Ascender : metric == 1 ? m.CapHeight : metric == 2 ? m.XHeight : -m.Descender;
+            return (float)units / m.Upem * em;
+        }
+
+        // The highest ink above, or the lowest ink below, the baseline of a line; a line with no outlines keeps its ascent or descent.
+        float InkOf(in LetteraLine line, float baseSize, bool up, float fallback)
+        {
+            float ink = float.MinValue;
+            int* extents = stackalloc int[4];
+            for (int r = 0; r < m_Runs.Count; r++)
+            {
+                Run run = m_Runs[r];
+                if (run.Instance == null || run.Instance.Face.IsVirtual || run.End <= line.Start || run.Start >= line.End) continue;
+                float unit = run.UnitEm * SizeOf(run, baseSize);
+                for (int g = run.GlyphStart; g < run.GlyphStart + run.GlyphCount; g++)
+                {
+                    ref ShapedGlyph glyph = ref m_Shaped[g];
+                    if (glyph.Cluster < line.Start || glyph.Cluster >= line.End) continue;
+                    if (LetteraNative.lt_glyph_extents(run.Instance.Font, glyph.Glyph, extents) == 0) continue;
+                    if (extents[3] == 0 && extents[2] == 0) continue;
+                    // Extents are x bearing, y bearing, width, and a negative height.
+                    float yOffset = glyph.YOffset * unit;
+                    float top = extents[1] * unit + yOffset, bottom = (extents[1] + extents[3]) * unit + yOffset;
+                    ink = Mathf.Max(ink, up ? top : -bottom);
+                }
+            }
+            return ink == float.MinValue ? fallback : ink;
         }
 
         // The end of the line's content with trailing whitespace hanging out of it.
@@ -262,7 +460,7 @@ namespace FirstSymbol.Lettera
             return end;
         }
 
-        void AddLine(List<LetteraLine> lines, ref LineStats stats, float baseSize, int start, int end, int visibleEnd, int paragraph, bool mandatory)
+        void AddLine(List<LetteraLine> lines, ref LineStats stats, float baseSize, int start, int end, int visibleEnd, int paragraph, bool mandatory, float margin)
         {
             if (visibleEnd < start) visibleEnd = start;
             LetteraTextData data = m_Host.Data;
@@ -284,41 +482,77 @@ namespace FirstSymbol.Lettera
                     runDescent = Mathf.Max(runDescent, -metrics.Descender * run.UnitEm * size);
                 }
                 for (int k = c; k < stop && k < visibleEnd; k++)
-                    if (!IsRemoved(k))
-                        width += m_CpAdvanceEm[k] * size;
-                if (m_RemoveStart >= c && m_RemoveStart < stop) width += m_MarkerEm * size;
+                {
+                    if (m_Attributes.HasLayout) width += IndentRiseAt(k, start, baseSize);
+                    if (!IsRemoved(k)) width += CpWidth(k, size);
+                }
+                for (int k = c; k < stop; k++) width += MarkerWidthAt(k, baseSize);
                 c = stop;
             }
+            if (m_Attributes.HasLayout || m_FitTracking != 0) width -= TrailingTrackingOf(start, visibleEnd, baseSize);
             if (em <= 0) em = EmptyLineSize(start, baseSize);
 
             FontFace primary = m_Chain.PrimaryFace;
             float ascent = primary != null ? (float)primary.Metrics.Ascender / primary.Metrics.Upem * em : em * 0.8f;
             float descent = primary != null ? -(float)primary.Metrics.Descender / primary.Metrics.Upem * em : em * 0.2f;
-            float height;
-            switch (mode)
+            float primaryAscent = ascent, primaryDescent = descent;
+            float contentAscent = Mathf.Max(ascent, runAscent), contentDescent = Mathf.Max(descent, runDescent);
+            int leadingMode = (int)data.LeadingDistribution;
+            float height = HeightFor(mode, value, em, primaryAscent, primaryDescent, contentAscent, contentDescent);
+            if (mode == LetteraLineHeightMode.Content) { ascent = contentAscent; descent = contentDescent; }
+
+            if (m_Attributes.LineHeights.Count > 0)
             {
-                case LetteraLineHeightMode.Content:
-                    ascent = Mathf.Max(ascent, runAscent);
-                    descent = Mathf.Max(descent, runDescent);
-                    height = (ascent + descent) * value;
-                    break;
-                case LetteraLineHeightMode.Primary:
-                    height = (ascent + descent) * value;
-                    break;
-                default:
-                    height = value * em;
-                    break;
+                // A line partly covered by a range takes the largest value any of its clusters asks for.
+                float best = -1;
+                for (int c = start; c < end && c < m_TextLength; c++)
+                {
+                    short index = m_Attributes.Layout[c].LineHeight;
+                    if (index < 0) continue;
+                    LineHeightSpec spec = m_Attributes.LineHeights[index];
+                    LetteraLineHeightMode specMode = spec.Mode == LetteraLineHeightMode.Default ? mode : spec.Mode;
+                    float requested = spec.IsAbsolute ? spec.Absolute.Of(em) : HeightFor(specMode, spec.Multiplier, em, primaryAscent, primaryDescent, contentAscent, contentDescent);
+                    if (requested <= best) continue;
+                    best = requested;
+                    ascent = specMode == LetteraLineHeightMode.Content ? contentAscent : primaryAscent;
+                    descent = specMode == LetteraLineHeightMode.Content ? contentDescent : primaryDescent;
+                    if (spec.Leading >= 0) leadingMode = spec.Leading;
+                }
+                if (best >= 0) height = best;
             }
+            height *= m_FitLineHeight;
+
             float leading = height - (ascent + descent);
-            float above = data.LeadingDistribution == LetteraLeading.Above ? leading : data.LeadingDistribution == LetteraLeading.Below ? 0 : leading * 0.5f;
+            float above = leadingMode == (int)LetteraLeading.Above ? leading : leadingMode == (int)LetteraLeading.Below ? 0 : leading * 0.5f;
+
+            float gap = lines.Count > 0 ? m_PendingGap : 0;
+            if (lines.Count > 0 && m_Attributes.LineGaps.Count > 0)
+            {
+                LetteraLine before = lines[lines.Count - 1];
+                foreach (LineGapSpec lineGap in m_Attributes.LineGaps)
+                    if (lineGap.End > before.Start && lineGap.End <= before.End)
+                        gap += lineGap.Amount.Of(em);
+            }
+            m_PendingGap = 0;
 
             lines.Add(new LetteraLine
             {
                 Start = start, End = end, VisibleEnd = visibleEnd, Paragraph = paragraph, Width = width, Height = height,
                 Ascent = ascent + above, Descent = height - (ascent + above), EndedByMandatoryBreak = mandatory,
+                GapBefore = gap, Margin = margin,
             });
-            if (width > stats.MaxWidth) stats.MaxWidth = width;
-            stats.Height += height;
+            if (width + margin > stats.MaxWidth) stats.MaxWidth = width + margin;
+            stats.Height += height + gap;
+        }
+
+        static float HeightFor(LetteraLineHeightMode mode, float value, float em, float ascent, float descent, float contentAscent, float contentDescent)
+        {
+            switch (mode)
+            {
+                case LetteraLineHeightMode.Content: return (contentAscent + contentDescent) * value;
+                case LetteraLineHeightMode.Primary: return (ascent + descent) * value;
+                default: return value * em;
+            }
         }
 
         float EmptyLineSize(int at, float baseSize)
@@ -352,7 +586,7 @@ namespace FirstSymbol.Lettera
             float widest = 0, word = 0;
             for (int i = 0; i < m_TextLength; i++)
             {
-                if (!LetteraUnicode.IsWhiteSpace(m_Text[i])) word += m_CpAdvanceEm[i] * SizeOf(m_Runs[m_CpRun[i]], size);
+                if (!LetteraUnicode.IsWhiteSpace(m_Text[i])) word += CpWidth(i, SizeOf(m_Runs[m_CpRun[i]], size));
                 if (m_Breaks[i] != LineBreakOpportunity.None)
                 {
                     if (word > widest) widest = word;
@@ -375,9 +609,10 @@ namespace FirstSymbol.Lettera
         public Vector2 Measure(float size, float width, float height, bool wrap, bool autoSize, float minSize, float maxSize)
         {
             EnsureMeasured();
+            ResetFit();
             if (autoSize)
             {
-                if (Fits(maxSize, width, height, wrap, false))
+                if (Fits(maxSize, width, height, wrap, false) || SpendBudgets(m_Host.Data, maxSize, width, height, wrap))
                 {
                     size = maxSize;
                 }

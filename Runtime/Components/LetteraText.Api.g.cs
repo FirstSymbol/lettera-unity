@@ -88,6 +88,9 @@ namespace FirstSymbol.Lettera
         /// <summary>Default BCP 47 language of the text.</summary>
         public string Language { get => m_Data.Language; set { if (m_Data.Language == value) return; m_Data.Language = value; MarkDirty(DirtyLevel.Shape); } }
 
+        /// <summary>Ways auto size may save room before it reduces the font size. Call MarkEffectsDirty(DirtyLevel.Layout) after editing the list.</summary>
+        public List<LetteraFitBudget> FitBudgets => m_Data.FitBudgets;
+
         /// <summary>This text's own styles. Call MarkStylesDirty after editing the list.</summary>
         public List<LetteraStyle> Styles => m_Data.Styles;
 

@@ -230,17 +230,25 @@ namespace FirstSymbol.Lettera
         }
     }
 
-    /// <summary>Slot: position 0 start, 0.5 middle, 1 end. Removes clusters that do not fit.</summary>
+    /// <summary>
+    /// Removes clusters that do not fit. Slots: 1 position 0 start, 0.5 middle, 1 end; 2 fade distance in local units or em, 0 none;
+    /// 3 fade shift: positive moves the fully faded point away from the cut, into the text.
+    /// </summary>
     [Serializable]
     public class TruncateEffect : LetteraEffect
     {
         [SerializeField, Range(0, 1)] float m_Position = 1f;
+        [SerializeField, Min(0)] float m_FadeDistance;
+        [SerializeField] float m_FadeShift;
 
         public float Position { get => m_Position; set => m_Position = value; }
+        public float FadeDistance { get => m_FadeDistance; set => m_FadeDistance = value; }
+        public float FadeShift { get => m_FadeShift; set => m_FadeShift = value; }
 
         public override void Apply(LetteraAttributes attributes, int start, int end, in LetteraSlots slots)
         {
-            attributes.RequestElide(start, end, LetteraSlots.TryNumber(slots[0], out float p) ? p : m_Position, false);
+            attributes.RequestElide(start, end, LetteraSlots.TryNumber(slots[0], out float p) ? p : m_Position, false,
+                new LayoutLength(slots.Length(1, new LetteraLength(m_FadeDistance))), new LayoutLength(slots.Length(2, new LetteraLength(m_FadeShift))));
         }
     }
 

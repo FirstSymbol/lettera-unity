@@ -13,15 +13,17 @@ namespace FirstSymbol.Lettera
             public FontInstance Instance;
             public int Cluster, Line;
             public float X, Y, Advance, Unit, Size;
+            public float XScale;    // Added to 1: justification, a fit and connecting strokes widen or narrow a glyph.
         }
 
         PlacedGlyph[] m_Placed = new PlacedGlyph[64];
-        int m_PlacedCount;
+        int m_PlacedCount;  // Glyphs of the text, then virtual ones, which only the mesh sees.
+        int m_RealCount;
         byte[] m_LineLevels = new byte[64];
         int[] m_VisualOrder = new int[64];
 
         public IReadOnlyList<LetteraLine> Lines => m_Lines;
-        public int GlyphCount => m_PlacedCount;
+        public int GlyphCount => m_RealCount;
 
         public LetteraGlyphInfo GetGlyph(int index)
         {
@@ -35,6 +37,7 @@ namespace FirstSymbol.Lettera
         {
             LetteraTextData data = m_Host.Data;
             m_PlacedCount = 0;
+            m_VirtualGlyphs.Clear();
 
             float top = m_Box.yMax;
             bool clips = m_Host.ClipsOverflow;
@@ -48,14 +51,15 @@ namespace FirstSymbol.Lettera
                 }
             }
 
-            float y = top;
+            float y = top + m_TrimTop;
             float left = float.MaxValue, right = float.MinValue;
             for (int l = 0; l < m_Lines.Count; l++)
             {
                 LetteraLine line = m_Lines[l];
                 Paragraph paragraph = m_Paragraphs[line.Paragraph];
+                y -= line.GapBefore;
                 float baseline = y - line.Ascent;
-                float x = AlignLine(data, line, paragraph, clips, out float justifyExtra, out int justifyMode);
+                float x = AlignLine(data, line, paragraph, clips, out LineStretch stretch);
                 line.X = x;
                 line.Baseline = baseline;
                 m_Lines[l] = line;
@@ -64,55 +68,148 @@ namespace FirstSymbol.Lettera
                     if (x < left) left = x;
                     if (x + line.Width > right) right = x + line.Width;
                 }
-                PlaceLine(line, l, paragraph, x, baseline, justifyExtra, justifyMode);
+                PlaceLine(line, l, paragraph, x, baseline, stretch);
                 y -= line.Height;
+            }
+            m_RealCount = m_PlacedCount;
+            foreach (PlacedGlyph glyph in m_VirtualGlyphs)
+            {
+                EnsureSize(ref m_Placed, m_PlacedCount + 1);
+                m_Placed[m_PlacedCount++] = glyph;
             }
             if (left > right) left = right = m_Box.x;
             LayoutBounds = new Rect(left, top - m_ContentHeight, right - left, m_ContentHeight);
         }
 
-        float AlignLine(LetteraTextData data, in LetteraLine line, in Paragraph paragraph, bool clips, out float justifyExtra, out int justifyMode)
+        /// <summary>How a line's free space is spent: on word spaces, between clusters and on glyph widths.</summary>
+        struct LineStretch
         {
-            justifyExtra = 0;
-            justifyMode = 0;
-            float free = m_Box.width - line.Width;
+            public float WordExtra, ClusterExtra, GlyphScale;
+            public static readonly LineStretch None = new LineStretch { GlyphScale = 1 };
+        }
+
+        AlignSpec AlignOf(in Paragraph paragraph)
+        {
+            if (!m_Attributes.HasLayout || paragraph.Start >= m_TextLength) return AlignSpec.Default;
+            short index = m_Attributes.Layout[paragraph.Start].Align;
+            return index >= 0 ? m_Attributes.Aligns[index] : AlignSpec.Default;
+        }
+
+        float AlignLine(LetteraTextData data, in LetteraLine line, in Paragraph paragraph, bool clips, out LineStretch stretch)
+        {
+            stretch = LineStretch.None;
             bool rtl = (paragraph.Level & 1) != 0;
+            float boxLeft = rtl ? m_Box.xMin : m_Box.xMin + line.Margin;
+            float boxRight = rtl ? m_Box.xMax - line.Margin : m_Box.xMax;
+            float free = boxRight - boxLeft - line.Width;
 
-            float startEdge = rtl ? m_Box.xMax - line.Width : m_Box.xMin;
-            if (clips && free < -Epsilon) return startEdge;
+            float startEdge = rtl ? boxRight - line.Width : boxLeft;
+            if (clips && free < -Epsilon && AlignOf(paragraph).Alignment != (int)LetteraHorizontalAlignment.Justify && data.HorizontalAlignment != LetteraHorizontalAlignment.Justify) return startEdge;
 
-            switch (data.HorizontalAlignment)
+            AlignSpec spec = AlignOf(paragraph);
+            var alignment = spec.Alignment >= 0 ? (LetteraHorizontalAlignment)spec.Alignment : data.HorizontalAlignment;
+            bool justified = alignment == LetteraHorizontalAlignment.Justify;
+            if (justified && line.EndedByMandatoryBreak)
             {
-                case LetteraHorizontalAlignment.Center: return m_Box.xMin + free * 0.5f;
-                case LetteraHorizontalAlignment.End: return rtl ? m_Box.xMin : m_Box.xMax - line.Width;
-                case LetteraHorizontalAlignment.Left: return m_Box.xMin;
-                case LetteraHorizontalAlignment.Right: return m_Box.xMax - line.Width;
+                switch (spec.LastLine)
+                {
+                    case LetteraLastLine.End: alignment = LetteraHorizontalAlignment.End; justified = false; break;
+                    case LetteraLastLine.Center: alignment = LetteraHorizontalAlignment.Center; justified = false; break;
+                    case LetteraLastLine.Justify: break;
+                    default: return startEdge;
+                }
+            }
+
+            switch (alignment)
+            {
+                case LetteraHorizontalAlignment.Center: return boxLeft + free * 0.5f;
+                case LetteraHorizontalAlignment.End: return rtl ? boxLeft : boxRight - line.Width;
+                case LetteraHorizontalAlignment.Left: return boxLeft;
+                case LetteraHorizontalAlignment.Right: return boxRight - line.Width;
                 case LetteraHorizontalAlignment.Justify:
-                    if (!line.EndedByMandatoryBreak && free > 0)
-                    {
-                        int separators = 0, clusters = 0;
-                        for (int i = line.Start; i < line.VisibleEnd; i++)
-                        {
-                            if (IsRemoved(i)) continue;
-                            if (LetteraUnicode.IsJustifiableSeparator(m_Text[i])) separators++;
-                            if (m_Boundaries[i]) clusters++;
-                        }
-                        if (separators > 0) { justifyExtra = free / separators; justifyMode = 1; }
-                        else if (clusters > 1) { justifyExtra = free / (clusters - 1); justifyMode = 2; }
-                        if (justifyMode != 0) return m_Box.xMin;
-                    }
+                    if (spec.Justify != LetteraJustifyMode.None && ComputeStretch(line, spec, free, out stretch)) return boxLeft;
                     return startEdge;
                 default:
                     return startEdge;
             }
         }
 
-        void PlaceLine(in LetteraLine line, int lineIndex, in Paragraph paragraph, float x, float baseline, float justifyExtra, int justifyMode)
+        // A short line spends word spaces, then letter spacing, then glyph width, and whatever is left goes back to word spaces.
+        // An overflowing line compresses the same way, down to the minimums.
+        bool ComputeStretch(in LetteraLine line, in AlignSpec spec, float free, out LineStretch stretch)
+        {
+            stretch = LineStretch.None;
+            if (Math.Abs(free) <= Epsilon) return false;
+            int separators = 0, clusters = 0;
+            float spaces = 0, size = 0;
+            for (int i = line.Start; i < line.VisibleEnd; i++)
+            {
+                if (IsRemoved(i)) continue;
+                float own = SizeOf(m_Runs[m_CpRun[i]], CurrentFontSize);
+                if (own > size) size = own;
+                if (LetteraUnicode.IsJustifiableSeparator(m_Text[i]))
+                {
+                    separators++;
+                    spaces += m_CpAdvanceEm[i] * own;
+                }
+                if (m_Boundaries[i]) clusters++;
+            }
+            bool words = separators > 0 && spec.Justify != LetteraJustifyMode.InterCharacter;
+            if (!words && (clusters < 2 || spec.Justify == LetteraJustifyMode.InterWord)) return false;
+
+            if (free < 0)
+            {
+                if (!words) return false;
+                float wordRoom = spaces * (100 - spec.MinWordSpace) * 0.01f;
+                float shrinkWords = Math.Min(-free, wordRoom);
+                stretch.WordExtra = -shrinkWords / separators;
+                float left = -free - shrinkWords;
+                if (left > 0 && spec.MinTracking < 0 && clusters > 1)
+                {
+                    float room = -spec.MinTracking * 0.01f * size * (clusters - 1);
+                    float used = Math.Min(left, room);
+                    stretch.ClusterExtra = -used / (clusters - 1);
+                    left -= used;
+                }
+                if (left > 0 && spec.MinGlyphWidth < 100 && line.Width > 0)
+                    stretch.GlyphScale = Math.Max(1 - left / line.Width, spec.MinGlyphWidth * 0.01f);
+                return true;
+            }
+
+            if (!words)
+            {
+                stretch.ClusterExtra = free / (clusters - 1);
+                return true;
+            }
+
+            float remaining = free;
+            float wordBudget = float.IsPositiveInfinity(spec.MaxWordSpace) ? remaining : spaces * Math.Max(spec.MaxWordSpace - 100, 0) * 0.01f;
+            float forWords = Math.Min(remaining, wordBudget);
+            remaining -= forWords;
+            if (remaining > 0 && spec.MaxTracking > 0 && clusters > 1)
+            {
+                float room = spec.MaxTracking * 0.01f * size * (clusters - 1);
+                float used = Math.Min(remaining, room);
+                stretch.ClusterExtra = used / (clusters - 1);
+                remaining -= used;
+            }
+            if (remaining > 0 && spec.MaxGlyphWidth > 100 && line.Width > 0)
+            {
+                float room = line.Width * (spec.MaxGlyphWidth - 100) * 0.01f;
+                float used = Math.Min(remaining, room);
+                stretch.GlyphScale = 1 + used / line.Width;
+                remaining -= used;
+            }
+            stretch.WordExtra = (forWords + remaining) / separators;
+            return true;
+        }
+
+        void PlaceLine(in LetteraLine line, int lineIndex, in Paragraph paragraph, float x, float baseline, in LineStretch stretch)
         {
             int count = line.VisibleEnd - line.Start;
             if (count <= 0)
             {
-                if (m_RemoveStart >= line.Start && m_RemoveStart <= line.End) PlaceMarker(ref x, baseline, lineIndex);
+                PlaceMarkersIn(line.Start, line.End + 1, ref x, baseline, lineIndex);
                 return;
             }
             EnsureSize(ref m_LineLevels, count);
@@ -123,17 +220,18 @@ namespace FirstSymbol.Lettera
             Bidi.ReorderLine(new ReadOnlySpan<byte>(m_LineLevels, 0, count), new Span<int>(m_VisualOrder, 0, count));
 
             float size = CurrentFontSize;
-            bool markerDone = false;
             int v = 0;
+            int markersPlaced = 0;
             while (v < count)
             {
                 int logical = m_VisualOrder[v] + line.Start;
-                if (IsRemoved(logical))
+                int removal = RemovalOf(logical);
+                if (removal >= 0)
                 {
-                    if (!markerDone)
+                    if ((markersPlaced & (1 << Math.Min(removal, 30))) == 0)
                     {
-                        PlaceMarker(ref x, baseline, lineIndex);
-                        markerDone = true;
+                        PlaceMarker(m_Removals[removal], ref x, baseline, lineIndex);
+                        markersPlaced |= 1 << Math.Min(removal, 30);
                     }
                     v++;
                     continue;
@@ -148,23 +246,50 @@ namespace FirstSymbol.Lettera
                 {
                     int next = m_VisualOrder[w] + line.Start;
                     if (IsRemoved(next) || m_CpRun[next] != runIndex || m_LineLevels[m_VisualOrder[w]] != level) break;
+                    if (m_Attributes.HasLayout && IndentRiseAt(next, line.Start, size) > 0) break;
                     if (next == high + 1) high = next;
                     else if (next == low - 1) low = next;
                     else break;
                     w++;
                 }
-                x = PlaceFragment(runIndex, low, high + 1, x, baseline, lineIndex, size, justifyExtra, justifyMode, line);
+                if (m_Attributes.HasLayout) x += IndentRiseAt(low, line.Start, size);
+                x = PlaceFragment(runIndex, low, high + 1, x, baseline, lineIndex, size, stretch, line);
                 v = w;
             }
-            if (!markerDone && m_RemoveStart >= line.VisibleEnd && m_RemoveStart < line.End) PlaceMarker(ref x, baseline, lineIndex);
+            for (int r = 0; r < m_Removals.Count; r++)
+            {
+                if ((markersPlaced & (1 << Math.Min(r, 30))) != 0) continue;
+                int start = m_Removals[r].Start;
+                if (start >= line.VisibleEnd && start < line.End) PlaceMarker(m_Removals[r], ref x, baseline, lineIndex);
+            }
         }
 
-        float PlaceFragment(int runIndex, int low, int high, float x, float baseline, int lineIndex, float baseSize, float justifyExtra, int justifyMode, in LetteraLine line)
+        int RemovalOf(int cp)
+        {
+            for (int i = 0; i < m_Removals.Count; i++)
+                if (cp >= m_Removals[i].Start && cp < m_Removals[i].End)
+                    return i;
+            return -1;
+        }
+
+        void PlaceMarkersIn(int start, int end, ref float x, float baseline, int lineIndex)
+        {
+            foreach (Removal removal in m_Removals)
+                if (removal.Start >= start && removal.Start < end)
+                    PlaceMarker(removal, ref x, baseline, lineIndex);
+        }
+
+        float PlaceFragment(int runIndex, int low, int high, float x, float baseline, int lineIndex, float baseSize, in LineStretch stretch, in LetteraLine line)
         {
             Run run = m_Runs[runIndex];
             if (run.Instance == null) return x;
             float size = SizeOf(run, baseSize);
             float unit = run.UnitEm * size;
+            float glyphScale = m_FitGlyphScale * stretch.GlyphScale;
+            bool rtl = (run.Level & 1) != 0;
+            bool extras = m_Attributes.HasLayout || m_FitTracking != 0;
+            int lastCluster = line.VisibleEnd - 1;
+            while (lastCluster > line.Start && !m_Boundaries[lastCluster]) lastCluster--;
             int end = run.GlyphStart + run.GlyphCount;
             for (int i = FirstGlyph(run, low, high); i < end; i++)
             {
@@ -174,26 +299,118 @@ namespace FirstSymbol.Lettera
                     if ((run.Level & 1) == 0 ? g.Cluster >= high : g.Cluster < low) break;
                     continue;
                 }
+
+                bool firstOfCluster = i == run.GlyphStart || m_Shaped[i - 1].Cluster != g.Cluster;
+                bool lastOfCluster = i + 1 >= end || m_Shaped[i + 1].Cluster != g.Cluster;
+                float before = 0, after = 0;
+                if (extras && (firstOfCluster || lastOfCluster))
+                {
+                    // Space belongs to the logical end of a cluster: visually after it, or before it in a right-to-left run.
+                    ExtrasOf(g.Cluster, i, run, end, size, g.Cluster == lastCluster || ClusterHoldsLineEnd(g.Cluster, lastCluster), out float lead, out float trail);
+                    if (firstOfCluster) before = rtl ? lead + trail : lead;
+                    if (lastOfCluster) after = rtl ? lead : lead + trail;
+                    if (firstOfCluster && rtl && trail > 0 && m_CpKashida[g.Cluster]) AddKashida(run, x, trail, baseline, lineIndex, g.Cluster, unit);
+                }
+                x += before;
+
                 EnsureSize(ref m_Placed, m_PlacedCount + 1);
-                float advance = g.XAdvance * unit;
+                float advance = g.XAdvance * unit * glyphScale;
                 m_Placed[m_PlacedCount++] = new PlacedGlyph
                 {
                     Glyph = g.Glyph, Instance = run.Instance, Cluster = g.Cluster, Line = lineIndex,
-                    X = x + g.XOffset * unit, Y = baseline + g.YOffset * unit + run.BaselineShift * baseSize, Advance = advance, Unit = unit, Size = size,
+                    X = x + g.XOffset * unit, Y = baseline + g.YOffset * unit + run.BaselineShift * baseSize, Advance = advance + after, Unit = unit, Size = size,
+                    XScale = glyphScale - 1,
                 };
                 x += advance;
+                if (extras && lastOfCluster && !rtl && after > 0 && m_CpKashida[g.Cluster]) AddKashida(run, x + (after - TrailOnly(g.Cluster, size)), TrailOnly(g.Cluster, size), baseline, lineIndex, g.Cluster, unit);
+                x += after;
 
-                if (justifyMode != 0)
+                if (lastOfCluster)
                 {
-                    bool lastOfCluster = i + 1 >= end || m_Shaped[i + 1].Cluster != g.Cluster;
-                    if (lastOfCluster)
-                    {
-                        if (justifyMode == 1 && LetteraUnicode.IsJustifiableSeparator(m_Text[g.Cluster])) x += justifyExtra;
-                        else if (justifyMode == 2 && g.Cluster + 1 < line.VisibleEnd) x += justifyExtra;
-                    }
+                    if (stretch.WordExtra != 0 && LetteraUnicode.IsJustifiableSeparator(m_Text[g.Cluster])) x += stretch.WordExtra;
+                    if (stretch.ClusterExtra != 0 && g.Cluster + 1 < line.VisibleEnd) x += stretch.ClusterExtra;
                 }
             }
             return x;
+        }
+
+        float TrailOnly(int cluster, float size) => m_Attributes.HasLayout ? m_Attributes.Layout[cluster].Tracking.Of(size) : 0;
+
+        bool ClusterHoldsLineEnd(int cluster, int lastCluster) => cluster <= lastCluster && (lastCluster == cluster || !HasBoundaryBetween(cluster, lastCluster));
+
+        bool HasBoundaryBetween(int a, int b)
+        {
+            for (int i = a + 1; i <= b; i++)
+                if (m_Boundaries[i])
+                    return true;
+            return false;
+        }
+
+        // The extra space of the codepoints a shaped cluster covers, which can be several in a ligature.
+        void ExtrasOf(int cluster, int glyphIndex, in Run run, int end, float size, bool endsLine, out float lead, out float trail)
+        {
+            bool rtl = (run.Level & 1) != 0;
+            int stop = run.End;
+            if (!rtl)
+            {
+                for (int i = glyphIndex + 1; i < end; i++)
+                {
+                    if (m_Shaped[i].Cluster == cluster) continue;
+                    stop = m_Shaped[i].Cluster;
+                    break;
+                }
+            }
+            else
+            {
+                for (int i = glyphIndex - 1; i >= run.GlyphStart; i--)
+                {
+                    if (m_Shaped[i].Cluster == cluster) continue;
+                    stop = m_Shaped[i].Cluster;
+                    break;
+                }
+            }
+            float total = 0;
+            lead = 0;
+            for (int c = cluster; c < stop; c++)
+            {
+                total += m_CpExtraEm[c] * size + m_CpExtraUnits[c];
+                if (m_FitTracking != 0 && m_Boundaries[c]) total += m_FitTracking * size;
+                lead += m_CpLeadEm[c] * size + m_CpLeadUnits[c];
+            }
+            trail = total - lead * 2;
+            if (endsLine)
+            {
+                float tracking = m_FitTracking * size + (m_Attributes.HasLayout ? m_Attributes.Layout[cluster].Tracking.Of(size) : 0);
+                if (tracking != 0 && (tracking > 0) == (trail > 0)) trail -= tracking;
+            }
+        }
+
+        // Virtual glyphs: they draw like the letter they follow but are no part of the text.
+        readonly List<PlacedGlyph> m_VirtualGlyphs = new List<PlacedGlyph>();
+        const int Tatweel = 0x0640;
+
+        // A connecting stroke across the space tracking opened between joined letters.
+        void AddKashida(in Run run, float x, float width, float baseline, int lineIndex, int cluster, float unit)
+        {
+            if (width <= 0) return;
+            FontInstance instance = run.Instance;
+            if (!instance.Face.HasGlyph(Tatweel))
+            {
+                Span<int> one = stackalloc int[1];
+                one[0] = Tatweel;
+                FontFace face = m_Chain.Resolve(one, false, null, null, out _);
+                if (face == null || !face.HasGlyph(Tatweel)) return;
+                instance = face.Regular;
+                unit = run.Instance.Face == face ? unit : unit * run.Instance.Face.Metrics.Upem / face.Metrics.Upem;
+            }
+            uint glyph = LetteraNative.lt_font_glyph(instance.Font, Tatweel, 0);
+            float advance = LetteraNative.lt_glyph_advance(instance.Font, glyph) * unit;
+            if (advance <= 0) return;
+            m_VirtualGlyphs.Add(new PlacedGlyph
+            {
+                Glyph = glyph, Instance = instance, Cluster = cluster, Line = lineIndex, X = x, Y = baseline, Advance = 0, Unit = unit,
+                Size = run.UnitEm > 0 ? unit / run.UnitEm : 0, XScale = width / advance - 1,
+            });
         }
 
         // Clusters are monotonic within a run: bisect to the first glyph of the fragment.
@@ -212,19 +429,19 @@ namespace FirstSymbol.Lettera
             return a;
         }
 
-        void PlaceMarker(ref float x, float baseline, int lineIndex)
+        void PlaceMarker(in Removal removal, ref float x, float baseline, int lineIndex)
         {
-            if (m_MarkerInstance == null) return;
-            Run run = m_Runs[m_CpRun[m_MarkerAnchor]];
+            if (removal.Instance == null) return;
+            Run run = m_Runs[m_CpRun[removal.Anchor]];
             float size = SizeOf(run, CurrentFontSize);
-            float unit = (m_MarkerInstance == run.Instance ? run.UnitEm : 1f / m_MarkerInstance.Face.Metrics.Upem) * size;
-            foreach (ShapedGlyph g in m_MarkerGlyphs)
+            float unit = (removal.Instance == run.Instance ? run.UnitEm : 1f / removal.Instance.Face.Metrics.Upem) * size;
+            float advance = removal.Advance * unit;
+            for (int i = 0; i < removal.Repeat; i++)
             {
                 EnsureSize(ref m_Placed, m_PlacedCount + 1);
-                float advance = g.XAdvance * unit;
                 m_Placed[m_PlacedCount++] = new PlacedGlyph
                 {
-                    Glyph = g.Glyph, Instance = m_MarkerInstance, Cluster = m_MarkerAnchor, Line = lineIndex,
+                    Glyph = removal.Glyph, Instance = removal.Instance, Cluster = removal.Anchor, Line = lineIndex,
                     X = x, Y = baseline, Advance = advance, Unit = unit, Size = size,
                 };
                 x += advance;
@@ -239,7 +456,7 @@ namespace FirstSymbol.Lettera
             hit = default;
             float best = maxDistance;
             bool found = false;
-            for (int i = 0; i < m_PlacedCount; i++)
+            for (int i = 0; i < m_RealCount; i++)
             {
                 ref PlacedGlyph g = ref m_Placed[i];
                 LetteraLine line = m_Lines[g.Line];
@@ -267,7 +484,7 @@ namespace FirstSymbol.Lettera
         /// <summary>The caret index at a local point: left half of a cluster gives its start, right half its end, mirrored in RTL.</summary>
         public int HitTestCaret(Vector2 point)
         {
-            if (m_Lines.Count == 0 || m_PlacedCount == 0) return 0;
+            if (m_Lines.Count == 0 || m_RealCount == 0) return 0;
             int lineIndex = 0;
             for (int l = 0; l < m_Lines.Count; l++)
             {
@@ -277,7 +494,7 @@ namespace FirstSymbol.Lettera
             }
             int bestGlyph = -1;
             float bestDistance = float.MaxValue;
-            for (int i = 0; i < m_PlacedCount; i++)
+            for (int i = 0; i < m_RealCount; i++)
             {
                 ref PlacedGlyph g = ref m_Placed[i];
                 if (g.Line != lineIndex) continue;

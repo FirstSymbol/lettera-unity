@@ -51,6 +51,7 @@ namespace FirstSymbol.Lettera
         public List<LetteraStyle> Styles = new List<LetteraStyle>();
         public List<LetteraStylePreset> StylePresets = new List<LetteraStylePreset>();
         public bool UseGlobalStylePreset = true;
+        [SerializeReference] public List<LetteraFitBudget> FitBudgets = new List<LetteraFitBudget>();
 
         public LetteraTextData Clone() => (LetteraTextData)MemberwiseClone();
 
@@ -110,6 +111,12 @@ namespace FirstSymbol.Lettera
         public int Start, End, VisibleEnd, Paragraph;
         public float X, Baseline, Width, Height, Ascent, Descent;
         public bool EndedByMandatoryBreak;
+
+        /// <summary>Space opened above the line by paragraph spacing and line gaps.</summary>
+        public float GapBefore;
+
+        /// <summary>The distance from the box's start edge that indents ask for.</summary>
+        public float Margin;
     }
 
     /// <summary>A positioned glyph. Valid until the next rebuild.</summary>

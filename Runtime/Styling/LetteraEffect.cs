@@ -243,6 +243,28 @@ namespace FirstSymbol.Lettera
             public float SmallCaps;         // The scale of synthetic small capitals, 0 off.
         }
 
+        /// <summary>Layout attributes, kept apart so a text with no layout effects pays nothing for them.</summary>
+        internal struct CpLayout
+        {
+            public LayoutLength Tracking, WordSpacing, Cell;
+            public bool CellAuto;
+            public int CellGroup;           // Ranges of one auto cell measure together; 0 none.
+            public LayoutLength Indent;
+            public float IndentPercent;
+            public short LineHeight, ParagraphSpacing, Align; // Indices into their lists, -1 none.
+        }
+
+        internal CpLayout[] Layout = new CpLayout[0];
+        internal bool HasLayout;
+        internal readonly System.Collections.Generic.List<LineHeightSpec> LineHeights = new System.Collections.Generic.List<LineHeightSpec>();
+        internal readonly System.Collections.Generic.List<ParagraphSpacingSpec> ParagraphSpacings = new System.Collections.Generic.List<ParagraphSpacingSpec>();
+        internal readonly System.Collections.Generic.List<LineGapSpec> LineGaps = new System.Collections.Generic.List<LineGapSpec>();
+        internal readonly System.Collections.Generic.List<AlignSpec> Aligns = new System.Collections.Generic.List<AlignSpec>();
+        internal readonly System.Collections.Generic.List<Vector2Int> NoBreaks = new System.Collections.Generic.List<Vector2Int>();
+        internal LetteraTrimTop TrimTop;
+        internal LetteraTrimBottom TrimBottom;
+        int m_CellGroups;
+
         internal struct DecorationSpec
         {
             public bool HasColor;
@@ -254,6 +276,7 @@ namespace FirstSymbol.Lettera
             public int Start, End;
             public float Position;
             public bool Marker;
+            public LayoutLength FadeDistance, FadeShift;
         }
 
         internal Cp[] Chars = new Cp[64];
@@ -285,6 +308,15 @@ namespace FirstSymbol.Lettera
             Length = length;
             for (int i = 0; i < length; i++)
                 Chars[i] = new Cp { SizeMul = 1, Weight = 0, Alpha = 1, Family = -1, Language = -1, Slant = -1, Features = -1, Axes = -1 };
+            HasLayout = false;
+            LineHeights.Clear();
+            ParagraphSpacings.Clear();
+            LineGaps.Clear();
+            Aligns.Clear();
+            NoBreaks.Clear();
+            TrimTop = LetteraTrimTop.None;
+            TrimBottom = LetteraTrimBottom.None;
+            m_CellGroups = 0;
             FeatureSets.Clear();
             m_FeatureIds.Clear();
             AxisSets.Clear();
@@ -430,6 +462,99 @@ namespace FirstSymbol.Lettera
                 Dilate = new EmLength { Em = dilate },
                 OnColorGlyphs = true,
             });
+        }
+
+        void EnsureLayout()
+        {
+            if (HasLayout) return;
+            HasLayout = true;
+            if (Layout.Length < Length) Layout = new CpLayout[Mathf.Max(Length, 64)];
+            for (int i = 0; i < Length; i++) Layout[i] = new CpLayout { LineHeight = -1, ParagraphSpacing = -1, Align = -1 };
+        }
+
+        internal void SetTracking(int start, int end, LayoutLength amount)
+        {
+            Clamp(ref start, ref end);
+            EnsureLayout();
+            for (int i = start; i < end; i++) Layout[i].Tracking = amount;
+        }
+
+        internal void SetWordSpacing(int start, int end, LayoutLength amount)
+        {
+            Clamp(ref start, ref end);
+            EnsureLayout();
+            for (int i = start; i < end; i++) Layout[i].WordSpacing = amount;
+        }
+
+        internal void SetCell(int start, int end, LayoutLength width, bool auto)
+        {
+            Clamp(ref start, ref end);
+            EnsureLayout();
+            int group = auto ? ++m_CellGroups : 0;
+            for (int i = start; i < end; i++)
+            {
+                Layout[i].Cell = width;
+                Layout[i].CellAuto = auto;
+                Layout[i].CellGroup = group;
+            }
+        }
+
+        internal void SetLineHeight(int start, int end, in LineHeightSpec spec)
+        {
+            Clamp(ref start, ref end);
+            EnsureLayout();
+            LineHeights.Add(spec);
+            short index = (short)(LineHeights.Count - 1);
+            for (int i = start; i < end; i++) Layout[i].LineHeight = index;
+        }
+
+        internal void SetParagraphSpacing(int start, int end, in ParagraphSpacingSpec spec)
+        {
+            Clamp(ref start, ref end);
+            EnsureLayout();
+            ParagraphSpacings.Add(spec);
+            short index = (short)(ParagraphSpacings.Count - 1);
+            for (int i = start; i < end; i++) Layout[i].ParagraphSpacing = index;
+        }
+
+        internal void AddLineGap(int end, LayoutLength amount)
+        {
+            EnsureLayout();
+            LineGaps.Add(new LineGapSpec { End = end, Amount = amount });
+        }
+
+        internal void AddNoBreak(int start, int end)
+        {
+            Clamp(ref start, ref end);
+            EnsureLayout();
+            if (end > start) NoBreaks.Add(new Vector2Int(start, end));
+        }
+
+        internal void AddIndent(int start, int end, LayoutLength amount, float percent)
+        {
+            Clamp(ref start, ref end);
+            EnsureLayout();
+            for (int i = start; i < end; i++)
+            {
+                Layout[i].Indent.Em += amount.Em;
+                Layout[i].Indent.Units += amount.Units;
+                Layout[i].IndentPercent += percent;
+            }
+        }
+
+        internal void SetAlign(int start, int end, in AlignSpec spec)
+        {
+            Clamp(ref start, ref end);
+            EnsureLayout();
+            Aligns.Add(spec);
+            short index = (short)(Aligns.Count - 1);
+            for (int i = start; i < end; i++) Layout[i].Align = index;
+        }
+
+        internal void SetTrim(LetteraTrimTop top, LetteraTrimBottom bottom)
+        {
+            TrimTop = top;
+            TrimBottom = bottom;
         }
 
         internal void SetCase(int start, int end, byte map)
@@ -606,10 +731,12 @@ namespace FirstSymbol.Lettera
         }
 
         /// <summary>Asks layout to remove clusters of the range at a position (0 start, 0.5 middle, 1 end) when the text does not fit.</summary>
-        public void RequestElide(int start, int end, float position, bool marker)
+        public void RequestElide(int start, int end, float position, bool marker) => RequestElide(start, end, position, marker, default, default);
+
+        internal void RequestElide(int start, int end, float position, bool marker, LayoutLength fadeDistance, LayoutLength fadeShift)
         {
             Clamp(ref start, ref end);
-            Elides.Add(new ElideRequest { Start = start, End = end, Position = Mathf.Clamp01(position), Marker = marker });
+            Elides.Add(new ElideRequest { Start = start, End = end, Position = Mathf.Clamp01(position), Marker = marker, FadeDistance = fadeDistance, FadeShift = fadeShift });
         }
 
         /// <summary>Forces the base direction of every paragraph: 0 ltr, 1 rtl, 2 auto.</summary>
