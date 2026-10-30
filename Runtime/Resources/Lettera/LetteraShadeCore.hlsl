@@ -7,7 +7,8 @@
 //
 // uv0: atlas uv, page, mode (0 SDF, 1 color glyph, 2 color glyph silhouette, 3 solid, 4 inner shadow, 5 color glyph halo,
 //      6 decoration line: position along and across it, line style; 7 rounded box: position from the center).
-//      8 multi-channel field, median; 9 multi-channel field, true distance; 10 inner shadow on a multi-channel field.
+//      8 multi-channel field, median; 9 multi-channel field, true distance; 10 inner shadow on a multi-channel field;
+//      11 pixel font; 12 inner shadow on a pixel font.
 // uv1: x = the SDF value of the edge, y = extra softness in SDF values, z = the SDF value where a band ends (0 = no end).
 // uv2 (styled): paint position xy, gradient row, paint code (0 solid, 1-9 gradient, 10 texture).
 // uv3 (styled): inner shadow: uv offset xy; z = the SDF value of the shadow's edge. Halo: the glyph's tile in the atlas.
@@ -18,6 +19,20 @@ float LetteraEdge(float d, float edge, float softness)
 {
     float w = max(fwidth(d) * 0.75, softness) + 1e-5;
     return smoothstep(edge - w, edge + w, d);
+}
+
+// A pixel font's tile has one texel per font pixel. The atlas filters, so read each texel's center.
+float LetteraPixelValue(float2 uv, float page)
+{
+    float2 texel = (floor(uv * 2048.0) + 0.5) / 2048.0;
+    return LETTERA_SAMPLE_SDF(texel, page).r;
+}
+
+// Hard edges in whole font pixels. A softness steps through the pixels instead of blurring them.
+float LetteraPixelEdge(float value, float edge, float softness)
+{
+    if (softness <= 0.001) return step(edge - 0.002, value);
+    return smoothstep(edge - softness, edge + softness, value);
 }
 
 float LetteraMedian(float3 c)
@@ -37,6 +52,11 @@ float LetteraDistance(float2 uv, float page, float mode)
 LETTERA_COLOR4 LetteraShadePlain(float4 uv0, float2 params, LETTERA_COLOR4 color)
 {
     float mode = uv0.w;
+    if (mode > 10.5)
+    {
+        color.a *= LetteraPixelEdge(LetteraPixelValue(uv0.xy, uv0.z), params.x, params.y);
+        return color;
+    }
     if (mode > 7.5)
     {
         color.a *= LetteraEdge(LetteraDistance(uv0.xy, uv0.z, mode), params.x, params.y);
@@ -151,6 +171,21 @@ float LetteraBoxDistance(float2 p, float2 size, float4 radii)
 LETTERA_COLOR4 LetteraShadeStyled(float4 uv0, float3 params, LETTERA_COLOR4 color, float4 paint, float4 extra, float2 screen)
 {
     float mode = uv0.w;
+    if (mode > 11.5)
+    {
+        float inside = LetteraPixelEdge(LetteraPixelValue(uv0.xy, uv0.z), params.x, 0);
+        float moved = LetteraPixelEdge(LetteraPixelValue(uv0.xy - extra.xy, uv0.z), extra.z, params.y);
+        color.a *= inside * (1 - moved);
+        return LetteraApplyPaint(paint, color, screen);
+    }
+    if (mode > 10.5)
+    {
+        float v = LetteraPixelValue(uv0.xy, uv0.z);
+        float alpha = LetteraPixelEdge(v, params.x, params.y);
+        if (params.z > 0) alpha *= 1 - LetteraPixelEdge(v, params.z, params.y);
+        color.a *= alpha;
+        return LetteraApplyPaint(paint, color, screen);
+    }
     if (mode > 9.5)
     {
         float d = LETTERA_SAMPLE_MSDF(uv0.xy, uv0.z).a;

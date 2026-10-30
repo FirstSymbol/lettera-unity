@@ -200,6 +200,60 @@ namespace FirstSymbol.Lettera
             return false;
         }
 
+        /// <summary>The font's pixel grid per em, or 0 for an ordinary font.</summary>
+        public int PixelGrid;
+        public bool PixelSnap = true;
+
+        /// <summary>
+        /// Finds the grid of a font drawn in pixels: the outlines of its glyphs are all straight lines, on coordinates that are
+        /// multiples of one step that divides the em evenly. Any curve, or a step too fine to be a pixel, means an ordinary font.
+        /// </summary>
+        public int FindPixelGrid()
+        {
+            if (IsVirtual) return 0;
+            int upem = Metrics.Upem;
+            int step = 0;
+            var commands = new float[4096];
+            int found = 0;
+            foreach (char c in "AHOIaeoxn0.")
+            {
+                uint glyph = LetteraNative.lt_font_glyph(Regular.Font, c, 0);
+                if (glyph == 0) continue;
+                int count;
+                fixed (float* p = commands) count = LetteraNative.lt_glyph_outline(Regular.Font, glyph, p, commands.Length);
+                if (count <= 0 || count > commands.Length) continue;
+                found++;
+                int i = 0;
+                while (i < count)
+                {
+                    int op = (int)commands[i++];
+                    if (op == 2 || op == 3) return 0;
+                    int points = op == 4 ? 0 : 1;
+                    for (int n = 0; n < points * 2; n++, i++)
+                    {
+                        float value = commands[i];
+                        int whole = (int)Math.Round(value);
+                        if (Math.Abs(value - whole) > 0.01f) return 0;
+                        step = Gcd(step, Math.Abs(whole));
+                    }
+                }
+            }
+            if (found < 2 || step == 0 || upem % step != 0) return 0;
+            int grid = upem / step;
+            return grid >= 4 && grid <= 128 ? grid : 0;
+        }
+
+        static int Gcd(int a, int b)
+        {
+            while (b != 0)
+            {
+                int t = a % b;
+                a = b;
+                b = t;
+            }
+            return a;
+        }
+
         /// <summary>Whether this face has axes at all.</summary>
         public bool IsVariable => m_AxisTags.Length > 0;
 

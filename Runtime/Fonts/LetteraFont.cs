@@ -72,6 +72,8 @@ namespace FirstSymbol.Lettera
             return bytes;
         }
 
+        internal override FontFace LoadedFace => m_Face;
+
         internal override FontFace LoadFace()
         {
             if (m_Face != null && m_Face.Face != IntPtr.Zero) return m_Face;
@@ -84,6 +86,7 @@ namespace FirstSymbol.Lettera
                 m_LoadFailed = true;
                 Debug.LogError($"Lettera: font asset '{name}' holds no readable font data.", this);
             }
+            PushPixelSettings();
             return m_Face;
         }
 

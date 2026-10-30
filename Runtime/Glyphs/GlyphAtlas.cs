@@ -16,6 +16,9 @@ namespace FirstSymbol.Lettera
 
         public bool HasDistance => Kind == Sdf || Kind == Msdf;
 
+        /// <summary>One texel per font pixel, read without filtering.</summary>
+        public bool Pixel;
+
         public byte Kind;
         public ushort Page;
         public float U0, V0, U1, V1;
@@ -135,7 +138,13 @@ namespace FirstSymbol.Lettera
 
         public static AtlasGlyph Get(FontInstance instance, uint glyph, int pixelsPerEm, float reach = 0, bool multi = false)
         {
-            if (s_MinDensity.Count > 0 && s_MinDensity.TryGetValue(((ulong)(uint)instance.Id << 32) | glyph, out int raised) && raised > pixelsPerEm)
+            int grid = instance.Face.PixelGrid;
+            if (grid > 0)
+            {
+                pixelsPerEm = grid;
+                multi = false;
+            }
+            else if (s_MinDensity.Count > 0 && s_MinDensity.TryGetValue(((ulong)(uint)instance.Id << 32) | glyph, out int raised) && raised > pixelsPerEm)
                 pixelsPerEm = raised;
             ulong key = ((ulong)(uint)instance.Id << 36) | ((ulong)glyph << 8) | (uint)(pixelsPerEm >> 2 & 0x7F) | (multi ? 0x80u : 0);
             if (s_Glyphs.TryGetValue(key, out AtlasGlyph entry))
@@ -144,7 +153,7 @@ namespace FirstSymbol.Lettera
                 {
                     if (entry.Spread < reach)
                     {
-                        AtlasGlyph wider = CreateSdf(instance, glyph, pixelsPerEm, SpreadFor(reach), multi);
+                        AtlasGlyph wider = grid > 0 ? CreatePixel(instance, glyph, grid, SpreadFor(reach)) : CreateSdf(instance, glyph, pixelsPerEm, SpreadFor(reach), multi);
                         if (wider.HasDistance)
                         {
                             s_Glyphs[key] = wider;
@@ -156,7 +165,7 @@ namespace FirstSymbol.Lettera
                 else if (entry.Kind == AtlasGlyph.Color) s_Color.LastUsed[entry.Page] = s_Tick;
                 return entry;
             }
-            entry = Create(instance, glyph, pixelsPerEm, SpreadFor(reach), multi);
+            entry = grid > 0 ? CreatePixel(instance, glyph, grid, SpreadFor(reach)) : Create(instance, glyph, pixelsPerEm, SpreadFor(reach), multi);
             s_Glyphs[key] = entry;
             return entry;
         }
@@ -238,6 +247,89 @@ namespace FirstSymbol.Lettera
                 Right = (width - offsetX) / scale, Top = (height - offsetY) / scale,
                 Spread = spread,
             };
+        }
+
+        // A cell of the grid is filled when its center is inside the outline. Each other cell stores its distance to the nearest filled
+        // cell's square, so a stroke of N covers the cells whose centers are within N of the glyph.
+        static AtlasGlyph CreatePixel(FontInstance instance, uint glyph, int grid, float spread)
+        {
+            int count = ReadOutline(instance, glyph);
+            if (count == 0) return default;
+            int upem = instance.Face.Metrics.Upem;
+            Bounds2(s_Commands, count, out float minX, out float minY, out float maxX, out float maxY);
+            if (maxX <= minX || maxY <= minY) return default;
+
+            float cell = (float)upem / grid;
+            int margin = Mathf.CeilToInt(spread * grid) + 1;
+            int cellMinX = Mathf.FloorToInt(minX / cell), cellMinY = Mathf.FloorToInt(minY / cell);
+            int cellMaxX = Mathf.CeilToInt(maxX / cell), cellMaxY = Mathf.CeilToInt(maxY / cell);
+            int inkWidth = cellMaxX - cellMinX, inkHeight = cellMaxY - cellMinY;
+            int width = inkWidth + 2 * margin, height = inkHeight + 2 * margin;
+            if (!Allocate(s_Sdf, width + 2 * Bleed, height + 2 * Bleed, out int page, out int x, out int y)) return default;
+            x += Bleed;
+            y += Bleed;
+
+            var lines = new NativeList<float4>(256, Allocator.Temp);
+            float scale = 1f / cell;
+            OutlineFlattener.Flatten(s_Commands, count, scale, -cellMinX, -cellMinY, lines);
+            var filled = new NativeArray<bool>(inkWidth * inkHeight, Allocator.Temp);
+            for (int row = 0; row < inkHeight; row++)
+                for (int column = 0; column < inkWidth; column++)
+                    filled[row * inkWidth + column] = WindingAt(lines, column + 0.5f, row + 0.5f) != 0;
+
+            float toValue = 0.5f / (spread * grid);
+            byte* target = (byte*)s_Sdf.Pixels[page];
+            for (int row = 0; row < height; row++)
+            {
+                for (int column = 0; column < width; column++)
+                {
+                    int cx = column - margin, cy = row - margin;
+                    bool inside = cx >= 0 && cy >= 0 && cx < inkWidth && cy < inkHeight && filled[cy * inkWidth + cx];
+                    float distance = float.MaxValue;
+                    for (int fy = 0; fy < inkHeight; fy++)
+                    {
+                        for (int fx = 0; fx < inkWidth; fx++)
+                        {
+                            if (filled[fy * inkWidth + fx] == inside) continue;
+                            float dx = Mathf.Max(Mathf.Abs(cx - fx) - 0.5f, 0), dy = Mathf.Max(Mathf.Abs(cy - fy) - 0.5f, 0);
+                            float d = dx * dx + dy * dy;
+                            if (d < distance) distance = d;
+                        }
+                    }
+                    if (distance == float.MaxValue) distance = 0;
+                    distance = Mathf.Sqrt(distance);
+                    float value = inside ? 0.5f + distance * toValue : 0.5f - distance * toValue;
+                    target[(y + row) * PageSize + x + column] = (byte)(Mathf.Clamp01(value) * 255f + 0.5f);
+                }
+            }
+            lines.Dispose();
+            filled.Dispose();
+            s_Uploads.Add(new PendingUpload { Set = s_Sdf, Page = page, X = x, Y = y, Width = width, Height = height });
+
+            return new AtlasGlyph
+            {
+                Kind = AtlasGlyph.Sdf,
+                Pixel = true,
+                Page = (ushort)page,
+                U0 = (float)x / PageSize, V0 = (float)y / PageSize,
+                U1 = (float)(x + width) / PageSize, V1 = (float)(y + height) / PageSize,
+                Left = (cellMinX - margin) * cell, Bottom = (cellMinY - margin) * cell,
+                Right = (cellMaxX + margin) * cell, Top = (cellMaxY + margin) * cell,
+                Spread = spread,
+            };
+        }
+
+        static int WindingAt(NativeList<float4> lines, float x, float y)
+        {
+            int winding = 0;
+            for (int i = 0; i < lines.Length; i++)
+            {
+                float4 line = lines[i];
+                if ((line.y <= y) == (line.w <= y)) continue;
+                float crossing = line.x + (y - line.y) / (line.w - line.y) * (line.z - line.x);
+                if (crossing > x) winding += line.w > line.y ? 1 : -1;
+            }
+            return winding;
         }
 
         static AtlasGlyph CreateColorLayers(FontInstance instance, uint glyph)

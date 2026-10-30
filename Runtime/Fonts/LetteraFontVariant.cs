@@ -42,6 +42,8 @@ namespace FirstSymbol.Lettera
         /// <summary>True when there is no source or its file cannot be read.</summary>
         public bool HasError => m_Source == null || !m_Source.HasData || m_LoadFailed;
 
+        internal override FontFace LoadedFace => m_Loaded;
+
         internal override FontFace LoadFace()
         {
             if (m_Loaded != null && m_Loaded.Face != IntPtr.Zero) return m_Loaded;
@@ -59,6 +61,7 @@ namespace FirstSymbol.Lettera
                 if (!string.IsNullOrEmpty(axis.Tag) && axis.Tag.Length <= 4)
                     entries.Add(new AxisSet.Entry { Tag = LetteraNative.Tag(axis.Tag.PadRight(4)), Value = axis.Value });
             m_Loaded.Customize(entries.Count > 0 ? AxisSet.Of(entries) : null, m_Family, m_Weight, m_Italic);
+            PushPixelSettings();
             return m_Loaded;
         }
 

@@ -316,12 +316,22 @@ namespace FirstSymbol.Lettera
                 x += before;
 
                 EnsureSize(ref m_Placed, m_PlacedCount + 1);
-                float advance = g.XAdvance * unit * glyphScale;
+                // A pixel font is not scaled to fit a line: its pixels stay square.
+                FontFace face = run.Instance.Face;
+                bool pixel = face.PixelGrid > 0;
+                float scaleHere = pixel ? 1 : glyphScale;
+                float advance = g.XAdvance * unit * scaleHere;
+                float placedX = x + g.XOffset * unit, placedY = baseline + g.YOffset * unit + run.BaselineShift * baseSize;
+                if (pixel && face.PixelSnap)
+                {
+                    placedX = SnapToGrid(placedX, size, face.PixelGrid);
+                    placedY = SnapToGrid(placedY, size, face.PixelGrid);
+                }
                 m_Placed[m_PlacedCount++] = new PlacedGlyph
                 {
                     Glyph = g.Glyph, Instance = run.Instance, Cluster = g.Cluster, Line = lineIndex,
-                    X = x + g.XOffset * unit, Y = baseline + g.YOffset * unit + run.BaselineShift * baseSize, Advance = advance + after, Unit = unit, Size = size,
-                    XScale = glyphScale - 1,
+                    X = placedX, Y = placedY, Advance = advance + after, Unit = unit, Size = size,
+                    XScale = scaleHere - 1,
                 };
                 x += advance;
                 if (extras && lastOfCluster && !rtl && after > 0 && m_CpKashida[g.Cluster]) AddKashida(run, x + (after - TrailOnly(g.Cluster, size)), TrailOnly(g.Cluster, size), baseline, lineIndex, g.Cluster, unit);

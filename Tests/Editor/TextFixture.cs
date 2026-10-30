@@ -70,6 +70,8 @@ namespace FirstSymbol.Lettera.Editor.Tests
         /// <summary>Renders world text in edit mode, one local unit to a pixel, centered on the origin, over a background.</summary>
         protected Texture2D Render(int width, int height, Color background)
         {
+            // A shader variant compiling in the background draws a placeholder, which no test wants to read.
+            ShaderUtil.allowAsyncCompilation = false;
             LetteraWorldBatcher.Update();
             GlyphAtlas.Flush();
             var cameraObject = new GameObject("Test Camera");
@@ -92,6 +94,7 @@ namespace FirstSymbol.Lettera.Editor.Tests
             RenderTexture.active = null;
             camera.targetTexture = null;
             RenderTexture.ReleaseTemporary(target);
+            ShaderUtil.allowAsyncCompilation = true;
             return result;
         }
 
