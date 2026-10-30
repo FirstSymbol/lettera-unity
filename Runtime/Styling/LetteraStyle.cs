@@ -34,6 +34,15 @@ namespace FirstSymbol.Lettera
         public static LetteraStyle ForMatcher(LetteraMatcher matcher, LetteraEffect effect = null) =>
             new LetteraStyle { m_Matcher = matcher, m_Effect = effect };
 
+        /// <summary>A deep copy, so changing it affects only its owner.</summary>
+        internal LetteraStyle Clone() => new LetteraStyle
+        {
+            m_Matcher = m_Matcher == null ? null : (LetteraMatcher)JsonUtility.FromJson(JsonUtility.ToJson(m_Matcher), m_Matcher.GetType()),
+            m_Effect = m_Effect == null ? null : (LetteraEffect)JsonUtility.FromJson(JsonUtility.ToJson(m_Effect), m_Effect.GetType()),
+            m_Enabled = m_Enabled,
+            m_DefaultParameter = m_DefaultParameter,
+        };
+
         internal string[] ParsedDefault()
         {
             if (m_ParsedFrom == m_DefaultParameter) return m_ParsedDefault;

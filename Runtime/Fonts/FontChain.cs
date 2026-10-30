@@ -20,6 +20,8 @@ namespace FirstSymbol.Lettera
             public readonly List<LetteraFontAsset> FaceAssets = new List<LetteraFontAsset>();
         }
 
+        internal const string WebFontResource = "Lettera/LetteraWebFont";
+
         readonly List<Family> m_Families = new List<Family>();
         readonly Dictionary<long, FontFace> m_Cache = new Dictionary<long, FontFace>();
         readonly HashSet<string> m_WarnedFamilies = new HashSet<string>();
@@ -34,6 +36,7 @@ namespace FirstSymbol.Lettera
         {
             m_Families.Clear();
             m_Cache.Clear();
+            m_Simple.Clear();
             m_ColorFace = null;
             Primary = null;
             m_System = null;
@@ -73,9 +76,11 @@ namespace FirstSymbol.Lettera
                     }
                     m_Families.Add(family);
                 }
-                else if (settings.WebGLFallbackFont != null)
+                else
                 {
-                    AddAsset(settings.WebGLFallbackFont, null, "");
+                    // Browsers expose no OS fonts, so the web gets a font of its own.
+                    LetteraFontAsset web = settings.WebGLFallbackFont != null ? settings.WebGLFallbackFont : Resources.Load<LetteraFont>(WebFontResource);
+                    if (web != null) AddAsset(web, null, "");
                 }
             }
             Primary = m_Families.Count > 0 ? m_Families[0] : null;
@@ -111,6 +116,29 @@ namespace FirstSymbol.Lettera
         {
             LetteraSettings settings = LetteraSettings.Instance;
             family = null;
+
+            // Nearly every cluster is one codepoint with no special request, so that case is remembered.
+            bool simple = cluster.Length == 1 && !emoji && string.IsNullOrEmpty(requestedFamily) && string.IsNullOrEmpty(language);
+            if (simple && m_Simple.TryGetValue(cluster[0], out SimpleEntry known))
+            {
+                family = known.Family;
+                return known.Face;
+            }
+            FontFace resolved = ResolveSlow(cluster, emoji, requestedFamily, language, settings, ref family);
+            if (simple) m_Simple[cluster[0]] = new SimpleEntry { Face = resolved, Family = family };
+            return resolved;
+        }
+
+        struct SimpleEntry
+        {
+            public FontFace Face;
+            public Family Family;
+        }
+
+        readonly Dictionary<int, SimpleEntry> m_Simple = new Dictionary<int, SimpleEntry>();
+
+        FontFace ResolveSlow(ReadOnlySpan<int> cluster, bool emoji, string requestedFamily, string language, LetteraSettings settings, ref Family family)
+        {
             int baseCp = 0;
             foreach (int cp in cluster)
             {

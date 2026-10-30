@@ -27,6 +27,8 @@ namespace FirstSymbol.Lettera
         LetteraTextData.Snapshot m_Snapshot;
 
         // Runtime text overrides the serialized field until the field is set again.
+        char[] m_RuntimeChars = new char[64];
+        int m_RuntimeLength;
         string m_RuntimeText;
         bool m_HasRuntimeText;
         ILetteraTextResolver m_Resolver;
@@ -48,21 +50,28 @@ namespace FirstSymbol.Lettera
         public void ClearRuntimeText()
         {
             m_RuntimeText = null;
+            m_RuntimeLength = 0;
             m_HasRuntimeText = false;
         }
 
         /// <summary>Sets runtime text. Returns false when the characters are the ones already shown.</summary>
         public bool SetRuntimeText(ReadOnlySpan<char> text)
         {
-            if (m_HasRuntimeText && text.SequenceEqual(m_RuntimeText.AsSpan())) return false;
-            m_RuntimeText = text.ToString();
+            if (m_HasRuntimeText && text.SequenceEqual(new ReadOnlySpan<char>(m_RuntimeChars, 0, m_RuntimeLength))) return false;
+            if (m_RuntimeChars.Length < text.Length) m_RuntimeChars = new char[Math.Max(text.Length, m_RuntimeChars.Length * 2)];
+            text.CopyTo(m_RuntimeChars);
+            m_RuntimeLength = text.Length;
+            m_RuntimeText = null;
             m_HasRuntimeText = true;
             return true;
         }
 
-        public string RawText => m_HasRuntimeText ? m_RuntimeText : m_Host.Data.Text ?? "";
-        public string ResolvedText => m_ResolvedText;
-        public string RenderedSourceText => m_ResolvedText;
+        public string RawText => m_HasRuntimeText ? m_RuntimeText ?? (m_RuntimeText = new string(m_RuntimeChars, 0, m_RuntimeLength)) : m_Host.Data.Text ?? "";
+
+        // What gets parsed, without building a string for runtime text.
+        ReadOnlySpan<char> RawChars => m_HasRuntimeText ? new ReadOnlySpan<char>(m_RuntimeChars, 0, m_RuntimeLength) : (m_Host.Data.Text ?? "").AsSpan();
+        public string ResolvedText => m_Resolver != null ? m_ResolvedText : RawText;
+        public string RenderedSourceText => ResolvedText;
 
         public ILetteraTextResolver Resolver
         {

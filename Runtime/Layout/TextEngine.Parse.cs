@@ -29,13 +29,46 @@ namespace FirstSymbol.Lettera
                 LetteraStylePreset global = LetteraSettings.Instance.GlobalStylePreset;
                 m_EffectiveStyles.AddRange(global != null ? global.Styles : LetteraDefaultStyles.Styles);
             }
+            if (m_OwnCopies) ReplaceSharedStylesWithCopies(data.Styles.Count);
+        }
+
+        // Shared styles are used directly until someone asks for this text's effects to change them.
+        bool m_OwnCopies;
+        readonly Dictionary<LetteraStyle, LetteraStyle> m_Copies = new Dictionary<LetteraStyle, LetteraStyle>();
+
+        void ReplaceSharedStylesWithCopies(int ownStyles)
+        {
+            for (int i = ownStyles; i < m_EffectiveStyles.Count; i++)
+            {
+                LetteraStyle shared = m_EffectiveStyles[i];
+                if (shared == null) continue;
+                if (!m_Copies.TryGetValue(shared, out LetteraStyle copy))
+                {
+                    copy = shared.Clone();
+                    m_Copies[shared] = copy;
+                }
+                m_EffectiveStyles[i] = copy;
+            }
+        }
+
+        /// <summary>Forgets this text's copies of shared styles, because the originals changed.</summary>
+        public void InvalidateStyleCopies() => m_Copies.Clear();
+
+        void EnsureOwnCopies()
+        {
+            if (m_OwnCopies) return;
+            m_OwnCopies = true;
+            CollectStyles();
         }
 
         void Parse()
         {
-            string raw = RawText;
-            m_ResolvedText = m_Resolver != null ? m_Resolver.Resolve(m_Host.Owner, raw) ?? "" : raw;
-            string source = m_ResolvedText;
+            ReadOnlySpan<char> source = RawChars;
+            if (m_Resolver != null)
+            {
+                m_ResolvedText = m_Resolver.Resolve(m_Host.Owner, RawText) ?? "";
+                source = m_ResolvedText.AsSpan();
+            }
 
             CollectStyles();
             LetteraMatchContext context = m_MatchContext;
@@ -48,7 +81,7 @@ namespace FirstSymbol.Lettera
                 LetteraStyle style = m_EffectiveStyles[i];
                 if (style != null && style.Enabled && style.Matcher != null) m_MatcherOrder.Add(i);
             }
-            InsertionSort(m_MatcherOrder, (a, b) => m_EffectiveStyles[b].Matcher.Priority.CompareTo(m_EffectiveStyles[a].Matcher.Priority));
+            SortMatchers();
             foreach (int index in m_MatcherOrder)
             {
                 context.CurrentStyle = index;
@@ -59,10 +92,10 @@ namespace FirstSymbol.Lettera
             ApplyEffects(context);
         }
 
-        void BuildRenderedText(string source, LetteraMatchContext context)
+        void BuildRenderedText(ReadOnlySpan<char> source, LetteraMatchContext context)
         {
             List<LetteraMatchContext.Claim> claims = context.Claims;
-            claims.Sort((a, b) => a.Start.CompareTo(b.Start));
+            if (claims.Count > 1) claims.Sort(s_ByStart);
 
             EnsureSize(ref m_Text, source.Length + 4);
             EnsureSize(ref m_SourceIndex, source.Length + 4);
@@ -123,6 +156,8 @@ namespace FirstSymbol.Lettera
             m_SourceIndex[count] = source.Length;
         }
 
+        static readonly Comparison<LetteraMatchContext.Claim> s_ByStart = (a, b) => a.Start.CompareTo(b.Start);
+
         void ApplyEffects(LetteraMatchContext context)
         {
             LetteraAttributes attributes = m_Attributes;
@@ -144,13 +179,7 @@ namespace FirstSymbol.Lettera
             // Outer ranges first, so inner ones refine them: innermost wins.
             m_RangeOrder.Clear();
             for (int i = 0; i < ranges.Count; i++) m_RangeOrder.Add(i);
-            m_RangeOrder.Sort((a, b) =>
-            {
-                int byStart = ranges[a].RenderedStart.CompareTo(ranges[b].RenderedStart);
-                if (byStart != 0) return byStart;
-                int byEnd = ranges[b].RenderedEnd.CompareTo(ranges[a].RenderedEnd);
-                return byEnd != 0 ? byEnd : a.CompareTo(b);
-            });
+            if (ranges.Count > 1) m_RangeOrder.Sort(m_CompareRanges ?? (m_CompareRanges = CompareRanges));
 
             foreach (int index in m_RangeOrder)
             {
@@ -172,13 +201,27 @@ namespace FirstSymbol.Lettera
                 attributes.RequestElide(0, m_TextLength, data.OverflowPosition, data.Overflow == LetteraOverflow.Ellipsis);
         }
 
-        static void InsertionSort(List<int> list, Comparison<int> compare)
+        Comparison<int> m_CompareRanges;
+
+        int CompareRanges(int a, int b)
         {
+            List<LetteraMatchContext.RangeRecord> ranges = m_MatchContext.Ranges;
+            int byStart = ranges[a].RenderedStart.CompareTo(ranges[b].RenderedStart);
+            if (byStart != 0) return byStart;
+            int byEnd = ranges[b].RenderedEnd.CompareTo(ranges[a].RenderedEnd);
+            return byEnd != 0 ? byEnd : a.CompareTo(b);
+        }
+
+        // Stable, so earlier styles keep winning ties.
+        void SortMatchers()
+        {
+            List<int> list = m_MatcherOrder;
             for (int i = 1; i < list.Count; i++)
             {
                 int value = list[i];
+                int priority = m_EffectiveStyles[value].Matcher.Priority;
                 int j = i - 1;
-                while (j >= 0 && compare(list[j], value) > 0)
+                while (j >= 0 && m_EffectiveStyles[list[j]].Matcher.Priority < priority)
                 {
                     list[j + 1] = list[j];
                     j--;
@@ -218,6 +261,7 @@ namespace FirstSymbol.Lettera
 
         public T GetEffect<T>() where T : class
         {
+            EnsureOwnCopies();
             foreach (LetteraStyle style in m_EffectiveStyles)
                 if (style?.Effect is T match)
                     return match;
@@ -226,6 +270,7 @@ namespace FirstSymbol.Lettera
 
         public void GetEffects<T>(List<T> results) where T : class
         {
+            EnsureOwnCopies();
             foreach (LetteraStyle style in m_EffectiveStyles)
                 if (style?.Effect is T match)
                     results.Add(match);

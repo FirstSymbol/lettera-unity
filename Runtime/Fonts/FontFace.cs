@@ -48,7 +48,8 @@ namespace FirstSymbol.Lettera
         public bool HasWeightAxis { get; private set; }
         public float WeightAxisMin { get; private set; }
         public float WeightAxisMax { get; private set; }
-        public bool IsColor => HasColorLayers || HasColorBitmaps;
+        public bool IsVirtual { get; private set; }
+        public bool IsColor => HasColorLayers || HasColorBitmaps || IsVirtual;
 
         FontFace(IntPtr face)
         {
@@ -60,6 +61,21 @@ namespace FirstSymbol.Lettera
             ReadInfo();
             s_All.Add(this);
         }
+
+        FontFace(int upem, int ascender, int descender)
+        {
+            IsVirtual = true;
+            Family = "Browser Emoji";
+            Regular = new FontInstance(this, IntPtr.Zero);
+            Metrics = new FaceMetrics
+            {
+                Upem = upem, Ascender = ascender, Descender = descender, CapHeight = ascender, XHeight = upem / 2,
+                UnderlineOffset = -upem / 10, UnderlineSize = upem / 20, StrikeOffset = upem / 4, StrikeSize = upem / 20,
+            };
+        }
+
+        /// <summary>A face with no font behind it, whose glyphs come from elsewhere.</summary>
+        public static FontFace CreateVirtual(int upem, int ascender, int descender) => new FontFace(upem, ascender, descender);
 
         public static FontFace FromBytes(byte[] bytes, int index)
         {
@@ -111,12 +127,12 @@ namespace FirstSymbol.Lettera
             }
         }
 
-        public bool HasGlyph(int codepoint) => LetteraNative.lt_font_glyph(Regular.Font, (uint)codepoint, 0) != 0;
+        public bool HasGlyph(int codepoint) => IsVirtual || LetteraNative.lt_font_glyph(Regular.Font, (uint)codepoint, 0) != 0;
 
         /// <summary>Returns the instance for a weight axis value (-1 = default) and synthesis amounts.</summary>
         public FontInstance GetInstance(float weightAxis, float embolden, float slant)
         {
-            if (weightAxis < 0 && embolden == 0 && slant == 0) return Regular;
+            if (IsVirtual || (weightAxis < 0 && embolden == 0 && slant == 0)) return Regular;
             long key = ((long)(int)(weightAxis * 8) << 40) ^ ((long)(int)(embolden * 4096) << 20) ^ (int)(slant * 4096);
             if (!m_Instances.TryGetValue(key, out var instance))
             {

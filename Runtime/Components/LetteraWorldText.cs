@@ -56,7 +56,7 @@ namespace FirstSymbol.Lettera
         /// <summary>Draw through an own renderer, which sorts by its own distance to the camera.</summary>
         public bool Standalone { get => m_Standalone; set => m_Standalone = value; }
 
-        /// <summary>Reserved: this version renders lit text unlit, with one warning.</summary>
+        /// <summary>Lights the text with the ambient and main light. Uses the lit material, in a batch of its own.</summary>
         public bool Lit { get => m_Lit; set => m_Lit = value; }
         public bool CastShadows { get => m_CastShadows; set => m_CastShadows = value; }
         public bool RaycastTarget { get => m_RaycastTarget; set => m_RaycastTarget = value; }

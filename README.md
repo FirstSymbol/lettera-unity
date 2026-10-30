@@ -84,12 +84,22 @@ Custom behavior derives from `LetteraEffect` (what a range looks like) and `Lett
 | Linux x64, ARM64 | prebuilt | yes, read from the font folders |
 | iOS device and simulator | prebuilt static library | yes, read from the system font folders |
 | Android ARM64, ARMv7, x86-64 | prebuilt | yes |
+| Web (WebGL 2), including Safari on iOS | prebuilt | emoji through the browser; text fonts must be assigned |
 
-See [the changelog](CHANGELOG.md) for what each platform has been verified on. WebGL is not supported in this version.
+See [the changelog](CHANGELOG.md) for what each platform has been verified on.
+
+### The web
+
+Browsers expose no font files, so on the web:
+
+- A text with no font uses a bundled Noto Sans, which covers Latin, Cyrillic and Greek. **Other scripts show missing-glyph boxes until you assign a font** that covers them, through **Font** or **Font Stack**. Shaping then works as everywhere else.
+- Emoji are drawn by the browser's own canvas, so they look like that device's emoji. Colors and alpha apply as usual.
+- `LetteraSettings.WebGLFallbackFont` replaces the bundled font.
+- Glyph memory is capped lower than on other platforms: the least recently used atlas page is recycled when the limit is reached.
 
 ## Rebuilding the native plugin
 
-`Native~/build.py` builds HarfBuzz and the C wrapper for every platform with [zig](https://ziglang.org), and Android with the NDK from Unity's Android module. Shaping comes from [HarfBuzz](https://harfbuzz.github.io), compiled from source in `Native~/third_party`; see [third-party notices](THIRD-PARTY-NOTICES.md).
+`Native~/build.py` builds HarfBuzz and the C wrapper for every platform with [zig](https://ziglang.org), and Android with the NDK from Unity's Android module. Shaping comes from [HarfBuzz](https://harfbuzz.github.io), compiled from source in `Native~/third_party`; see [third-party notices](THIRD-PARTY-NOTICES.md). The iOS and web libraries rename HarfBuzz's symbols, because Unity's own player links a copy of it there.
 
 ## Tests
 

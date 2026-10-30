@@ -31,8 +31,14 @@ namespace FirstSymbol.Lettera
         public const float SpreadEm = 0.1875f;
 
         const int PageSize = 2048;
-        const int MaxSdfPages = 8;
-        const int MaxColorPages = 4;
+        // Browsers on phones stop a page long before desktops run out, so the web keeps fewer pages.
+#if UNITY_WEBGL && !UNITY_EDITOR
+        const int DefaultSdfPages = 3;
+        const int DefaultColorPages = 1;
+#else
+        const int DefaultSdfPages = 8;
+        const int DefaultColorPages = 4;
+#endif
         const int ColorTileHeight = 96;
         const int StagingSize = 1024;
         const int Bleed = 1;
@@ -45,10 +51,13 @@ namespace FirstSymbol.Lettera
             public readonly List<IntPtr> Pixels = new List<IntPtr>();
             public readonly GraphicsFormat Format;
             public readonly int Bytes;
-            public readonly int MaxPages;
+            public readonly List<int> LastUsed = new List<int>();
+            public int MaxPages;
             public readonly int PropertyId;
             public Texture2DArray Texture;
             public int ShelfX, ShelfY, ShelfHeight;
+            public int Current;
+            public bool NeedsFullUpload;
 
             public PageSet(GraphicsFormat format, int bytes, int maxPages, int propertyId)
             {
@@ -57,8 +66,6 @@ namespace FirstSymbol.Lettera
                 MaxPages = maxPages;
                 PropertyId = propertyId;
             }
-
-            public int Current => Pixels.Count - 1;
         }
 
         struct PendingUpload
@@ -67,15 +74,19 @@ namespace FirstSymbol.Lettera
             public int Page, X, Y, Width, Height;
         }
 
-        static readonly PageSet s_Sdf = new PageSet(GraphicsFormat.R8_UNorm, 1, MaxSdfPages, s_SdfAtlasId);
-        static readonly PageSet s_Color = new PageSet(GraphicsFormat.R8G8B8A8_SRGB, 4, MaxColorPages, s_ColorAtlasId);
+        static readonly PageSet s_Sdf = new PageSet(GraphicsFormat.R8_UNorm, 1, DefaultSdfPages, s_SdfAtlasId);
+        static readonly PageSet s_Color = new PageSet(GraphicsFormat.R8G8B8A8_SRGB, 4, DefaultColorPages, s_ColorAtlasId);
         static readonly Dictionary<ulong, AtlasGlyph> s_Glyphs = new Dictionary<ulong, AtlasGlyph>();
         static readonly List<PendingUpload> s_Uploads = new List<PendingUpload>();
         static readonly List<SdfTile> s_Tiles = new List<SdfTile>();
         static NativeList<float4> s_Lines;
         static float[] s_Commands = new float[4096];
+        static readonly List<ulong> s_Evicted = new List<ulong>();
         static Texture2D s_StagingSdf, s_StagingColor;
         static bool s_Rebind;
+        static bool s_ClearPending;
+        static int s_Tick;
+        static Texture2DArray s_EmptyColor;
 
         /// <summary>Raised when the atlas was cleared: every text must rebuild its mesh.</summary>
         public static event Action Cleared;
@@ -84,10 +95,24 @@ namespace FirstSymbol.Lettera
         public static int ColorPageCount => s_Color.Pixels.Count;
         public static int GlyphCount => s_Glyphs.Count;
 
+        /// <summary>Limits the page counts, e.g. for tests; a set at its limit recycles its least recently used page.</summary>
+        internal static void SetPageLimits(int sdf, int color)
+        {
+            s_Sdf.MaxPages = sdf;
+            s_Color.MaxPages = color;
+        }
+
+        internal static (int sdf, int color) PageLimits => (s_Sdf.MaxPages, s_Color.MaxPages);
+
         public static AtlasGlyph Get(FontInstance instance, uint glyph, int pixelsPerEm)
         {
             ulong key = ((ulong)(uint)instance.Id << 36) | ((ulong)glyph << 8) | (uint)(pixelsPerEm >> 2 & 0xFF);
-            if (s_Glyphs.TryGetValue(key, out AtlasGlyph entry)) return entry;
+            if (s_Glyphs.TryGetValue(key, out AtlasGlyph entry))
+            {
+                if (entry.Kind == AtlasGlyph.Sdf) s_Sdf.LastUsed[entry.Page] = s_Tick;
+                else if (entry.Kind == AtlasGlyph.Color) s_Color.LastUsed[entry.Page] = s_Tick;
+                return entry;
+            }
             entry = Create(instance, glyph, pixelsPerEm);
             s_Glyphs[key] = entry;
             return entry;
@@ -96,6 +121,7 @@ namespace FirstSymbol.Lettera
         static AtlasGlyph Create(FontInstance instance, uint glyph, int pixelsPerEm)
         {
             FontFace face = instance.Face;
+            if (face.IsVirtual) return CreateBrowserEmoji(glyph);
             if (face.HasColorLayers && LetteraNative.lt_glyph_color_layers(face.Face, glyph, null, null, 0) > 0)
                 return CreateColorLayers(instance, glyph);
             if (face.HasColorBitmaps)
@@ -297,6 +323,41 @@ namespace FirstSymbol.Lettera
             }
         }
 
+        static byte[] s_EmojiPixels;
+
+        static AtlasGlyph CreateBrowserEmoji(uint glyph)
+        {
+            string cluster = BrowserEmoji.ClusterText(glyph);
+            int pixels = BrowserEmoji.TilePixels;
+            int width = Mathf.Clamp(Mathf.CeilToInt(BrowserEmoji.Advance(glyph) * pixels / (float)BrowserEmoji.Upem), 1, PageSize - 2 * Bleed);
+            int ascent = Mathf.CeilToInt(BrowserEmoji.AscentEm * pixels);
+            int height = ascent + Mathf.CeilToInt(BrowserEmoji.DescentEm * pixels);
+            int bytes = width * height * 4;
+            if (s_EmojiPixels == null || s_EmojiPixels.Length < bytes) s_EmojiPixels = new byte[bytes];
+            BrowserEmoji.Renderer.Render(cluster, pixels, width, height, ascent, s_EmojiPixels);
+            if (!Allocate(s_Color, width + 2 * Bleed, height + 2 * Bleed, out int page, out int x, out int y)) return default;
+            x += Bleed;
+            y += Bleed;
+
+            // The canvas fills from the top; the atlas's first row is the bottom.
+            byte* target = (byte*)s_Color.Pixels[page];
+            fixed (byte* source = s_EmojiPixels)
+                for (int row = 0; row < height; row++)
+                    UnsafeUtility.MemCpy(target + ((y + row) * PageSize + x) * 4, source + (height - 1 - row) * width * 4, width * 4);
+            s_Uploads.Add(new PendingUpload { Set = s_Color, Page = page, X = x, Y = y, Width = width, Height = height });
+
+            float unit = (float)BrowserEmoji.Upem / pixels;
+            return new AtlasGlyph
+            {
+                Kind = AtlasGlyph.Color,
+                Page = (ushort)page,
+                U0 = (float)x / PageSize, V0 = (float)y / PageSize,
+                U1 = (float)(x + width) / PageSize, V1 = (float)(y + height) / PageSize,
+                Left = 0, Right = width * unit,
+                Top = ascent * unit, Bottom = (ascent - height) * unit,
+            };
+        }
+
         static void Bounds2(float[] commands, int count, out float minX, out float minY, out float maxX, out float maxY)
         {
             minX = minY = float.MaxValue;
@@ -330,16 +391,41 @@ namespace FirstSymbol.Lettera
             }
             if (set.ShelfY + height > PageSize)
             {
-                if (set.Pixels.Count >= set.MaxPages) Clear();
-                else AddPage(set);
+                if (set.Pixels.Count < set.MaxPages) AddPage(set);
+                else RecycleOldestPage(set);
                 set.ShelfX = set.ShelfY = set.ShelfHeight = 0;
             }
             page = set.Current;
+            set.LastUsed[page] = s_Tick;
             x = set.ShelfX;
             y = set.ShelfY;
             set.ShelfX += width;
             set.ShelfHeight = Mathf.Max(set.ShelfHeight, height);
             return true;
+        }
+
+        // Glyphs on the page that went unused longest make room; texts still showing one get it placed again.
+        static void RecycleOldestPage(PageSet set)
+        {
+            CompleteRaster();
+            int oldest = 0;
+            for (int i = 1; i < set.LastUsed.Count; i++)
+                if (set.LastUsed[i] < set.LastUsed[oldest])
+                    oldest = i;
+
+            s_Evicted.Clear();
+            foreach (KeyValuePair<ulong, AtlasGlyph> pair in s_Glyphs)
+                if (pair.Value.Page == oldest && pair.Value.Kind == (set == s_Sdf ? AtlasGlyph.Sdf : AtlasGlyph.Color))
+                    s_Evicted.Add(pair.Key);
+            foreach (ulong key in s_Evicted) s_Glyphs.Remove(key);
+            for (int i = s_Uploads.Count - 1; i >= 0; i--)
+                if (s_Uploads[i].Set == set && s_Uploads[i].Page == oldest)
+                    s_Uploads.RemoveAt(i);
+
+            UnsafeUtility.MemClear((void*)set.Pixels[oldest], (long)PageSize * PageSize * set.Bytes);
+            set.Current = oldest;
+            set.NeedsFullUpload = true;
+            s_ClearPending = true;
         }
 
         static void AddPage(PageSet set)
@@ -348,6 +434,8 @@ namespace FirstSymbol.Lettera
             void* memory = UnsafeUtility.MallocTracked(bytes, 16, Allocator.Persistent, 0);
             UnsafeUtility.MemClear(memory, bytes);
             set.Pixels.Add((IntPtr)memory);
+            set.LastUsed.Add(s_Tick);
+            set.Current = set.Pixels.Count - 1;
             CompleteRaster();
             RecreateTexture(set);
         }
@@ -355,7 +443,7 @@ namespace FirstSymbol.Lettera
         static void RecreateTexture(PageSet set)
         {
             DestroyTexture(set.Texture);
-            var texture = new Texture2DArray(PageSize, PageSize, set.Pixels.Count, set.Format, TextureCreationFlags.None)
+            var texture = new Texture2DArray(PageSize, PageSize, set.Pixels.Count, FormatOf(set), TextureCreationFlags.None)
             {
                 name = set == s_Sdf ? "Lettera SDF Atlas" : "Lettera Color Atlas",
                 hideFlags = HideFlags.HideAndDontSave,
@@ -376,6 +464,10 @@ namespace FirstSymbol.Lettera
             set.Texture = texture;
             s_Rebind = true;
         }
+
+        // Only a linear project decodes sRGB colors back to what the shader works in; a gamma project would darken them.
+        static GraphicsFormat FormatOf(PageSet set) =>
+            set.Format == GraphicsFormat.R8G8B8A8_SRGB && QualitySettings.activeColorSpace != ColorSpace.Linear ? GraphicsFormat.R8G8B8A8_UNorm : set.Format;
 
         static void DestroyTexture(Texture texture)
         {
@@ -398,22 +490,36 @@ namespace FirstSymbol.Lettera
         /// <summary>Computes pending pixels and uploads them. Cheap when nothing is pending.</summary>
         public static void Flush()
         {
+            s_Tick++;
             EnsureBound();
-            if (s_Uploads.Count == 0 && s_Tiles.Count == 0) return;
-            CompleteRaster();
-            UploadPending();
+            if (s_Uploads.Count > 0 || s_Tiles.Count > 0 || s_Sdf.NeedsFullUpload || s_Color.NeedsFullUpload)
+            {
+                CompleteRaster();
+                UploadPending();
+            }
+            if (s_ClearPending)
+            {
+                s_ClearPending = false;
+                Cleared?.Invoke();
+            }
         }
 
         static void EnsureBound()
         {
             if (s_Sdf.Texture == null && s_Sdf.Pixels.Count == 0) AddPage(s_Sdf);
-            if (s_Color.Texture == null && s_Color.Pixels.Count == 0) AddPage(s_Color);
             if (s_Sdf.Texture == null) RecreateTexture(s_Sdf);
-            if (s_Color.Texture == null) RecreateTexture(s_Color);
+            if (s_Color.Texture == null && s_Color.Pixels.Count > 0) RecreateTexture(s_Color);
+            if (s_Color.Texture == null && s_EmptyColor == null)
+            {
+                // No colour glyph yet: a tiny placeholder instead of a 16 MB page nobody reads.
+                s_EmptyColor = new Texture2DArray(4, 4, 1, FormatOf(s_Color), TextureCreationFlags.None) { hideFlags = HideFlags.HideAndDontSave };
+                s_EmptyColor.Apply(false, true);
+                s_Rebind = true;
+            }
             if (!s_Rebind) return;
             s_Rebind = false;
             Shader.SetGlobalTexture(s_SdfAtlasId, s_Sdf.Texture);
-            Shader.SetGlobalTexture(s_ColorAtlasId, s_Color.Texture);
+            Shader.SetGlobalTexture(s_ColorAtlasId, s_Color.Texture != null ? s_Color.Texture : s_EmptyColor);
         }
 
         static void UploadPending()
@@ -427,17 +533,20 @@ namespace FirstSymbol.Lettera
         {
             bool any = false;
             foreach (PendingUpload upload in s_Uploads) any |= upload.Set == set;
-            if (!any) return;
+            if (!any && !set.NeedsFullUpload) return;
 
-            if (SystemInfo.copyTextureSupport == UnityEngine.Rendering.CopyTextureSupport.None)
+            // Copying from a 2D texture into an array needs this flag, which some browsers lack.
+            const UnityEngine.Rendering.CopyTextureSupport needed = UnityEngine.Rendering.CopyTextureSupport.Basic | UnityEngine.Rendering.CopyTextureSupport.DifferentTypes;
+            if (set.NeedsFullUpload || (SystemInfo.copyTextureSupport & needed) != needed)
             {
+                set.NeedsFullUpload = false;
                 RecreateTexture(set);
                 EnsureBound();
                 return;
             }
 
             if (staging == null)
-                staging = new Texture2D(StagingSize, StagingSize, format, false, set == s_Sdf) { hideFlags = HideFlags.HideAndDontSave, filterMode = FilterMode.Point };
+                staging = new Texture2D(StagingSize, StagingSize, format, false, FormatOf(set) != GraphicsFormat.R8G8B8A8_SRGB) { hideFlags = HideFlags.HideAndDontSave, filterMode = FilterMode.Point };
 
             byte* stagingPixels = (byte*)staging.GetRawTextureData<byte>().GetUnsafePtr();
             int stride = StagingSize * set.Bytes;
@@ -504,8 +613,11 @@ namespace FirstSymbol.Lettera
             s_Uploads.Clear();
             s_Glyphs.Clear();
             ResetSet(s_Sdf);
-            ResetSet(s_Color);
-            Cleared?.Invoke();
+            bool hadColor = s_Color.Pixels.Count > 0;
+            FreePages(s_Color);
+            s_Color.ShelfX = s_Color.ShelfY = s_Color.ShelfHeight = 0;
+            if (hadColor) AddPage(s_Color);
+            s_ClearPending = true;
         }
 
         static void ResetSet(PageSet set)
@@ -519,6 +631,8 @@ namespace FirstSymbol.Lettera
         {
             foreach (IntPtr page in set.Pixels) UnsafeUtility.FreeTracked((void*)page, Allocator.Persistent);
             set.Pixels.Clear();
+            set.LastUsed.Clear();
+            set.Current = 0;
         }
 
         /// <summary>Re-creates the textures from the CPU pages, e.g. after the graphics context was lost.</summary>
@@ -543,6 +657,10 @@ namespace FirstSymbol.Lettera
             DestroyTexture(s_Color.Texture);
             DestroyTexture(s_StagingSdf);
             DestroyTexture(s_StagingColor);
+            DestroyTexture(s_EmptyColor);
+            s_EmptyColor = null;
+            s_Rebind = false;
+            s_ClearPending = false;
             s_Sdf.Texture = s_Color.Texture = null;
             s_StagingSdf = s_StagingColor = null;
             if (s_Lines.IsCreated) s_Lines.Dispose();

@@ -57,7 +57,7 @@ PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS, OR MODIFICATIONS.
 
 ## Noto fonts
 
-`Tests/Fonts~` holds Noto Sans, Noto Sans Arabic, Noto Sans Hebrew and Noto Sans Devanagari, used only by the tests and not installed into projects' builds. https://fonts.google.com/noto
+`Runtime/Resources/Lettera/LetteraWebFont.asset` holds Noto Sans, which ships in player builds as the web's default font. `Tests/Fonts~` holds Noto Sans, Noto Sans Arabic, Noto Sans Hebrew and Noto Sans Devanagari, used only by the tests. https://fonts.google.com/noto
 
 ```
 Copyright 2018 The Noto Project Authors (github.com/googlei18n/noto-fonts)

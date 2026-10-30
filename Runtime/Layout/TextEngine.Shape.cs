@@ -33,6 +33,12 @@ namespace FirstSymbol.Lettera
         static readonly Dictionary<string, byte[]> s_LanguageBytes = new Dictionary<string, byte[]>();
 
         readonly FontChain m_Chain = new FontChain();
+        LetteraFontAsset m_ChainFont;
+        LetteraFontStack m_ChainStack;
+        bool m_ChainStale = true;
+
+        /// <summary>Fonts, stacks or settings changed: resolve faces again at the next shaping.</summary>
+        public void InvalidateFonts() => m_ChainStale = true;
         readonly List<Paragraph> m_Paragraphs = new List<Paragraph>();
         readonly List<Run> m_Runs = new List<Run>();
         ShapedGlyph[] m_Shaped = new ShapedGlyph[64];
@@ -65,7 +71,13 @@ namespace FirstSymbol.Lettera
             Array.Clear(m_CpAdvanceEm, 0, length + 1);
 
             LetteraTextData data = m_Host.Data;
-            m_Chain.Build(data.Font, data.FontStack);
+            if (m_ChainStale || m_ChainFont != data.Font || m_ChainStack != data.FontStack)
+            {
+                m_Chain.Build(data.Font, data.FontStack);
+                m_ChainFont = data.Font;
+                m_ChainStack = data.FontStack;
+                m_ChainStale = false;
+            }
 
             m_Paragraphs.Clear();
             m_Runs.Clear();
@@ -180,8 +192,43 @@ namespace FirstSymbol.Lettera
             m_Runs.Add(run);
         }
 
+        void ShapeBrowserEmoji(ref Run run)
+        {
+            // One glyph per cluster; right-to-left runs list glyphs in visual order like shaped ones.
+            int count = 0;
+            int i = run.Start;
+            while (i < run.End)
+            {
+                int end = i + 1;
+                while (end < run.End && !m_Boundaries[end]) end++;
+                count++;
+                i = end;
+            }
+            EnsureSize(ref m_Shaped, m_ShapedCount + count);
+            bool rtl = (run.Level & 1) != 0;
+            int slot = rtl ? m_ShapedCount + count - 1 : m_ShapedCount;
+            i = run.Start;
+            while (i < run.End)
+            {
+                int end = i + 1;
+                while (end < run.End && !m_Boundaries[end]) end++;
+                uint glyph = BrowserEmoji.GlyphFor(new ReadOnlySpan<int>(m_Text, i, end - i), out int advance);
+                m_Shaped[slot] = new ShapedGlyph { Glyph = glyph, Cluster = i, XAdvance = advance };
+                m_CpAdvanceEm[i] += advance * run.UnitEm;
+                slot += rtl ? -1 : 1;
+                i = end;
+            }
+            run.GlyphCount = count;
+            m_ShapedCount += count;
+        }
+
         void ShapeRun(ref Run run, in Paragraph paragraph)
         {
+            if (run.Instance.Face.IsVirtual)
+            {
+                ShapeBrowserEmoji(ref run);
+                return;
+            }
             string language = LanguageOf(run.Language);
             byte[] languageBytes = null;
             if (language != null && !s_LanguageBytes.TryGetValue(language, out languageBytes))

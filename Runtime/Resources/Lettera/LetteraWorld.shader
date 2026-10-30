@@ -2,6 +2,48 @@ Shader "Lettera/World"
 {
     SubShader
     {
+        PackageRequirements { "com.unity.render-pipelines.universal" }
+        Tags { "RenderPipeline"="UniversalPipeline" "Queue"="Transparent" "IgnoreProjector"="True" "RenderType"="Transparent" "PreviewType"="Plane" }
+
+        Pass
+        {
+            Name "Text"
+            Tags { "LightMode"="SRPDefaultUnlit" }
+            Cull Off
+            ZWrite Off
+            Blend One OneMinusSrcAlpha
+
+            HLSLPROGRAM
+            #pragma vertex TextVertex
+            #pragma fragment TextFragment
+            #pragma target 3.5
+            #pragma require 2darray
+            #pragma multi_compile_fog
+            #include "LetteraWorldURP.hlsl"
+            ENDHLSL
+        }
+
+        Pass
+        {
+            Name "ShadowCaster"
+            Tags { "LightMode"="ShadowCaster" }
+            Cull Off
+            ZWrite On
+            ColorMask 0
+
+            HLSLPROGRAM
+            #pragma vertex ShadowVertex
+            #pragma fragment ShadowFragment
+            #pragma target 3.5
+            #pragma require 2darray
+            #pragma multi_compile_vertex _ _CASTING_PUNCTUAL_LIGHT_SHADOW
+            #include "LetteraWorldURP.hlsl"
+            ENDHLSL
+        }
+    }
+
+    SubShader
+    {
         Tags { "Queue"="Transparent" "IgnoreProjector"="True" "RenderType"="Transparent" "PreviewType"="Plane" }
 
         Pass

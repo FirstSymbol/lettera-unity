@@ -8,10 +8,11 @@ namespace FirstSymbol.Lettera
     /// <summary>The shared materials.</summary>
     public static class LetteraMaterials
     {
-        static Material s_Ui, s_World;
+        static Material s_Ui, s_World, s_WorldLit;
 
         public static Material Ui => s_Ui != null ? s_Ui : s_Ui = Create("Lettera/LetteraUI");
         public static Material World => s_World != null ? s_World : s_World = Create("Lettera/LetteraWorld");
+        public static Material WorldLit => s_WorldLit != null ? s_WorldLit : s_WorldLit = Create("Lettera/LetteraWorldLit");
 
         static Material Create(string resource)
         {

@@ -231,13 +231,17 @@ namespace FirstSymbol.Lettera
         {
             if (s_DefaultFaces != null) return s_DefaultFaces;
             var faces = new List<FontFace>();
+#if UNITY_IOS && !UNITY_EDITOR
+            FontFace system = FaceFromCoreText(IosFonts.DefaultPath(), 'a');
+            if (system != null) faces.Add(system);
+#endif
             foreach (string stem in DefaultStems())
             {
                 string file = FindFile(stem);
                 FontFace face = file == null ? null : GetEntry(file, 0).Load();
                 if (face != null && !face.IsColor) faces.Add(face);
             }
-            if (faces.Count == 0)
+            if (faces.Count == 0 && IsSupported)
             {
                 EnsureEntries();
                 foreach (Entry entry in s_Entries)
@@ -258,8 +262,13 @@ namespace FirstSymbol.Lettera
         /// <summary>The OS color emoji font, or null.</summary>
         internal static FontFace EmojiFace()
         {
+            if (!IsSupported) return BrowserEmoji.Face;
             if (s_EmojiSearched) return s_Emoji;
             s_EmojiSearched = true;
+#if UNITY_IOS && !UNITY_EDITOR
+            s_Emoji = FaceFromCoreText(IosFonts.NamedPath("AppleColorEmoji"), 0x1F600);
+            if (s_Emoji != null) return s_Emoji;
+#endif
             foreach (string stem in new[] { "seguiemj", "Apple Color Emoji", "AppleColorEmoji", "AppleColorEmoji@2x", "NotoColorEmoji", "NotoColorEmoji-Regular", "SamsungColorEmoji", "TwemojiMozilla" })
             {
                 string file = FindFile(stem);
@@ -327,7 +336,11 @@ namespace FirstSymbol.Lettera
             long key = ((long)(language?.GetHashCode() ?? 0) << 32) | (uint)codepoint;
             if (s_Fallback.TryGetValue(key, out var cached)) return cached;
 
-            FontFace found = FindCjkForLanguage(codepoint, language);
+            FontFace found = null;
+#if UNITY_IOS && !UNITY_EDITOR
+            found = FaceFromCoreText(IosFonts.FallbackPath(codepoint, language), codepoint);
+#endif
+            found = found ?? FindCjkForLanguage(codepoint, language);
             if (found == null)
             {
                 EnsureEntries();
@@ -341,6 +354,21 @@ namespace FirstSymbol.Lettera
             return found;
         }
 
+#if UNITY_IOS && !UNITY_EDITOR
+        // CoreText names a file; in a collection the face that covers the codepoint is the one wanted.
+        static FontFace FaceFromCoreText(string path, int codepoint)
+        {
+            if (string.IsNullOrEmpty(path)) return null;
+            for (int index = 0; index < 32; index++)
+            {
+                FontFace face = GetEntry(path, index).Load();
+                if (face == null) return null;
+                if (face.HasGlyph(codepoint)) return face;
+            }
+            return null;
+        }
+#endif
+
         /// <summary>Forgets loaded faces (after FontFace.DisposeAll).</summary>
         internal static void Reset()
         {
@@ -352,6 +380,7 @@ namespace FirstSymbol.Lettera
             s_DefaultFaces = null;
             s_Emoji = null;
             s_EmojiSearched = false;
+            BrowserEmoji.Reset();
         }
     }
 }

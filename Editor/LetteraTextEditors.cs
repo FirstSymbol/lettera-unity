@@ -464,6 +464,7 @@ namespace FirstSymbol.Lettera.Editor
                         LtUI.Field("Batch Group", P("m_BatchGroup"), "Texts in different groups never merge.")));
                     page.Add(LtUI.Card("Renderer",
                         LtUI.Row("Standalone", LetteraTextEditor.Holder(LtUI.Switch(P("m_Standalone"))), "Draw through an own renderer, sorted by its own distance to the camera."),
+                        LtUI.Row("Lit", LetteraTextEditor.Holder(LtUI.Switch(P("m_Lit"))), "Light the text with the ambient and main light."),
                         LtUI.Row("Cast Shadows", LetteraTextEditor.Holder(LtUI.Switch(P("m_CastShadows")))),
                         LtUI.Row("Raycast Target", LetteraTextEditor.Holder(LtUI.Switch(P("m_RaycastTarget"))))));
                 }).Build();

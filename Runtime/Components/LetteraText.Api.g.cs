@@ -169,10 +169,31 @@ namespace FirstSymbol.Lettera
         public bool TryGetEffect<T>(out T effect) where T : class => (effect = Engine.GetEffect<T>()) != null;
         public void GetEffects<T>(List<T> results) where T : class => Engine.GetEffects(results);
 
-        void OnFontAssetChanged(LetteraFontAsset asset) => MarkDirty(DirtyLevel.Shape);
-        void OnStackChanged(LetteraFontStack stack) => MarkDirty(DirtyLevel.Shape);
-        void OnPresetChanged(LetteraStylePreset preset) => MarkDirty(DirtyLevel.Parse);
-        void OnSettingsChanged() => MarkDirty(DirtyLevel.Parse);
+        void OnFontAssetChanged(LetteraFontAsset asset)
+        {
+            Engine.InvalidateFonts();
+            MarkDirty(DirtyLevel.Shape);
+        }
+
+        void OnStackChanged(LetteraFontStack stack)
+        {
+            Engine.InvalidateFonts();
+            MarkDirty(DirtyLevel.Shape);
+        }
+
+        void OnPresetChanged(LetteraStylePreset preset)
+        {
+            Engine.InvalidateStyleCopies();
+            MarkDirty(DirtyLevel.Parse);
+        }
+
+        void OnSettingsChanged()
+        {
+            Engine.InvalidateFonts();
+            Engine.InvalidateStyleCopies();
+            MarkDirty(DirtyLevel.Parse);
+        }
+
         void OnAtlasCleared() => MarkDirty(DirtyLevel.Mesh);
 
         void AddListeners()

@@ -45,23 +45,38 @@ namespace FirstSymbol.Lettera
         internal readonly List<RangeRecord> Ranges = new List<RangeRecord>();
         readonly List<int> m_LessThan = new List<int>();
         bool[] m_Blocked = new bool[256];
-        string m_Source = "";
+        char[] m_Chars = new char[256];
+        int m_Length;
+        string m_Source;
         internal int CurrentStyle;
 
-        /// <summary>The whole source text being parsed.</summary>
-        public string Source => m_Source;
+        /// <summary>The source text being parsed. Reading this makes no copy.</summary>
+        public ReadOnlySpan<char> Text => new ReadOnlySpan<char>(m_Chars, 0, m_Length);
+
+        /// <summary>The source text as a string. It is built on first use, so prefer <see cref="Text"/>.</summary>
+        public string Source => m_Source ?? (m_Source = new string(m_Chars, 0, m_Length));
 
         /// <summary>Positions of every '&lt;' in the source, in order.</summary>
         public IReadOnlyList<int> LessThanPositions => m_LessThan;
 
-        internal void Begin(string source)
+        internal void Begin(ReadOnlySpan<char> source)
         {
-            m_Source = source;
+            m_Source = null;
+            m_Length = source.Length;
             Claims.Clear();
             Ranges.Clear();
             m_LessThan.Clear();
-            if (m_Blocked.Length < source.Length) m_Blocked = new bool[Math.Max(source.Length, m_Blocked.Length * 2)];
-            else Array.Clear(m_Blocked, 0, source.Length);
+            if (m_Chars.Length < source.Length)
+            {
+                int capacity = Math.Max(source.Length, m_Chars.Length * 2);
+                m_Chars = new char[capacity];
+                m_Blocked = new bool[capacity];
+            }
+            else
+            {
+                Array.Clear(m_Blocked, 0, source.Length);
+            }
+            source.CopyTo(m_Chars);
             for (int i = 0; i < source.Length; i++)
                 if (source[i] == '<')
                     m_LessThan.Add(i);
@@ -135,9 +150,10 @@ namespace FirstSymbol.Lettera
         public override void Find(LetteraMatchContext context)
         {
             if (string.IsNullOrEmpty(m_Name)) return;
-            string source = context.Source;
-            m_Open.Clear();
             IReadOnlyList<int> positions = context.LessThanPositions;
+            if (positions.Count == 0) return;
+            ReadOnlySpan<char> source = context.Text;
+            m_Open.Clear();
             for (int p = 0; p < positions.Count; p++)
             {
                 int at = positions[p];
@@ -164,7 +180,7 @@ namespace FirstSymbol.Lettera
     {
         static bool IsNameChar(char c) => c < 128 && (char.IsLetterOrDigit(c) || c == '-' || c == '_');
 
-        static bool MatchName(string source, int at, string name, out int end)
+        static bool MatchName(ReadOnlySpan<char> source, int at, string name, out int end)
         {
             end = at;
             int n = name.Length;
@@ -181,7 +197,7 @@ namespace FirstSymbol.Lettera
             return end >= source.Length || !IsNameChar(source[end]);
         }
 
-        public static bool MatchClose(string source, int at, string name, out int length)
+        public static bool MatchClose(ReadOnlySpan<char> source, int at, string name, out int length)
         {
             length = 0;
             if (at + 2 >= source.Length || source[at] != '<' || source[at + 1] != '/') return false;
@@ -192,7 +208,7 @@ namespace FirstSymbol.Lettera
             return true;
         }
 
-        public static bool MatchOpen(string source, int at, string name, out int length, out string[] slots, out string label, out bool selfClosing)
+        public static bool MatchOpen(ReadOnlySpan<char> source, int at, string name, out int length, out string[] slots, out string label, out bool selfClosing)
         {
             length = 0;
             slots = null;
@@ -209,7 +225,7 @@ namespace FirstSymbol.Lettera
                 int labelStart = ++cursor;
                 while (cursor < source.Length && IsNameChar(source[cursor])) cursor++;
                 if (cursor == labelStart) return false;
-                label = source.Substring(labelStart, cursor - labelStart);
+                label = source.Slice(labelStart, cursor - labelStart).ToString();
                 i = cursor;
             }
             while (i < source.Length && source[i] == ' ') i++;
@@ -231,7 +247,7 @@ namespace FirstSymbol.Lettera
             return true;
         }
 
-        static bool ParseSlots(string source, ref int i, out string[] slots)
+        static bool ParseSlots(ReadOnlySpan<char> source, ref int i, out string[] slots)
         {
             var list = new List<string>(4);
             slots = null;
@@ -242,10 +258,10 @@ namespace FirstSymbol.Lettera
                 char quote = source[i];
                 if (quote == '"' || quote == '\'')
                 {
-                    int close = source.IndexOf(quote, i + 1);
+                    int close = source.Slice(i + 1).IndexOf(quote);
                     if (close < 0) return false;
-                    list.Add(source.Substring(i + 1, close - i - 1));
-                    i = close + 1;
+                    list.Add(source.Slice(i + 1, close).ToString());
+                    i += close + 2;
                     while (i < source.Length && source[i] == ' ') i++;
                 }
                 else
@@ -257,8 +273,8 @@ namespace FirstSymbol.Lettera
                         if (source[i] == '/' && i + 1 < source.Length && source[i + 1] == '>') break;
                         i++;
                     }
-                    string slot = source.Substring(start, i - start).Trim();
-                    list.Add(slot.Length == 0 ? null : slot);
+                    ReadOnlySpan<char> slot = source.Slice(start, i - start).Trim();
+                    list.Add(slot.Length == 0 ? null : slot.ToString());
                 }
                 if (i < source.Length && source[i] == ',')
                 {
@@ -280,8 +296,9 @@ namespace FirstSymbol.Lettera
 
         public override void Find(LetteraMatchContext context)
         {
-            string source = context.Source;
             IReadOnlyList<int> positions = context.LessThanPositions;
+            if (positions.Count == 0) return;
+            ReadOnlySpan<char> source = context.Text;
             for (int p = 0; p < positions.Count; p++)
             {
                 int at = positions[p];
@@ -313,7 +330,7 @@ namespace FirstSymbol.Lettera
 
         public override void Find(LetteraMatchContext context)
         {
-            string source = context.Source;
+            ReadOnlySpan<char> source = context.Text;
             for (int i = 0; i + 1 < source.Length; i++)
             {
                 if (source[i] != '\\' || !context.IsFree(i, 2)) continue;
@@ -336,8 +353,9 @@ namespace FirstSymbol.Lettera
 
         public override void Find(LetteraMatchContext context)
         {
-            string source = context.Source;
             IReadOnlyList<int> positions = context.LessThanPositions;
+            if (positions.Count == 0) return;
+            ReadOnlySpan<char> source = context.Text;
             for (int p = 0; p < positions.Count; p++)
             {
                 int at = positions[p];

@@ -17,7 +17,7 @@ namespace FirstSymbol.Lettera
         readonly struct BatchKey : IEquatable<BatchKey>
         {
             public readonly int SortingLayer, SortingOrder, Group, Layer, SceneHandle, StandaloneId;
-            public readonly bool Shadows;
+            public readonly bool Shadows, Lit;
 
             public BatchKey(LetteraWorldText text)
             {
@@ -27,13 +27,14 @@ namespace FirstSymbol.Lettera
                 Layer = text.gameObject.layer;
                 SceneHandle = text.gameObject.scene.GetHashCode();
                 Shadows = text.CastShadows;
+                Lit = text.Lit;
                 StandaloneId = text.Standalone ? text.GetHashCode() : 0;
             }
 
             public bool Equals(BatchKey o) => SortingLayer == o.SortingLayer && SortingOrder == o.SortingOrder && Group == o.Group &&
-                                              Layer == o.Layer && SceneHandle == o.SceneHandle && Shadows == o.Shadows && StandaloneId == o.StandaloneId;
+                                              Layer == o.Layer && SceneHandle == o.SceneHandle && Shadows == o.Shadows && Lit == o.Lit && StandaloneId == o.StandaloneId;
             public override bool Equals(object obj) => obj is BatchKey other && Equals(other);
-            public override int GetHashCode() => HashCode.Combine(SortingLayer, SortingOrder, Group, Layer, SceneHandle, Shadows, StandaloneId);
+            public override int GetHashCode() => HashCode.Combine(SortingLayer, SortingOrder, Group, Layer, SceneHandle, Shadows, Lit, StandaloneId);
         }
 
         sealed class Shard
@@ -61,10 +62,10 @@ namespace FirstSymbol.Lettera
         static readonly List<Entry> s_Entries = new List<Entry>();
         static readonly Dictionary<LetteraWorldText, Entry> s_ByText = new Dictionary<LetteraWorldText, Entry>();
         static readonly Dictionary<BatchKey, Batch> s_Batches = new Dictionary<BatchKey, Batch>();
-        static readonly HashSet<string> s_LitWarned = new HashSet<string>();
 
         // Merged geometry of one shard.
         static Vector3[] s_Vertices = new Vector3[ShardVertices + 1024];
+        static Vector3[] s_Normals = new Vector3[ShardVertices + 1024];
         static Color32[] s_Colors = new Color32[ShardVertices + 1024];
         static Vector4[] s_Uv0 = new Vector4[ShardVertices + 1024];
         static Vector4[] s_Uv1 = new Vector4[ShardVertices + 1024];
@@ -132,9 +133,6 @@ namespace FirstSymbol.Lettera
                     entry.Batch.Dirty = true;
                     text.NotifyRebuilt();
                 }
-                if (text.Lit && s_LitWarned.Add(text.name))
-                    Debug.LogWarning($"Lettera: lit world text is not available in this version; '{text.name}' renders unlit.", text);
-
                 Matrix4x4 matrix = text.transform.localToWorldMatrix;
                 if (matrix != entry.Matrix)
                 {
@@ -167,9 +165,13 @@ namespace FirstSymbol.Lettera
                 }
                 EnsureCapacity(vertexCount + e.VertexCount, indexCount + e.IndexCount);
                 Matrix4x4 m = text.transform.localToWorldMatrix;
+                // The face looks along -Z; a mirrored text still has its normal towards the viewer.
+                Vector3 normal = m.MultiplyVector(Vector3.back).normalized;
+                if (m.determinant < 0) normal = -normal;
                 for (int i = 0; i < e.VertexCount; i++)
                 {
                     s_Vertices[vertexCount + i] = m.MultiplyPoint3x4(e.Vertices[i]);
+                    s_Normals[vertexCount + i] = normal;
                     s_Colors[vertexCount + i] = e.Colors[i];
                     s_Uv0[vertexCount + i] = e.Uv0[i];
                     s_Uv1[vertexCount + i] = e.Uv1[i];
@@ -191,6 +193,7 @@ namespace FirstSymbol.Lettera
             {
                 int capacity = Math.Max(vertices, s_Vertices.Length * 2);
                 Array.Resize(ref s_Vertices, capacity);
+                Array.Resize(ref s_Normals, capacity);
                 Array.Resize(ref s_Colors, capacity);
                 Array.Resize(ref s_Uv0, capacity);
                 Array.Resize(ref s_Uv1, capacity);
@@ -205,6 +208,7 @@ namespace FirstSymbol.Lettera
             mesh.Clear(false);
             mesh.indexFormat = vertexCount > 65000 ? IndexFormat.UInt32 : IndexFormat.UInt16;
             mesh.SetVertices(s_Vertices, 0, vertexCount);
+            mesh.SetNormals(s_Normals, 0, vertexCount);
             mesh.SetColors(s_Colors, 0, vertexCount);
             mesh.SetUVs(0, s_Uv0, 0, vertexCount);
             mesh.SetUVs(1, s_Uv1, 0, vertexCount);
@@ -227,7 +231,7 @@ namespace FirstSymbol.Lettera
             shard.Object = new GameObject("Lettera World Batch") { hideFlags = HideFlags.HideAndDontSave };
             var filter = shard.Object.AddComponent<MeshFilter>();
             shard.Renderer = shard.Object.AddComponent<MeshRenderer>();
-            shard.Renderer.sharedMaterial = LetteraMaterials.World;
+            shard.Renderer.sharedMaterial = batch.Key.Lit ? LetteraMaterials.WorldLit : LetteraMaterials.World;
             shard.Renderer.lightProbeUsage = LightProbeUsage.Off;
             shard.Renderer.reflectionProbeUsage = ReflectionProbeUsage.Off;
             shard.Renderer.receiveShadows = false;

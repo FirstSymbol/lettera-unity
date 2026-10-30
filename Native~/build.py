@@ -2,7 +2,7 @@
 
 usage: python build.py [--zig PATH] [--ndk PATH] [target ...]
 
-Targets: win-x64 win-arm64 linux-x64 linux-arm64 macos ios android
+Targets: win-x64 win-arm64 linux-x64 linux-arm64 macos ios webgl android
 Default is every target whose toolchain is available. Android needs the NDK
 that Unity's Android module installs (or --ndk). The compilers are zig and,
 for Android, the NDK's clang.
@@ -22,6 +22,8 @@ OUT = os.path.join(ROOT, "out")
 HB = os.path.join("third_party", "harfbuzz", "src")
 FLAGS = ["-O2", "-std=c++17", "-fno-exceptions", "-fno-rtti", "-fvisibility=hidden",
          "-fvisibility-inlines-hidden", "-DHB_EXTERN=extern", f"-I{HB}"]
+# Static targets link into a player that holds its own HarfBuzz: see tools/gen_hb_prefix.py.
+STATIC = ["-include", os.path.join("src", "lt_hb_prefix.h")]
 POSIX = ["-DHAVE_MMAP", "-DHAVE_SYS_MMAN_H", "-DHAVE_UNISTD_H"]  # lets hb_blob map font files
 SOURCES = [os.path.join(HB, "harfbuzz.cc"), os.path.join("src", "lettera_native.cpp")]
 DEFAULT_ZIG = r"D:\General\Other\Unity\Tools\zig\zig.exe"
@@ -90,7 +92,7 @@ def ios_archive(zig, triple, arch):
     objects = []
     for source in SOURCES:
         obj = os.path.join(out_dir, os.path.splitext(os.path.basename(source))[0] + ".o")
-        run([sys.executable, "-I", os.path.join("tools", "zig_ios.py"), zig, triple, obj, *FLAGS, *POSIX, source])
+        run([sys.executable, "-I", os.path.join("tools", "zig_ios.py"), zig, triple, obj, *FLAGS, *POSIX, *STATIC, source])
         objects.append(obj)
     archive = os.path.join(out_dir, "liblettera_native.a")
     if os.path.exists(archive):
@@ -155,6 +157,35 @@ def build_ios(zig):
         f.write(XCFRAMEWORK_PLIST)
 
 
+def build_webgl():
+    """A static archive from the Emscripten in Unity's Web module, so its LLVM matches the player's."""
+    root = os.path.join(DEFAULT_EDITOR, "Editor", "Data", "PlaybackEngines", "WebGLSupport", "BuildTools", "Emscripten")
+    env = dict(os.environ)
+    env["EMSDK_PYTHON"] = os.path.join(root, "python", "python.exe")
+    env["EM_CONFIG"] = os.path.join(OUT, "emscripten_config")
+    env["EM_CACHE"] = os.path.join(OUT, "emscripten_cache")
+    os.makedirs(OUT, exist_ok=True)
+    with open(env["EM_CONFIG"], "w", encoding="utf-8") as f:
+        for key, value in (("LLVM_ROOT", "llvm"), ("BINARYEN_ROOT", "binaryen"), ("NODE_JS", os.path.join("node", "node.exe"))):
+            f.write(f"{key} = {os.path.join(root, value)!r}\n")
+    emcc = os.path.join(root, "emscripten", "em++.bat")
+    emar = os.path.join(root, "emscripten", "emar.bat")
+    out_dir = os.path.join(OUT, "webgl")
+    os.makedirs(out_dir, exist_ok=True)
+    objects = []
+    for source in SOURCES:
+        obj = os.path.join(out_dir, os.path.splitext(os.path.basename(source))[0] + ".o")
+        print(">", "em++", source, flush=True)
+        subprocess.run([emcc, "-c", "-Os", "-std=c++17", "-fno-exceptions", "-fno-rtti", "-fvisibility=hidden",
+                        "-DHB_EXTERN=extern", "-DHB_NO_MT", f"-I{HB}", *STATIC, source, "-o", obj], cwd=ROOT, check=True, env=env)
+        objects.append(obj)
+    archive = os.path.join(out_dir, "liblettera_native.a")
+    if os.path.exists(archive):
+        os.remove(archive)
+    subprocess.run([emar, "rcs", archive, *objects], cwd=ROOT, check=True, env=env)
+    place(archive, "WebGL", "liblettera_native.a")
+
+
 def find_ndk(explicit):
     if explicit:
         return explicit
@@ -196,6 +227,7 @@ def main():
         "linux-arm64": lambda: build_linux(args.zig, "aarch64-linux-gnu.2.17", "ARM64"),
         "macos": lambda: build_macos(args.zig),
         "ios": lambda: build_ios(args.zig),
+        "webgl": build_webgl,
     }
     if ndk:
         jobs["android"] = lambda: build_android(ndk)
