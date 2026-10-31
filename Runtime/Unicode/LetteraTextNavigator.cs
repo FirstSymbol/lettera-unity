@@ -101,8 +101,19 @@ namespace FirstSymbol.Lettera.Unicode
                 if (IsParagraphSeparator(a) || IsParagraphSeparator(b)) continue;
                 if ((IsSpace(a) && IsSpace(b)) || (IsUnspaced(a) && IsUnspaced(b)) || (a == b && IsPunctuationLike(a))) span[i - start] = false;
             }
+            // Where a dictionary knows a script's words, they part what the line above joined.
+            if (LetteraWordSegmenters.Count != 0)
+            {
+                if (s_Graphemes.Length < count + 1) s_Graphemes = new bool[s_Boundaries.Length];
+                var graphemes = new Span<bool>(s_Graphemes, 0, count + 1);
+                GraphemeBreaker.FindBoundaries(text.Slice(start, count), graphemes);
+                LetteraWordSegmenters.FindWordStarts(text.Slice(start, count), graphemes, span, s_Scratch);
+            }
             return span;
         }
+
+        static bool[] s_Graphemes = new bool[64];
+        static readonly LetteraSegmenterScratch s_Scratch = new LetteraSegmenterScratch();
 
         /// <summary>The word, whitespace run or punctuation run at an index, which is the one after it, or at the end of a paragraph the one before.</summary>
         public static void WordAt(ReadOnlySpan<int> text, int index, out int wordStart, out int wordEnd)

@@ -54,6 +54,8 @@ namespace FirstSymbol.Lettera
         static readonly uint s_Smcp = LetteraNative.Tag("smcp"), s_Sups = LetteraNative.Tag("sups"), s_Subs = LetteraNative.Tag("subs");
         float[] m_CpAdvanceEm = new float[64];
 
+        readonly LetteraSegmenterScratch m_SegmenterScratch = new LetteraSegmenterScratch();
+
         bool IsParagraphSeparator(int i, out int width)
         {
             int cp = m_Text[i];
@@ -84,6 +86,7 @@ namespace FirstSymbol.Lettera
 
             LetteraTextData data = m_Host.Data;
             m_Chain = LetteraFontChains.Get(data.Font, data.FontStack);
+            LetteraWordDictionaries.EnsureFromSettings();
 
             m_Paragraphs.Clear();
             m_Runs.Clear();
@@ -160,6 +163,7 @@ namespace FirstSymbol.Lettera
                 }
                 paragraph.Level = Bidi.ResolveParagraph(text, baseLevel, new Span<byte>(m_Levels, start, count));
                 LineBreaker.FindBreaks(text, new Span<LineBreakOpportunity>(m_Breaks, start, count));
+                if (LetteraWordSegmenters.Count != 0) LetteraWordSegmenters.ApplyToBreaks(text, new ReadOnlySpan<bool>(m_Boundaries, start, count + 1), new Span<LineBreakOpportunity>(m_Breaks, start, count), m_SegmenterScratch);
                 ScriptItemizer.Resolve(text, new Span<UnicodeScript>(m_Scripts, start, count));
                 BuildRuns(paragraph);
                 if (cacheable) StoreParagraph(hash, paragraph, start, count, baseLevel, language, firstRun, firstGlyph);

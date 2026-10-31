@@ -1,0 +1,18 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8d20bcc66100fdc4ba1fca0fefbd43ab, type: 3}
+  m_Name: Lao Words
+  m_EditorClassIdentifier: FirstSymbol.Lettera::FirstSymbol.Lettera.LetteraWordDictionary
+  m_Script: 1
+  m_Data: {fileID: 4900000, guid: 5bcfa423b4bad9042b2cf275cebd29ee, type: 3}
+  m_SourceNotice: Lao Word Break Dictionary Data (laodict.txt)
+  m_WordCount: 30550

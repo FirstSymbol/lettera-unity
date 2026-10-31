@@ -1,0 +1,2 @@
+From https://github.com/unicode-org/icu, tag release-77-1, icu4c/source/data/brkitr/dictionaries. Unmodified.
+cjdict.txt is left out on purpose: its older notices want a qualified reading first. A project can build its own with the Word Dictionary inspector.

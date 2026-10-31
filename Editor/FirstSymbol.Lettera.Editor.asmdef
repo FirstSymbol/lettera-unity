@@ -4,7 +4,8 @@
     "references": [
         "FirstSymbol.Lettera",
         "UnityEngine.UI",
-        "UnityEditor.UI"
+        "UnityEditor.UI",
+        "FirstSymbol.Lettera.Unicode"
     ],
     "includePlatforms": [
         "Editor"

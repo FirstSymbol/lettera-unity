@@ -34,6 +34,8 @@ namespace FirstSymbol.Lettera
         [SerializeField] LetteraEditingSettings m_Editing = new LetteraEditingSettings();
         [SerializeField] LetteraMotionSettings m_Motion = new LetteraMotionSettings();
         [SerializeField] LetteraDocumentSettings m_Documents = new LetteraDocumentSettings();
+        [Tooltip("Word lists for scripts written without spaces. Empty costs nothing: only what is listed reaches a player.")]
+        [SerializeField] System.Collections.Generic.List<LetteraWordDictionary> m_Dictionaries = new System.Collections.Generic.List<LetteraWordDictionary>();
 
         static LetteraSettings s_Instance;
 
@@ -72,6 +74,10 @@ namespace FirstSymbol.Lettera
 
         /// <summary>Limits of documents' windows.</summary>
         public LetteraDocumentSettings Documents => m_Documents ?? (m_Documents = new LetteraDocumentSettings());
+
+        public System.Collections.Generic.List<LetteraWordDictionary> Dictionaries => m_Dictionaries ?? (m_Dictionaries = new System.Collections.Generic.List<LetteraWordDictionary>());
+
+        internal static void RaiseChanged() => Changed?.Invoke();
 
         void OnValidate() => Changed?.Invoke();
 
