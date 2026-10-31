@@ -882,6 +882,88 @@ namespace FirstSymbol.Lettera.Editor.Tests
             Assert.AreEqual("ab", field.Source);
         }
 
+        // ------------------------------------------------------------- live spans
+
+        LetteraEditable WithSpans(string text, out LetteraLiveSpans spans)
+        {
+            LetteraEditable field = Field(text);
+            spans = new LetteraLiveSpans();
+            field.GetComponent<LetteraWorldText>().Styles.Add(LetteraStyle.ForMatcher(spans, new ColorEffect { Color = Color.red }));
+            field.GetComponent<LetteraWorldText>().MarkStylesDirty();
+            spans.Bind(field);
+            return field;
+        }
+
+        [Test]
+        public void ASpanFollowsItsWordAndGoesAwayWithIt()
+        {
+            LetteraEditable field = WithSpans("a word", out LetteraLiveSpans spans);
+            int id = spans.Add(2, 6);
+            field.Selectable.PlaceCaret(0);
+            Type(field, "xy");
+            Assert.IsTrue(spans.TryGet(id, out int start, out int end));
+            Assert.AreEqual((4, 8), (start, end));
+            LetteraWorldText label = field.GetComponent<LetteraWorldText>();
+            label.ForceRebuild();
+            Assert.AreEqual(1, spans.Count);
+            field.Selectable.PlaceCaret(8);
+            Type(field, "z");
+            spans.TryGet(id, out start, out end);
+            Assert.AreEqual((4, 8), (start, end), "text at the edge stays out");
+            field.Selectable.Select(4, 8);
+            Press(field, LetteraKeyCode.Delete);
+            Assert.IsFalse(spans.TryGet(id, out _, out _));
+        }
+
+        [Test]
+        public void GrowingAndFixedSpansTrackTheirWay()
+        {
+            LetteraEditable field = WithSpans("abcd", out LetteraLiveSpans spans);
+            int grow = spans.Add(1, 3, LetteraSpanTracking.GrowAtEdges);
+            int still = spans.Add(0, 1, LetteraSpanTracking.Fixed);
+            field.Selectable.PlaceCaret(3);
+            Type(field, "x");
+            spans.TryGet(grow, out int start, out int end);
+            Assert.AreEqual((1, 4), (start, end));
+            Assert.IsTrue(spans.TryGet(still, out _, out _));
+            field.Selectable.PlaceCaret(1);
+            Press(field, LetteraKeyCode.Backspace);
+            Assert.IsFalse(spans.TryGet(still, out _, out _));
+        }
+
+        [Test]
+        public void ALateResultThrows()
+        {
+            LetteraEditable field = WithSpans("abc", out LetteraLiveSpans spans);
+            int revision = spans.Revision;
+            Type(field, "d");
+            Assert.Throws<InvalidOperationException>(() => spans.SetAll(revision, new[] { (0, 1) }));
+            spans.SetAll(spans.Revision, new[] { (0, 1), (2, 3) });
+            Assert.AreEqual(2, spans.Count);
+        }
+
+        // ------------------------------------------------------------- what it costs
+
+        [TestCase(1000)]
+        [TestCase(10000)]
+        public void AKeystrokeStaysInItsBudget(int length)
+        {
+            LetteraEditable field = Field(new string('a', length));
+            LetteraWorldText label = field.GetComponent<LetteraWorldText>();
+            label.ForceRebuild();
+            var clock = System.Diagnostics.Stopwatch.StartNew();
+            const int Rounds = 20;
+            for (int i = 0; i < Rounds; i++)
+            {
+                Now += 1;
+                Type(field, "x");
+                label.ForceRebuild();
+            }
+            double ms = clock.Elapsed.TotalMilliseconds / Rounds;
+            UnityEngine.Debug.Log($"LETTERA_BUDGET keystroke at {length} codepoints: {ms:0.00} ms");
+            Assert.Less(ms, length <= 1000 ? 20 : 160, "ten times the budget: this is a sanity bound, since a shared editor is no benchmark");
+        }
+
         // ------------------------------------------------------------- composition
 
         [Test]
@@ -1031,6 +1113,17 @@ namespace FirstSymbol.Lettera.Editor.Tests
             Assert.AreEqual("abXd", field.Source);
             Assert.AreEqual(1, edits);
             Assert.AreEqual((2, 1, 1), (last.Start, last.Removed, last.Inserted));
+        }
+
+        [Test]
+        public void AnOsCaretTellsWhichOfEqualCharactersWentIn()
+        {
+            LetteraEditable field = Field("aaa");
+            ((ILetteraKeyboardSink)field.Selectable).Reconcile("aaaa", 2);
+            Assert.AreEqual("aaaa", field.Source);
+            Assert.AreEqual(2, field.Selectable.Selection.Head);
+            ((ILetteraKeyboardSink)field.Selectable).Reconcile("aaa", 1);
+            Assert.AreEqual(1, field.Selectable.Selection.Head);
         }
 
         [Test]

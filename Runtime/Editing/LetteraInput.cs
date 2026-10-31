@@ -76,6 +76,9 @@ namespace FirstSymbol.Lettera
                 if (source != null) return source;
             }
             if (NoDefaultSource) return null;
+#if UNITY_WEBGL && !UNITY_EDITOR
+            if (Application.isMobilePlatform || LetteraWebInputSource.LetteraInput_HasCoarsePointer() != 0) return new LetteraWebInputSource();
+#endif
             if (Application.isMobilePlatform && TouchScreenKeyboard.isSupported) return new LetteraTouchKeyboardSource();
             return new LetteraUnityInputSource();
         }
@@ -277,13 +280,130 @@ namespace FirstSymbol.Lettera
     /// <summary>A sink that can take the whole text of an OS text box and find the edit in it.</summary>
     public interface ILetteraKeyboardSink
     {
-        void Reconcile(string text);
+        /// <summary>The caret, in UTF-16 units of the text, tells where repeated characters went. -1 when unknown.</summary>
+        void Reconcile(string text, int caret = -1);
     }
 
     internal interface ILetteraKeyboardWriter
     {
         void TextChanged(string text);
     }
+
+#if UNITY_WEBGL && !UNITY_EDITOR
+    /// <summary>
+    /// A touch browser's keyboard, through a hidden text box on the page, so the field itself shows what is typed.
+    /// A press on a field arms it first, because only a touch handler can raise that keyboard.
+    /// </summary>
+    public sealed class LetteraWebInputSource : ILetteraInputSource, ILetteraKeyboardWriter
+    {
+        const string Lib = "__Internal";
+        [System.Runtime.InteropServices.DllImport(Lib)] internal static extern int LetteraInput_HasCoarsePointer();
+        [System.Runtime.InteropServices.DllImport(Lib)] internal static extern void LetteraInput_Arm();
+        [System.Runtime.InteropServices.DllImport(Lib)] static extern void LetteraInput_Open(string text, int start, int end, int multiline, int secure, int kind, int returnKey);
+        [System.Runtime.InteropServices.DllImport(Lib)] static extern void LetteraInput_Close();
+        [System.Runtime.InteropServices.DllImport(Lib)] static extern int LetteraInput_TakeFlags();
+        [System.Runtime.InteropServices.DllImport(Lib)] static extern int LetteraInput_IsComposing();
+        [System.Runtime.InteropServices.DllImport(Lib)] static extern int LetteraInput_GetText(byte[] buffer, int size);
+        [System.Runtime.InteropServices.DllImport(Lib)] static extern int LetteraInput_GetComposition(byte[] buffer, int size);
+        [System.Runtime.InteropServices.DllImport(Lib)] static extern int LetteraInput_GetCaret();
+        [System.Runtime.InteropServices.DllImport(Lib)] static extern void LetteraInput_Set(string text, int start, int end);
+        [System.Runtime.InteropServices.DllImport(Lib)] static extern void LetteraInput_Place(float x, float y);
+
+        ILetteraInputSink m_Sink;
+        ILetteraInputHost m_Host;
+        byte[] m_Buffer = new byte[1024];
+        bool m_Composing, m_CapturedKeys;
+        LetteraSelectionRange m_SentSelection;
+        Rect m_LastCaret;
+
+        delegate int Reader(byte[] buffer, int size);
+
+        string Read(Reader reader)
+        {
+            int size = reader(null, 0) + 1;
+            if (m_Buffer.Length < size) m_Buffer = new byte[size * 2];
+            int length = reader(m_Buffer, m_Buffer.Length);
+            return Encoding.UTF8.GetString(m_Buffer, 0, length);
+        }
+
+        static int Utf16(string text, int codepoints) => LetteraEditProposal.Utf16Of(text, codepoints);
+
+        public void Attach(ILetteraInputSink sink, ILetteraInputHost host)
+        {
+            m_Sink = sink;
+            m_Host = host;
+            // Unity otherwise cancels every key on the page, which would keep them out of the box.
+            m_CapturedKeys = WebGLInput.captureAllKeyboardInput;
+            WebGLInput.captureAllKeyboardInput = false;
+            string text = host.CommittedPlainText ?? "";
+            LetteraKeyboardTraits traits = host.Traits;
+            m_SentSelection = host.Selection;
+            LetteraInput_Open(text, Utf16(text, m_SentSelection.Start), Utf16(text, m_SentSelection.End), traits.Multiline ? 1 : 0, traits.Secure ? 1 : 0, (int)traits.Kind, (int)traits.ReturnKey);
+        }
+
+        public void Detach()
+        {
+            LetteraInput_Close();
+            WebGLInput.captureAllKeyboardInput = m_CapturedKeys;
+            m_Sink = null;
+            m_Host = null;
+        }
+
+        public void Pump()
+        {
+            if (m_Sink == null) return;
+            int flags = LetteraInput_TakeFlags();
+            bool composing = LetteraInput_IsComposing() != 0;
+            if ((flags & 2) != 0 || composing != m_Composing)
+            {
+                if (composing)
+                {
+                    string composition = Read(LetteraInput_GetComposition);
+                    m_Sink.Composition(composition, composition.Length, null);
+                }
+                else if (m_Composing)
+                {
+                    // What it became arrives with the box's text, below.
+                    m_Sink.CompositionEnd(false);
+                }
+                m_Composing = composing;
+            }
+            if ((flags & 1) != 0 && !composing && m_Sink is ILetteraKeyboardSink keyboard)
+            {
+                string text = Read(LetteraInput_GetText);
+                keyboard.Reconcile(text, LetteraInput_GetCaret());
+                if (m_Host == null) return;
+                SendState();
+            }
+            if ((flags & 4) != 0) m_Sink.Key(LetteraKeyCode.Enter, LetteraKeyModifiers.None);
+            if (m_Sink == null) return;
+            if ((flags & 8) != 0)
+            {
+                m_Sink.Action("done");
+                return;
+            }
+            if (m_Host.Selection != m_SentSelection && !composing) SendState();
+            Rect caret = m_Host.CaretScreenRect;
+            if (caret != m_LastCaret)
+            {
+                m_LastCaret = caret;
+                LetteraInput_Place(caret.x / Screen.width, caret.yMin / Screen.height);
+            }
+        }
+
+        void SendState()
+        {
+            string text = m_Host.CommittedPlainText ?? "";
+            m_SentSelection = m_Host.Selection;
+            LetteraInput_Set(text, Utf16(text, m_SentSelection.Start), Utf16(text, m_SentSelection.End));
+        }
+
+        void ILetteraKeyboardWriter.TextChanged(string text)
+        {
+            if (m_Host != null && !m_Composing) SendState();
+        }
+    }
+#endif
 
     public enum LetteraKeyboardKind { Default, Ascii, Url, Number, Decimal, Phone, Name, Email, Search }
     public enum LetteraReturnKey { Default, Done, Go, Next, Search, Send }

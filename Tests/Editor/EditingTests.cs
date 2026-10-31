@@ -890,7 +890,7 @@ namespace FirstSymbol.Lettera.Editor.Tests
             string[] pieces = { "a", "b ", "<b>", "</b>", "<i>", "</i>", "fi", "א", "م", Family, "\n", " ", "é", "\\", "<", ">", "<br>", "<noparse>", "</noparse>", "<divider>", "<u>" };
             LetteraEditable field = Field("", 300);
             LetteraSelectable s = field.Selectable;
-            for (int round = 0; round < 3000; round++)
+            for (int round = 0; round < 10000; round++)
             {
                 try
                 {

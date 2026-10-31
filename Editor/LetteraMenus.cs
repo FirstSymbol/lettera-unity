@@ -185,7 +185,7 @@ namespace FirstSymbol.Lettera.Editor
             {
                 enter = false;
                 if (child.name == "Commands") continue;
-                rows.Add(LtUI.Field(LtFrame.Nice(child.name), child.Copy(), child.tooltip));
+                rows.Add(LtFrame.Row(child.Copy()));
             }
             page.Add(LtUI.Card("Selection & Editing", rows.ToArray()));
             page.Add(LtUI.Card("Commands", new LetteraReferenceList(editing.FindPropertyRelative("Commands"), () => LetteraRuleCatalog.Commands)));

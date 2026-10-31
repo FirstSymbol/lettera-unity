@@ -740,7 +740,7 @@ namespace FirstSymbol.Lettera
 
         LetteraKeyboardTraits ILetteraInputHost.Traits => Editable != null ? Editable.KeyboardTraits : default;
 
-        void ILetteraKeyboardSink.Reconcile(string text) => Editable?.Reconcile(text);
+        void ILetteraKeyboardSink.Reconcile(string text, int caret) => Editable?.Reconcile(text, caret);
 
         internal void NotifyKeyboardOfChange()
         {

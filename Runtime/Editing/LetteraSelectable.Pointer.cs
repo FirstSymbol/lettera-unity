@@ -69,6 +69,9 @@ namespace FirstSymbol.Lettera
             m_PressPosition = m_PointerPosition = data.position;
             m_PressTime = LetteraEditClock.Now;
             m_Touch = kind == LetteraPointerKind.Touch;
+#if UNITY_WEBGL && !UNITY_EDITOR
+            if (m_Touch && Editable != null && !Editable.ReadOnly) LetteraWebInputSource.LetteraInput_Arm();
+#endif
             m_Moved = m_Cancelled = m_Passing = m_LongPressed = m_SelectionDrag = false;
             Editable?.CommitComposition();
 

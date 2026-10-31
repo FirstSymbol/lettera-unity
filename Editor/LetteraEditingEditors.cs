@@ -28,6 +28,10 @@ namespace FirstSymbol.Lettera.Editor
             return ObjectNames.NicifyVariableName(name);
         }
 
+        /// <summary>A labelled row, with this inspector's own switch for a bool.</summary>
+        public static VisualElement Row(SerializedProperty property) =>
+            property.propertyType == SerializedPropertyType.Boolean ? LtUI.Row(Nice(property.name), LtUI.Switch(property), property.tooltip) : LtUI.Field(Nice(property.name), property, property.tooltip);
+
         /// <summary>A card with a row for each named field. An empty list takes every visible field the others left.</summary>
         public static VisualElement Card(SerializedObject serialized, string title, params string[] names)
         {
@@ -35,7 +39,7 @@ namespace FirstSymbol.Lettera.Editor
             foreach (string name in names)
             {
                 SerializedProperty property = serialized.FindProperty(name);
-                if (property != null) rows.Add(LtUI.Field(Nice(name), property, property.tooltip));
+                if (property != null) rows.Add(Row(property));
             }
             return LtUI.Card(title, rows.ToArray());
         }
@@ -49,7 +53,7 @@ namespace FirstSymbol.Lettera.Editor
             {
                 enter = false;
                 if (property.name == "m_Script" || skip.Contains(property.name)) continue;
-                rows.Add(LtUI.Field(Nice(property.name), property, property.tooltip));
+                rows.Add(Row(property));
             }
             return LtUI.Card(title, rows.ToArray());
         }
@@ -192,7 +196,7 @@ namespace FirstSymbol.Lettera.Editor
                 {
                     enter = false;
                     if (child.name == "m_Enabled") continue;
-                    card.Add(LtUI.Field(LtFrame.Nice(child.name), child.Copy(), child.tooltip));
+                    card.Add(LtFrame.Row(child.Copy()));
                 }
                 m_Rows.Add(card);
             }
@@ -278,6 +282,8 @@ namespace FirstSymbol.Lettera.Editor
             if (selectable.GetComponent<LetteraText>() == null && selectable.GetComponent<LetteraWorldText>() == null) yield return "Needs a Lettera Text on this object";
             if (selectable.GetComponent<LetteraWorldText>() != null && Camera.main != null && Camera.main.GetComponent<LetteraWorldRaycaster>() == null) yield return "No World Raycaster on the main camera: this text gets no pointer events";
             if (selectable.gameObject.scene.IsValid() && UnityEngine.Object.FindAnyObjectByType<EventSystem>() == null) yield return "No EventSystem in the scene";
+            Canvas canvas = selectable.GetComponentInParent<Canvas>();
+            if (canvas != null && canvas.GetComponentInParent<GraphicRaycaster>() == null) yield return "No Graphic Raycaster on the canvas: this text gets no pointer events";
         }
     }
 

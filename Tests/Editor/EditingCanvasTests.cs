@@ -230,6 +230,18 @@ namespace FirstSymbol.Lettera.Editor.Tests
             Assert.AreSame(second, LetteraEditable.Current);
         }
 
+        [Test]
+        public void AHiddenTextStaysHiddenUnderAMask()
+        {
+            LetteraText text = CanvasText("abc");
+            text.Hide();
+            text.Cull(new Rect(-1000, -1000, 2000, 2000), true);
+            Assert.IsTrue(text.canvasRenderer.cull);
+            text.Show();
+            text.Cull(new Rect(-1000, -1000, 2000, 2000), true);
+            Assert.IsFalse(text.canvasRenderer.cull);
+        }
+
         // ------------------------------------------------------------- shipped fields
 
         [Test]

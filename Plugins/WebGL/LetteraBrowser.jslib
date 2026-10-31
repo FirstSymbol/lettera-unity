@@ -1,5 +1,133 @@
 // Browsers expose no font files, so emoji are drawn by the browser's own canvas.
 mergeInto(LibraryManager.library, {
+    // A touch browser raises its keyboard only for an element focused inside a touch handler, and Unity runs a frame later.
+    // So a press on a field arms this while the finger is down, and the handler here focuses a hidden text box when it lifts.
+    LetteraInput_HasCoarsePointer: function () {
+        return window.matchMedia && window.matchMedia("(pointer: coarse)").matches ? 1 : 0;
+    },
+
+    LetteraInput_Arm: function () {
+        var state = Module.letteraInput;
+        if (!state) {
+            var box = document.createElement("textarea");
+            // 16 px keeps iOS from zooming the page, and the box stays where the caret is for the candidate window.
+            box.style.cssText = "position:fixed;left:0;top:0;width:2px;height:20px;opacity:0;border:0;padding:0;margin:0;outline:0;resize:none;overflow:hidden;font-size:16px;color:transparent;background:transparent;caret-color:transparent;z-index:-1;";
+            box.setAttribute("autocapitalize", "off");
+            box.setAttribute("aria-hidden", "true");
+            box.spellcheck = false;
+            document.body.appendChild(box);
+            state = Module.letteraInput = { box: box, armed: false, flags: 0, composition: "", startX: 0, startY: 0, moved: false, open: false };
+            box.addEventListener("input", function () { state.flags |= 1; });
+            box.addEventListener("compositionstart", function () { state.composing = true; state.composition = ""; state.flags |= 2; });
+            box.addEventListener("compositionupdate", function (e) { state.composition = e.data || ""; state.flags |= 2; });
+            box.addEventListener("compositionend", function () { state.composing = false; state.composition = ""; state.flags |= 3; });
+            box.addEventListener("keydown", function (e) {
+                e.stopPropagation();
+                if (e.key === "Enter" && !e.isComposing && !state.multiline) {
+                    e.preventDefault();
+                    state.flags |= 4;
+                }
+            });
+            box.addEventListener("keypress", function (e) { e.stopPropagation(); });
+            box.addEventListener("keyup", function (e) { e.stopPropagation(); });
+            box.addEventListener("blur", function () {
+                // A press on the page takes the focus for a moment; only staying away counts.
+                setTimeout(function () { if (state.open && document.activeElement !== box) state.flags |= 8; }, 150);
+            });
+            document.addEventListener("touchstart", function (e) {
+                var touch = e.touches[0];
+                if (touch) { state.startX = touch.clientX; state.startY = touch.clientY; state.moved = false; }
+            }, true);
+            document.addEventListener("touchmove", function (e) {
+                var touch = e.touches[0];
+                if (touch && Math.abs(touch.clientX - state.startX) + Math.abs(touch.clientY - state.startY) > 10) state.moved = true;
+            }, true);
+            var lift = function () {
+                if (state.armed && !state.moved) box.focus({ preventScroll: true });
+                state.armed = false;
+            };
+            document.addEventListener("touchend", lift, true);
+            document.addEventListener("mouseup", lift, true);
+        }
+        state.armed = true;
+    },
+
+    LetteraInput_Open: function (text, start, end, multiline, secure, kind, returnKey) {
+        _LetteraInput_Arm();
+        var state = Module.letteraInput;
+        state.armed = false;
+        state.open = true;
+        state.multiline = !!multiline;
+        state.flags = 0;
+        var box = state.box;
+        var modes = ["text", "text", "url", "numeric", "decimal", "tel", "text", "email", "search"];
+        var keys = ["", "done", "go", "next", "search", "send"];
+        box.setAttribute("inputmode", modes[kind] || "text");
+        if (keys[returnKey]) box.setAttribute("enterkeyhint", keys[returnKey]);
+        else box.removeAttribute("enterkeyhint");
+        box.setAttribute("autocomplete", secure ? "off" : "on");
+        box.value = UTF8ToString(text);
+        box.setSelectionRange(start, end);
+        box.focus({ preventScroll: true });
+    },
+
+    LetteraInput_Close: function () {
+        var state = Module.letteraInput;
+        if (!state) return;
+        state.open = false;
+        state.armed = false;
+        state.flags = 0;
+        state.composing = false;
+        state.box.value = "";
+        state.box.blur();
+    },
+
+    LetteraInput_TakeFlags: function () {
+        var state = Module.letteraInput;
+        if (!state) return 0;
+        var flags = state.flags;
+        state.flags = 0;
+        return flags;
+    },
+
+    LetteraInput_IsComposing: function () {
+        var state = Module.letteraInput;
+        return state && state.composing ? 1 : 0;
+    },
+
+    LetteraInput_GetText: function (buffer, size) {
+        var text = Module.letteraInput ? Module.letteraInput.box.value : "";
+        if (buffer) stringToUTF8(text, buffer, size);
+        return lengthBytesUTF8(text);
+    },
+
+    LetteraInput_GetComposition: function (buffer, size) {
+        var text = Module.letteraInput ? Module.letteraInput.composition : "";
+        if (buffer) stringToUTF8(text, buffer, size);
+        return lengthBytesUTF8(text);
+    },
+
+    LetteraInput_GetCaret: function () {
+        return Module.letteraInput ? Module.letteraInput.box.selectionEnd : 0;
+    },
+
+    LetteraInput_Set: function (text, start, end) {
+        var state = Module.letteraInput;
+        if (!state) return;
+        var value = UTF8ToString(text);
+        if (state.box.value !== value) state.box.value = value;
+        state.box.setSelectionRange(start, end);
+    },
+
+    // Fractions of the canvas, from its bottom left.
+    LetteraInput_Place: function (x, y) {
+        var state = Module.letteraInput;
+        if (!state || !Module.canvas) return;
+        var rect = Module.canvas.getBoundingClientRect();
+        state.box.style.left = (rect.left + rect.width * x) + "px";
+        state.box.style.top = (rect.top + rect.height * (1 - y)) + "px";
+    },
+
     LetteraEmoji_Measure: function (text, pixels) {
         var state = Module.letteraEmoji;
         if (!state) {

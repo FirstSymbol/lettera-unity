@@ -1,6 +1,6 @@
 {
   "name": "com.firstsymbol.lettera",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "displayName": "Lettera Text Engine",
   "description": "Text engine for Unity UI and world space: full OpenType shaping (HarfBuzz), bidirectional text, Unicode line breaking, system fonts and fallback, color emoji, a shared SDF atlas, and styles driven by extensible markup.",
   "unity": "6000.0",
@@ -40,6 +40,11 @@
       "displayName": "Basic",
       "description": "A Canvas built from code: mixed scripts, emoji, tags, wrapping, eliding, auto size and runtime text, with no fonts in the project.",
       "path": "Samples~/Basic"
+    },
+    {
+      "displayName": "Fields",
+      "description": "Fields built from code: a chat box, a checked e-mail field, a password, a rich text area with shortcuts, a dropdown and selectable text.",
+      "path": "Samples~/Fields"
     }
   ]
 }

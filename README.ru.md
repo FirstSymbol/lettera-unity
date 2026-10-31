@@ -135,6 +135,24 @@ hold.Release();                    // Снова как в разметке.
 
 **Свой эффект:** **Assets → Create → Lettera → Custom Effect** создаёт шейдер с одной функцией для правки, для стиля **Custom Material**. Он работает на Canvas и в мировом тексте, на Built-in и Universal.
 
+## Выделение и редактирование
+
+```csharp
+gameObject.AddComponent<LetteraSelectable>();           // выделять и копировать
+var field = gameObject.AddComponent<LetteraEditable>(); // и редактировать
+field.AddRule(new SingleLineRule());
+field.AddRule(new MaxLengthRule { Limit = 40 });
+field.Submitted += value => Debug.Log(value);
+```
+
+**GameObject > Lettera** создаёт поле ввода, текстовую область, поле пароля, выпадающий список, выделяемый или редактируемый текст. Пример Fields собирает их все из кода.
+
+- Значение поля — это исходный текст вместе с разметкой: `field.Source`. `field.PlainText` — значение без разметки, а `CopyTo` и `Equals` читают его без аллокаций.
+- Правила держат политику и работают в порядке списка. Фильтр судит о том, что правка оставит после себя, валидатор только сообщает, а декоратор показывает состояние на интерфейсе, который вы назначите.
+- Команды вроде `field.ToggleEffect<BoldEffect>()` пишут в синтаксисе самого поля, и им нужен стиль с этим эффектом: сами они стилей не добавляют.
+- Тексту в мире нужен `LetteraWorldRaycaster` на камере, а любому тексту — `EventSystem` с модулем ввода.
+- До ОС всё доходит через `ILetteraInputSource` и `ILetteraClipboardBackend`, которые можно заменить.
+
 ## Платформы
 
 | Платформа | Нативный плагин | Системные шрифты и эмодзи |

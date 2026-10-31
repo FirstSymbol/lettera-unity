@@ -135,6 +135,24 @@ Several effects share a style through `CompositeEffect`, whose tag value has one
 
 **Your own effect:** **Assets → Create → Lettera → Custom Effect** writes a shader whose one function you edit, for a **Custom Material** style. It works on Canvas and world text, with the Built-in and Universal pipelines.
 
+## Selection and editing
+
+```csharp
+gameObject.AddComponent<LetteraSelectable>();           // select and copy
+var field = gameObject.AddComponent<LetteraEditable>(); // and edit
+field.AddRule(new SingleLineRule());
+field.AddRule(new MaxLengthRule { Limit = 40 });
+field.Submitted += value => Debug.Log(value);
+```
+
+**GameObject > Lettera** creates an input field, text area, password field, dropdown, selectable or editable text. The Fields sample builds all of them from code.
+
+- A field's value is its source text, markup included: `field.Source`. `field.PlainText` is the value without markup, and `CopyTo` and `Equals` read it without allocating.
+- Rules hold the policy and run in list order. A filter judges what an edit leaves behind, a validator only reports, and a decorator shows the state on UI you assign.
+- Commands in `field.ToggleEffect<BoldEffect>()` style write the field's own syntax and need a style that writes that effect: they never add one.
+- World text needs a `LetteraWorldRaycaster` on the camera, and every text an `EventSystem` with an input module.
+- Everything reaches the OS through `ILetteraInputSource` and `ILetteraClipboardBackend`, which you can replace.
+
 ## Platforms
 
 | Platform | Native plugin | System fonts and emoji |

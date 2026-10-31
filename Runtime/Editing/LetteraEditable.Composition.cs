@@ -130,18 +130,22 @@ namespace FirstSymbol.Lettera
         }
 
         /// <summary>The whole text of an OS text box: what changed comes back as one edit. A refused change stays out, and the box follows the field.</summary>
-        internal void Reconcile(string osText)
+        internal void Reconcile(string osText, int osCaret = -1)
         {
             string current = PlainText;
             if (osText == current) return;
             int prefix = 0, oldEnd = current.Length, newEnd = osText.Length;
-            while (prefix < oldEnd && prefix < newEnd && current[prefix] == osText[prefix]) prefix++;
-            while (oldEnd > prefix && newEnd > prefix && current[oldEnd - 1] == osText[newEnd - 1])
+            // What follows the caret did not change, which tells where one of several equal characters went.
+            int floor = osCaret >= 0 ? Mathf.Min(osCaret, osText.Length) : 0;
+            while (oldEnd > 0 && newEnd > floor && current[oldEnd - 1] == osText[newEnd - 1])
             {
                 oldEnd--;
                 newEnd--;
             }
+            while (prefix < oldEnd && prefix < newEnd && current[prefix] == osText[prefix]) prefix++;
             if (prefix > 0 && prefix < current.Length && char.IsLowSurrogate(current[prefix])) prefix--;
+            if (oldEnd < prefix) oldEnd = prefix;
+            if (newEnd < prefix) newEnd = prefix;
             if (oldEnd < current.Length && char.IsLowSurrogate(current[oldEnd]))
             {
                 oldEnd++;
@@ -149,7 +153,7 @@ namespace FirstSymbol.Lettera
             }
             int start = CountCodepoints(current.Substring(0, prefix)), end = start + CountCodepoints(current.Substring(prefix, oldEnd - prefix));
             string inserted = osText.Substring(prefix, newEnd - prefix);
-            string reason = inserted.Length > 0 ? "user.type" : start + 1 == end ? "user.delete.back" : "user.delete.back";
+            string reason = inserted.Length > 0 ? "user.type" : "user.delete.back";
             if (!m_ReadOnly) ProposeEdit(start, end, inserted, reason, null);
         }
     }

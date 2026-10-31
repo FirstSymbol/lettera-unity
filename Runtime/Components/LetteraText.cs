@@ -264,6 +264,19 @@ namespace FirstSymbol.Lettera
             if (!m_Hidden) return;
             m_Hidden = false;
             canvasRenderer.cull = false;
+            // A mask may have wanted it culled meanwhile.
+            RecalculateClipping();
+        }
+
+        // A mask decides about culling on its own, which must not bring a hidden text back.
+        public override void Cull(Rect clipRect, bool validRect)
+        {
+            if (m_Hidden)
+            {
+                canvasRenderer.cull = true;
+                return;
+            }
+            base.Cull(clipRect, validRect);
         }
 
         /// <summary>Rebuilds now, e.g. before reading results in the same frame.</summary>
