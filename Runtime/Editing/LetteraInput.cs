@@ -76,6 +76,8 @@ namespace FirstSymbol.Lettera
                 if (source != null) return source;
             }
             if (NoDefaultSource) return null;
+            ILetteraInputSource native = LetteraNativeHosts.Create();
+            if (native != null) return native;
 #if UNITY_WEBGL && !UNITY_EDITOR
             if (Application.isMobilePlatform || LetteraWebInputSource.LetteraInput_HasCoarsePointer() != 0) return new LetteraWebInputSource();
 #endif

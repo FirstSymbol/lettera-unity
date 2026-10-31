@@ -34,6 +34,7 @@ namespace FirstSymbol.Lettera
         [SerializeField] LetteraEditingSettings m_Editing = new LetteraEditingSettings();
         [SerializeField] LetteraMotionSettings m_Motion = new LetteraMotionSettings();
         [SerializeField] LetteraDocumentSettings m_Documents = new LetteraDocumentSettings();
+        [SerializeField] LetteraPlatformSettings m_Platform = new LetteraPlatformSettings();
         [Tooltip("Word lists for scripts written without spaces. Empty costs nothing: only what is listed reaches a player.")]
         [SerializeField] System.Collections.Generic.List<LetteraWordDictionary> m_Dictionaries = new System.Collections.Generic.List<LetteraWordDictionary>();
 
@@ -76,6 +77,9 @@ namespace FirstSymbol.Lettera
         public LetteraDocumentSettings Documents => m_Documents ?? (m_Documents = new LetteraDocumentSettings());
 
         public System.Collections.Generic.List<LetteraWordDictionary> Dictionaries => m_Dictionaries ?? (m_Dictionaries = new System.Collections.Generic.List<LetteraWordDictionary>());
+
+        /// <summary>Which of a platform's own facilities a project wants.</summary>
+        public LetteraPlatformSettings Platform => m_Platform ?? (m_Platform = new LetteraPlatformSettings());
 
         internal static void RaiseChanged() => Changed?.Invoke();
 

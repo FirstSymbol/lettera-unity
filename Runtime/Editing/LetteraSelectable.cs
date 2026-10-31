@@ -10,7 +10,7 @@ namespace FirstSymbol.Lettera
     [AddComponentMenu("Lettera/Selectable")]
     [DisallowMultipleComponent]
     [ExecuteAlways]
-    public partial class LetteraSelectable : MonoBehaviour, ISelectHandler, IDeselectHandler, IUpdateSelectedHandler, ILetteraInputSink, ILetteraInputHost, ILetteraKeyboardSink
+    public partial class LetteraSelectable : MonoBehaviour, ISelectHandler, IDeselectHandler, IUpdateSelectedHandler, ILetteraInputSink, ILetteraInputHost, ILetteraKeyboardSink, ILetteraMirrorField
     {
         [SerializeField] Color m_HighlightColor;
         [SerializeField] bool m_UseProjectHighlightColor = true;
@@ -826,6 +826,33 @@ namespace FirstSymbol.Lettera
         LetteraKeyboardTraits ILetteraInputHost.Traits => Editable != null ? Editable.KeyboardTraits : default;
 
         void ILetteraKeyboardSink.Reconcile(string text, int caret) => Editable?.Reconcile(text, caret);
+
+        void ILetteraMirrorField.ReplaceRange(int start, int end, string text, string reason) => Editable?.ReplaceUtf16(start, end, text, reason);
+
+        void ILetteraMirrorField.SelectRange(int start, int end)
+        {
+            string plain = ((ILetteraInputHost)this).CommittedPlainText ?? "";
+            Request(new LetteraSelectionRange(CodepointsTo(plain, start), CodepointsTo(plain, end)), "sel.os");
+        }
+
+        void ILetteraMirrorField.ComposeOver(int start, int end, string text, int caret, LetteraClause[] clauses) => Editable?.ComposeOverUtf16(start, end, text, caret, clauses);
+
+        void ILetteraMirrorField.SelectAll() => SelectAll();
+
+        internal static int CodepointsTo(string text, int utf16)
+        {
+            int count = 0;
+            utf16 = Mathf.Clamp(utf16, 0, text.Length);
+            for (int i = 0; i < utf16; i++)
+            {
+                count++;
+                if (char.IsHighSurrogate(text[i]) && i + 1 < text.Length && char.IsLowSurrogate(text[i + 1])) i++;
+            }
+            return count;
+        }
+
+        /// <summary>For tests: one frame of what the input source does.</summary>
+        internal void PumpInputForTests() => m_Source?.Pump();
 
         internal void NotifyKeyboardOfChange()
         {

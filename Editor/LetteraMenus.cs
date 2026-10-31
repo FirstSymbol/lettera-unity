@@ -175,7 +175,7 @@ namespace FirstSymbol.Lettera.Editor
                 return root;
             }
             var serialized = new SerializedObject(settings);
-            page.Add(LtFrame.AllFields(serialized, "Text", "m_Editing", "m_Motion", "m_Documents"));
+            page.Add(LtFrame.AllFields(serialized, "Text", "m_Editing", "m_Motion", "m_Documents", "m_Platform"));
             SerializedProperty editing = serialized.FindProperty("m_Editing");
             var rows = new List<VisualElement>();
             SerializedProperty child = editing.Copy();
@@ -210,6 +210,17 @@ namespace FirstSymbol.Lettera.Editor
                 documentRows.Add(LtFrame.Row(documentChild.Copy()));
             }
             page.Add(LtUI.Card("Documents", documentRows.ToArray()));
+            var platformRows = new List<VisualElement>();
+            SerializedProperty platform = serialized.FindProperty("m_Platform");
+            SerializedProperty platformChild = platform.Copy();
+            SerializedProperty platformEnd = platform.GetEndProperty();
+            bool platformEnter = true;
+            while (platformChild.NextVisible(platformEnter) && !SerializedProperty.EqualContents(platformChild, platformEnd))
+            {
+                platformEnter = false;
+                platformRows.Add(LtFrame.Row(platformChild.Copy()));
+            }
+            page.Add(LtUI.Card("Platform", platformRows.ToArray()));
             page.Add(LtUI.Card("Commands", new LetteraReferenceList(editing.FindPropertyRelative("Commands"), () => LetteraRuleCatalog.Commands)));
             return root;
         }

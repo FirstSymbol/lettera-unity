@@ -129,6 +129,27 @@ namespace FirstSymbol.Lettera
             ComposingChanged?.Invoke(false);
         }
 
+        /// <summary>An exact change a control reported, in UTF-16 units of the plain text.</summary>
+        internal void ReplaceUtf16(int start, int end, string text, string reason)
+        {
+            if (m_ReadOnly) return;
+            string current = PlainText;
+            int from = LetteraSelectable.CodepointsTo(current, start), to = LetteraSelectable.CodepointsTo(current, end);
+            ProposeEdit(from, Mathf.Max(from, to), text ?? "", reason, null);
+        }
+
+        // A composition over a word already in the text: the word is selected for it, so what commits takes its place, and is one undo step with it.
+        internal void ComposeOverUtf16(int start, int end, string text, int caret, LetteraClause[] clauses)
+        {
+            if (m_ReadOnly) return;
+            if (m_CompText == null)
+            {
+                string current = PlainText;
+                Selectable.SetSelectionUnchecked(new LetteraSelectionRange(LetteraSelectable.CodepointsTo(current, start), LetteraSelectable.CodepointsTo(current, end)), "sel.ime");
+            }
+            OnComposition(text, caret, clauses);
+        }
+
         /// <summary>The whole text of an OS text box: what changed comes back as one edit. A refused change stays out, and the box follows the field.</summary>
         internal void Reconcile(string osText, int osCaret = -1)
         {
