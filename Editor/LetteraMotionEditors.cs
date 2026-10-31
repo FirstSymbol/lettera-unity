@@ -368,6 +368,13 @@ namespace FirstSymbol.Lettera.Editor
         }
     }
 
+    [CustomEditor(typeof(LetteraSourceLoader)), CanEditMultipleObjects]
+    internal sealed class LetteraSourceLoaderEditor : LetteraSimpleEditor
+    {
+        protected override string Title => "Source Loader";
+        protected override string Subtitle => "Loads a file, an asset or an address into the text as a document";
+    }
+
     [CustomEditor(typeof(LetteraDocumentScroller)), CanEditMultipleObjects]
     internal sealed class LetteraDocumentScrollerEditor : LetteraSimpleEditor
     {
