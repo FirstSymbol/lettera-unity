@@ -232,3 +232,7 @@ Burmese Word Break Dictionary Data (burmesedict.txt)
  #
  #  ----
 ```
+
+## Color test fonts
+
+`Tests/Fonts~/test_glyphs-glyf_colr_1.ttf` comes from https://github.com/googlefonts/color-fonts under the Apache License 2.0, whose text is in `Tests/Fonts~/color-fonts-LICENSE.txt`. It is used by tests only, and does not ship in player builds.

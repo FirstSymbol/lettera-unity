@@ -74,9 +74,15 @@ namespace FirstSymbol.Lettera
         {
             if (s_Registered) return;
             s_Registered = true;
-            int version = LetteraNative.lt_version();
-            if (version != LetteraNative.ExpectedVersion)
-                Debug.LogError($"Lettera: the native plugin is version {version}, the scripts expect {LetteraNative.ExpectedVersion}. Reinstall the package.");
+            int version = LetteraNative.Version;
+#if UNITY_EDITOR
+            // An editor holds the library it loaded, so after an update this is the normal state until it restarts: what needs the new one just waits.
+            if (version < LetteraNative.CurrentVersion && version >= LetteraNative.MinimumVersion)
+                Debug.LogWarning("Lettera: restart the editor to load the new native plugin. COLRv1 color fonts wait for that; everything else works.");
+            else
+#endif
+            if (version != LetteraNative.CurrentVersion)
+                Debug.LogError($"Lettera: the native plugin is version {version}, the scripts expect {LetteraNative.CurrentVersion}. Reinstall the package.");
             Canvas.willRenderCanvases += GlyphAtlas.Flush;
             InstallLoop();
 #if UNITY_EDITOR

@@ -177,6 +177,11 @@ namespace FirstSymbol.Lettera
         {
             FontFace face = instance.Face;
             if (face.IsVirtual) return CreateBrowserEmoji(glyph);
+            if (face.HasColorPaint && LetteraNative.lt_glyph_has_paint(face.Face, glyph) != 0)
+            {
+                AtlasGlyph painted = CreateColorPaint(instance, glyph);
+                if (painted.Kind != AtlasGlyph.Empty) return painted;
+            }
             if (face.HasColorLayers && LetteraNative.lt_glyph_color_layers(face.Face, glyph, null, null, 0) > 0)
                 return CreateColorLayers(instance, glyph);
             if (face.HasColorBitmaps)
@@ -433,6 +438,50 @@ namespace FirstSymbol.Lettera
                 if (crossing > x) winding += line.w > line.y ? 1 : -1;
             }
             return winding;
+        }
+
+        /// <summary>COLRv1 glyphs painted so far, for a test that a font mixing kinds chooses glyph by glyph.</summary>
+        internal static int PaintedGlyphs { get; private set; }
+
+        static AtlasGlyph CreateColorPaint(FontInstance instance, uint glyph)
+        {
+            float* box = stackalloc float[4];
+            if (LetteraNative.lt_glyph_paint_extents(instance.Font, glyph, box) == 0) return default;
+            float minX = box[0], minY = box[1], maxX = box[2], maxY = box[3];
+            if (maxX <= minX || maxY <= minY) return default;
+
+            float scale = (ColorTileHeight - 2f) / Mathf.Max(maxY - minY, maxX - minX);
+            int originX = Mathf.FloorToInt(minX * scale) - 1, originY = Mathf.FloorToInt(minY * scale) - 1;
+            int width = Mathf.CeilToInt(maxX * scale) + 1 - originX, height = Mathf.CeilToInt(maxY * scale) + 1 - originY;
+
+            // Painted first, so that a failure takes no room in the atlas.
+            var painted = new NativeArray<byte>(width * height * 4, Allocator.Temp);
+            byte* source = (byte*)painted.GetUnsafePtr();
+            // 0x000000FF is opaque black as the library's color order has it. A glyph using the text's color does not follow it, as with COLRv0.
+            if (LetteraNative.lt_glyph_paint_rgba(instance.Font, glyph, scale, 0, 0x000000FFu, originX, originY, source, width, height) == 0
+                || !Allocate(s_Color, width + 2 * Bleed, height + 2 * Bleed, out int page, out int x, out int y))
+            {
+                painted.Dispose();
+                return default;
+            }
+            x += Bleed;
+            y += Bleed;
+            byte* pixels = (byte*)s_Color.Pixels[page];
+            for (int row = 0; row < height; row++)
+                UnsafeUtility.MemCpy(pixels + ((y + row) * PageSize + x) * 4, source + row * width * 4, width * 4);
+            painted.Dispose();
+            PaintedGlyphs++;
+
+            s_Uploads.Add(new PendingUpload { Set = s_Color, Page = page, X = x, Y = y, Width = width, Height = height });
+            return new AtlasGlyph
+            {
+                Kind = AtlasGlyph.Color,
+                Page = (ushort)page,
+                U0 = (float)x / PageSize, V0 = (float)y / PageSize,
+                U1 = (float)(x + width) / PageSize, V1 = (float)(y + height) / PageSize,
+                Left = originX / scale, Bottom = originY / scale,
+                Right = (originX + width) / scale, Top = (originY + height) / scale,
+            };
         }
 
         static AtlasGlyph CreateColorLayers(FontInstance instance, uint glyph)

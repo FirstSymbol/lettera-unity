@@ -7,7 +7,10 @@ namespace FirstSymbol.Lettera.Editor.Tests
         [Test]
         public void NativePluginHasExpectedVersion()
         {
-            Assert.AreEqual(LetteraNative.ExpectedVersion, LetteraNative.lt_version());
+            int version = LetteraNative.lt_version();
+            Assert.GreaterOrEqual(version, LetteraNative.MinimumVersion);
+            Assert.LessOrEqual(version, LetteraNative.CurrentVersion);
+            if (version < LetteraNative.CurrentVersion) Assert.Inconclusive("This editor still holds the older native plugin; a restart loads the new one.");
         }
 
         [Test]

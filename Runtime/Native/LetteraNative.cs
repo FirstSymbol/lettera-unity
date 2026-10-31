@@ -32,7 +32,29 @@ namespace FirstSymbol.Lettera
 #else
         const string Lib = "lettera_native";
 #endif
-        public const int ExpectedVersion = 1;
+        /// <summary>The oldest library these scripts can run against: an editor keeps the one it loaded until it restarts.</summary>
+        public const int MinimumVersion = 1;
+
+        /// <summary>The library this package ships.</summary>
+        public const int CurrentVersion = 2;
+
+        static int s_Version;
+
+        /// <summary>What the loaded library says it is. Every entry newer than version 1 is called only behind this.</summary>
+        public static int Version => s_Version != 0 ? s_Version : s_Version = VersionOverride > 0 ? VersionOverride : lt_version();
+
+        /// <summary>Makes the library look older, for a test.</summary>
+        internal static int VersionOverride
+        {
+            get => s_VersionOverride;
+            set
+            {
+                s_VersionOverride = value;
+                s_Version = 0;
+            }
+        }
+
+        static int s_VersionOverride;
 
         [DllImport(Lib)] public static extern int lt_version();
         [DllImport(Lib)] public static extern int lt_face_count(byte* data, int length);
@@ -63,6 +85,13 @@ namespace FirstSymbol.Lettera
         [DllImport(Lib)] public static extern int lt_glyph_color_layers(IntPtr face, uint glyph, uint* glyphs, uint* colorIndices, int capacity);
         [DllImport(Lib)] public static extern int lt_palette_colors(IntPtr face, int palette, uint* output, int capacity);
         [DllImport(Lib)] public static extern int lt_glyph_png(IntPtr font, uint glyph, byte* output, int capacity);
+
+        // Version 2.
+        [DllImport(Lib)] public static extern int lt_shape_flagged(IntPtr font, int* text, int textLength, int start, int length,
+            int direction, uint script, byte* language, NativeFeature* features, int featureCount, NativeGlyph* output, int capacity);
+        [DllImport(Lib)] public static extern int lt_glyph_has_paint(IntPtr face, uint glyph);
+        [DllImport(Lib)] public static extern int lt_glyph_paint_extents(IntPtr font, uint glyph, float* box);
+        [DllImport(Lib)] public static extern int lt_glyph_paint_rgba(IntPtr font, uint glyph, float scale, int palette, uint foreground, int originX, int originY, byte* rgba, int width, int height);
 
         public static uint Tag(string s) =>
             ((uint)s[0] << 24) | ((uint)s[1] << 16) | ((uint)s[2] << 8) | s[3];

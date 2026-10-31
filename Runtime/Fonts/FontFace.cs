@@ -50,17 +50,22 @@ namespace FirstSymbol.Lettera
         public bool IsItalic { get; private set; }
         public bool HasColorLayers { get; private set; }
         public bool HasColorBitmaps { get; private set; }
+
+        /// <summary>The font holds COLRv1 glyphs. Whether a given glyph does is asked glyph by glyph.</summary>
+        public bool HasColorPaint { get; private set; }
         public bool HasWeightAxis { get; private set; }
         public float WeightAxisMin { get; private set; }
         public float WeightAxisMax { get; private set; }
         public bool IsVirtual { get; private set; }
-        public bool IsColor => HasColorLayers || HasColorBitmaps || IsVirtual;
+        public bool IsColor => HasColorLayers || HasColorBitmaps || HasColorPaint || IsVirtual;
 
         FontFace(IntPtr face)
         {
             Face = face;
             int flags = LetteraNative.lt_face_color_flags(face);
             HasColorLayers = (flags & 1) != 0;
+            // An older library cannot paint these, so the font counts as what else it holds.
+            HasColorPaint = (flags & 2) != 0 && LetteraNative.Version >= 2;
             HasColorBitmaps = (flags & 4) != 0;
             Regular = CreateInstance(-1, 0, 0);
             ReadInfo();
