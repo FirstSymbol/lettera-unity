@@ -10,7 +10,7 @@ namespace FirstSymbol.Lettera
     internal sealed class LetteraWebHost : ILetteraNativeHost
     {
         const string Lib = "__Internal";
-        [DllImport(Lib)] static extern void LetteraHost_Open(string text, int start, int end, int revision, int multiline, int secure, int kind, int returnKey, int autocapitalize, int autocorrect);
+        [DllImport(Lib)] static extern void LetteraHost_Open(string text, int start, int end, int revision, int multiline, int secure, int kind, int returnKey, int autocapitalize, int autocorrect, int spellCheck, string autofill);
         [DllImport(Lib)] static extern void LetteraHost_Push(string text, int start, int end, int revision);
         [DllImport(Lib)] static extern void LetteraHost_Close();
         [DllImport(Lib)] static extern int LetteraHost_Next(int[] ints, byte[] buffer, int size);
@@ -30,7 +30,7 @@ namespace FirstSymbol.Lettera
             m_CapturedKeys = WebGLInput.captureAllKeyboardInput;
             WebGLInput.captureAllKeyboardInput = false;
             m_Open = true;
-            LetteraHost_Open(state.Text, state.SelectionStart, state.SelectionEnd, state.Revision, traits.Multiline ? 1 : 0, traits.Secure ? 1 : 0, (int)traits.Kind, (int)traits.ReturnKey, 0, traits.Autocorrect ? 1 : 0);
+            LetteraHost_Open(state.Text, state.SelectionStart, state.SelectionEnd, state.Revision, traits.Multiline ? 1 : 0, traits.Secure ? 1 : 0, (int)traits.Kind, (int)traits.ReturnKey, (int)traits.AutoCapitalize, traits.Autocorrect ? 1 : 0, (int)traits.SpellCheck, traits.AutofillHint ?? "");
         }
 
         public void Push(in LetteraMirrorState state) => LetteraHost_Push(state.Text, state.SelectionStart, state.SelectionEnd, state.Revision);

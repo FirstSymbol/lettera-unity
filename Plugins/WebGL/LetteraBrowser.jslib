@@ -285,7 +285,7 @@ mergeInto(LibraryManager.library, {
     },
 
     LetteraHost_Open__deps: ["LetteraHost_Ensure"],
-    LetteraHost_Open: function (text, start, end, revision, multiline, secure, kind, returnKey, autocapitalize, autocorrect) {
+    LetteraHost_Open: function (text, start, end, revision, multiline, secure, kind, returnKey, autocapitalize, autocorrect, spellCheck, autofill) {
         _LetteraHost_Ensure();
         var state = Module.letteraInput;
         if (secure) {
@@ -311,13 +311,16 @@ mergeInto(LibraryManager.library, {
         state.queue.length = 0;
         var modes = ["text", "text", "url", "numeric", "decimal", "tel", "text", "email", "search"];
         var keys = ["", "done", "go", "next", "search", "send"];
-        var caps = ["off", "sentences", "words", "characters"];
+        // A hidden box's own underlines and suggestions would not show, so by default it asks for none of them.
+        var caps = ["off", "off", "sentences", "words", "characters"];
         box.setAttribute("inputmode", modes[kind] || "text");
         if (keys[returnKey]) box.setAttribute("enterkeyhint", keys[returnKey]);
         else box.removeAttribute("enterkeyhint");
         box.setAttribute("autocapitalize", caps[autocapitalize] || "off");
         box.setAttribute("autocorrect", autocorrect ? "on" : "off");
-        box.setAttribute("autocomplete", secure ? "off" : "on");
+        var hint = UTF8ToString(autofill);
+        box.setAttribute("autocomplete", hint || (secure ? "off" : "on"));
+        box.spellcheck = spellCheck === 1;
         state.pushing = true;
         box.value = UTF8ToString(text);
         box.setSelectionRange(start, end);

@@ -1023,10 +1023,16 @@ namespace FirstSymbol.Lettera
 
         internal void OnInputAction(string verb)
         {
+            if (!LetteraVerbs.IsKnown(verb))
+            {
+                Debug.LogError("Lettera: a platform's text control sent '" + verb + "', which is no verb of the field's. Nothing was done.");
+                return;
+            }
             switch (verb)
             {
                 case "submit": Submit(); break;
                 case "newline": InsertNewline(); break;
+                case "return": Selectable.Input.Key(LetteraKeyCode.Enter, LetteraKeyModifiers.None, false); break;
                 case "done": CommitComposition(); Selectable.EndSession(LetteraBlurReason.Code); break;
                 case "cancel": Cancel(); Selectable.EndSession(LetteraBlurReason.Cancel); break;
                 case "next": MoveFocus(true); break;
