@@ -59,6 +59,32 @@ namespace FirstSymbol.Lettera
         public bool IsVirtual { get; private set; }
         public bool IsColor => HasColorLayers || HasColorBitmaps || HasColorPaint || IsVirtual;
 
+        /// <summary>Where this face's bytes are.</summary>
+        public LetteraFontSource Source { get; private set; } = LetteraFontSource.Virtual;
+
+        public long RetainedBytes { get; private set; }
+        public long MappedBytes { get; private set; }
+        public int InstanceCount => m_Instances.Count + 1;
+        public int LastUsedFrame { get; set; }
+        bool m_WarnedInstances;
+
+        internal static void CollectMemory(List<LetteraFontMemoryEntry> into)
+        {
+            foreach (FontFace face in s_All)
+                into.Add(new LetteraFontMemoryEntry { Family = face.Family, Style = face.StyleName, Source = face.Source, RetainedBytes = face.RetainedBytes, MappedBytes = face.MappedBytes, InstanceCount = face.InstanceCount, LastUsedFrame = face.LastUsedFrame });
+        }
+
+        internal static void AddMemory(ref LetteraFontMemory.Sums sums)
+        {
+            foreach (FontFace face in s_All)
+            {
+                sums.Faces++;
+                sums.Instances += face.InstanceCount;
+                sums.RetainedBytes += face.RetainedBytes;
+                sums.MappedBytes += face.MappedBytes;
+            }
+        }
+
         FontFace(IntPtr face)
         {
             Face = face;
@@ -87,23 +113,35 @@ namespace FirstSymbol.Lettera
         /// <summary>A face with no font behind it, whose glyphs come from elsewhere.</summary>
         public static FontFace CreateVirtual(int upem, int ascender, int descender) => new FontFace(upem, ascender, descender);
 
-        public static FontFace FromBytes(byte[] bytes, int index)
+        public static FontFace FromBytes(byte[] bytes, int index, LetteraFontSource source = LetteraFontSource.InMemory)
         {
             if (bytes == null || bytes.Length == 0) return null;
             fixed (byte* p = bytes)
             {
                 IntPtr face = LetteraNative.lt_face_create(p, bytes.Length, index);
-                return face == IntPtr.Zero ? null : new FontFace(face);
+                if (face == IntPtr.Zero) return null;
+                // The library copies them, whatever then happens to this array.
+                return new FontFace(face) { Source = source, RetainedBytes = bytes.Length };
             }
         }
 
-        public static FontFace FromFile(string path, int index)
+        public static FontFace FromFile(string path, int index, LetteraFontSource source = LetteraFontSource.SystemMapped)
         {
             byte[] utf8 = NullTerminated(path);
             fixed (byte* p = utf8)
             {
                 IntPtr face = LetteraNative.lt_face_create_from_file(p, index);
-                return face == IntPtr.Zero ? null : new FontFace(face);
+                if (face == IntPtr.Zero) return null;
+                long length = 0;
+                try
+                {
+                    length = new System.IO.FileInfo(path).Length;
+                }
+                catch (System.IO.IOException)
+                {
+                    // Only a figure: the face is open.
+                }
+                return new FontFace(face) { Source = source, MappedBytes = length };
             }
         }
 
@@ -149,6 +187,12 @@ namespace FirstSymbol.Lettera
             {
                 instance = CreateInstance(weightAxis, embolden, slant, axes);
                 m_Instances[key] = instance;
+                int limit = LetteraSettings.Instance.FontMemory.MaxInstancesPerFace;
+                if (!m_WarnedInstances && limit > 0 && InstanceCount > limit)
+                {
+                    m_WarnedInstances = true;
+                    UnityEngine.Debug.LogWarning($"Lettera: font '{Family}' holds over {limit} variation and synthesis instances. Nothing is evicted, so check for a setting that animates an axis in many small steps.");
+                }
             }
             return instance;
         }
