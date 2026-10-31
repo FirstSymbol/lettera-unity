@@ -12,7 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 8d20bcc66100fdc4ba1fca0fefbd43ab, type: 3}
   m_Name: Myanmar Words
   m_EditorClassIdentifier: FirstSymbol.Lettera::FirstSymbol.Lettera.LetteraWordDictionary
-  m_Script: 3
+  m_WritingSystem: 3
   m_Data: {fileID: 4900000, guid: 6e740a244ec52e240a11436d8f27e6a4, type: 3}
   m_SourceNotice: Burmese Word Break Dictionary Data (burmesedict.txt)
   m_WordCount: 41120

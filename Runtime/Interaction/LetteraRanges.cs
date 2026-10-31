@@ -696,6 +696,7 @@ namespace FirstSymbol.Lettera
                 next = (next + m_Focusable.Count) % m_Focusable.Count;
             }
             SetFocus(m_Focusable[next], true);
+            RevealFocused();
             return true;
         }
 
@@ -768,6 +769,20 @@ namespace FirstSymbol.Lettera
         public void ClearFocus() => SetFocus(0, false);
 
         internal void FocusRange(int id) => SetFocus(id, false);
+
+        /// <summary>What a focus step brings its range into view through. Empty finds a scroller above the text.</summary>
+        public ILetteraRangeViewport Viewport { get; set; }
+
+        readonly List<Rect> m_RevealRects = new List<Rect>();
+
+        void RevealFocused()
+        {
+            ILetteraRangeViewport viewport = Viewport ?? (m_Text is Component component ? component.GetComponentInParent<ILetteraRangeViewport>() : null);
+            if (viewport == null || m_Focused == 0) return;
+            m_RevealRects.Clear();
+            m_Engine.ActiveRectsOf(m_Focused, m_RevealRects);
+            if (m_RevealRects.Count > 0) viewport.Reveal(m_RevealRects[0], LetteraRevealAlign.Nearest);
+        }
 
         void ClearFocusRing()
         {

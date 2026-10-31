@@ -11,14 +11,14 @@ namespace FirstSymbol.Lettera
     [CreateAssetMenu(fileName = "Word Dictionary", menuName = "Lettera/Word Dictionary", order = 96)]
     public class LetteraWordDictionary : ScriptableObject
     {
-        [SerializeField] LetteraDictionaryScript m_Script;
+        [SerializeField] LetteraDictionaryScript m_WritingSystem;
         [Tooltip("The built automaton.")]
         [SerializeField] TextAsset m_Data;
         [Tooltip("What the source of the words asks to be kept with them.")]
         [SerializeField, TextArea] string m_SourceNotice = "";
         [SerializeField] int m_WordCount;
 
-        public LetteraDictionaryScript Script { get => m_Script; set => m_Script = value; }
+        public LetteraDictionaryScript Script { get => m_WritingSystem; set => m_WritingSystem = value; }
         public TextAsset Data { get => m_Data; set => m_Data = value; }
         public string SourceNotice { get => m_SourceNotice; set => m_SourceNotice = value; }
         public int WordCount { get => m_WordCount; set => m_WordCount = value; }

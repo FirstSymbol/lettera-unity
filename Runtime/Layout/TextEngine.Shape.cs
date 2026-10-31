@@ -100,7 +100,13 @@ namespace FirstSymbol.Lettera
                 : data.BaseDirection == LetteraDirection.LeftToRight ? 0 : data.BaseDirection == LetteraDirection.RightToLeft ? 1 : 2;
             int baseLevel = direction == 2 ? -1 : direction;
 
-            int start = 0;
+            bool parallel = ShapesInParallel(length);
+            if (parallel)
+            {
+                BaseLevelForSlots = baseLevel;
+                ShapeParagraphsInParallel(length, baseLevel);
+            }
+            int start = parallel ? length + 1 : 0;
             while (start <= length)
             {
                 int i = start;
@@ -280,7 +286,9 @@ namespace FirstSymbol.Lettera
             int index = m_Runs.Count;
             for (int i = run.Start; i < end; i++) m_CpRun[i] = index;
             run.GlyphStart = m_ShapedCount;
-            if (run.Instance != null) ShapeRun(ref run, paragraph);
+            // A face drawn by the browser only exists on the web, where nothing runs in parallel, so a deferred run always has a real one.
+            if (run.Instance != null && m_DeferShaping) DeferShaping(ref run);
+            else if (run.Instance != null) ShapeRun(ref run, paragraph);
             m_Runs.Add(run);
         }
 

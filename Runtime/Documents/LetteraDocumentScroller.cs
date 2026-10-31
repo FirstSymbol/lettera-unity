@@ -5,6 +5,46 @@ using UnityEngine.UI;
 
 namespace FirstSymbol.Lettera
 {
+    /// <summary>Something a text is seen through, which can bring a part of it into view.</summary>
+    public interface ILetteraRangeViewport
+    {
+        /// <summary>What can be seen, in the text's local space.</summary>
+        Rect VisibleRect(Transform text);
+
+        /// <summary>Brings a rect of the text's local space into view.</summary>
+        void Reveal(Rect local, LetteraRevealAlign align);
+    }
+
+    /// <summary>A plain Canvas text inside a Scroll Rect, for focus steps and for what brings a range into view.</summary>
+    public sealed class ScrollRectViewport : ILetteraRangeViewport
+    {
+        readonly ScrollRect m_Scroll;
+
+        public ScrollRectViewport(ScrollRect scroll) => m_Scroll = scroll;
+
+        RectTransform Viewport => m_Scroll.viewport != null ? m_Scroll.viewport : (RectTransform)m_Scroll.transform;
+
+        public Rect VisibleRect(Transform text)
+        {
+            RectTransform viewport = Viewport;
+            Rect rect = viewport.rect;
+            Vector3 a = text.InverseTransformPoint(viewport.TransformPoint(rect.min)), b = text.InverseTransformPoint(viewport.TransformPoint(rect.max));
+            return Rect.MinMaxRect(Mathf.Min(a.x, b.x), Mathf.Min(a.y, b.y), Mathf.Max(a.x, b.x), Mathf.Max(a.y, b.y));
+        }
+
+        public void Reveal(Rect local, LetteraRevealAlign align)
+        {
+            RectTransform content = m_Scroll.content;
+            if (content == null) return;
+            Rect visible = VisibleRect(content);
+            Vector3 world = content.parent != null ? content.parent.InverseTransformVector(content.TransformVector(Vector3.up)) : Vector3.up;
+            float move = 0;
+            if (local.yMax > visible.yMax) move = visible.yMax - local.yMax;
+            else if (local.yMin < visible.yMin) move = visible.yMin - local.yMin;
+            if (move != 0) content.anchoredPosition += new Vector2(0, move * world.y);
+        }
+    }
+
     public enum LetteraScrollMovement { Elastic, Clamped }
     public enum LetteraScrollStart { Top, End }
 
@@ -16,8 +56,26 @@ namespace FirstSymbol.Lettera
     [RequireComponent(typeof(RectTransform))]
     [DisallowMultipleComponent]
     [ExecuteAlways]
-    public class LetteraDocumentScroller : UIBehaviour, IInitializePotentialDragHandler, IBeginDragHandler, IDragHandler, IEndDragHandler, IScrollHandler, IMotionClient
+    public class LetteraDocumentScroller : UIBehaviour, IInitializePotentialDragHandler, IBeginDragHandler, IDragHandler, IEndDragHandler, IScrollHandler, IMotionClient, ILetteraRangeViewport
     {
+        public Rect VisibleRect(Transform text)
+        {
+            var rect = (RectTransform)transform;
+            Rect own = rect.rect;
+            Vector3 a = text.InverseTransformPoint(rect.TransformPoint(own.min)), b = text.InverseTransformPoint(rect.TransformPoint(own.max));
+            return Rect.MinMaxRect(Mathf.Min(a.x, b.x), Mathf.Min(a.y, b.y), Mathf.Max(a.x, b.x), Mathf.Max(a.y, b.y));
+        }
+
+        public void Reveal(Rect local, LetteraRevealAlign align)
+        {
+            Rect visible = VisibleRect(m_Text.transform);
+            float move = 0;
+            if (align == LetteraRevealAlign.Center) move = visible.center.y - local.center.y;
+            else if (align == LetteraRevealAlign.Top || (align == LetteraRevealAlign.Nearest && local.yMax > visible.yMax)) move = visible.yMax - local.yMax;
+            else if (align == LetteraRevealAlign.Bottom || (align == LetteraRevealAlign.Nearest && local.yMin < visible.yMin)) move = visible.yMin - local.yMin;
+            if (move != 0) MoveTo(m_Position + move);
+        }
+
         [Tooltip("The text it moves. Empty looks among the children.")]
         [SerializeField] LetteraText m_Text;
         [SerializeField] LetteraScrollMovement m_MovementType;

@@ -12,7 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 8d20bcc66100fdc4ba1fca0fefbd43ab, type: 3}
   m_Name: Khmer Words
   m_EditorClassIdentifier: FirstSymbol.Lettera::FirstSymbol.Lettera.LetteraWordDictionary
-  m_Script: 2
+  m_WritingSystem: 2
   m_Data: {fileID: 4900000, guid: 9e97615940954304a976325567f22718, type: 3}
   m_SourceNotice: ICU word break dictionaries
   m_WordCount: 81028

@@ -4,6 +4,53 @@ All notable changes to this package are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.5.0] - 2026-10-31
+
+Documents and performance: text of any length through one window, shared caches, word dictionaries and threads.
+
+### Added
+- **Rope.** `LetteraRope` keeps a document's source in blocks, with totals in a tree, so position queries read at most one block. `LetteraFileSource.Load` maps a UTF-8 file and decodes only what is read. UTF-16, UTF-32, byte-order marks and invalid UTF-8 are handled.
+- **Documents.** `OpenDocument` shows a rope through one window near the view, through the same pipeline as any text, so selection, ranges and motion work in it. A scroll inside the window is a pose, with no rebuild. A tag opened far before the window stays in force. Heights start as estimates and are measured in the background, and a correction above the view moves nothing under it.
+- **Document scroller.** `LetteraDocumentScroller`: drag, wheel, inertia, elastic ends, scrollbars and sticking to the end, on a document or any plain Canvas text.
+- **Sources.** `LetteraSourceLoader` with `LetteraPathSource`, `LetteraTextAssetSource` and `LetteraUrlTextSource`. A failed or cancelled load leaves the text as it was.
+- **Editable documents.** A `LetteraEditable` on a document edits the rope, keeps a selection in source positions through scrolling, and undo goes back to where its edit was.
+- **Search.** `LetteraDocumentSearch` reads a slice at a time, in the source or in what is shown, and finds a word split by a tag or across a block's edge.
+- **Bars.** A document too small on screen to read draws bars in place of glyphs.
+- **Word dictionaries.** `LetteraWordDictionary` breaks lines and selects by words in Thai, Lao, Khmer and Myanmar, and word motions count those words. Four are shipped, built from ICU's lists. They are off until listed in the settings, so a project that lists none has no dictionary bytes. The inspector builds your own from a word list.
+- **Caches.** A paragraph with the same characters and shaping attributes shapes once, across every text. Font fallback is shared per font set.
+- **Threads.** `LetteraWorkers` runs analysis and shaping of big texts across threads in players, with results byte for byte the same as inline. The web has no threads, and runs the same code inline.
+- **Color with no mesh pass.** After a text's first color change, later ones only rewrite its glyphs' colors.
+- **Shader warm-up.** `LetteraShaderWarmUp.Run` and `RunProgressively`, by surface tier.
+- **Viewports.** `ILetteraRangeViewport`, implemented by the scroller and by `ScrollRectViewport`. A keyboard focus step brings its range into view through one.
+- A Documents sample, and Project Settings for documents and dictionaries.
+
+### Fixed
+- After a width change, hit areas and `OnPlaced` could stay as they were: positions run ahead of the frame's rebuild took a path that skipped them. In 0.4.0 a link could answer where it no longer stood.
+- A range leaving the text now ends what its listeners heard begin: `Exited`, and `Released` as cancelled.
+- The motion allocation tests of 0.4.0 used a counter that always reads 0 on Unity's Mono, so they could not fail. With a working counter and a control, the three rows measured still come to 0 bytes.
+
+### Changed
+- `LinkEffect`'s neighbors in a window keep their ids through scrolling only if they hold state: a range with no state gets a new id when it comes back. Ids are never reused.
+- A typed `U+FFFC` stays dropped, and a marquee is refused on a text with a viewport.
+
+### Limits
+- **Not done, on purpose, each named by the spec as what may slip:** the word-shape cache, which needs a native change and so a restart of a running editor (one long paragraph with a keystroke still reshapes all of it); mesh building on threads; threads across different texts, so 1000 labels do not get faster from them, only from the paragraph cache; pose on threads.
+- **Not done, by a measured decision:** incremental parse. Every keystroke still parses the window or field again. At 10 000 codepoints that was about 1 ms of 8.5, and mesh building 4.9.
+- An edit of a selection that reaches past the window is **refused whole**, with one warning, so nothing is half deleted: select all and delete does not work on a document yet. Copy of such a selection works.
+- The Chinese and Japanese word list is not shipped, because its older notices want a qualified reading. A project can build its own. Dictionaries and their word search were checked against a few sentences, not against ICU's own results on a corpus.
+- `CameraViewport` for world text does not exist: a world text's window follows `View`, and nothing clips it. A windowed text is not refused inside a `ScrollRect`, though it should be. List numbers do not carry across a window's edge. Rounded ends of ranges cut by a window are not handled.
+- Document rules that need the whole value are not skipped with a warning; a rule reads the window. `Source` on a document returns the window's source, not the whole. `Length` and `PlainText` answer for the window.
+- `AutoSize` shows at the smallest size on a document and elide is ignored, with no inspector chip yet. Inspectors of the new components are plain field lists in the Lettera style, and there are no chips for missing dictionaries, a dictionary toggle list, or a loader's source picker beyond the list of fields.
+- A rope query takes about 5 times as long on 100 MB as on 100 KB (0.24 us at the top), against the target of 2 times. The 50 MB heap target was not measured, and a block costs more than the target allows for by estimate. The rope's fuzz ran 6 000 edits, not 100 000.
+- `EditingTests.AnIdleFieldRebuildsNothing` failed once, at 3740 bytes, in 1 of 3 full runs, and passes alone. The cause was not found.
+
+### Verified
+- EditMode 1031 tests (1030 pass, 1 inconclusive, since it needs a font without real small caps), PlayMode 24. Parallel shaping is byte-identical to inline on 7 kinds of text at 1, 2 and 4 threads, and through 40 random texts.
+- Against the 0.4.0 tag built the same way, in turns, median of 5 runs, on a Windows Mono player, since this machine has no Windows IL2CPP module. Plain text stays within its 5%: 64 labels changing each frame 1.62 to 1.63 ms, level Layout +1.7%, level Mesh +0.6%, alpha +0.6%. Better: color on 100 labels 1.92 to 0.71 ms, one world label's change 0.131 to 0.089 ms, level Shape 0.039 to 0.027 ms, 500 labels' first build 121 to 110 ms.
+- In the editor, which the targets are not set for: a keystroke at 10 000 codepoints in 100 paragraphs 8.5 ms, of which shaping 0.53 against about 5 before; in one paragraph of 10 000 still 12.8. A keystroke in a 12 MB document 2 to 3.5 ms, at either end. 123 000 codepoints shape in 76 ms inline and 44 ms on 4 threads. 2000 waving glyphs 0.66 ms with no upload, against 0.6 ms that includes one, so that row is still missed. A hit test over 200 ranges 7.7 us, from 21.8.
+- Builds succeed with no errors for Windows, Linux, macOS, iOS, Android and the web, in a clean project.
+- A player self-test with a document, a scroll, a jump, an edit, a search and a warm-up passes on Windows (Direct3D 12) and on the web in Chromium, WebKit and WebKit's iPhone emulation. On Windows it also reads a mapped file and shapes on 4 threads.
+
 ## [0.4.0] - 2026-10-31
 
 Animation and interaction: text that moves with no rebuild, ranges that answer a pointer and a keyboard, and things that stand in the flow.

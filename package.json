@@ -1,6 +1,6 @@
 {
   "name": "com.firstsymbol.lettera",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "displayName": "Lettera Text Engine",
   "description": "Text engine for Unity UI and world space: full OpenType shaping (HarfBuzz), bidirectional text, Unicode line breaking, system fonts and fallback, color emoji, a shared SDF atlas, and styles driven by extensible markup.",
   "unity": "6000.0",
@@ -50,6 +50,11 @@
       "displayName": "Motion",
       "description": "Built from code: every motion, a typewriter, a ticker, a link, a spoiler, a hover rule and an inline sprite.",
       "path": "Samples~/Motion"
+    },
+    {
+      "displayName": "Documents",
+      "description": "Built from code: a very long document in a scrolling view, searched and jumped through.",
+      "path": "Samples~/Documents"
     }
   ]
 }

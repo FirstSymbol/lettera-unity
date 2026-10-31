@@ -166,6 +166,18 @@ field.Submitted += value => Debug.Log(value);
 - **`LetteraRangeRule`** changes parameters on hover, press or focus. **Inline items** come from `InlineEffect` or a `LetteraInlineLibrary`. **`LetteraSemanticTree`** describes ranges for an assistive bridge. Effects can join any stage of a rebuild through `Stages`.
 - `LetteraAccessibility.ReducedMotion` is honored everywhere, and on the web it follows the browser.
 
+## Documents
+
+```csharp
+text.OpenDocument(LetteraFileSource.Load(path), takeOwnership: true);   // Or LetteraRope.FromString(...), or a Source Loader component.
+scrollerObject.AddComponent<LetteraDocumentScroller>().Text = text;
+text.View.ScrollToParagraph(1000);
+```
+
+- Only what is near the view is laid out, and a scroll inside that is no rebuild. A file is mapped and decoded only as read.
+- A `LetteraEditable` on the same text edits the document. `LetteraDocumentSearch` finds text a slice at a time.
+- Thai, Lao, Khmer and Myanmar break by words once a `LetteraWordDictionary` is listed in the project settings. Nothing is listed by default, so nothing is added to a build.
+
 ## Platforms
 
 | Platform | Native plugin | System fonts and emoji |

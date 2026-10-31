@@ -266,16 +266,25 @@ namespace FirstSymbol.Lettera
             return h;
         }
 
-        bool TryRestoreParagraph(long hash, ref Paragraph paragraph, int start, int count, int baseLevel, string language)
+        // The hash only finds a candidate. Only equal characters and attributes may use it, so a collision can never draw the wrong text.
+        bool ParagraphIsCached(long hash, int start, int count, int baseLevel, string language) => FindParagraph(hash, start, count, baseLevel, language) != null;
+
+        ParagraphEntry FindParagraph(long hash, int start, int count, int baseLevel, string language)
         {
             if (!s_Paragraphs.TryGetValue(hash, out ParagraphEntry entry) || entry.Count != count || entry.ChainId != m_Chain.Id || entry.BaseLevel != baseLevel ||
                 entry.SizeMatch != m_Attributes.SizeMatchOverride || entry.Language != language)
-                return false;
-            // The hash only finds a candidate. Only equal characters and attributes may use it, so a collision can never draw the wrong text.
-            if (!new ReadOnlySpan<int>(m_Text, start, count).SequenceEqual(new ReadOnlySpan<int>(entry.Text, 0, count))) return false;
+                return null;
+            if (!new ReadOnlySpan<int>(m_Text, start, count).SequenceEqual(new ReadOnlySpan<int>(entry.Text, 0, count))) return null;
             for (int i = 0; i < count; i++)
                 if ((m_SignaturesPlain ? 0 : m_CpSignature[start + i]) != entry.Signature[i])
-                    return false;
+                    return null;
+            return entry;
+        }
+
+        bool TryRestoreParagraph(long hash, ref Paragraph paragraph, int start, int count, int baseLevel, string language)
+        {
+            ParagraphEntry entry = FindParagraph(hash, start, count, baseLevel, language);
+            if (entry == null) return false;
 
             Unlink(entry);
             LinkNewest(entry);
@@ -314,10 +323,13 @@ namespace FirstSymbol.Lettera
             return true;
         }
 
-        void StoreParagraph(long hash, in Paragraph paragraph, int start, int count, int baseLevel, string language, int firstRun, int firstGlyph)
+        void StoreParagraph(long hash, in Paragraph paragraph, int start, int count, int baseLevel, string language, int firstRun, int firstGlyph, int endRun = -1)
         {
-            int runCount = m_Runs.Count - firstRun, glyphCount = m_ShapedCount - firstGlyph;
-            for (int r = firstRun; r < m_Runs.Count; r++)
+            if (endRun < 0) endRun = m_Runs.Count;
+            int runCount = endRun - firstRun;
+            int glyphCount = 0;
+            for (int r = firstRun; r < endRun; r++) glyphCount += m_Runs[r].GlyphCount;
+            for (int r = firstRun; r < endRun; r++)
                 if (m_Runs[r].Instance == null || m_Runs[r].Instance.Face.IsVirtual)
                     return;
 

@@ -1,0 +1,17 @@
+{
+    "name": "FirstSymbol.Lettera.Samples.Documents",
+    "rootNamespace": "FirstSymbol.Lettera.Samples",
+    "references": [
+        "FirstSymbol.Lettera",
+        "UnityEngine.UI"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

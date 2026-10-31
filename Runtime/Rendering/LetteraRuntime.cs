@@ -143,6 +143,7 @@ namespace FirstSymbol.Lettera
         /// <summary>Releases native fonts and atlas memory; nothing survives a domain reload.</summary>
         public static void Shutdown()
         {
+            LetteraWorkers.Shutdown();
             LetteraMotionHub.Shutdown();
             LetteraWorldBatcher.Shutdown();
             GlyphAtlas.Shutdown();

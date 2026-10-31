@@ -166,6 +166,18 @@ field.Submitted += value => Debug.Log(value);
 - **`LetteraRangeRule`** меняет параметры при наведении, нажатии или фокусе. **Инлайн-элементы** берутся из `InlineEffect` или `LetteraInlineLibrary`. **`LetteraSemanticTree`** описывает диапазоны для моста к экранным дикторам. Эффекты могут участвовать в любой стадии перестроения через `Stages`.
 - `LetteraAccessibility.ReducedMotion` учитывается везде, а в вебе следует настройке браузера.
 
+## Документы
+
+```csharp
+text.OpenDocument(LetteraFileSource.Load(path), takeOwnership: true);   // Или LetteraRope.FromString(...), или компонент Source Loader.
+scrollerObject.AddComponent<LetteraDocumentScroller>().Text = text;
+text.View.ScrollToParagraph(1000);
+```
+
+- Размечается только то, что рядом с видимой областью, а прокрутка внутри неё обходится без перестроения. Файл отображается в память и декодируется только при чтении.
+- `LetteraEditable` на том же тексте редактирует документ. `LetteraDocumentSearch` ищет текст порциями, не занимая кадр целиком.
+- Тайский, лаосский, кхмерский и бирманский переносятся по словам, когда `LetteraWordDictionary` указан в настройках проекта. По умолчанию словарей нет, и в сборку они не попадают.
+
 ## Платформы
 
 | Платформа | Нативный плагин | Системные шрифты и эмодзи |
