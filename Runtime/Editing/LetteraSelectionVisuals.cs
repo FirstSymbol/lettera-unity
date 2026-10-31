@@ -340,6 +340,8 @@ namespace FirstSymbol.Lettera
                 area.xMax += m_Padding;
                 area.yMax += m_Padding;
                 if (!area.Contains(local)) continue;
+                if (text.Route == LetteraRoute.None) continue;
+                if (text.Route == LetteraRoute.Ranges && LetteraRangeRouter.Of((ITextComponent)text).HitTest(eventData.position, camera) == 0) continue;
                 resultAppendList.Add(new RaycastResult
                 {
                     gameObject = text.gameObject, module = this, distance = distance, worldPosition = point, worldNormal = -rect.forward,

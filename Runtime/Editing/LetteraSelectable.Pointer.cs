@@ -27,7 +27,7 @@ namespace FirstSymbol.Lettera
         static Type s_PointerTypeOwner;
 
         // The Input System package reports what pressed through its own event data, which this assembly does not reference.
-        static LetteraPointerKind Classify(PointerEventData data)
+        internal static LetteraPointerKind Classify(PointerEventData data)
         {
             if (ClassifyOverride != null) return ClassifyOverride(data);
             Type type = data.GetType();
@@ -60,6 +60,11 @@ namespace FirstSymbol.Lettera
             {
                 // A second finger cancels the first, without a click.
                 m_Cancelled = true;
+                if (m_Claimed)
+                {
+                    m_Claimed = false;
+                    RangeRouter?.CancelPress();
+                }
                 HideLoupe();
                 return;
             }
@@ -77,6 +82,7 @@ namespace FirstSymbol.Lettera
 
             bool secondary = data.button == PointerEventData.InputButton.Right || (data.button == PointerEventData.InputButton.Left && LetteraKeyTable.Family == LetteraPlatformFamily.Apple && IsControlHeld());
             if (data.button == PointerEventData.InputButton.Middle) return;
+            if (TryRangePress(data, secondary)) return;
             if (secondary)
             {
                 Activate();
@@ -105,6 +111,40 @@ namespace FirstSymbol.Lettera
             m_SelectionDrag = true;
             IsSelecting = true;
             DragStarted?.Invoke(m_Selection.Head);
+        }
+
+        bool m_Claimed;
+
+        /// <summary>True while a range holds this press: selection stays as it is, and no selection event goes out.</summary>
+        public bool Claimed => m_Claimed;
+
+        LetteraRangeRouter RangeRouter => Engine.ActiveRanges.Count > 0 ? LetteraRangeRouter.Of(Host) : null;
+
+        /// <summary>Control, or Command on Apple systems: what makes a range in a field answer.</summary>
+        internal static bool IsLinkModifierHeld => s_LinkModifierOverride ?? (LetteraKeyTable.Family == LetteraPlatformFamily.Apple ? LegacyKey(KeyCode.LeftCommand) || LegacyKey(KeyCode.RightCommand) : IsControlHeld());
+
+        internal static bool? s_LinkModifierOverride;
+
+        // Only one object handles a press: the router first on what only reads, and on a field only with the modifier.
+        bool TryRangePress(PointerEventData data, bool secondary)
+        {
+            LetteraRangeRouter router = RangeRouter;
+            if (router == null) return false;
+            bool editing = Editable != null && !Editable.ReadOnly;
+            if (editing && (secondary || !IsLinkModifierHeld)) return false;
+            if (secondary) return router.Press(data);
+
+            // A second press on the same spot is a double click, which selects the word.
+            LetteraEditingSettings settings = LetteraSettings.Instance.Editing;
+            float seconds = m_Touch ? settings.MultiTapSeconds : settings.MultiClickSeconds;
+            float slop = LetteraEditingSettings.Dp(m_Touch ? settings.MultiTapSlop : settings.MultiClickSlop);
+            if (LetteraEditClock.Now - m_LastClickTime <= seconds && (data.position - m_LastClickPosition).magnitude <= slop) return false;
+
+            if (!router.Press(data, true)) return false;
+            CountClick(data.position, seconds, slop);
+            m_Claimed = true;
+            m_Pressed = true;
+            return true;
         }
 
         void CountClick(Vector2 position, float seconds, float slop)
@@ -203,6 +243,11 @@ namespace FirstSymbol.Lettera
             m_Moved = true;
             if (m_Touch && !m_SelectionDrag && !m_LongPressed)
             {
+                if (m_Claimed)
+                {
+                    m_Claimed = false;
+                    RangeRouter?.CancelPress();
+                }
                 // A swipe that did not hold first belongs to whatever scrolls.
                 m_Passing = true;
                 m_Pressed = false;
@@ -219,6 +264,20 @@ namespace FirstSymbol.Lettera
         public void OnDrag(PointerEventData data)
         {
             if (!m_Pressed || m_Cancelled || m_Passing) return;
+            if (m_Claimed)
+            {
+                m_PointerPosition = data.position;
+                LetteraRangeRouter router = RangeRouter;
+                if (router != null && !router.DragTo(data)) return;
+                // Past the slop the press stops being one, and a mouse goes on to select from where it began.
+                m_Claimed = false;
+                m_ClickCount = 1;
+                Activate();
+                ApplyClick(m_PressPosition, false);
+                m_SelectionDrag = true;
+                IsSelecting = true;
+                DragStarted?.Invoke(m_Selection.Head);
+            }
             if ((data.position - m_PressPosition).magnitude > 0) m_Moved = true;
             m_PointerPosition = data.position;
             ExtendDragTo(data.position);
@@ -261,6 +320,12 @@ namespace FirstSymbol.Lettera
             if (data.pointerId != m_PointerId) return;
             bool wasPressed = m_Pressed;
             m_Pressed = false;
+            if (m_Claimed)
+            {
+                m_Claimed = false;
+                RangeRouter?.Release(data);
+                return;
+            }
             if (IsSelecting)
             {
                 IsSelecting = false;
@@ -316,8 +381,21 @@ namespace FirstSymbol.Lettera
         void TickPointer()
         {
             if (!m_Pressed || !m_Touch || m_Cancelled || m_LongPressed || m_SelectionDrag || m_Moved) return;
-            if (LetteraEditClock.Now - m_PressTime < LetteraSettings.Instance.Editing.LongPressSeconds) return;
+            float hold = LetteraSettings.Instance.Editing.LongPressSeconds;
+            if (LetteraEditClock.Now - m_PressTime < hold)
+            {
+                if (m_Claimed) RangeRouter?.HoldProgress(hold > 0 ? (float)((LetteraEditClock.Now - m_PressTime) / hold) : 1);
+                return;
+            }
             m_LongPressed = true;
+            if (m_Claimed)
+            {
+                LetteraRangeRouter router = RangeRouter;
+                // Someone took the menu to themselves: selection stays out of it, and the release activates nothing.
+                if (router != null && router.HoldEnded()) return;
+                m_Claimed = false;
+                router?.CancelPress();
+            }
             Activate();
             int hit = HitTest(m_PointerPosition, m_PointerCamera, out LetteraCaretBias bias);
             bool insideSelection = !m_Selection.IsCaret && hit >= m_Selection.Start && hit <= m_Selection.End;
@@ -339,6 +417,11 @@ namespace FirstSymbol.Lettera
 
         void OnDisablePointer()
         {
+            if (m_Claimed)
+            {
+                m_Claimed = false;
+                RangeRouter?.CancelPress();
+            }
             m_Pressed = false;
             IsSelecting = false;
             HideHandles();

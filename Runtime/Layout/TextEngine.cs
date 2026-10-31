@@ -37,6 +37,9 @@ namespace FirstSymbol.Lettera
 
         /// <summary>A text this can clip to scroll within.</summary>
         bool SupportsMarquee { get; }
+
+        /// <summary>The ranges that take input changed.</summary>
+        void ActiveRangesChanged(bool any);
     }
 
     /// <summary>
@@ -83,7 +86,10 @@ namespace FirstSymbol.Lettera
             if (level > m_Dirty) m_Dirty = level;
         }
 
-        bool m_Reapply;
+        bool m_Reapply, m_SemanticsStale;
+
+        /// <summary>A rebuild moved or changed what a semantic tree reads.</summary>
+        public event Action SemanticsChanged;
 
         /// <summary>An effect's parameter changed: runs the effects again on the ranges already found, then the passes from a level up.</summary>
         public void ReapplyEffects(DirtyLevel level)
@@ -180,7 +186,10 @@ namespace FirstSymbol.Lettera
             }
             if (level >= DirtyLevel.Positions)
             {
+                m_ActiveRectsValid = false;
+                m_SemanticsStale = true;
                 PositionGlyphs();
+                RunPlacedHooks();
                 LastChanges |= LetteraChanges.Positions;
             }
             if (level >= DirtyLevel.Mesh)
@@ -193,6 +202,13 @@ namespace FirstSymbol.Lettera
                 ApplyBaseColor();
                 if (m_WantsPose) RunPosePass();
                 LastChanges |= LetteraChanges.Mesh;
+            }
+            ApplyHookStale();
+            if (level >= DirtyLevel.Mesh) RaiseInlinePlaced();
+            if (m_SemanticsStale)
+            {
+                m_SemanticsStale = false;
+                SemanticsChanged?.Invoke();
             }
             return true;
         }
@@ -249,6 +265,7 @@ namespace FirstSymbol.Lettera
             public void PoseChanged() { }
             public bool IsDrawn => false;
             public bool SupportsMarquee => false;
+            public void ActiveRangesChanged(bool any) { }
         }
 
         /// <summary>Measures a text without touching what a component displays.</summary>

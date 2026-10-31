@@ -145,7 +145,9 @@ namespace FirstSymbol.Lettera
             engine.EnsureParsed();
             string plain = selectable.SelectedPlainText();
             var items = new List<LetteraClipItem>(4) { new LetteraClipItem(LetteraClipFormat.PlainText, plain) };
-            bool literal = engine.Literal || engine.RevealSource >= 0;
+            // Rich formats carry the source, so text under a cover goes out only as what plain text made of it.
+            // An inline item goes as its words too, since its spans would not line up with them.
+            bool literal = engine.Literal || engine.RevealSource >= 0 || selectable.ConcealsSelection || engine.SpanHasInline(s.Start, s.End);
             if (!literal)
             {
                 var spans = new List<LetteraPastedSpan>();

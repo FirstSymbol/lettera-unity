@@ -95,6 +95,7 @@ namespace FirstSymbol.Lettera
             if (RevealSource >= 0) RevealRangesAt(context, RevealSource);
             BuildRenderedText(source, context);
             ResolveRangeEnds(context);
+            AssignRangeIds(context);
             m_RangesApplied = false;
             foreach (IHoldSource hold in m_Holds) hold.Refresh();
             ApplyEffects(context);
@@ -186,7 +187,7 @@ namespace FirstSymbol.Lettera
             foreach (int index in order)
             {
                 LetteraMatchContext.RangeRecord r = ranges[index];
-                var info = new LetteraRangeInfo { Index = index, Start = r.RenderedStart, End = r.RenderedEnd, Primary = r.Primary, Label = r.Label, Slots = r.Slots };
+                var info = new LetteraRangeInfo { Index = index, Id = RangeIdOf(index), Start = r.RenderedStart, End = r.RenderedEnd, Primary = r.Primary, Label = r.Label, Slots = r.Slots };
                 bool passes = true;
                 foreach (Func<LetteraRangeInfo, bool> filter in filters) passes &= filter(info);
                 if (!passes) continue;
@@ -280,6 +281,7 @@ namespace FirstSymbol.Lettera
             LetteraAttributes attributes = m_Attributes;
             attributes.Reset(m_TextLength);
             List<LetteraMatchContext.RangeRecord> ranges = context.Ranges;
+            ClearStageHooks();
 
             // Outer ranges first, so inner ones refine them: innermost wins.
             m_RangeOrder.Clear();
@@ -293,6 +295,7 @@ namespace FirstSymbol.Lettera
                 if (style.Effect == null) continue;
                 attributes.BeginEffect(style.Effect, r.StyleIndex);
                 attributes.CurrentRange = index;
+                RegisterStages(style.Effect, r.RenderedStart, r.RenderedEnd);
                 try
                 {
                     List<HoldEntry> holds = HoldsOf(index);
@@ -308,6 +311,8 @@ namespace FirstSymbol.Lettera
             if (data.Overflow != LetteraOverflow.Visible)
                 attributes.RequestElide(0, m_TextLength, data.OverflowPosition, data.Overflow == LetteraOverflow.Ellipsis);
             CollectMotions();
+            CollectActiveRanges();
+            CollectInlineItems();
         }
 
         Comparison<int> m_CompareRanges;

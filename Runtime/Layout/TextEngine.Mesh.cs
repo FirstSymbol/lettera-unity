@@ -64,11 +64,12 @@ namespace FirstSymbol.Lettera
             m_SegmentStart = 0;
             m_FilterRow = 0;
             m_RecordOwners = HasPoseConsumers || m_RevealSpans.Count > 0 || (m_Marquee != null && m_MarqueeScrolling);
+            if (m_StageHooks.Count > 0) m_CoverQuads.Clear();
             m_CurrentOwner = -1;
             GlyphAtlasRegistration.EnsureRegistered();
 
             List<LayerGroup> groups = m_Attributes.SortedGroups();
-            Styled = m_Attributes.NeedsStyledShader();
+            Styled = m_Attributes.NeedsStyledShader() || HasInlineSprites;
             PrepareGlyphs(groups);
             PrepareFade();
             PrepareExtraMotions();
@@ -106,6 +107,9 @@ namespace FirstSymbol.Lettera
             AddDecorationLayer(null, true);
             DrawHighlights(groups, true);
 
+            DrawInlineSprites();
+            DrawSpoilerCovers();
+            RunMeshHooks();
             m_CurrentOwner = -1;
             FinishSegment();
             DuplicateForMarquee();

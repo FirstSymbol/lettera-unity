@@ -389,7 +389,8 @@ namespace FirstSymbol.Lettera
             for (int i = 0; i < text.Length; i++)
             {
                 char c = text[i];
-                bool drop = false;
+                // This character means an inline item in the shown text, and only a tag may put one there.
+                bool drop = c == '\uFFFC';
                 char? swap = null;
                 if (c == '\r')
                 {

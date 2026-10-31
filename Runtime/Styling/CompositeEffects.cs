@@ -255,7 +255,7 @@ namespace FirstSymbol.Lettera
         public int Slot;
         public LetteraHoldComposition Composition;
         public string Token;
-        public float Number;
+        public float Number, Weight;
         public Color32 Color;
         public bool HasNumber, HasColor;
     }
@@ -265,6 +265,9 @@ namespace FirstSymbol.Lettera
     {
         /// <summary>The range's position in text order among all ranges, and the codepoints it covers in the rendered text.</summary>
         public int Index, Start, End;
+
+        /// <summary>The range's identity, which stays across a parse that left it alone.</summary>
+        public int Id;
         public string Primary, Label;
         internal string[] Slots;
 
@@ -354,9 +357,10 @@ namespace FirstSymbol.Lettera
 
         bool IHoldSource_IsPose => m_Level == DirtyLevel.Pose && s_ToNumber != null;
 
-        bool IHoldSource.TryPoseNumber(object effect, int rangeIndex, int slot, out float number, out LetteraHoldComposition composition)
+        bool IHoldSource.TryPoseNumber(object effect, int rangeIndex, int slot, out float number, out float weight, out LetteraHoldComposition composition)
         {
             number = 0;
+            weight = m_Weight;
             composition = Composition;
             if (!IHoldSource_IsPose || !m_HasValue || m_Suspended || slot != m_Slot || effect != m_Effect) return false;
             bool member = false;
@@ -402,6 +406,21 @@ namespace FirstSymbol.Lettera
             if (m_Disposed) throw new ObjectDisposedException(nameof(LetteraHold<T>));
         }
 
+        float m_Weight = 1;
+
+        /// <summary>How far this goes from the cascade (0) to its value (1). Past either end it overshoots, for numbers and colors.</summary>
+        public float Weight
+        {
+            get => m_Weight;
+            set
+            {
+                CheckAlive();
+                if (m_Weight == value) return;
+                m_Weight = value;
+                m_Engine.ChangeHeld(m_Level);
+            }
+        }
+
         /// <summary>The value every member has, unless one was set apart.</summary>
         public T Value
         {
@@ -435,10 +454,21 @@ namespace FirstSymbol.Lettera
         public void SetValue(int member, T value)
         {
             CheckAlive();
-            m_Single[m_Members[member].Index] = value;
+            int index = m_Members[member].Index;
+            // The same value again costs nothing, so what settled stops asking for passes.
+            if (m_HasValue && m_Single.TryGetValue(index, out T held) && EqualityComparer<T>.Default.Equals(held, value)) return;
+            m_Single[index] = value;
             if (s_ToNumber != null) m_SingleNumbers[m_Members[member].Index] = s_ToNumber(value);
             m_HasValue = true;
             m_Engine.ChangeHeld(m_Level);
+        }
+
+        // What a member that arrives later starts with, leaving those set apart as they are.
+        internal void PrimeValue(T value)
+        {
+            m_Value = value;
+            if (s_ToNumber != null) m_Number = s_ToNumber(value);
+            m_HasValue = true;
         }
 
         /// <summary>A member's value from the tag, under this hold; default when the tag gives none.</summary>
@@ -477,6 +507,7 @@ namespace FirstSymbol.Lettera
             int before = m_Members.Count;
             m_Members.Clear();
             m_Single.Clear();
+            m_SingleNumbers.Clear();
             m_Query.Collect(m_Members);
             if (before != m_Members.Count) Changed?.Invoke();
         }
@@ -495,7 +526,7 @@ namespace FirstSymbol.Lettera
             }
             if (!isMember) return;
             T value = m_Single.TryGetValue(rangeIndex, out T single) ? single : m_Value;
-            var entry = new HoldEntry { Effect = m_Effect, Slot = m_Slot, Composition = Composition };
+            var entry = new HoldEntry { Effect = m_Effect, Slot = m_Slot, Composition = Composition, Weight = m_Weight };
             switch (value)
             {
                 case Color32 color:
@@ -531,6 +562,6 @@ namespace FirstSymbol.Lettera
         void Contribute(int rangeIndex, List<HoldEntry> results);
 
         /// <summary>The number a pose-level hold gives a range's parameter, reached with no token and no boxing.</summary>
-        bool TryPoseNumber(object effect, int rangeIndex, int slot, out float number, out LetteraHoldComposition composition);
+        bool TryPoseNumber(object effect, int rangeIndex, int slot, out float number, out float weight, out LetteraHoldComposition composition);
     }
 }

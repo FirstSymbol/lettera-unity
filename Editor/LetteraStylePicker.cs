@@ -22,6 +22,8 @@ namespace FirstSymbol.Lettera.Editor
         public const string WholeText = "Whole Text", Tags = "Tags", InlineTags = "Inline Tags", Markdown = "Markdown", AutoDetect = "Auto-detect", Protection = "Protection";
         public const string Basics = "Basics", Type = "Type", Lines = "Lines", Look = "Look", Layout = "Layout", Links = "Links", Utility = "Utility", Custom = "Custom";
 
+        public const string Animation = "Animation", Interactive = "Interactive", Inline = "Inline", Semantic = "Semantic";
+
         static List<LetteraStyleTemplate> s_All;
 
         static readonly (string kind, string name, string tag, Func<LetteraEffect> effect)[] s_Effects =
@@ -112,6 +114,36 @@ namespace FirstSymbol.Lettera.Editor
             void Add(string driven, string kind, string name, string keywords, Func<LetteraMatcher> matcher, Func<LetteraEffect> effect) =>
                 all.Add(new LetteraStyleTemplate { Driven = driven, Kind = kind, Name = name, Keywords = keywords, Matcher = matcher, Effect = effect });
 
+            // One a tag or the whole text can drive, found also by the words people look for it under.
+            void Moving(string kind, string name, string tag, string words, Func<LetteraEffect> effect)
+            {
+                all.RemoveAll(t => t.Kind == Custom && t.Effect != null && t.Effect().GetType() == effect().GetType());
+                Add(WholeText, kind, name, words, () => new WholeTextMatcher(), effect);
+                Add(Tags, kind, name, "<" + tag + "> " + words, () => new TagMatcher(tag), effect);
+            }
+
+            Moving(Animation, "Wave", "wave", "sine ripple", () => new WaveMotion());
+            Moving(Animation, "Wobble", "wobble", "jelly", () => new WobbleMotion());
+            Moving(Animation, "Shake", "shake", "jitter tremble", () => new ShakeMotion());
+            Moving(Animation, "Bounce", "bounce", "hop", () => new BounceMotion());
+            Moving(Animation, "Float", "float", "drift hover", () => new FloatMotion());
+            Moving(Animation, "Spin", "spin", "rotate", () => new SpinMotion());
+            Moving(Animation, "Pulse", "pulse", "breathe scale", () => new PulseMotion());
+            Moving(Animation, "Pendulum", "pendulum", "swing", () => new PendulumMotion());
+            Moving(Animation, "Deform", "deform", "warp bend", () => new DeformMotion());
+            Moving(Animation, "Glitch", "glitch", "rgb split", () => new GlitchMotion());
+            Moving(Animation, "Scramble", "scramble", "decode random", () => new ScrambleMotion());
+            Moving(Animation, "Roll", "roll", "odometer counter slot", () => new RollMotion());
+            Moving(Animation, "Reveal", "reveal", "typewriter appear hide", () => new RevealEffect());
+            Moving(Animation, "Marquee", "marquee", "ticker scroll crawl", () => new MarqueeEffect());
+            Moving(Interactive, "Action", "action", "click button event", () => new ActionEffect());
+            Moving(Interactive, "Spoiler", "spoiler", "hidden cover secret", () => new SpoilerEffect());
+            Moving(Interactive, "Range Tint", "tint", "hover feedback", () => new RangeTintEffect());
+            Moving(Semantic, "Semantic", "semantic", "accessibility screen reader role", () => new SemanticEffect());
+            all.RemoveAll(t => t.Kind == Custom && t.Effect != null && t.Effect() is InlineEffect);
+            Add(InlineTags, Inline, "Sprite", "<sprite> image icon emoji", () => new InlineMediaMatcher("sprite"), () => new InlineEffect());
+            Add(InlineTags, Inline, "Object", "<obj> prefab widget", () => new InlineMediaMatcher("obj"), () => new InlineEffect());
+
             Add(InlineTags, Layout, "Divider", "<divider>", () => new DividerMatcher(), () => new DividerEffect());
             Add(InlineTags, Lines, "List Item", "<li>", () => new ListItemMatcher(), () => new ListEffect());
             Add(InlineTags, Type, "Ruby", "<ruby> <rt>", () => new RubyMatcher(), () => new RubyEffect());
@@ -128,8 +160,8 @@ namespace FirstSymbol.Lettera.Editor
             Add(Markdown, Utility, "Code Span", "`code`", () => new CodeSpanMatcher(), () => new NoEffect());
 
             Add(AutoDetect, Links, "Bare URL", "https www", () => new BareUrlMatcher(), () => new CompositeEffect(new LinkEffect(), new ColorEffect { Color = new Color32(77, 163, 255, 255) }, new UnderlineEffect()));
-            Add(AutoDetect, Links, "Mention", "@name", () => new TriggerWordMatcher("@"), () => new ColorEffect { Color = new Color32(77, 163, 255, 255) });
-            Add(AutoDetect, Links, "Hashtag", "#tag", () => new TriggerWordMatcher("#"), () => new ColorEffect { Color = new Color32(77, 163, 255, 255) });
+            Add(AutoDetect, Links, "Mention", "@name", () => new TriggerWordMatcher("@"), () => new CompositeEffect(new ActionEffect(), new ColorEffect { Color = new Color32(77, 163, 255, 255) }));
+            Add(AutoDetect, Links, "Hashtag", "#tag", () => new TriggerWordMatcher("#"), () => new CompositeEffect(new ActionEffect(), new ColorEffect { Color = new Color32(77, 163, 255, 255) }));
             Add(AutoDetect, Utility, "Literal Strings", "words", () => new LiteralMatcher(), () => new ColorEffect());
 
             Add(Protection, Utility, "No Parse", "<noparse>", () => new NoParseMatcher(), null);

@@ -28,6 +28,27 @@ namespace FirstSymbol.Lettera
         /// <summary>Whether text typed at the end of this effect's range joins it. A link does not.</summary>
         public virtual bool ExtendsOnType => true;
 
+        /// <summary>Which stages of a rebuild this effect takes part in. Only those are called, and a text with none pays nothing.</summary>
+        public virtual LetteraStages Stages => LetteraStages.None;
+
+        /// <summary>After Unicode analysis. Called once per range the effect covers, as are the others.</summary>
+        public virtual void OnAnalyzed(ref LetteraAnalysisView view) { }
+
+        /// <summary>After shaping.</summary>
+        public virtual void OnShaped(ref LetteraShapedView view) { }
+
+        /// <summary>After lines are broken, before they are placed.</summary>
+        public virtual void OnLinesBroken(ref LetteraLinesView view) { }
+
+        /// <summary>After glyphs are placed, before the mesh.</summary>
+        public virtual void OnPlaced(ref LetteraPlacedView view) { }
+
+        /// <summary>After layers are drawn.</summary>
+        public virtual void OnMesh(ref LetteraMeshView view) { }
+
+        /// <summary>Each tick.</summary>
+        public virtual void OnPose(ref LetteraPoseView view) { }
+
         /// <summary>The effects this one runs inside it.</summary>
         internal virtual void CollectChildren(System.Collections.Generic.List<LetteraEffect> results) { }
     }
@@ -114,8 +135,9 @@ namespace FirstSymbol.Lettera
             foreach (HoldEntry hold in m_Holds)
             {
                 if (hold.Slot != index || !hold.HasNumber || hold.Effect != m_Owner) continue;
-                underlying = hold.Composition == LetteraHoldComposition.Add ? underlying + hold.Number
-                    : hold.Composition == LetteraHoldComposition.Multiply ? underlying * hold.Number : hold.Number;
+                underlying = hold.Composition == LetteraHoldComposition.Add ? underlying + hold.Number * hold.Weight
+                    : hold.Composition == LetteraHoldComposition.Multiply ? underlying * Mathf.LerpUnclamped(1, hold.Number, hold.Weight)
+                    : Mathf.LerpUnclamped(underlying, hold.Number, hold.Weight);
             }
             return underlying;
         }
@@ -126,7 +148,8 @@ namespace FirstSymbol.Lettera
             foreach (HoldEntry hold in m_Holds)
             {
                 if (hold.Slot != index || !hold.HasColor || hold.Effect != m_Owner) continue;
-                underlying = hold.Composition == LetteraHoldComposition.Multiply ? (Color32)((Color)underlying * hold.Color) : hold.Color;
+                underlying = hold.Composition == LetteraHoldComposition.Multiply ? (Color32)((UnityEngine.Color)underlying * UnityEngine.Color.LerpUnclamped(UnityEngine.Color.white, hold.Color, hold.Weight))
+                    : Color32.LerpUnclamped(underlying, hold.Color, hold.Weight);
             }
             return underlying;
         }
@@ -206,7 +229,7 @@ namespace FirstSymbol.Lettera
                     // Reading a token gives what a replacing hold holds; composing ones need a typed reader, which knows the field.
                     string held = null;
                     foreach (HoldEntry hold in m_Holds)
-                        if (hold.Slot == index && hold.Effect == m_Owner && hold.Composition == LetteraHoldComposition.Replace)
+                        if (hold.Slot == index && hold.Effect == m_Owner && hold.Composition == LetteraHoldComposition.Replace && hold.Weight >= 0.5f)
                             held = hold.Token;
                     if (held != null) return held;
                 }
@@ -215,6 +238,15 @@ namespace FirstSymbol.Lettera
         }
 
         /// <summary>Parses a number with invariant culture. NaN, infinity and huge values count as absent.</summary>
+        /// <summary>Reads true or false, and 1 or 0.</summary>
+        public static bool TryBool(string value, out bool flag)
+        {
+            flag = false;
+            if (string.IsNullOrEmpty(value)) return false;
+            if (value == "true" || value == "1") return flag = true;
+            return value == "false" || value == "0";
+        }
+
         public static bool TryNumber(string value, out float number)
         {
             number = 0;
@@ -382,6 +414,9 @@ namespace FirstSymbol.Lettera
             Warps.Clear();
             MotionRequests.Clear();
             RevealRequests.Clear();
+            ActiveRequests.Clear();
+            SemanticRequests.Clear();
+            InlineRequests.Clear();
             Marquee = null;
             PaintOrder = LetteraPaintOrder.LayerMajor;
             PaintReverse = false;
@@ -699,6 +734,43 @@ namespace FirstSymbol.Lettera
             public string Entrance, Reach;
             public LetteraRevealUnit Unit;
         }
+
+        internal struct ActiveRequest
+        {
+            public LetteraRangeEffect Effect;
+            public int Start, End, Range;
+            public string Value;
+        }
+
+        internal struct InlineRequest
+        {
+            public InlineEffect Effect;
+            public int Start;
+            public LetteraSlots Slots;
+        }
+
+        internal readonly System.Collections.Generic.List<InlineRequest> InlineRequests = new System.Collections.Generic.List<InlineRequest>();
+
+        internal void AddInline(InlineEffect effect, int start, int end, in LetteraSlots slots)
+        {
+            EnsureLayout();
+            for (int c = start; c < end; c++) InlineRequests.Add(new InlineRequest { Effect = effect, Start = c, Slots = slots });
+        }
+
+        internal struct SemanticRequest
+        {
+            public SemanticEffect Effect;
+            public int Start, End, Range;
+        }
+
+        internal readonly System.Collections.Generic.List<ActiveRequest> ActiveRequests = new System.Collections.Generic.List<ActiveRequest>();
+        internal readonly System.Collections.Generic.List<SemanticRequest> SemanticRequests = new System.Collections.Generic.List<SemanticRequest>();
+
+        internal void AddActive(LetteraRangeEffect effect, int start, int end, string value) =>
+            ActiveRequests.Add(new ActiveRequest { Effect = effect, Start = start, End = end, Range = CurrentRange, Value = value });
+
+        internal void AddSemantic(SemanticEffect effect, int start, int end) =>
+            SemanticRequests.Add(new SemanticRequest { Effect = effect, Start = start, End = end, Range = CurrentRange });
 
         internal readonly System.Collections.Generic.List<MotionRequest> MotionRequests = new System.Collections.Generic.List<MotionRequest>();
         internal readonly System.Collections.Generic.List<RevealRequest> RevealRequests = new System.Collections.Generic.List<RevealRequest>();

@@ -2,6 +2,60 @@
 mergeInto(LibraryManager.library, {
     // A touch browser raises its keyboard only for an element focused inside a touch handler, and Unity runs a frame later.
     // So a press on a field arms this while the finger is down, and the handler here focuses a hidden text box when it lifts.
+    LetteraCursor_Set: function (css) {
+        var canvas = Module.canvas || document.querySelector("canvas");
+        if (canvas) canvas.style.cursor = UTF8ToString(css);
+    },
+
+    // A browser opens a window only inside the user's own gesture, and Unity hears of a release a frame later.
+    // So a press on a link leaves its address and places here, and the release decides in the page.
+    LetteraLink_Arm: function (url, rects, count) {
+        var state = Module.letteraLink;
+        if (!state) {
+            state = Module.letteraLink = { url: null, rects: [], opened: false };
+            var release = function (e) {
+                if (!state.url) return;
+                var canvas = Module.canvas || document.querySelector("canvas");
+                var point = e.changedTouches && e.changedTouches.length ? e.changedTouches[0] : e;
+                var box = canvas.getBoundingClientRect();
+                var x = (point.clientX - box.left) * canvas.width / box.width;
+                var y = canvas.height - (point.clientY - box.top) * canvas.height / box.height;
+                var inside = false;
+                for (var i = 0; i + 3 < state.rects.length; i += 4)
+                    inside = inside || (x >= state.rects[i] && y >= state.rects[i + 1] && x <= state.rects[i + 2] && y <= state.rects[i + 3]);
+                var address = state.url;
+                state.url = null;
+                if (!inside) return;
+                state.opened = true;
+                window.open(address, "_blank", "noopener");
+            };
+            document.addEventListener("pointerup", release, true);
+            document.addEventListener("touchend", release, true);
+            document.addEventListener("mouseup", release, true);
+        }
+        state.url = UTF8ToString(url);
+        state.opened = false;
+        state.rects = [];
+        for (var i = 0; i < count; i++) state.rects.push(HEAPF32[(rects >> 2) + i]);
+    },
+
+    LetteraLink_Disarm: function () {
+        if (Module.letteraLink) Module.letteraLink.url = null;
+    },
+
+    LetteraLink_TakeOpened: function () {
+        var state = Module.letteraLink;
+        if (!state) return 0;
+        var opened = state.opened;
+        state.opened = false;
+        state.url = null;
+        return opened ? 1 : 0;
+    },
+
+    LetteraMotion_PrefersReduced: function () {
+        return window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 1 : 0;
+    },
+
     LetteraInput_HasCoarsePointer: function () {
         return window.matchMedia && window.matchMedia("(pointer: coarse)").matches ? 1 : 0;
     },

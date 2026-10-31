@@ -1,0 +1,25 @@
+{
+    "name": "FirstSymbol.Lettera.Timeline",
+    "rootNamespace": "FirstSymbol.Lettera.Timeline",
+    "references": [
+        "FirstSymbol.Lettera",
+        "Unity.Timeline"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [
+        "LETTERA_TIMELINE"
+    ],
+    "versionDefines": [
+        {
+            "name": "com.unity.timeline",
+            "expression": "1.0.0",
+            "define": "LETTERA_TIMELINE"
+        }
+    ],
+    "noEngineReferences": false
+}

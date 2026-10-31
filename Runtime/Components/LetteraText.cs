@@ -29,6 +29,16 @@ namespace FirstSymbol.Lettera
         bool ITextHost.IsDrawn => !m_Hidden && IsActive() && !canvasRenderer.cull;
         bool ITextHost.SupportsMarquee => true;
 
+        void ITextHost.ActiveRangesChanged(bool any)
+        {
+            if (any && Application.isPlaying) LetteraRangeRouter.EnsureInput(this);
+        }
+
+        [SerializeField] LetteraRoute m_Route;
+
+        /// <summary>How this text takes a press.</summary>
+        public LetteraRoute Route { get => m_Route; set => m_Route = value; }
+
         TextEngine Engine => m_Engine ?? (m_Engine = new TextEngine(this));
 
         public override Material defaultMaterial => LetteraMaterials.Variant(LetteraMaterials.Ui, Engine.Styled, LetteraBlend.Normal, null);
@@ -53,17 +63,47 @@ namespace FirstSymbol.Lettera
             if (IsActive()) SetVerticesDirty();
         }
 
+        Color m_AnimatedColor;
+
+        // A curve wrote fields with no setter. Graphic would dirty everything here; this asks only for what differs, so an alpha curve stays an alpha pass.
+        protected override void OnDidApplyAnimationProperties()
+        {
+            Engine.SyncSerializedFields();
+            Color now = color;
+            if (now != m_AnimatedColor)
+            {
+                bool alphaOnly = now.r == m_AnimatedColor.r && now.g == m_AnimatedColor.g && now.b == m_AnimatedColor.b;
+                m_AnimatedColor = now;
+                Engine.SetDirty(alphaOnly ? DirtyLevel.Alpha : DirtyLevel.Mesh);
+            }
+            if (Engine.Dirty == DirtyLevel.None || !IsActive()) return;
+            if (Engine.Dirty >= DirtyLevel.Layout) SetLayoutDirty();
+            SetVerticesDirty();
+        }
+
+        protected override void OnDestroy()
+        {
+            if (m_Engine != null)
+            {
+                LetteraRangeRouter.Forget(m_Engine);
+                LetteraInlineObjects.Forget(m_Engine);
+            }
+            base.OnDestroy();
+        }
+
         protected override void OnEnable()
         {
             base.OnEnable();
             GlyphAtlasRegistration.EnsureRegistered();
             Engine.SetDirty(DirtyLevel.Parse);
             m_LastRectSize = rectTransform.rect.size;
-            m_HasAnimator = GetComponent<Animator>() != null;
+            m_HasAnimator = GetComponentInParent<Animator>() != null;
+            m_AnimatedColor = color;
             RefreshClipping();
             EnableCanvasChannels();
             AddListeners();
             Engine.SetEnabledForMotion(true);
+            LetteraInlineObjects.Attach(Engine, this);
             SetAllDirty();
         }
 
@@ -71,6 +111,7 @@ namespace FirstSymbol.Lettera
         {
             RemoveListeners();
             Engine.SetEnabledForMotion(false);
+            LetteraRangeRouter.NotifyDisabled(Engine);
             foreach (Material mask in m_SegmentMasks) StencilMaterial.Remove(mask);
             m_SegmentMasks.Clear();
             m_LastSegments.Clear();
@@ -94,6 +135,7 @@ namespace FirstSymbol.Lettera
         {
             base.OnTransformParentChanged();
             RefreshClipping();
+            m_HasAnimator = GetComponentInParent<Animator>() != null;
         }
 
         void EnableCanvasChannels()
@@ -296,7 +338,11 @@ namespace FirstSymbol.Lettera
         }
 #endif
 
-        public override bool Raycast(Vector2 sp, Camera eventCamera) => !m_Hidden && base.Raycast(sp, eventCamera);
+        public override bool Raycast(Vector2 sp, Camera eventCamera)
+        {
+            if (m_Hidden || m_Route == LetteraRoute.None || !base.Raycast(sp, eventCamera)) return false;
+            return m_Route != LetteraRoute.Ranges || LetteraRangeRouter.Of((ITextComponent)this).HitTest(sp, eventCamera) != 0;
+        }
 
         // ------------------------------------------------------------- ILayoutElement
 

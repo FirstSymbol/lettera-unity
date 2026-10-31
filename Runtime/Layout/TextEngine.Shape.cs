@@ -99,6 +99,7 @@ namespace FirstSymbol.Lettera
             m_ShapedCount = 0;
             EnsureExtras(length);
             if (length == 0) return;
+            PrepareInlineShaping();
 
             int direction = FieldDirection >= 0 ? FieldDirection : m_Attributes.DirectionOverride >= 0 ? m_Attributes.DirectionOverride
                 : data.BaseDirection == LetteraDirection.LeftToRight ? 0 : data.BaseDirection == LetteraDirection.RightToLeft ? 1 : 2;
@@ -121,8 +122,11 @@ namespace FirstSymbol.Lettera
                     break;
                 }
             }
+            RunAnalyzedHooks();
+            RunShapedHooks();
             if (m_Attributes.HasLayout)
             {
+                AddInlineExtras();
                 ComputeExtras();
                 PrepareVirtual();
             }

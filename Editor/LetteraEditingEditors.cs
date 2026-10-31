@@ -497,11 +497,41 @@ namespace FirstSymbol.Lettera.Editor
         public static VisualElement InteractionCard(UnityEngine.Object[] targets)
         {
             VisualElement row = LtUI.El("lt-chips");
+            bool previewing = false;
+            row.RegisterCallback<DetachFromPanelEvent>(_ =>
+            {
+                if (!previewing) return;
+                previewing = false;
+                LetteraMotionPreview.End();
+            });
             void Refresh()
             {
                 row.Clear();
                 row.Add(Chip("Selectable", typeof(LetteraSelectable)));
                 row.Add(Chip("Editable", typeof(LetteraEditable)));
+                row.Add(Chip("Sequencer", typeof(LetteraSequencer)));
+                row.Add(Chip("Range Navigator", typeof(LetteraRangeNavigator)));
+                var first = targets.Length > 0 ? targets[0] as Component : null;
+                IEnumerable<LetteraStyle> styles = first is LetteraText canvas ? canvas.Styles : first is LetteraWorldText world ? world.Styles : null;
+                if (styles == null) return;
+                LetteraMotionScan.Counts counts = LetteraMotionScan.Of(styles);
+                void Count(string title, int value)
+                {
+                    if (value > 0) row.Add(LtUI.Text(title + " " + value, "lt-chip lt-chip--accent"));
+                }
+                Count("Links", counts.Links);
+                Count("Rules", counts.Rules);
+                Count("Motion", counts.Motion);
+                Count("Inline", counts.Inline);
+                Count("Semantics", counts.Semantics);
+                row.Add(LtUI.Clickable(previewing ? "■ Stop Preview" : "▶ Preview Motion", "lt-chip", "Runs motion in edit mode. Nothing is written, and it ends with this inspector.", () =>
+                {
+                    previewing = !previewing;
+                    if (previewing) LetteraMotionPreview.Begin();
+                    else LetteraMotionPreview.End();
+                    Refresh();
+                }));
+                foreach (string warning in LetteraMotionScan.Warnings(first, styles)) row.Add(LtUI.Text(warning, "lt-chip lt-chip--orange"));
             }
             VisualElement Chip(string title, Type type)
             {

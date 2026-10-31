@@ -36,6 +36,16 @@ namespace FirstSymbol.Lettera
         bool ITextHost.IsDrawn => !m_Hidden && isActiveAndEnabled;
         bool ITextHost.SupportsMarquee => false;
 
+        void ITextHost.ActiveRangesChanged(bool any)
+        {
+            if (any && Application.isPlaying) LetteraRangeRouter.EnsureInput(this);
+        }
+
+        [SerializeField] LetteraRoute m_Route;
+
+        /// <summary>How this text takes a press.</summary>
+        public LetteraRoute Route { get => m_Route; set => m_Route = value; }
+
         RectTransform Rect => m_Rect != null ? m_Rect : m_Rect = (RectTransform)transform;
         internal TextEngine Engine => m_Engine ?? (m_Engine = new TextEngine(this));
         internal bool Hidden => m_Hidden;
@@ -72,17 +82,42 @@ namespace FirstSymbol.Lettera
             GlyphAtlasRegistration.EnsureRegistered();
             Engine.SetDirty(DirtyLevel.Parse);
             LastRectSize = Rect.rect.size;
-            m_HasAnimator = GetComponent<Animator>() != null;
+            m_HasAnimator = GetComponentInParent<Animator>() != null;
+            m_AnimatedColor = m_Color;
             AddListeners();
             LetteraWorldBatcher.Register(this);
             m_Registered = true;
             Engine.SetEnabledForMotion(true);
+            LetteraInlineObjects.Attach(Engine, this);
+        }
+
+        Color m_AnimatedColor;
+
+        void OnDidApplyAnimationProperties()
+        {
+            Engine.SyncSerializedFields();
+            if (m_Color == m_AnimatedColor) return;
+            bool alphaOnly = m_Color.r == m_AnimatedColor.r && m_Color.g == m_AnimatedColor.g && m_Color.b == m_AnimatedColor.b;
+            m_AnimatedColor = m_Color;
+            Engine.SetDirty(alphaOnly ? DirtyLevel.Alpha : DirtyLevel.Mesh);
+        }
+
+        void OnTransformParentChanged() => m_HasAnimator = GetComponentInParent<Animator>() != null;
+
+        void OnDestroy()
+        {
+            if (m_Engine != null)
+            {
+                LetteraRangeRouter.Forget(m_Engine);
+                LetteraInlineObjects.Forget(m_Engine);
+            }
         }
 
         void OnDisable()
         {
             RemoveListeners();
             Engine.SetEnabledForMotion(false);
+            LetteraRangeRouter.NotifyDisabled(Engine);
             if (m_Registered) LetteraWorldBatcher.Unregister(this);
             m_Registered = false;
         }

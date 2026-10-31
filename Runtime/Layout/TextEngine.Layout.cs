@@ -68,6 +68,7 @@ namespace FirstSymbol.Lettera
 
             CollectRevealsOnce();
             ApplyRevealRemovals();
+            ApplyHookRemovals();
             DecideMarquee(size, width);
             if (m_MarqueeScrolling) wrap = false;
             if (m_Attributes.Elides.Count > 0 && !SuspendElide && !m_MarqueeScrolling) ApplyElide(size, width, height, wrap);
@@ -75,6 +76,7 @@ namespace FirstSymbol.Lettera
             LineStats stats = BreakLines(m_Lines, size, width, wrap, true);
             m_ContentWidth = stats.MaxWidth;
             m_ContentHeight = stats.Height;
+            RunLinesHooks(size, width, wrap);
             if (m_RevealSpans.Count > 0)
             {
                 NumberRevealUnits();
@@ -533,6 +535,16 @@ namespace FirstSymbol.Lettera
                 if (best >= 0) height = best;
             }
             height *= m_FitLineHeight;
+
+            // What stands in the line grows it only past the room it already has, in every height mode.
+            if (m_InlineItems.Count > 0)
+            {
+                float roomAbove = ascent, roomBelow = descent;
+                InlineLineExtents(start, end, em, ref roomAbove, ref roomBelow);
+                height += roomAbove - ascent + (roomBelow - descent);
+                ascent = roomAbove;
+                descent = roomBelow;
+            }
 
             float leading = height - (ascent + descent);
             float above = leadingMode == (int)LetteraLeading.Above ? leading : leadingMode == (int)LetteraLeading.Below ? 0 : leading * 0.5f;

@@ -530,13 +530,33 @@ namespace FirstSymbol.Lettera
         }
     }
 
-    /// <summary>Records a URL on a range. It has no look of its own; compose it with color and underline. Slot: 1 URL.</summary>
+    /// <summary>A range that opens a URL. It has no look of its own; compose it with color and underline. Slot: 1 URL.</summary>
     [Serializable]
-    public class LinkEffect : LetteraEffect
+    public class LinkEffect : LetteraRangeEffect
     {
+        [Tooltip("Opens the URL when the range is activated. Off leaves that to whoever listens.")]
+        [SerializeField] bool m_OpenOnActivate = true;
+
+        public bool OpenOnActivate { get => m_OpenOnActivate; set => m_OpenOnActivate = value; }
+
+        public event Action<string> Followed, PointedAt;
+        public event Action PointerLeft;
+
         public override bool ExtendsOnType => false;
 
-        public override void Apply(LetteraAttributes attributes, int start, int end, in LetteraSlots slots) { }
+        internal bool HasFollowers => Followed != null || Events.HasActivated;
+
+        public override void OnEvent(LetteraRangeEvent e)
+        {
+            if (e.Kind == LetteraRangeEventKind.Activated) Followed?.Invoke(e.Primary);
+            else if (e.Kind == LetteraRangeEventKind.Entered) PointedAt?.Invoke(e.Primary);
+            else if (e.Kind == LetteraRangeEventKind.Exited) PointerLeft?.Invoke();
+        }
+
+        public override void OnDefault(LetteraRangeEvent e)
+        {
+            if (e.Kind == LetteraRangeEventKind.Activated && m_OpenOnActivate) LetteraLinks.Open(e.Primary);
+        }
     }
 
     /// <summary>Does nothing, for a matcher whose ranges only need to exist.</summary>

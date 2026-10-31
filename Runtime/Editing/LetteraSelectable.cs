@@ -306,10 +306,30 @@ namespace FirstSymbol.Lettera
         }
 
         /// <summary>The selected characters, in logical order, without markup. Text cut off by eliding counts.</summary>
+        internal bool ConcealsSelection => !m_Selection.IsCaret && (Editable == null || Editable.ReadOnly) && Engine.SpanConceals(m_Selection.Start, m_Selection.End);
+
         public string SelectedPlainText()
         {
             if (m_Selection.IsCaret) return "";
-            return PlainOf(Shown, m_Selection.Start, m_Selection.End);
+            string plain = PlainOf(Shown, m_Selection.Start, m_Selection.End);
+            if (Engine.HasInline) plain = WithInlineAlt(m_Selection.Start, m_Selection.End);
+            if (Editable != null && !Editable.ReadOnly || !Engine.SpanConceals(m_Selection.Start, m_Selection.End)) return plain;
+            var masked = new System.Text.StringBuilder(plain);
+            Engine.MaskConcealed(masked, m_Selection.Start, m_Selection.End);
+            return masked.ToString();
+        }
+
+        // An inline item copies as what stands for it in words, or as nothing.
+        string WithInlineAlt(int start, int end)
+        {
+            ReadOnlySpan<int> text = Shown;
+            var builder = new System.Text.StringBuilder(end - start);
+            for (int i = start; i < end && i < text.Length; i++)
+            {
+                if (text[i] == 0xFFFC) builder.Append(Engine.InlineAltAt(i));
+                else builder.Append(text[i] >= 0xD800 && text[i] < 0xE000 ? "\uFFFD" : char.ConvertFromUtf32(text[i]));
+            }
+            return builder.ToString();
         }
 
         internal static string PlainOf(ReadOnlySpan<int> text, int start, int end)
@@ -499,6 +519,7 @@ namespace FirstSymbol.Lettera
         internal bool HandleKey(LetteraKeyCode key, LetteraKeyModifiers modifiers, bool repeat)
         {
             if (m_Menu != null && m_Menu.IsVisible && m_Menu.HandleKey(key, modifiers)) return true;
+            if (RangeKey(key, modifiers)) return true;
             LetteraEditVerb verb = LetteraKeyTable.Resolve(key, modifiers, LetteraKeyTable.Family);
             if (Editable != null)
             {
@@ -515,6 +536,36 @@ namespace FirstSymbol.Lettera
                 if (Engine.ParagraphIsRtlAt(m_Selection.Head)) verb = LetteraKeyTable.Mirror(verb);
             }
             return RunVerb(verb, repeat);
+        }
+
+        // Keys that belong to ranges come first. In a field only the one that follows a link does.
+        bool RangeKey(LetteraKeyCode key, LetteraKeyModifiers modifiers)
+        {
+            LetteraRangeRouter router = RangeRouter;
+            if (router == null) return false;
+            bool enter = key == LetteraKeyCode.Enter || key == LetteraKeyCode.KeypadEnter;
+            if (Editable != null && !Editable.ReadOnly)
+            {
+                LetteraKeyModifiers follow = LetteraKeyTable.Family == LetteraPlatformFamily.Apple ? LetteraKeyModifiers.Command : LetteraKeyModifiers.Control;
+                if (!enter || (modifiers & follow) == 0) return false;
+                foreach (TextEngine.ActiveRange range in Engine.ActiveRanges)
+                {
+                    if (m_Selection.Head < range.Start || m_Selection.Head > range.End) continue;
+                    router.Activate(range.Id, true);
+                    return true;
+                }
+                return false;
+            }
+            if (key == LetteraKeyCode.Tab) return router.StepFocus((modifiers & LetteraKeyModifiers.Shift) == 0);
+            if (router.Focused == 0) return false;
+            if (enter && modifiers == LetteraKeyModifiers.None) return router.ActivateFocused();
+            if (key == LetteraKeyCode.Escape)
+            {
+                router.ClearFocus();
+                return true;
+            }
+            if (key == LetteraKeyCode.Menu || (key == LetteraKeyCode.F10 && (modifiers & LetteraKeyModifiers.Shift) != 0)) return router.MenuOnFocused();
+            return false;
         }
 
         /// <summary>Runs a verb directly. What a read-only text may not do does nothing.</summary>

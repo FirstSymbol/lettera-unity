@@ -45,6 +45,11 @@
       "displayName": "Fields",
       "description": "Fields built from code: a chat box, a checked e-mail field, a password, a rich text area with shortcuts, a dropdown and selectable text.",
       "path": "Samples~/Fields"
+    },
+    {
+      "displayName": "Motion",
+      "description": "Built from code: every motion, a typewriter, a ticker, a link, a spoiler, a hover rule and an inline sprite.",
+      "path": "Samples~/Motion"
     }
   ]
 }

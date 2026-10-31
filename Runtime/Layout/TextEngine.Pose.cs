@@ -56,7 +56,10 @@ namespace FirstSymbol.Lettera
         /// <summary>How many pose passes ran.</summary>
         public int PoseCount { get; private set; }
 
-        public bool HasPoseConsumers => m_MotionSpans.Count > 0 || HasRevealOrMarquee || m_PoseHooks.Count > 0;
+        public bool HasPoseConsumers => HasMoving || HasSpoilers;
+
+        // What needs a tick. A spoiler at rest does not: it joins only while a cover fades.
+        bool HasMoving => m_MotionSpans.Count > 0 || HasRevealOrMarquee || m_PoseHooks.Count > 0 || m_CoverFading;
 
         public void MarkPoseDirty() => m_PoseDirty = true;
 
@@ -112,7 +115,7 @@ namespace FirstSymbol.Lettera
 
         void UpdateHubMembership()
         {
-            bool wants = HasPoseConsumers && !m_Disabled;
+            bool wants = HasMoving && !m_Disabled;
             if (wants == m_InHub) return;
             m_InHub = wants;
             if (wants) LetteraMotionHub.Add(this);
@@ -286,6 +289,7 @@ namespace FirstSymbol.Lettera
             }
             moved |= TickReveal(unscaled, scaled);
             moved |= TickMarquee(scaled, unscaled);
+            moved |= TickCovers(unscaled);
             moved |= m_PoseHooks.Count > 0;
             for (int s = 0; s < m_MotionSpans.Count && !moved; s++) moved = m_MotionSpans[s].Effect.Version != m_MotionSpans[s].SeenVersion;
             if (!moved && !m_PoseDirty) return;
@@ -311,9 +315,10 @@ namespace FirstSymbol.Lettera
                 IHoldSource hold = m_Holds[h];
                 for (int slot = 0; slot < 8; slot++)
                 {
-                    if (!hold.TryPoseNumber(span.Effect, span.Range, slot, out float number, out LetteraHoldComposition composition)) continue;
+                    if (!hold.TryPoseNumber(span.Effect, span.Range, slot, out float number, out float weight, out LetteraHoldComposition composition)) continue;
                     float value = span.Effective[slot];
-                    span.Effective[slot] = composition == LetteraHoldComposition.Add ? value + number : composition == LetteraHoldComposition.Multiply ? value * number : number;
+                    span.Effective[slot] = composition == LetteraHoldComposition.Add ? value + number * weight
+                        : composition == LetteraHoldComposition.Multiply ? value * Mathf.LerpUnclamped(1, number, weight) : Mathf.LerpUnclamped(value, number, weight);
                 }
             }
         }
@@ -351,6 +356,7 @@ namespace FirstSymbol.Lettera
                 }
             }
 
+            PoseSpoilers();
             RunPoseHooks();
 
             // Every quad of a glyph takes its glyph's pose, so a stroke never drifts from its face.
@@ -393,6 +399,7 @@ namespace FirstSymbol.Lettera
                 moved = true;
             }
             m_MarqueeWasMoved = m_MarqueeOffset != 0;
+            ApplyCoverAlpha();
             if (moved) streams |= StreamPositions;
             // Colors stay in step each pass: a glyph whose fade ended has to go back as well.
             if (colors || m_PoseHadColors) streams |= StreamColors;

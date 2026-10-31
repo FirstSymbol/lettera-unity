@@ -7,7 +7,7 @@ namespace FirstSymbol.Lettera
 {
     internal sealed partial class TextEngine
     {
-        struct PlacedGlyph
+        internal struct PlacedGlyph
         {
             public uint Glyph;
             public FontInstance Instance;
