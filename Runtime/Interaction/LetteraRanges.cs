@@ -378,18 +378,32 @@ namespace FirstSymbol.Lettera
 
         internal bool IsDisabled(int id) => m_Disabled.Contains(id);
 
+        // Whoever heard a range was entered or pressed hears it end too, also when it ended by leaving the text.
         void OnRetired(int id)
         {
+            if (m_Pressed == id)
+            {
+                m_Event.Cancelled = true;
+                Dispatch(id, LetteraRangeEventKind.Released);
+                m_Event.Cancelled = false;
+                m_Pressed = 0;
+                m_Claimed = false;
+                LetteraLinks.DisarmPress();
+            }
+            if (m_Hovered == id)
+            {
+                Dispatch(id, LetteraRangeEventKind.Exited);
+                m_Hovered = 0;
+                UpdateCursor();
+            }
+            if (m_Focused == id)
+            {
+                m_Focused = 0;
+                DrawRing();
+            }
             m_States.Remove(id);
             m_Disabled.Remove(id);
             m_Rules.Retire(id);
-            if (m_Hovered == id) m_Hovered = 0;
-            if (m_Focused == id) m_Focused = 0;
-            if (m_Pressed == id)
-            {
-                m_Pressed = 0;
-                m_Claimed = false;
-            }
         }
 
         static float TouchPadding(LetteraPointerKind kind) => kind == LetteraPointerKind.Touch ? LetteraEditingSettings.Dp(LetteraSettings.Instance.Motion.TouchHitPadding) : 0;

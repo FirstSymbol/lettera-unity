@@ -43,6 +43,11 @@ namespace FirstSymbol.Lettera
         void AssignRangeIds(LetteraMatchContext context)
         {
             List<LetteraMatchContext.RangeRecord> ranges = context.Ranges;
+            if (IsWindowed)
+            {
+                AssignDocumentRangeIds(context);
+                return;
+            }
             if (ranges.Count == 0 && m_OldRanges.Count == 0)
             {
                 // Nothing has an identity to keep, and a plain text pays nothing for this.
@@ -205,7 +210,7 @@ namespace FirstSymbol.Lettera
         /// <summary>The range at a local point: highest priority, then the earlier style, then the shorter range, then the order they came in. 0 for none.</summary>
         public int HitTestActive(Vector2 point, float touchPadding)
         {
-            if (m_Active.Count == 0) return 0;
+            if (m_Active.Count == 0 || ShowsBars) return 0;
             EnsurePositioned();
             EnsureActiveRects();
             point = MapToContent(point);

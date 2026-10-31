@@ -68,6 +68,15 @@ namespace FirstSymbol.Lettera
             m_CurrentOwner = -1;
             GlyphAtlasRegistration.EnsureRegistered();
 
+            if (ShowsBars)
+            {
+                DrawBars();
+                FinishSegment();
+                ComputeBounds();
+                ApplyBaseColor();
+                m_WantsPose = false;
+                return;
+            }
             List<LayerGroup> groups = m_Attributes.SortedGroups();
             Styled = m_Attributes.NeedsStyledShader() || HasInlineSprites;
             PrepareGlyphs(groups);

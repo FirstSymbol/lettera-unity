@@ -112,6 +112,7 @@ namespace FirstSymbol.Lettera
                 return;
             }
             Host.Rebuilt += OnTextRebuilt;
+            Engine.WindowPlaced += OnWindowPlaced;
             Host.SourceWritten += OnSourceWritten;
             Editable = GetComponent<LetteraEditable>();
             MarkVisualsDirty();
@@ -122,6 +123,7 @@ namespace FirstSymbol.Lettera
             if (m_Host == null) return;
             if (m_HasFocus) EndSession(LetteraBlurReason.Disabled);
             m_Host.Rebuilt -= OnTextRebuilt;
+            m_Host.SharedEngine.WindowPlaced -= OnWindowPlaced;
             m_Host.SourceWritten -= OnSourceWritten;
             DestroyVisual();
             OnDisablePointer();
@@ -129,10 +131,36 @@ namespace FirstSymbol.Lettera
 
         void OnDestroy() => DestroyVisual();
 
+        bool m_MappingWindow;
+
         void OnTextRebuilt(LetteraChanges changes)
         {
             if ((changes & (LetteraChanges.Text | LetteraChanges.Layout | LetteraChanges.Positions)) != 0) m_VisualsDirty = true;
         }
+
+        // The window moved under the selection: it is read again from the document, held to what shows.
+        void OnWindowPlaced()
+        {
+            m_VisualsDirty = true;
+            if (!Engine.IsWindowed || !Engine.View.HasDocumentSelection) return;
+            (int anchor, int head) = Engine.View.DocumentSelection;
+            m_MappingWindow = true;
+            SetSelectionUnchecked(new LetteraSelectionRange(Engine.ShownOfDocument(anchor), Engine.ShownOfDocument(head)), "sel.window");
+            m_MappingWindow = false;
+        }
+
+        /// <summary>Selects by places in the document, wherever the window stands.</summary>
+        public void SetDocumentSelection(int anchorChar, int headChar)
+        {
+            if (!Engine.IsWindowed) return;
+            Engine.View.SetDocumentSelection(anchorChar, headChar);
+            m_MappingWindow = true;
+            SetSelectionUnchecked(new LetteraSelectionRange(Engine.ShownOfDocument(anchorChar), Engine.ShownOfDocument(headChar)), "sel.document");
+            m_MappingWindow = false;
+        }
+
+        /// <summary>The selection in chars of the document's source, or the shown indices on a plain text.</summary>
+        public (int Anchor, int Head) DocumentSelection => Engine.IsWindowed ? Engine.View.DocumentSelection : (m_Selection.Anchor, m_Selection.Head);
 
         void OnSourceWritten()
         {
@@ -225,6 +253,7 @@ namespace FirstSymbol.Lettera
             if (value == m_Selection) return false;
             LetteraSelectionRange previous = m_Selection;
             m_Selection = value;
+            if (Engine.IsWindowed && !m_MappingWindow) Engine.View.SetDocumentSelection(Engine.DocCharOf(value.Anchor), Engine.DocCharOf(value.Head));
             MarkVisualsDirty();
             Editable?.OnSelectionMoved(previous, value, reason);
             SelectionChanged?.Invoke(new LetteraSelectionChange(previous, value, reason));
@@ -310,6 +339,11 @@ namespace FirstSymbol.Lettera
 
         public string SelectedPlainText()
         {
+            if (Engine.IsWindowed && Engine.View.HasDocumentSelection)
+            {
+                (int anchor, int head) = Engine.View.DocumentSelection;
+                return Engine.DocumentPlainBetween(Mathf.Min(anchor, head), Mathf.Max(anchor, head));
+            }
             if (m_Selection.IsCaret) return "";
             string plain = PlainOf(Shown, m_Selection.Start, m_Selection.End);
             if (Engine.HasInline) plain = WithInlineAlt(m_Selection.Start, m_Selection.End);

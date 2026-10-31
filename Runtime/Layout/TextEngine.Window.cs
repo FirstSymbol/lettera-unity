@@ -172,6 +172,9 @@ namespace FirstSymbol.Lettera
 
         bool m_WindowPlaced;
 
+        /// <summary>The window's text was laid out: what is held in document positions is read again from it.</summary>
+        internal event Action WindowPlaced;
+
         void AfterWindowPasses()
         {
             if (m_View == null || !m_WindowPlaced) return;
@@ -181,6 +184,7 @@ namespace FirstSymbol.Lettera
             m_ViewWidth = width;
             if (wider) m_View.NewGeneration();
             else m_View.AfterLayout();
+            WindowPlaced?.Invoke();
         }
 
         // ------------------------------------------------------------- a plain text under a scroller
@@ -207,6 +211,175 @@ namespace FirstSymbol.Lettera
             m_WindowOffset = offset;
             PoseForScroll();
         }
+
+        // ------------------------------------------------------------- bars
+
+        // One em in screen pixels, from what scales a text on its way there.
+        internal float ProjectedEmPixels
+        {
+            get
+            {
+                Component owner = m_Host.Owner;
+                float size = m_Host.Data.FontSize;
+                if (owner == null) return size;
+                Vector3 scale = owner.transform.lossyScale;
+                float em = size * Mathf.Abs(scale.y);
+                if (owner is LetteraWorldText)
+                {
+                    Camera camera = Camera.main;
+                    if (camera == null) return size;
+                    float distance = Mathf.Max(Vector3.Dot(owner.transform.position - camera.transform.position, camera.transform.forward), camera.nearClipPlane);
+                    float unitsPerScreen = camera.orthographic ? camera.orthographicSize * 2 : 2 * distance * Mathf.Tan(camera.fieldOfView * 0.5f * Mathf.Deg2Rad);
+                    return em * Screen.height / Mathf.Max(unitsPerScreen, 1e-4f);
+                }
+                return em;
+            }
+        }
+
+        bool ShowsBars => m_View != null && m_View.IsShownAsBars;
+
+        internal void BarsChanged()
+        {
+            SetDirty(DirtyLevel.Mesh);
+            m_Host.RequestRebuild(DirtyLevel.Mesh);
+        }
+
+        // Each block a bar, merged until a bar covers two screen pixels: the work is bounded by the screen, however much text is in view.
+        void DrawBars()
+        {
+            LetteraRope rope = m_View.Rope;
+            if (rope.BlockCount == 0) return;
+            Color32 baseColor = m_Host.BaseColor;
+            var color = new Color32(baseColor.r, baseColor.g, baseColor.b, (byte)(baseColor.a * 0.35f));
+            float top = m_Box.yMax, height = m_Box.height;
+            double y = m_View.DocumentY, bottom = y + height;
+            double minimum = 2.0 * m_Host.Data.FontSize / Mathf.Max(ProjectedEmPixels, 0.01f);
+            int block = rope.BlockAtHeight(y, out _);
+            UseSegment(s_NoPaint);
+            m_FilterRow = 0;
+            m_CurrentOwner = -1;
+            while (block < rope.BlockCount)
+            {
+                double start = rope.HeightAtBlock(block);
+                if (start >= bottom) break;
+                double end = rope.HeightAtBlock(block + 1);
+                int next = block + 1;
+                while (end - start < minimum && next < rope.BlockCount)
+                {
+                    next++;
+                    end = rope.HeightAtBlock(next);
+                }
+                float from = top - (float)(start - y), to = top - (float)(end - y);
+                AddSolid(m_Box.xMin, Mathf.Max(to, m_Box.yMin), m_Box.xMax, Mathf.Min(from, top), color, s_NoPaint, default, 0, 0);
+                block = next;
+            }
+        }
+
+        // ------------------------------------------------------------- what stays across windows
+
+        struct DocumentRange
+        {
+            public int DocChar, Style;
+        }
+
+        readonly Dictionary<long, int> m_DocumentRangeIds = new Dictionary<long, int>();
+        readonly List<long> m_DocumentRangeScratch = new List<long>();
+
+        /// <summary>Tells whether a range holds state worth keeping out of a window, beyond the covers this knows itself.</summary>
+        internal Func<int, bool> RangeHasOutsideState;
+
+        static long DocumentRangeKey(int docChar, int style) => (long)docChar << 20 | (uint)style;
+
+        // A range stays itself while it stays in the window. One with state stays itself out of it too; one without gets a new id if it comes back.
+        void AssignDocumentRangeIds(LetteraMatchContext context)
+        {
+            List<LetteraMatchContext.RangeRecord> ranges = context.Ranges;
+            var present = new HashSet<long>();
+            m_RangeIds.Clear();
+            for (int r = 0; r < ranges.Count; r++)
+            {
+                LetteraMatchContext.RangeRecord range = ranges[r];
+                int docChar = m_WindowStart + m_SourceIndex[Math.Min(Math.Max(range.RenderedStart, 0), m_TextLength)] - m_PreludeLength;
+                long key = DocumentRangeKey(docChar, range.StyleIndex);
+                if (!m_DocumentRangeIds.TryGetValue(key, out int id))
+                {
+                    id = m_NextRangeId++;
+                    m_DocumentRangeIds[key] = id;
+                }
+                present.Add(key);
+                m_RangeIds.Add(id);
+            }
+            m_DocumentRangeScratch.Clear();
+            foreach (KeyValuePair<long, int> pair in m_DocumentRangeIds)
+                if (!present.Contains(pair.Key) && !(m_CoverTarget.TryGetValue(pair.Value, out bool open) && open) && !(RangeHasOutsideState != null && RangeHasOutsideState(pair.Value)))
+                    m_DocumentRangeScratch.Add(pair.Key);
+            foreach (long key in m_DocumentRangeScratch)
+            {
+                int id = m_DocumentRangeIds[key];
+                m_DocumentRangeIds.Remove(key);
+                m_CoverValue.Remove(id);
+                m_CoverTarget.Remove(id);
+                RangeRetired?.Invoke(id);
+            }
+        }
+
+        internal void MapDocumentRanges(LetteraRopePatch patch)
+        {
+            if (m_DocumentRangeIds.Count == 0) return;
+            var mapped = new Dictionary<long, int>(m_DocumentRangeIds.Count);
+            foreach (KeyValuePair<long, int> pair in m_DocumentRangeIds)
+            {
+                int docChar = (int)(pair.Key >> 20), style = (int)(pair.Key & 0xFFFFF);
+                // One the edit cut into starts over.
+                if (docChar > patch.Start && docChar < patch.Start + patch.Removed) continue;
+                mapped[DocumentRangeKey(patch.Map(docChar), style)] = pair.Value;
+            }
+            m_DocumentRangeIds.Clear();
+            foreach (KeyValuePair<long, int> pair in mapped) m_DocumentRangeIds[pair.Key] = pair.Value;
+        }
+
+        // ------------------------------------------------------------- reading what a document holds
+
+        // The same styles over a scratch text, for what reads a block outside the window.
+        internal static void ParseForSearch(TextEngine owner, string source, out int[] shown, out int[] sourceIndex, out int length)
+        {
+            LetteraTextData copy = owner.m_Host.Data.Clone();
+            copy.Text = source;
+            var engine = new TextEngine(new MeasureHost { Data = copy, Owner = owner.m_Host.Owner });
+            engine.EnsureParsed();
+            shown = engine.m_Text;
+            sourceIndex = engine.m_SourceIndex;
+            length = engine.m_TextLength;
+        }
+
+        /// <summary>The plain text between two places in the document, with markup gone, read block by block with what is open before each.</summary>
+        internal string DocumentPlainBetween(int fromChar, int toChar)
+        {
+            LetteraRope rope = m_View.Rope;
+            var walk = new DocumentTagWalk(rope);
+            var builder = new System.Text.StringBuilder(toChar - fromChar);
+            if (rope.BlockCount == 0 || toChar <= fromChar) return "";
+            for (int block = rope.BlockAtChar(fromChar); block < rope.BlockCount; block++)
+            {
+                int start = rope.CharOfBlock(block), chars = rope.BlockChars(block);
+                if (start >= toChar) break;
+                string prelude = walk.PreludeThrough(block, this);
+                var source = new char[prelude.Length + chars];
+                prelude.CopyTo(0, source, 0, prelude.Length);
+                rope.CopyTo(start, new Span<char>(source, prelude.Length, chars));
+                ParseForSearch(this, new string(source), out int[] shown, out int[] sourceIndex, out int length);
+                for (int i = 0; i < length; i++)
+                {
+                    int position = start + sourceIndex[i] - prelude.Length;
+                    if (position < fromChar || position >= toChar) continue;
+                    builder.Append(char.ConvertFromUtf32(shown[i]));
+                }
+            }
+            return builder.ToString();
+        }
+
+        /// <summary>A place in the document, as an index of what shows now, held to the window's ends.</summary>
+        public int ShownOfDocument(int docChar) => ShownOfDocChar(Math.Max(m_WindowStart, Math.Min(docChar, m_WindowStart + m_WindowLength)));
 
         internal Vector2 ScrollIntoContent(Vector2 point)
         {

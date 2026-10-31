@@ -61,6 +61,39 @@ namespace FirstSymbol.Lettera
         /// <summary>The character the viewport is held to, and how far past its line's top the viewport stands.</summary>
         public (int DocChar, float Offset) Anchor { get; private set; }
 
+        /// <summary>The selection in chars of the source: it stays while the window moves, and follows edits.</summary>
+        public (int Anchor, int Head) DocumentSelection { get; private set; }
+        public bool HasDocumentSelection { get; private set; }
+
+        internal void SetDocumentSelection(int anchor, int head)
+        {
+            DocumentSelection = (anchor, head);
+            HasDocumentSelection = true;
+        }
+
+        /// <summary>True while the text is too small to read, and draws bars in place of glyphs.</summary>
+        public bool IsShownAsBars { get; private set; }
+
+        /// <summary>Whether bars may stand in for glyphs too small to read.</summary>
+        public bool BarsEnabled { get; set; } = true;
+
+        /// <summary>Below this many screen pixels to an em, bars show.</summary>
+        public float MinLegiblePixelsPerEm { get; set; } = 4;
+
+        /// <summary>Stands in for what the screen shows, for tests.</summary>
+        internal Func<float> ProjectedEmOverride;
+
+        // Bars come on below the limit and go off 20% above it, so a slow zoom does not flicker at the edge.
+        void UpdateBars()
+        {
+            float em = ProjectedEmOverride != null ? ProjectedEmOverride() : m_Engine.ProjectedEmPixels;
+            bool bars = BarsEnabled && (IsShownAsBars ? em < MinLegiblePixelsPerEm * 1.2f : em < MinLegiblePixelsPerEm);
+            if (bars == IsShownAsBars) return;
+            IsShownAsBars = bars;
+            m_Engine.BarsChanged();
+            if (!bars) MoveWindow(true);
+        }
+
         public int MeasuredBlockCount => m_MeasuredCount;
         public bool IsExact(int block) => block >= 0 && block < m_Measured.Length && m_Measured[block];
 
@@ -208,6 +241,13 @@ namespace FirstSymbol.Lettera
         // What shows comes close to the window's edge, or leaves it: the window moves. Inside it, a scroll is only a pose.
         void MoveWindow(bool force)
         {
+            if (IsShownAsBars)
+            {
+                // No text is laid out: bars come from what is known of each block's height.
+                m_Engine.SetWindowOffset(0);
+                m_Engine.BarsChanged();
+                return;
+            }
             if (m_Rope.BlockCount == 0)
             {
                 m_Engine.SetWindow(0, 0, "", 0);
@@ -333,6 +373,8 @@ namespace FirstSymbol.Lettera
         {
             // Block numbers moved, so measures are read again near the view; the anchor follows its character.
             Anchor = (patch.Map(Anchor.DocChar), Anchor.Offset);
+            if (HasDocumentSelection) DocumentSelection = (patch.Map(DocumentSelection.Anchor), patch.Map(DocumentSelection.Head));
+            m_Engine.MapDocumentRanges(patch);
             int blocks = m_Rope.BlockCount;
             var measured = new bool[blocks];
             m_Measured = measured;
@@ -350,6 +392,7 @@ namespace FirstSymbol.Lettera
 
         bool IMotionClient.TickMotion(float scaled, float unscaled)
         {
+            UpdateBars();
             var clock = System.Diagnostics.Stopwatch.StartNew();
             double budget = m_Settings.ScanBudgetMs;
             bool walking = m_Walk.Advance(m_Engine, budget * 0.5);
@@ -365,8 +408,9 @@ namespace FirstSymbol.Lettera
                 }
                 measuring = m_MeasuredCount < m_Measured.Length;
             }
-            m_InHub = walking || measuring;
-            return m_InHub;
+            // A document stays here for the bars' sake: seeing whether its size on screen changed costs one small sum a frame.
+            _ = walking || measuring;
+            return true;
         }
 
         // Near the viewport first, then outward.
@@ -477,6 +521,18 @@ namespace FirstSymbol.Lettera
             if (!m_NamesKnown) Advance(engine, 0);
             if (block <= 0 || m_Ends.Count == 0) return "";
             return m_Ends[Math.Min(block - 1, m_Ends.Count - 1)];
+        }
+
+        // What is open at a block's start, walking there first if it must.
+        public string PreludeThrough(int block, TextEngine engine)
+        {
+            if (!m_NamesKnown) Advance(engine, 0);
+            while (m_NextBlock < block && m_NextBlock < m_Rope.BlockCount)
+            {
+                ScanBlock(m_NextBlock);
+                m_NextBlock++;
+            }
+            return PreludeAt(block, engine);
         }
 
         public bool PreludeChanged(int block, TextEngine engine)
