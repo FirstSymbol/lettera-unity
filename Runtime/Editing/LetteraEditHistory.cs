@@ -168,6 +168,29 @@ namespace FirstSymbol.Lettera
             m_Cursor = Math.Max(m_Cursor - drop, 0);
         }
 
+        /// <summary>Moves every recorded position, when what they count from moved.</summary>
+        public void Rebase(int delta)
+        {
+            if (delta == 0) return;
+            for (int i = 0; i < m_Splices.Count; i++)
+            {
+                Splice splice = m_Splices[i];
+                splice.Position += delta;
+                m_Splices[i] = splice;
+            }
+        }
+
+        /// <summary>Where the next undo or redo would act, in source positions. False when there is none.</summary>
+        public bool PeekPosition(bool undo, out int position)
+        {
+            position = 0;
+            if (undo ? !CanUndo : !CanRedo) return false;
+            Step step = m_Steps[undo ? m_Cursor - 1 : m_Cursor];
+            if (step.SpliceCount == 0) return false;
+            position = m_Splices[step.SpliceStart].Position;
+            return true;
+        }
+
         /// <summary>Takes back the newest step on a source. False when there is none.</summary>
         public bool Undo(StringBuilder source, out LetteraSelectionRange selection)
         {

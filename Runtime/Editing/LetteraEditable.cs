@@ -346,8 +346,10 @@ namespace FirstSymbol.Lettera
         void WriteSource(string value)
         {
             m_Writing = true;
-            Host.SourceText = value;
+            if (Engine.IsWindowed) Engine.WriteWindowSource(value);
+            else Host.SourceText = value;
             m_Writing = false;
+            KeepHistoryOnWindow();
             Engine.EnsureParsed();
             m_ShownChanged = true;
             m_CaretStylesDirty = true;
@@ -505,8 +507,37 @@ namespace FirstSymbol.Lettera
             return at == text.Length;
         }
 
+        int m_HistoryBase;
+
+        // What a field records counts from the window's start, which moves as the window does.
+        void KeepHistoryOnWindow()
+        {
+            if (!Engine.IsWindowed) return;
+            int now = Engine.WindowSourceBase;
+            m_History.Rebase(m_HistoryBase - now);
+            m_HistoryBase = now;
+        }
+
+        // A selection can reach past what is materialized, and half of it must not go: the edit is refused, and says why, until the rest is implemented.
+        bool EditReachesOutOfWindow()
+        {
+            if (!Engine.IsWindowed || !Engine.View.HasDocumentSelection) return false;
+            (int anchor, int head) = Engine.View.DocumentSelection;
+            int from = Mathf.Min(anchor, head), to = Mathf.Max(anchor, head);
+            if (from >= Engine.WindowStart && to <= Engine.WindowStart + Engine.WindowLength) return false;
+            if (!s_WarnedOutOfWindow)
+            {
+                s_WarnedOutOfWindow = true;
+                Debug.LogWarning("Lettera: an edit of a selection reaching past what a document has materialized is not supported yet, so it was refused and nothing changed.", this);
+            }
+            return true;
+        }
+
+        static bool s_WarnedOutOfWindow;
+
         void ApplyEdit(int start, int end, string text, string reason, int caretAfter, List<LetteraPastedSpan> pasted)
         {
+            if (end > start && EditReachesOutOfWindow()) return;
             string source = Engine.RawText;
             bool typing = reason.StartsWith("user.type", StringComparison.Ordinal);
             LetteraSelectionRange before = Selectable.Selection;
@@ -822,6 +853,21 @@ namespace FirstSymbol.Lettera
 
         bool Replay(bool undo)
         {
+            if (Engine.IsWindowed)
+            {
+                // What is undone may lie far from the view: the window goes there first.
+                KeepHistoryOnWindow();
+                if (m_History.PeekPosition(undo, out int position))
+                {
+                    int docChar = position + Engine.WindowSourceBase;
+                    if (docChar < Engine.WindowStart || docChar > Engine.WindowStart + Engine.WindowLength)
+                    {
+                        Engine.View.ScrollToChar(docChar, LetteraRevealAlign.Center);
+                        Engine.EnsureParsed();
+                        KeepHistoryOnWindow();
+                    }
+                }
+            }
             m_Builder.Clear();
             m_Builder.Append(Engine.RawText);
             LetteraSelectionRange selection;

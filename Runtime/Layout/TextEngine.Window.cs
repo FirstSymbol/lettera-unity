@@ -97,6 +97,24 @@ namespace FirstSymbol.Lettera
             m_Host.PoseChanged();
         }
 
+        // Where the window's source stands in the document: a position in one, plus this, is that position in the other.
+        internal int WindowSourceBase => m_WindowStart - m_PreludeLength;
+
+        /// <summary>Turns a change of the window's source into the one edit of the document it means.</summary>
+        internal void WriteWindowSource(string value)
+        {
+            ReadOnlySpan<char> old = RawChars;
+            int prefix = 0, suffix = 0;
+            int limit = Math.Min(old.Length, value.Length);
+            while (prefix < limit && old[prefix] == value[prefix]) prefix++;
+            while (suffix < limit - prefix && old[old.Length - 1 - suffix] == value[value.Length - 1 - suffix]) suffix++;
+            // An edit never touches what stands before the window.
+            prefix = Math.Max(prefix, m_PreludeLength);
+            int removed = Math.Max(old.Length - prefix - suffix, 0);
+            int inserted = Math.Max(value.Length - prefix - suffix, 0);
+            m_View.Rope.Replace(WindowSourceBase + prefix, removed, value.AsSpan(prefix, inserted));
+        }
+
         /// <summary>Where a shown codepoint is in the document.</summary>
         public int DocCharOf(int shown) => m_WindowStart + m_SourceIndex[Math.Min(Math.Max(shown, 0), m_TextLength)] - m_PreludeLength;
 

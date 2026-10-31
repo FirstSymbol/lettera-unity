@@ -69,6 +69,7 @@ namespace FirstSymbol.Lettera
             public int Chars, Codepoints, Paragraphs;
             public RopeBlockFlags Flags;
             public double Height;
+            public bool Measured;
 
             public bool IsOwned => Source == null;
         }
@@ -452,8 +453,33 @@ namespace FirstSymbol.Lettera
             return height;
         }
 
-        /// <summary>Sets a block's measured height, and the totals up the path to it.</summary>
+        /// <summary>Sets a block's height, and the totals up the path to it.</summary>
         public void SetBlockHeight(int block, double height) => SetHeight(m_Root, block, height);
+
+        /// <summary>How many blocks hold a height from a real layout.</summary>
+        public int MeasuredBlocks { get; private set; }
+
+        internal bool IsBlockMeasured(int block) => BlockAtIndex(block, out _).Measured;
+
+        internal void MarkBlockMeasured(int block, bool measured)
+        {
+            Block found = BlockAtIndex(block, out _);
+            if (found.Measured == measured) return;
+            found.Measured = measured;
+            MeasuredBlocks += measured ? 1 : -1;
+        }
+
+        internal void ForgetMeasures()
+        {
+            for (int b = 0; b < BlockCount; b++) BlockAtIndex(b, out _).Measured = false;
+            MeasuredBlocks = 0;
+        }
+
+        /// <summary>What height a block just made by an edit starts with: codepoints and paragraphs in, an estimate out.</summary>
+        internal Func<int, int, double> EstimateNewBlock;
+
+        /// <summary>The first block the last edit made, for what keeps something per block.</summary>
+        internal int LastEditFirstBlock { get; private set; }
 
         static void SetHeight(Node node, int index, double height)
         {
@@ -675,12 +701,22 @@ namespace FirstSymbol.Lettera
             if (tail > 0) CopyTo(position + removed, new Span<char>(merged, head + inserted.Length, tail));
 
             if (total > 0)
+            {
                 for (int i = last; i >= first; i--)
+                {
+                    if (BlockAtIndex(i, out _).Measured) MeasuredBlocks--;
                     RemoveBlock(i);
+                }
+            }
 
             List<Block> blocks = RopeScanner.SplitChars(merged, m_Triggers);
             int at = total > 0 ? first : 0;
-            foreach (Block block in blocks) InsertBlock(at++, block);
+            LastEditFirstBlock = at;
+            foreach (Block block in blocks)
+            {
+                if (EstimateNewBlock != null) block.Height = EstimateNewBlock(block.Codepoints, block.Paragraphs);
+                InsertBlock(at++, block);
+            }
 
             int old = Version;
             Version++;

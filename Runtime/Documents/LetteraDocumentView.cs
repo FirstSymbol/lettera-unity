@@ -32,8 +32,6 @@ namespace FirstSymbol.Lettera
         readonly bool m_Owns;
         readonly LetteraDocumentSettings m_Settings;
         readonly DocumentTagWalk m_Walk;
-        bool[] m_Measured = new bool[0];
-        int m_MeasuredCount;
         double m_Y;
         int m_FirstBlock, m_LastBlock;
         bool m_InHub, m_AtEnd;
@@ -48,6 +46,7 @@ namespace FirstSymbol.Lettera
             m_Owns = owns;
             m_Settings = settings;
             m_Walk = new DocumentTagWalk(rope);
+            rope.EstimateNewBlock = EstimateFrom;
             rope.Changed += OnRopeChanged;
         }
 
@@ -94,8 +93,8 @@ namespace FirstSymbol.Lettera
             if (!bars) MoveWindow(true);
         }
 
-        public int MeasuredBlockCount => m_MeasuredCount;
-        public bool IsExact(int block) => block >= 0 && block < m_Measured.Length && m_Measured[block];
+        public int MeasuredBlockCount => m_Rope.MeasuredBlocks;
+        public bool IsExact(int block) => block >= 0 && block < m_Rope.BlockCount && m_Rope.IsBlockMeasured(block);
 
         public int WindowStart => m_Engine.WindowStart;
         public int WindowLength => m_Engine.WindowLength;
@@ -128,6 +127,7 @@ namespace FirstSymbol.Lettera
         internal void Close()
         {
             m_Rope.Changed -= OnRopeChanged;
+            m_Rope.EstimateNewBlock = null;
             if (m_InHub) LetteraMotionHub.Remove(this);
             m_InHub = false;
             if (m_Owns) m_Rope.Dispose();
@@ -144,8 +144,7 @@ namespace FirstSymbol.Lettera
 
         void SeedEstimates()
         {
-            m_Measured = new bool[m_Rope.BlockCount];
-            m_MeasuredCount = 0;
+            m_Rope.ForgetMeasures();
             m_AverageLine = m_Engine.EstimatedLineHeight;
             float width = Math.Max(m_Engine.WindowViewportWidth, 1);
             float em = m_AverageLine / 1.4f;
@@ -156,6 +155,11 @@ namespace FirstSymbol.Lettera
         double Estimate(int block)
         {
             m_Rope.BlockTotals(block, out int codepoints, out int paragraphs);
+            return EstimateFrom(codepoints, paragraphs);
+        }
+
+        double EstimateFrom(int codepoints, int paragraphs)
+        {
             int lines = Math.Max(1, (int)Math.Ceiling(codepoints / Math.Max(m_AverageCodepointsPerLine, 1))) + paragraphs;
             return lines * m_AverageLine;
         }
@@ -163,8 +167,7 @@ namespace FirstSymbol.Lettera
         /// <summary>Width, font, size or wrap changed: what was measured is an estimate again, and the anchor keeps its character at the top.</summary>
         internal void NewGeneration()
         {
-            Array.Clear(m_Measured, 0, m_Measured.Length);
-            m_MeasuredCount = 0;
+            m_Rope.ForgetMeasures();
             m_MeasureCursor = 0;
             for (int b = 0; b < m_Rope.BlockCount; b++) m_Rope.SetBlockHeight(b, Estimate(b));
             JumpToAnchor();
@@ -220,7 +223,7 @@ namespace FirstSymbol.Lettera
             int block = m_Rope.BlockCount > 0 ? m_Rope.BlockAtChar(Math.Min(docChar, Math.Max(m_Rope.Length - 1, 0))) : 0;
             if (m_Engine.TryWindowLineTop(docChar, out float lineTop))
             {
-                y = m_Rope.HeightAtBlock(m_FirstBlock) + lineTop;
+                y = WindowTop() + lineTop;
                 return IsExact(block);
             }
             int start = m_Rope.CharOfBlock(block), chars = m_Rope.BlockCount > 0 ? m_Rope.BlockChars(block) : 1;
@@ -254,7 +257,7 @@ namespace FirstSymbol.Lettera
                 return;
             }
             float viewport = Math.Max(ViewportHeight, 1);
-            double windowTop = m_Rope.HeightAtBlock(m_FirstBlock), windowBottom = m_Rope.HeightAtBlock(m_LastBlock + 1);
+            double windowTop = WindowTop(), windowBottom = m_Rope.HeightAtBlock(m_LastBlock + 1);
             double edge = m_Settings.EdgeViewports * viewport;
             bool nearTop = m_FirstBlock > 0 && m_Y - edge < windowTop;
             bool nearBottom = m_LastBlock + 1 < m_Rope.BlockCount && m_Y + viewport + edge > windowBottom;
@@ -309,9 +312,12 @@ namespace FirstSymbol.Lettera
                 if (endChar > 0 && endChar < m_Rope.Length && char.IsLowSurrogate(CharAt(endChar))) endChar--;
             }
 
-            string prelude = m_Walk.PreludeAt(m_Rope.BlockAtChar(Math.Min(startChar, Math.Max(m_Rope.Length - 1, 0))), m_Engine);
+            int startBlock = m_Rope.BlockAtChar(Math.Min(startChar, Math.Max(m_Rope.Length - 1, 0)));
+            string prelude = m_Walk.PreludeAt(startBlock, m_Engine);
+            m_Prelude = prelude;
             int length = endChar - startChar;
-            m_Engine.SetWindow(startChar, length, prelude, (float)(m_Y - m_Rope.HeightAtBlock(first)));
+            m_Engine.SetWindow(startChar, length, prelude, 0);
+            m_Engine.SetWindowOffset((float)(m_Y - WindowTop()));
             GeometryChanged?.Invoke();
         }
 
@@ -335,35 +341,31 @@ namespace FirstSymbol.Lettera
                 if (from < m_Engine.WindowStart || to > m_Engine.WindowStart + m_Engine.WindowLength) continue;
                 float height = m_Engine.WindowHeightBetween(from, to);
                 m_Rope.SetBlockHeight(b, height);
-                if (!m_Measured[b])
-                {
-                    m_Measured[b] = true;
-                    m_MeasuredCount++;
-                }
+                m_Rope.MarkBlockMeasured(b, true);
             }
             if (m_JumpPending)
             {
                 m_JumpPending = false;
                 if (m_Engine.TryWindowLineTop(Anchor.DocChar, out float top))
                 {
-                    m_Y = m_Rope.HeightAtBlock(m_FirstBlock) + top + Anchor.Offset;
+                    m_Y = WindowTop() + top + Anchor.Offset;
                     m_Y = Math.Max(0, Math.Min(m_Y, MaxDocumentY));
                 }
             }
             else if (!m_Scrolled && m_Engine.TryWindowLineTop(Anchor.DocChar, out float top))
             {
-                m_Y = m_Rope.HeightAtBlock(m_FirstBlock) + top + Anchor.Offset;
+                m_Y = WindowTop() + top + Anchor.Offset;
             }
             m_Scrolled = false;
             if (m_AtEnd) m_Y = MaxDocumentY;
-            m_Engine.SetWindowOffset((float)(m_Y - m_Rope.HeightAtBlock(m_FirstBlock)));
+            m_Engine.SetWindowOffset((float)(m_Y - WindowTop()));
             UpdateAnchor();
             GeometryChanged?.Invoke();
         }
 
         void UpdateAnchor()
         {
-            float offset = (float)(m_Y - m_Rope.HeightAtBlock(m_FirstBlock));
+            float offset = (float)(m_Y - WindowTop());
             if (m_Engine.TryWindowAnchorAt(offset, out int docChar, out float past)) Anchor = (docChar, past);
         }
 
@@ -371,21 +373,63 @@ namespace FirstSymbol.Lettera
 
         void OnRopeChanged(LetteraRopePatch patch)
         {
-            // Block numbers moved, so measures are read again near the view; the anchor follows its character.
+            // Each block's measure lives with it, so only what the edit made starts over; the anchor follows its character.
             Anchor = (patch.Map(Anchor.DocChar), Anchor.Offset);
             if (HasDocumentSelection) DocumentSelection = (patch.Map(DocumentSelection.Anchor), patch.Map(DocumentSelection.Head));
             m_Engine.MapDocumentRanges(patch);
-            int blocks = m_Rope.BlockCount;
-            var measured = new bool[blocks];
-            m_Measured = measured;
-            m_MeasuredCount = 0;
             m_MeasureCursor = 0;
-            for (int b = 0; b < blocks; b++)
-                if (m_Rope.BlockHeight(b) <= 0)
-                    m_Rope.SetBlockHeight(b, Estimate(b));
-            m_Walk.Invalidate();
-            JumpToAnchor();
+            m_Walk.InvalidateFrom(m_Rope.LastEditFirstBlock);
+            KeepWindowThrough(patch);
             EnterHub();
+        }
+
+        // An edit must not move the window under whoever made it: what they hold are indices into it, and they are not done yet.
+        void KeepWindowThrough(in LetteraRopePatch patch)
+        {
+            int start = m_Engine.WindowStart, length = m_Engine.WindowLength, end = start + length;
+            if (m_Rope.BlockCount == 0 || !m_Engine.IsWindowLoaded)
+            {
+                JumpToAnchor();
+                return;
+            }
+            // Below the window nothing that shows changed: only the extent did.
+            if (patch.Start > end)
+            {
+                GeometryChanged?.Invoke();
+                return;
+            }
+            bool straddles = (patch.Start < start && patch.Start + patch.Removed > start) || patch.Start + patch.Removed > end;
+            if (straddles)
+            {
+                JumpToAnchor();
+                return;
+            }
+            if (patch.Start + patch.Removed <= start && patch.Start < start) start += patch.Inserted - patch.Removed;
+            else length += patch.Inserted - patch.Removed;
+            start = Math.Max(0, Math.Min(start, m_Rope.Length));
+            length = Math.Max(0, Math.Min(length, m_Rope.Length - start));
+            RefreshWindowBlocks(start, length);
+            m_Engine.SetWindow(start, length, m_Prelude, m_Engine.WindowOffset);
+        }
+
+        void RefreshWindowBlocks(int start, int length)
+        {
+            int last = Math.Max(m_Rope.Length - 1, 0);
+            m_FirstBlock = m_Rope.BlockAtChar(Math.Min(start, last));
+            m_LastBlock = m_Rope.BlockAtChar(Math.Min(start + Math.Max(length - 1, 0), last));
+        }
+
+        string m_Prelude = "";
+
+        // Where the window's first line stands. A window can start inside a block: after an edit that merged it, or in one too long to fit.
+        double WindowTop()
+        {
+            if (m_Rope.BlockCount == 0) return 0;
+            double top = m_Rope.HeightAtBlock(m_FirstBlock);
+            int from = m_Rope.CharOfBlock(m_FirstBlock), into = m_Engine.WindowStart - from;
+            if (into <= 0) return top;
+            double height = m_Rope.HeightAtBlock(m_FirstBlock + 1) - top;
+            return top + height * into / Math.Max(m_Rope.BlockChars(m_FirstBlock), 1);
         }
 
         // ------------------------------------------------------------- in the background
@@ -400,13 +444,13 @@ namespace FirstSymbol.Lettera
             bool measuring = false;
             if (m_Settings.MeasureInBackground && !m_Dragging && m_Engine.CanMeasureBlocks)
             {
-                while (m_MeasureCursor < m_Measured.Length && clock.Elapsed.TotalMilliseconds < budget)
+                while (m_MeasureCursor < m_Rope.BlockCount && clock.Elapsed.TotalMilliseconds < budget)
                 {
                     int block = NextToMeasure();
                     if (block < 0) break;
                     MeasureBlock(block);
                 }
-                measuring = m_MeasuredCount < m_Measured.Length;
+                measuring = m_Rope.MeasuredBlocks < m_Rope.BlockCount;
             }
             // A document stays here for the bars' sake: seeing whether its size on screen changed costs one small sum a frame.
             _ = walking || measuring;
@@ -416,12 +460,12 @@ namespace FirstSymbol.Lettera
         // Near the viewport first, then outward.
         int NextToMeasure()
         {
-            int total = m_Measured.Length, center = Math.Min(m_FirstBlock, total - 1);
+            int total = m_Rope.BlockCount, center = Math.Min(m_FirstBlock, total - 1);
             for (int reach = m_MeasureCursor; reach < total; reach++)
             {
                 int after = center + reach, before = center - reach;
-                if (after < total && !m_Measured[after]) return after;
-                if (before >= 0 && !m_Measured[before]) return before;
+                if (after < total && !m_Rope.IsBlockMeasured(after)) return after;
+                if (before >= 0 && !m_Rope.IsBlockMeasured(before)) return before;
                 m_MeasureCursor = reach + 1;
             }
             return -1;
@@ -443,15 +487,14 @@ namespace FirstSymbol.Lettera
                 if (last == '\n' && length > prelude.Length && text[length - 1] == '\r') length--;
             }
             float height = m_Engine.MeasureBlockHeight(new string(text, 0, length));
-            double before = m_Rope.HeightAtBlock(m_FirstBlock);
+            double before = WindowTop();
             m_Rope.SetBlockHeight(block, height);
-            m_Measured[block] = true;
-            m_MeasuredCount++;
+            m_Rope.MarkBlockMeasured(block, true);
             m_Rope.BlockTotals(block, out int codepoints, out _);
             float lines = Math.Max(height / Math.Max(m_AverageLine, 1), 1);
             m_AverageCodepointsPerLine = Mathf.Lerp(m_AverageCodepointsPerLine, codepoints / lines, 0.1f);
             // Above the window this only says where the top really is: nothing under the viewport moves.
-            double after = m_Rope.HeightAtBlock(m_FirstBlock);
+            double after = WindowTop();
             if (after != before)
             {
                 m_Y += after - before;
@@ -464,7 +507,7 @@ namespace FirstSymbol.Lettera
         internal void FinishBackgroundForTests()
         {
             while (m_Walk.Advance(m_Engine, double.MaxValue)) { }
-            while (m_MeasureCursor < m_Measured.Length)
+            while (m_MeasureCursor < m_Rope.BlockCount)
             {
                 int block = NextToMeasure();
                 if (block < 0) break;
@@ -489,11 +532,16 @@ namespace FirstSymbol.Lettera
 
         public DocumentTagWalk(LetteraRope rope) => m_Rope = rope;
 
-        public void Invalidate()
+        public void Invalidate() => InvalidateFrom(0);
+
+        // What came before an edit stands. The walk takes up from the state at the block before it.
+        public void InvalidateFrom(int block)
         {
-            m_Ends.Clear();
+            block = Math.Max(block, 0);
+            if (block < m_Ends.Count) m_Ends.RemoveRange(block, m_Ends.Count - block);
+            m_NextBlock = Math.Min(m_NextBlock, m_Ends.Count);
             m_Open.Clear();
-            m_NextBlock = 0;
+            if (m_Ends.Count > 0) Scan(m_Ends[m_Ends.Count - 1].AsSpan());
             m_LastPrelude = null;
         }
 
