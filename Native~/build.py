@@ -222,6 +222,30 @@ def build_android(ndk):
         place(output, "Android", abi, "liblettera_native.so")
 
 
+# The editor's font tool: its own library, loaded by no player, with its own copy of HarfBuzz and the subsetter.
+TOOLS = [os.path.join(HB, "harfbuzz-subset.cc"), os.path.join("src", "lettera_fonttools.cpp")]
+
+
+def build_tools(zig):
+    jobs = [("x86_64-windows-gnu", "Windows/x86_64", "lettera_fonttools.dll"), ("aarch64-windows-gnu", "Windows/ARM64", "lettera_fonttools.dll"), ("x86_64-linux-gnu.2.17", "Linux/x86_64", "liblettera_fonttools.so")]
+    for triple, folder, name in jobs:
+        out_dir = os.path.join(OUT, "tools-" + triple)
+        os.makedirs(out_dir, exist_ok=True)
+        output = os.path.join(out_dir, name)
+        run([zig, "c++", "-target", triple, "-shared", "-fPIC", *FLAGS, "-s", *TOOLS, "-o", output])
+        place(output, "Editor", *folder.split("/"), name)
+    slices = []
+    for arch, triple in (("x86_64", "x86_64-macos"), ("arm64", "aarch64-macos")):
+        out_dir = os.path.join(OUT, "tools-" + triple)
+        os.makedirs(out_dir, exist_ok=True)
+        output = os.path.join(out_dir, "liblettera_fonttools.dylib")
+        run([zig, "c++", "-target", triple, "-shared", "-fPIC", *FLAGS, *TOOLS, "-o", output])
+        slices.append((arch, output))
+    universal = os.path.join(OUT, "liblettera_fonttools.dylib")
+    fat(slices, universal)
+    place(universal, "Editor", "macOS", "liblettera_fonttools.dylib")
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--zig", default=DEFAULT_ZIG)
@@ -237,6 +261,7 @@ def main():
         "macos": lambda: build_macos(args.zig),
         "ios": lambda: build_ios(args.zig),
         "webgl": build_webgl,
+        "tools": lambda: build_tools(args.zig),
     }
     if ndk:
         jobs["android"] = lambda: build_android(ndk)
