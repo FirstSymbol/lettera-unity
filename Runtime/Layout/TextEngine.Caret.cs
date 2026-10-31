@@ -375,6 +375,7 @@ namespace FirstSymbol.Lettera
         {
             bias = LetteraCaretBias.Forward;
             if (m_Lines.Count == 0) return 0;
+            point = MapToContent(point);
             EnsureSegments();
             if (m_Attributes.HasCurve) return HitTestCurved(point, out bias);
 
@@ -506,6 +507,7 @@ namespace FirstSymbol.Lettera
         /// <summary>Whether a local point lies on a line's box, where an I-beam belongs.</summary>
         public bool IsOverLine(Vector2 point)
         {
+            point = MapToContent(point);
             foreach (LetteraLine line in m_Lines)
             {
                 if (point.y > line.Baseline + line.Ascent || point.y < line.Baseline - line.Descent) continue;

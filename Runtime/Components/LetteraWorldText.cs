@@ -32,6 +32,9 @@ namespace FirstSymbol.Lettera
         bool ITextHost.ClipsOverflow => false;
         Component ITextHost.Owner => this;
         void ITextHost.RequestRebuild(DirtyLevel level) => MarkDirty(level);
+        void ITextHost.PoseChanged() => LetteraWorldBatcher.NotifyPosed(this);
+        bool ITextHost.IsDrawn => !m_Hidden && isActiveAndEnabled;
+        bool ITextHost.SupportsMarquee => false;
 
         RectTransform Rect => m_Rect != null ? m_Rect : m_Rect = (RectTransform)transform;
         internal TextEngine Engine => m_Engine ?? (m_Engine = new TextEngine(this));
@@ -73,11 +76,13 @@ namespace FirstSymbol.Lettera
             AddListeners();
             LetteraWorldBatcher.Register(this);
             m_Registered = true;
+            Engine.SetEnabledForMotion(true);
         }
 
         void OnDisable()
         {
             RemoveListeners();
+            Engine.SetEnabledForMotion(false);
             if (m_Registered) LetteraWorldBatcher.Unregister(this);
             m_Registered = false;
         }

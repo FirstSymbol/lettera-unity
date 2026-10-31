@@ -66,11 +66,20 @@ namespace FirstSymbol.Lettera
             if (data.AutoSize) size = FitFontSize(data, width, height, wrap);
             CurrentFontSize = size;
 
-            if (m_Attributes.Elides.Count > 0 && !SuspendElide) ApplyElide(size, width, height, wrap);
+            CollectRevealsOnce();
+            ApplyRevealRemovals();
+            DecideMarquee(size, width);
+            if (m_MarqueeScrolling) wrap = false;
+            if (m_Attributes.Elides.Count > 0 && !SuspendElide && !m_MarqueeScrolling) ApplyElide(size, width, height, wrap);
 
             LineStats stats = BreakLines(m_Lines, size, width, wrap, true);
             m_ContentWidth = stats.MaxWidth;
             m_ContentHeight = stats.Height;
+            if (m_RevealSpans.Count > 0)
+            {
+                NumberRevealUnits();
+                UpdateRevealTargets();
+            }
         }
 
         float FitFontSize(LetteraTextData data, float width, float height, bool wrap)

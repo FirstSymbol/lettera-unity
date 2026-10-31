@@ -68,6 +68,7 @@ namespace FirstSymbol.Lettera
         static bool s_LoopInstalled;
 
         struct LetteraUpdate { }
+        struct LetteraMotionUpdate { }
 
         public static void EnsureRegistered()
         {
@@ -116,14 +117,16 @@ namespace FirstSymbol.Lettera
             {
                 if (root.subSystemList[i].type != typeof(PostLateUpdate)) continue;
                 PlayerLoopSystem post = root.subSystemList[i];
-                var systems = new PlayerLoopSystem[post.subSystemList.Length + 1];
+                var systems = new PlayerLoopSystem[post.subSystemList.Length + 2];
                 int insert = 0;
                 for (int s = 0; s < post.subSystemList.Length; s++)
                     if (post.subSystemList[s].type == typeof(PostLateUpdate.FinishFrameRendering))
                         insert = s;
-                Array.Copy(post.subSystemList, 0, systems, 0, insert);
-                systems[insert] = new PlayerLoopSystem { type = typeof(LetteraUpdate), updateDelegate = Tick };
-                Array.Copy(post.subSystemList, insert, systems, insert + 1, post.subSystemList.Length - insert);
+                // Motion runs first, so whatever scripts and animators wrote this frame lands in it, and before canvases update.
+                systems[0] = new PlayerLoopSystem { type = typeof(LetteraMotionUpdate), updateDelegate = LetteraMotionHub.Tick };
+                Array.Copy(post.subSystemList, 0, systems, 1, insert);
+                systems[insert + 1] = new PlayerLoopSystem { type = typeof(LetteraUpdate), updateDelegate = Tick };
+                Array.Copy(post.subSystemList, insert, systems, insert + 2, post.subSystemList.Length - insert);
                 post.subSystemList = systems;
                 root.subSystemList[i] = post;
                 PlayerLoop.SetPlayerLoop(root);
@@ -140,6 +143,7 @@ namespace FirstSymbol.Lettera
         /// <summary>Releases native fonts and atlas memory; nothing survives a domain reload.</summary>
         public static void Shutdown()
         {
+            LetteraMotionHub.Shutdown();
             LetteraWorldBatcher.Shutdown();
             GlyphAtlas.Shutdown();
             GradientAtlas.Shutdown();

@@ -74,7 +74,21 @@ namespace FirstSymbol.Lettera
     /// <summary>For scripts and for what later reads the system's preference.</summary>
     public static class LetteraAccessibility
     {
-        /// <summary>Animations snap to their end.</summary>
-        public static bool ReducedMotion;
+        static bool s_ReducedMotion;
+
+        /// <summary>Animations snap to their end. On the web this follows the browser's preference, until a script sets it.</summary>
+        public static bool ReducedMotion
+        {
+            get => s_ReducedMotion;
+            set
+            {
+                if (s_ReducedMotion == value) return;
+                s_ReducedMotion = value;
+                Changed?.Invoke();
+            }
+        }
+
+        /// <summary>Raised when ReducedMotion changes.</summary>
+        public static event System.Action Changed;
     }
 }

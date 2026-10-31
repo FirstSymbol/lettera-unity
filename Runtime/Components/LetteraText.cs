@@ -25,6 +25,9 @@ namespace FirstSymbol.Lettera
         bool ITextHost.ClipsOverflow => m_ClipsOverflow;
         Component ITextHost.Owner => this;
         void ITextHost.RequestRebuild(DirtyLevel level) => MarkDirty(level);
+        void ITextHost.PoseChanged() => SetVerticesDirty();
+        bool ITextHost.IsDrawn => !m_Hidden && IsActive() && !canvasRenderer.cull;
+        bool ITextHost.SupportsMarquee => true;
 
         TextEngine Engine => m_Engine ?? (m_Engine = new TextEngine(this));
 
@@ -60,12 +63,14 @@ namespace FirstSymbol.Lettera
             RefreshClipping();
             EnableCanvasChannels();
             AddListeners();
+            Engine.SetEnabledForMotion(true);
             SetAllDirty();
         }
 
         protected override void OnDisable()
         {
             RemoveListeners();
+            Engine.SetEnabledForMotion(false);
             foreach (Material mask in m_SegmentMasks) StencilMaterial.Remove(mask);
             m_SegmentMasks.Clear();
             m_LastSegments.Clear();
@@ -124,10 +129,16 @@ namespace FirstSymbol.Lettera
         protected override void UpdateGeometry()
         {
             if (m_HasAnimator) Engine.SyncSerializedFields();
-            if (Engine.Dirty == DirtyLevel.None && m_Mesh != null) return;
+            if (Engine.Dirty == DirtyLevel.None && m_Mesh != null)
+            {
+                if (Engine.PoseStreams != 0) UploadPose();
+                return;
+            }
             if (Engine.Dirty == DirtyLevel.None) Engine.SetDirty(DirtyLevel.Mesh);
             if (!Engine.Rebuild()) return;
             UploadMesh();
+            Engine.ClearPoseStreams();
+            ApplyMarqueeClip();
             if (MaterialsChanged())
             {
                 EnableCanvasChannels();
@@ -135,6 +146,61 @@ namespace FirstSymbol.Lettera
             }
             canvasRenderer.SetMesh(m_Mesh);
             RaiseRebuilt(Engine.LastChanges);
+        }
+
+        // A pose frame changes vertex data and nothing else: no index write, no material, no layout.
+        void UploadPose()
+        {
+            TextEngine e = Engine;
+            int streams = e.PoseStreams;
+            e.ClearPoseStreams();
+            if ((streams & TextEngine.StreamPositions) != 0) m_Mesh.SetVertices(e.Vertices, 0, e.VertexCount, UnityEngine.Rendering.MeshUpdateFlags.DontRecalculateBounds);
+            if ((streams & TextEngine.StreamColors) != 0) m_Mesh.SetColors(e.Colors, 0, e.VertexCount);
+            if ((streams & TextEngine.StreamUv0) != 0) m_Mesh.SetUVs(0, e.Uv0, 0, e.VertexCount);
+            if ((streams & TextEngine.StreamUv1) != 0) m_Mesh.SetUVs(1, e.Uv1, 0, e.VertexCount);
+            if ((streams & TextEngine.StreamUv3) != 0 && e.Styled) m_Mesh.SetUVs(3, e.Uv3, 0, e.VertexCount);
+            canvasRenderer.SetMesh(m_Mesh);
+        }
+
+        // ------------------------------------------------------------- marquee clip
+
+        Rect m_ParentClip;
+        bool m_ParentClipValid, m_MarqueeClipOn;
+
+        // The clip keeps the sides only, so overflow upward and downward stays visible. A mask around the text still counts.
+        void ApplyMarqueeClip()
+        {
+            TextEngine e = Engine;
+            if (!e.IsMarqueeScrolling)
+            {
+                if (!m_MarqueeClipOn) return;
+                m_MarqueeClipOn = false;
+                if (m_ParentClipValid) canvasRenderer.EnableRectClipping(m_ParentClip);
+                else canvasRenderer.DisableRectClipping();
+                canvasRenderer.clippingSoftness = Vector2.zero;
+                return;
+            }
+            Canvas root = canvas != null ? canvas.rootCanvas : null;
+            if (root == null) return;
+            m_MarqueeClipOn = true;
+            Rect own = rectTransform.rect;
+            Vector3 a = root.transform.InverseTransformPoint(rectTransform.TransformPoint(new Vector3(own.xMin + m_Data.Padding.x, own.yMin)));
+            Vector3 b = root.transform.InverseTransformPoint(rectTransform.TransformPoint(new Vector3(own.xMax - m_Data.Padding.z, own.yMax)));
+            Rect clip = Rect.MinMaxRect(Mathf.Min(a.x, b.x), -100000, Mathf.Max(a.x, b.x), 100000);
+            if (m_ParentClipValid)
+            {
+                clip = Rect.MinMaxRect(Mathf.Max(clip.xMin, m_ParentClip.xMin), Mathf.Max(clip.yMin, m_ParentClip.yMin), Mathf.Min(clip.xMax, m_ParentClip.xMax), Mathf.Min(clip.yMax, m_ParentClip.yMax));
+            }
+            canvasRenderer.EnableRectClipping(clip);
+            canvasRenderer.clippingSoftness = new Vector2(e.MarqueeFadeUnits, 0);
+        }
+
+        public override void SetClipRect(Rect clipRect, bool validRect)
+        {
+            m_ParentClip = clipRect;
+            m_ParentClipValid = validRect;
+            if (m_MarqueeClipOn) ApplyMarqueeClip();
+            else base.SetClipRect(clipRect, validRect);
         }
 
         void UploadMesh()

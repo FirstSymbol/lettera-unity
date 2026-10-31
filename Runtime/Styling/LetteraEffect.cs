@@ -5,7 +5,7 @@ using UnityEngine;
 namespace FirstSymbol.Lettera
 {
     /// <summary>Rebuild levels, lowest to highest; a higher level includes all lower ones.</summary>
-    public enum DirtyLevel : byte { None, Alpha, Tint, Mesh, Positions, Layout, Shape, Parse }
+    public enum DirtyLevel : byte { None, Alpha, Tint, Pose, Mesh, Positions, Layout, Shape, Parse }
 
     /// <summary>
     /// Changes the appearance or layout of the ranges a matcher found. Custom effects derive from this
@@ -19,6 +19,11 @@ namespace FirstSymbol.Lettera
 
         /// <summary>A copy for one text. Override when the effect holds a list or another nested object; references to assets stay shared.</summary>
         public virtual LetteraEffect Clone() => (LetteraEffect)MemberwiseClone();
+
+        /// <summary>The parameters this effect publishes, so rules, cues and an inspector can reach them by name.</summary>
+        public virtual System.Collections.Generic.IReadOnlyList<LetteraParamInfo> Parameters => s_NoParameters;
+
+        static readonly LetteraParamInfo[] s_NoParameters = new LetteraParamInfo[0];
 
         /// <summary>Whether text typed at the end of this effect's range joins it. A link does not.</summary>
         public virtual bool ExtendsOnType => true;
@@ -94,6 +99,9 @@ namespace FirstSymbol.Lettera
             m_Holds = holds;
             m_Owner = owner;
         }
+
+        /// <summary>The same slots with what holds say left out, for reading again later.</summary>
+        internal LetteraSlots WithoutHolds() => new LetteraSlots(m_Tag, m_Default, Raw, DefaultRaw, null, m_Owner);
 
         /// <summary>The slots of a child effect: its own segment of the tag and of the default.</summary>
         internal LetteraSlots ForChild(object child, string segment, string fallback) =>
@@ -372,6 +380,9 @@ namespace FirstSymbol.Lettera
                 Chars[i] = new Cp { SizeMul = 1, Weight = 0, Alpha = 1, Family = -1, Language = -1, Slant = -1, Features = -1, Axes = -1, Warp = -1 };
             Filters.Clear();
             Warps.Clear();
+            MotionRequests.Clear();
+            RevealRequests.Clear();
+            Marquee = null;
             PaintOrder = LetteraPaintOrder.LayerMajor;
             PaintReverse = false;
             HasUnion = false;
@@ -672,6 +683,39 @@ namespace FirstSymbol.Lettera
             Clamp(ref start, ref end);
             HasUnion = true;
             for (int i = start; i < end; i++) Chars[i].Union = true;
+        }
+
+        internal struct MotionRequest
+        {
+            public LetteraMotionEffect Effect;
+            public int Start, End, Range;
+            public LetteraSlots Slots;
+        }
+
+        internal struct RevealRequest
+        {
+            public RevealEffect Effect;
+            public int Start, End;
+            public string Entrance, Reach;
+            public LetteraRevealUnit Unit;
+        }
+
+        internal readonly System.Collections.Generic.List<MotionRequest> MotionRequests = new System.Collections.Generic.List<MotionRequest>();
+        internal readonly System.Collections.Generic.List<RevealRequest> RevealRequests = new System.Collections.Generic.List<RevealRequest>();
+        internal MarqueeEffect Marquee;
+        internal int CurrentRange;
+
+        internal void AddMotion(LetteraMotionEffect effect, int start, int end, in LetteraSlots slots) =>
+            MotionRequests.Add(new MotionRequest { Effect = effect, Start = start, End = end, Range = CurrentRange, Slots = slots.WithoutHolds() });
+
+        internal void AddReveal(RevealEffect effect, int start, int end, string entrance, string reach, LetteraRevealUnit unit) =>
+            RevealRequests.Add(new RevealRequest { Effect = effect, Start = start, End = end, Entrance = entrance, Reach = reach, Unit = unit });
+
+        internal bool RevealTagged(int request) => request < RevealRequests.Count && RevealRequests[request].Reach != null;
+
+        internal void SetMarquee(MarqueeEffect effect)
+        {
+            if (Marquee == null) Marquee = effect;
         }
 
         internal void SetWarp(int start, int end, in WarpSpec spec)

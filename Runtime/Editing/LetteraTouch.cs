@@ -497,5 +497,6 @@ namespace FirstSymbol.Lettera
     public partial class LetteraText
     {
         internal Mesh MeshForLoupe => m_Mesh;
+        internal TextEngine SharedEngineForTests => Engine;
     }
 }

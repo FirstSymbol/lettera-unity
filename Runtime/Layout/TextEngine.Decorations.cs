@@ -20,6 +20,26 @@ namespace FirstSymbol.Lettera
             AddLinesOf(group, true, overlay);
         }
 
+        bool IsPosedByCluster(int cluster)
+        {
+            for (int s = 0; s < m_MotionSpans.Count; s++)
+            {
+                MotionSpan span = m_MotionSpans[s];
+                if (cluster >= span.Start && cluster < span.End && (span.Effect.Unit == LetteraMotionUnit.Cluster || span.Effect.Unit == LetteraMotionUnit.Word)) return true;
+            }
+            return m_RevealSpans.Count > 0 && m_CpReveal[cluster] >= 0;
+        }
+
+        bool IsPosed(int cluster)
+        {
+            for (int s = 0; s < m_MotionSpans.Count; s++)
+            {
+                MotionSpan span = m_MotionSpans[s];
+                if (cluster >= span.Start && cluster < span.End) return true;
+            }
+            return m_RevealSpans.Count > 0 && m_CpReveal[cluster] >= 0;
+        }
+
         void AddLinesOf(LayerGroup group, bool strike, bool overlay)
         {
             LetteraAttributes.Cp[] attrs = m_Attributes.Chars;
@@ -37,7 +57,10 @@ namespace FirstSymbol.Lettera
                 }
                 float left = first.X, right = first.X + first.Advance;
                 int j = i + 1;
-                while (j < m_RealCount)
+                // Under a motion a line steps with its glyphs, so it comes in one slice per glyph.
+                bool sliced = m_RecordOwners && IsPosedByCluster(first.Cluster);
+                m_CurrentOwner = m_RecordOwners && IsPosed(first.Cluster) ? i : -1;
+                while (j < m_RealCount && !sliced)
                 {
                     ref PlacedGlyph next = ref m_Placed[j];
                     ref LetteraAttributes.Cp nextAttr = ref attrs[next.Cluster];

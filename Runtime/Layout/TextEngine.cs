@@ -28,6 +28,15 @@ namespace FirstSymbol.Lettera
 
         /// <summary>Something other than the component changed what the text shows.</summary>
         void RequestRebuild(DirtyLevel level);
+
+        /// <summary>A pose pass wrote vertex data.</summary>
+        void PoseChanged();
+
+        /// <summary>Whether drawing this now shows anything: a hidden or culled text does no pose work.</summary>
+        bool IsDrawn { get; }
+
+        /// <summary>A text this can clip to scroll within.</summary>
+        bool SupportsMarquee { get; }
     }
 
     /// <summary>
@@ -49,7 +58,11 @@ namespace FirstSymbol.Lettera
         ILetteraTextResolver m_Resolver;
         string m_ResolvedText = "";
 
-        public TextEngine(ITextHost host) => m_Host = host;
+        public TextEngine(ITextHost host)
+        {
+            m_Host = host;
+            m_OnRevealTouched = OnRevealTouched;
+        }
 
         public DirtyLevel Dirty => m_Dirty;
         public float CurrentFontSize { get; private set; }
@@ -62,6 +75,11 @@ namespace FirstSymbol.Lettera
 
         public void SetDirty(DirtyLevel level)
         {
+            if (level == DirtyLevel.Pose)
+            {
+                m_PoseDirty = true;
+                return;
+            }
             if (level > m_Dirty) m_Dirty = level;
         }
 
@@ -70,6 +88,11 @@ namespace FirstSymbol.Lettera
         /// <summary>An effect's parameter changed: runs the effects again on the ranges already found, then the passes from a level up.</summary>
         public void ReapplyEffects(DirtyLevel level)
         {
+            if (level == DirtyLevel.Pose)
+            {
+                m_PoseDirty = true;
+                return;
+            }
             m_Reapply = true;
             SetDirty(level);
         }
@@ -168,6 +191,7 @@ namespace FirstSymbol.Lettera
             else if (level == DirtyLevel.Alpha || level == DirtyLevel.Tint)
             {
                 ApplyBaseColor();
+                if (m_WantsPose) RunPosePass();
                 LastChanges |= LetteraChanges.Mesh;
             }
             return true;
@@ -222,6 +246,9 @@ namespace FirstSymbol.Lettera
             public bool ClipsOverflow => false;
             public Component Owner { get; set; }
             public void RequestRebuild(DirtyLevel level) { }
+            public void PoseChanged() { }
+            public bool IsDrawn => false;
+            public bool SupportsMarquee => false;
         }
 
         /// <summary>Measures a text without touching what a component displays.</summary>

@@ -337,10 +337,44 @@ namespace FirstSymbol.Lettera
         readonly DirtyLevel m_Level;
         readonly List<LetteraRangeInfo> m_Members = new List<LetteraRangeInfo>();
         readonly Dictionary<int, T> m_Single = new Dictionary<int, T>();
+        readonly Dictionary<int, float> m_SingleNumbers = new Dictionary<int, float>();
+        static readonly Func<T, float> s_ToNumber = MakeToNumber();
+        float m_Number;
         T m_Value;
         bool m_HasValue;
         bool m_Disposed;
         bool m_Suspended;
+
+        static Func<T, float> MakeToNumber()
+        {
+            if (typeof(T) == typeof(float)) return (Func<T, float>)(object)(Func<float, float>)(x => x);
+            if (typeof(T) == typeof(int)) return (Func<T, float>)(object)(Func<int, float>)(x => x);
+            return null;
+        }
+
+        bool IHoldSource_IsPose => m_Level == DirtyLevel.Pose && s_ToNumber != null;
+
+        bool IHoldSource.TryPoseNumber(object effect, int rangeIndex, int slot, out float number, out LetteraHoldComposition composition)
+        {
+            number = 0;
+            composition = Composition;
+            if (!IHoldSource_IsPose || !m_HasValue || m_Suspended || slot != m_Slot || effect != m_Effect) return false;
+            bool member = false;
+            for (int i = 0; i < m_Members.Count && !member; i++) member = m_Members[i].Index == rangeIndex;
+            if (!member) return false;
+            number = m_SingleNumbers.TryGetValue(rangeIndex, out float single) ? single : m_Number;
+            return true;
+        }
+
+        // A parameter that says it costs only a pose takes this path whatever the caller passed.
+        static DirtyLevel LevelOf(object effect, int slot, DirtyLevel asked)
+        {
+            if (effect is LetteraEffect published)
+                foreach (LetteraParamInfo info in published.Parameters)
+                    if (info.Slot == slot)
+                        return info.Level;
+            return asked;
+        }
 
         /// <summary>Raised when membership changes after a parse.</summary>
         public event Action Changed;
@@ -356,7 +390,7 @@ namespace FirstSymbol.Lettera
             m_Effect = effect;
             m_Query = query;
             m_Slot = slot;
-            m_Level = level;
+            m_Level = LevelOf(effect, slot, level);
             Composition = composition;
             Priority = priority;
             engine.AddHold(this);
@@ -382,6 +416,8 @@ namespace FirstSymbol.Lettera
                 m_Value = value;
                 m_HasValue = true;
                 m_Single.Clear();
+                m_SingleNumbers.Clear();
+                if (s_ToNumber != null) m_Number = s_ToNumber(value);
                 m_Engine.ChangeHeld(m_Level);
             }
         }
@@ -400,6 +436,7 @@ namespace FirstSymbol.Lettera
         {
             CheckAlive();
             m_Single[m_Members[member].Index] = value;
+            if (s_ToNumber != null) m_SingleNumbers[m_Members[member].Index] = s_ToNumber(value);
             m_HasValue = true;
             m_Engine.ChangeHeld(m_Level);
         }
@@ -492,5 +529,8 @@ namespace FirstSymbol.Lettera
         int Priority { get; }
         void Refresh();
         void Contribute(int rangeIndex, List<HoldEntry> results);
+
+        /// <summary>The number a pose-level hold gives a range's parameter, reached with no token and no boxing.</summary>
+        bool TryPoseNumber(object effect, int rangeIndex, int slot, out float number, out LetteraHoldComposition composition);
     }
 }

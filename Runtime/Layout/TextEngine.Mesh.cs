@@ -63,12 +63,15 @@ namespace FirstSymbol.Lettera
             m_SegmentCustom = null;
             m_SegmentStart = 0;
             m_FilterRow = 0;
+            m_RecordOwners = HasPoseConsumers || m_RevealSpans.Count > 0 || (m_Marquee != null && m_MarqueeScrolling);
+            m_CurrentOwner = -1;
             GlyphAtlasRegistration.EnsureRegistered();
 
             List<LayerGroup> groups = m_Attributes.SortedGroups();
             Styled = m_Attributes.NeedsStyledShader();
             PrepareGlyphs(groups);
             PrepareFade();
+            PrepareExtraMotions();
 
             m_Faces.Clear();
             foreach (LayerGroup group in groups)
@@ -78,6 +81,7 @@ namespace FirstSymbol.Lettera
             DrawHighlights(groups, false);
             if (m_Attributes.PaintOrder == LetteraPaintOrder.GlyphMajor)
             {
+                ReserveExtraQuads();
                 DrawGlyphMajor(groups);
                 AddDecorationLayer(null);
             }
@@ -87,6 +91,7 @@ namespace FirstSymbol.Lettera
                     if (group.Band < LetteraLayerBand.Face && group.Layer != LayerKind.Highlight)
                         DrawGroup(group);
 
+                ReserveExtraQuads();
                 DrawFaces();
                 foreach (LayerGroup group in m_Faces) DrawExtraFills(group);
                 AddDecorationLayer(null);
@@ -101,10 +106,25 @@ namespace FirstSymbol.Lettera
             AddDecorationLayer(null, true);
             DrawHighlights(groups, true);
 
+            m_CurrentOwner = -1;
             FinishSegment();
+            DuplicateForMarquee();
             ComputeBounds();
             ApplyBaseColor();
+            if (m_RecordOwners)
+            {
+                PrepareRestState();
+                BuildRevealBodies();
+                if (m_WantsPose) RunPosePass();
+            }
+            else
+            {
+                m_WantsPose = false;
+            }
+            UpdateHubMembership();
         }
+
+        bool m_RecordOwners;
 
         /// <summary>Moves a position through a pixel font's grid, as glyphs and effect offsets go when snapping is on.</summary>
         public static float SnapToGrid(float position, float size, int grid) => grid > 0 && size > 0 ? Mathf.Round(position * grid / size) * size / grid : position;
@@ -316,9 +336,11 @@ namespace FirstSymbol.Lettera
 
         void DrawFace(int i)
         {
+            m_CurrentOwner = i;
             ref PlacedGlyph g = ref m_Placed[i];
             ref AtlasGlyph atlas = ref m_PlacedAtlas[i];
             if (atlas.Kind == AtlasGlyph.Empty) return;
+            if (m_FaceQuad.Length > i && m_MotionSpans.Count > 0) m_FaceQuad[i] = VertexCount / 4;
             if (FirstFill(g.Cluster, atlas.Kind, out int record))
             {
                 DrawLayer(i, m_Attributes.Layers[record]);
@@ -463,6 +485,7 @@ namespace FirstSymbol.Lettera
 
         void DrawLayer(int glyphIndex, in LayerRecord record)
         {
+            m_CurrentOwner = glyphIndex;
             ref PlacedGlyph g = ref m_Placed[glyphIndex];
             ref AtlasGlyph atlas = ref m_PlacedAtlas[glyphIndex];
             if (atlas.Kind == AtlasGlyph.Empty) return;
@@ -816,6 +839,11 @@ namespace FirstSymbol.Lettera
                 System.Array.Resize(ref m_OwnAlpha, capacity);
             }
             if (IndexCount + 6 > Indices.Length) System.Array.Resize(ref Indices, Indices.Length * 2);
+            if (m_RecordOwners)
+            {
+                EnsureOwnerSize(v / 4 + 1);
+                m_QuadOwner[v / 4] = m_CurrentOwner;
+            }
             int i = IndexCount;
             Indices[i] = v;
             Indices[i + 1] = v + 1;
@@ -854,6 +882,9 @@ namespace FirstSymbol.Lettera
             int alpha = m_Host.BaseColor.a;
             for (int i = 0; i < VertexCount; i++)
                 Colors[i].a = (byte)(m_OwnAlpha[i] * alpha / 255);
+            if (!m_WantsPose || m_Dirty >= DirtyLevel.Mesh || m_RestColors.Length < VertexCount) return;
+            // The fade goes under whatever a pose does to alpha.
+            for (int i = 0; i < VertexCount; i++) m_RestColors[i].a = Colors[i].a;
         }
 
         /// <summary>Marks mesh dirty when the atlas lost its glyphs.</summary>

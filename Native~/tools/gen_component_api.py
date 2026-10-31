@@ -137,6 +137,9 @@ namespace FirstSymbol.Lettera
         /// <summary>Tells the text its resolver's output changed, e.g. after a locale switch.</summary>
         public void MarkResolverDirty() => MarkDirty(DirtyLevel.Parse);
 
+        /// <summary>How many pose passes ran: animation with no rebuild counts here.</summary>
+        public int PoseCount => Engine.PoseCount;
+
         /// <summary>Requests a rebuild from a given level.</summary>
         public void SetDirty(DirtyLevel level) => MarkDirty(level);
 

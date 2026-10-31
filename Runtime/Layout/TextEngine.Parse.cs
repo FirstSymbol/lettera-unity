@@ -134,6 +134,11 @@ namespace FirstSymbol.Lettera
 
         internal void ChangeHeld(DirtyLevel level)
         {
+            if (level == DirtyLevel.Pose)
+            {
+                m_PoseDirty = true;
+                return;
+            }
             ReapplyEffects(level);
             m_Host.RequestRebuild(level);
         }
@@ -287,6 +292,7 @@ namespace FirstSymbol.Lettera
                 LetteraStyle style = m_EffectiveStyles[r.StyleIndex];
                 if (style.Effect == null) continue;
                 attributes.BeginEffect(style.Effect, r.StyleIndex);
+                attributes.CurrentRange = index;
                 try
                 {
                     List<HoldEntry> holds = HoldsOf(index);
@@ -301,6 +307,7 @@ namespace FirstSymbol.Lettera
             LetteraTextData data = m_Host.Data;
             if (data.Overflow != LetteraOverflow.Visible)
                 attributes.RequestElide(0, m_TextLength, data.OverflowPosition, data.Overflow == LetteraOverflow.Ellipsis);
+            CollectMotions();
         }
 
         Comparison<int> m_CompareRanges;

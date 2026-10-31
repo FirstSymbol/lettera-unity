@@ -44,6 +44,10 @@ namespace FirstSymbol.Lettera
             public Mesh Mesh;
             public Material[] Materials;
             public bool MaterialsDirty;
+            public Vector3[] Vertices;
+            public Color32[] Colors;
+            public Vector4[] Uv3;
+            public int VertexCount;
         }
 
         sealed class Batch
@@ -59,7 +63,12 @@ namespace FirstSymbol.Lettera
             public LetteraWorldText Text;
             public Batch Batch;
             public Matrix4x4 Matrix;
+            public Shard Shard;
+            public int BaseVertex;
         }
+
+        static readonly List<Entry> s_Posed = new List<Entry>();
+        static readonly List<(Shard shard, int streams)> s_PosedShards = new List<(Shard, int)>();
 
         static readonly List<Entry> s_Entries = new List<Entry>();
         static readonly Dictionary<LetteraWorldText, Entry> s_ByText = new Dictionary<LetteraWorldText, Entry>();
@@ -86,7 +95,7 @@ namespace FirstSymbol.Lettera
         }
 
         static readonly List<MaterialRun> s_Runs = new List<MaterialRun>();
-        static bool s_ShardStyled;
+        static bool s_ShardStyled, s_ShardPosed;
 
         /// <summary>Every enabled world text.</summary>
         internal static IReadOnlyCollection<LetteraWorldText> Texts => s_ByText.Keys;
@@ -110,6 +119,12 @@ namespace FirstSymbol.Lettera
                 entry.Batch.Texts.Remove(text);
                 entry.Batch.Dirty = true;
             }
+        }
+
+        /// <summary>A pose pass wrote this text's vertices: only its part of its shard has to go up again.</summary>
+        public static void NotifyPosed(LetteraWorldText text)
+        {
+            if (s_ByText.TryGetValue(text, out Entry entry) && !s_Posed.Contains(entry)) s_Posed.Add(entry);
         }
 
         public static void NotifyChanged(LetteraWorldText text)
@@ -167,6 +182,45 @@ namespace FirstSymbol.Lettera
                 batch.Dirty = false;
                 Upload(batch);
             }
+            UploadPosed();
+        }
+
+        // One text's stretch of a shard's retained copy, and the streams it changed. The other texts there are not merged again.
+        static void UploadPosed()
+        {
+            if (s_Posed.Count == 0) return;
+            s_PosedShards.Clear();
+            for (int p = 0; p < s_Posed.Count; p++)
+            {
+                Entry entry = s_Posed[p];
+                Shard shard = entry.Shard;
+                LetteraWorldText text = entry.Text;
+                if (shard == null || text == null || shard.Vertices == null || shard.Mesh == null) continue;
+                TextEngine e = text.Engine;
+                int streams = e.PoseStreams;
+                e.ClearPoseStreams();
+                if (entry.BaseVertex + e.VertexCount > shard.VertexCount) continue;
+                Matrix4x4 m = entry.Matrix;
+                if ((streams & TextEngine.StreamPositions) != 0)
+                    for (int i = 0; i < e.VertexCount; i++)
+                        shard.Vertices[entry.BaseVertex + i] = m.MultiplyPoint3x4(e.Vertices[i]);
+                if ((streams & TextEngine.StreamColors) != 0) Array.Copy(e.Colors, 0, shard.Colors, entry.BaseVertex, e.VertexCount);
+                if ((streams & TextEngine.StreamUv3) != 0 && e.Styled) Array.Copy(e.Uv3, 0, shard.Uv3, entry.BaseVertex, e.VertexCount);
+                int found = -1;
+                for (int s = 0; s < s_PosedShards.Count; s++)
+                    if (s_PosedShards[s].shard == shard)
+                        found = s;
+                if (found < 0) s_PosedShards.Add((shard, streams));
+                else s_PosedShards[found] = (shard, s_PosedShards[found].streams | streams);
+            }
+            s_Posed.Clear();
+            for (int s = 0; s < s_PosedShards.Count; s++)
+            {
+                (Shard shard, int streams) = s_PosedShards[s];
+                if ((streams & TextEngine.StreamPositions) != 0) shard.Mesh.SetVertices(shard.Vertices, 0, shard.VertexCount);
+                if ((streams & TextEngine.StreamColors) != 0) shard.Mesh.SetColors(shard.Colors, 0, shard.VertexCount);
+                if ((streams & TextEngine.StreamUv3) != 0) shard.Mesh.SetUVs(3, shard.Uv3, 0, shard.VertexCount);
+            }
         }
 
         static void Upload(Batch batch)
@@ -174,6 +228,7 @@ namespace FirstSymbol.Lettera
             int shardIndex = 0, vertexCount = 0, indexCount = 0;
             s_Runs.Clear();
             s_ShardStyled = false;
+            s_ShardPosed = false;
             batch.Texts.Sort((a, b) => a.SortingOrder != b.SortingOrder ? a.SortingOrder.CompareTo(b.SortingOrder) : a.GetHashCode().CompareTo(b.GetHashCode()));
             foreach (LetteraWorldText text in batch.Texts)
             {
@@ -186,9 +241,16 @@ namespace FirstSymbol.Lettera
                     vertexCount = indexCount = 0;
                     s_Runs.Clear();
                     s_ShardStyled = false;
+                    s_ShardPosed = false;
                 }
                 EnsureCapacity(vertexCount + e.VertexCount, indexCount + e.IndexCount);
                 Matrix4x4 m = text.transform.localToWorldMatrix;
+                if (s_ByText.TryGetValue(text, out Entry placed))
+                {
+                    placed.BaseVertex = vertexCount;
+                    placed.Shard = GetShard(batch, shardIndex);
+                    s_ShardPosed |= e.HasPoseConsumers;
+                }
                 // The face looks along -Z; a mirrored text still has its normal towards the viewer.
                 Vector3 normal = m.MultiplyVector(Vector3.back).normalized;
                 if (m.determinant < 0) normal = -normal;
@@ -251,6 +313,27 @@ namespace FirstSymbol.Lettera
             Shard shard = GetShard(batch, index);
             Mesh mesh = shard.Mesh;
             mesh.Clear(false);
+            shard.VertexCount = vertexCount;
+            if (s_ShardPosed)
+            {
+                // Static shards keep sharing the scratch arrays. One that moves keeps its own copy.
+                if (shard.Vertices == null || shard.Vertices.Length < vertexCount)
+                {
+                    shard.Vertices = new Vector3[vertexCount * 2];
+                    shard.Colors = new Color32[vertexCount * 2];
+                    shard.Uv3 = new Vector4[vertexCount * 2];
+                    mesh.MarkDynamic();
+                }
+                Array.Copy(s_Vertices, shard.Vertices, vertexCount);
+                Array.Copy(s_Colors, shard.Colors, vertexCount);
+                Array.Copy(s_Uv3, shard.Uv3, vertexCount);
+            }
+            else
+            {
+                shard.Vertices = null;
+                shard.Colors = null;
+                shard.Uv3 = null;
+            }
             mesh.indexFormat = vertexCount > 65000 ? IndexFormat.UInt32 : IndexFormat.UInt16;
             mesh.SetVertices(s_Vertices, 0, vertexCount);
             mesh.SetNormals(s_Normals, 0, vertexCount);
