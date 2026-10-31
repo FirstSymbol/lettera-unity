@@ -127,7 +127,7 @@ namespace FirstSymbol.Lettera.Editor
             LetteraFontMemory.Sums sums = LetteraFontMemory.Totals;
             return LtUI.Card("Memory",
                 LtUI.Row("This Font", LtUI.Text(where, "lt-row__value")),
-                LtUI.Row("Held", LtUI.Text(face != null ? $"{face.RetainedBytes / 1024} KB, {face.InstanceCount} instances" : "Nothing", "lt-row__value"), "Bytes held in memory. A mapped file counts as none, and an instance is one set of variations or synthesis."),
+                LtUI.Row("Held", LtUI.Text(face != null ? $"{face.RetainedBytes / 1024} KB, {face.InstanceCount} instance(s)" : "Nothing", "lt-row__value"), "Bytes held in memory. A mapped file counts as none, and an instance is one set of variations or synthesis."),
                 LtUI.Row("All Fonts", LtUI.Text($"{sums.Faces} faces, {sums.RetainedBytes / 1024} KB held, {sums.MappedBytes / 1024} KB mapped", "lt-row__value")));
         }
 
@@ -172,10 +172,11 @@ namespace FirstSymbol.Lettera.Editor
             options.Characters = characters.value;
 
             var report = LtUI.Text("", "lt-note");
+            report.style.display = DisplayStyle.None;
             LetteraSubsetResult last = null;
 
             Label mode = null;
-            mode = LtUI.Clickable("Keep these", "lt-row__value", "Keep: only these characters stay. Remove: everything except these stays.", () =>
+            mode = LtUI.Clickable("Keep these", "lt-add lt-add--small", "Keep: only these characters stay. Remove: everything except these stays.", () =>
             {
                 options.Mode = options.Mode == LetteraSubsetMode.Keep ? LetteraSubsetMode.Remove : LetteraSubsetMode.Keep;
                 mode.text = options.Mode == LetteraSubsetMode.Keep ? "Keep these" : "Remove these";
@@ -187,13 +188,13 @@ namespace FirstSymbol.Lettera.Editor
             foreach (KeyValuePair<string, string> preset in LetteraFontSubset.Presets)
             {
                 string value = preset.Value;
-                Label chip = LtUI.Clickable(preset.Key, "lt-row__value", "Use " + preset.Key, () => characters.value = value);
+                Label chip = LtUI.Clickable(preset.Key, "lt-add lt-add--small", "Use " + preset.Key, () => characters.value = value);
                 chip.style.marginRight = 8;
                 presets.Add(chip);
             }
 
             Label scan = null;
-            scan = LtUI.Clickable("Off", "lt-row__value", "Also keeps every character of Lettera texts in scenes and prefabs.", () =>
+            scan = LtUI.Clickable("Off", "lt-add lt-add--small", "Also keeps every character of Lettera texts in scenes and prefabs.", () =>
             {
                 options.FromProject = !options.FromProject;
                 scan.text = options.FromProject ? "On" : "Off";
@@ -202,6 +203,7 @@ namespace FirstSymbol.Lettera.Editor
             void Run()
             {
                 last = LetteraFontSubset.Run(font, options);
+                report.style.display = DisplayStyle.Flex;
                 if (!last.Succeeded)
                 {
                     report.text = last.Refused;
@@ -211,15 +213,15 @@ namespace FirstSymbol.Lettera.Editor
                               + (last.Warnings.Count > 0 ? " " + string.Join(" ", last.Warnings) : "");
             }
 
-            Label preview = LtUI.Clickable("Try it", "lt-row__value", "Makes the subset and says what came of it. Nothing changes yet.", Run);
-            Label saveAs = LtUI.Clickable("Save As New Asset", "lt-row__value", "Stores the subset beside this font, and leaves this one alone.", () =>
+            Label preview = LtUI.Clickable("Try it", "lt-add lt-add--small", "Makes the subset and says what came of it. Nothing changes yet.", Run);
+            Label saveAs = LtUI.Clickable("Save As New Asset", "lt-add lt-add--small", "Stores the subset beside this font, and leaves this one alone.", () =>
             {
                 Run();
                 if (!last.Succeeded) return;
                 string path = System.IO.Path.GetDirectoryName(AssetDatabase.GetAssetPath(font)).Replace('\\', '/') + "/" + font.name + " Subset.asset";
                 EditorGUIUtility.PingObject(LetteraFontSubset.SaveAs(font, last.Bytes, path));
             });
-            Label replace = LtUI.Clickable("Replace This Font", "lt-row__value", "Replaces this font's data. Undo brings it back; after that only reimporting its file can.", () =>
+            Label replace = LtUI.Clickable("Replace This Font", "lt-add lt-add--small", "Replaces this font's data. Undo brings it back; after that only reimporting its file can.", () =>
             {
                 Run();
                 if (!last.Succeeded) return;

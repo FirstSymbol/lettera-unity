@@ -135,7 +135,7 @@ namespace FirstSymbol.Lettera
     {
         static AndroidJavaClass s_Bridge;
         internal static AndroidJavaClass Bridge => s_Bridge ?? (s_Bridge = new AndroidJavaClass("com.firstsymbol.lettera.LetteraBridge"));
-        internal static AndroidJavaObject Activity => AndroidApplication.currentActivity;
+        internal static AndroidJavaObject Activity => UnityEngine.Android.AndroidApplication.currentActivity;
     }
 
     internal sealed class LetteraAndroidHost : ILetteraNativeHost
