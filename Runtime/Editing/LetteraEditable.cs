@@ -1126,7 +1126,7 @@ namespace FirstSymbol.Lettera
         {
             get
             {
-                if (LetteraCaret.PrefersSteady || LetteraAccessibility.ReducedMotion) return true;
+                if (LetteraCaret.PrefersSteady || LetteraAccessibility.SteadyCaret || LetteraAccessibility.ReducedMotion) return true;
                 float interval = m_Caret != null ? m_Caret.BlinkSeconds : LetteraSettings.Instance.Editing.CaretBlinkInterval;
                 float timeout = m_Caret != null ? m_Caret.BlinkTimeout : LetteraSettings.Instance.Editing.CaretBlinkTimeout;
                 if (interval <= 0) return true;

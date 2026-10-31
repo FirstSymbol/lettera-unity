@@ -1,0 +1,292 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Text;
+using UnityEngine;
+using UnityEngine.EventSystems;
+using UnityEngine.UI;
+
+namespace FirstSymbol.Lettera.Samples
+{
+    /// <summary>
+    /// One guided session per device, for what no machine here can answer: one screen a step, Pass, Fail or Skip, and one text block at the end to send back.
+    /// Add it to an empty scene, or use Lettera > Device Check. Everything is built from code.
+    /// </summary>
+    public class LetteraDeviceCheck : MonoBehaviour
+    {
+        /// <summary>One step: what to do, what it answers, and whether a person can only do it on a phone.</summary>
+        public readonly struct Step
+        {
+            public readonly string Id, Title, Instructions;
+            public readonly string[] Covers;
+
+            public Step(string id, string title, string instructions, params string[] covers)
+            {
+                Id = id;
+                Title = title;
+                Instructions = instructions;
+                Covers = covers;
+            }
+        }
+
+        /// <summary>The steps in order. The first ones answer whether the rest can run at all.</summary>
+        public static readonly Step[] Steps =
+        {
+            new Step("basics", "Text and emoji", "Below should be words in several scripts and an emoji. Does it all show?", "player"),
+            new Step("fallback", "Keyboard, plain route", "Tap the field and type. With the native gate off this is the route every phone had before.", "touch keyboard"),
+            new Step("rise", "Keyboard rises", "Tap the field once, quickly. Does the keyboard rise on the first tap? In Safari on an iPhone this is the top risk: also try a tap on the very edge.", "real keyboard rise", "page focus"),
+            new Step("mirror", "Typing", "Type, select by holding, take an autocorrect suggestion on a word, hold Delete, take an emoji suggestion, dictate, swipe type.", "host", "mirror"),
+            new Step("composition", "Composition", "With a Japanese keyboard type a word: does it show inline and commit? Then a Korean one. On Windows: the Japanese Microsoft IME, candidates beside the caret, Escape cancels.", "composition", "real ime"),
+            new Step("traits", "Keyboards", "Tap each small field: number, e-mail, send key, one-time code, dark. Does each keyboard match its label?", "traits"),
+            new Step("replica", "Replica", "Tap the replica field. The system's own control should stand over it, and the character limit should still hold.", "replica"),
+            new Step("clipboard", "Clipboard", "Copy from the field and paste into Notes. Copy from Notes and paste here. Paste a screenshot. Count how many times the system says something was pasted: it should be only when you paste. On Windows: to and from Word and Chrome.", "clipboard text", "clipboard images", "paste control"),
+            new Step("menu", "Menu and loupe", "Hold on a word. Does the system's menu show clear of the selection, and do Cut, Copy, Paste and Select All work? A text app on Android, Look Up on iOS. Hold and drag: does the loupe follow and show what is under it?", "system menu", "text apps", "loupe"),
+            new Step("fonts", "Fonts", "Close the app and open it again. Does text show at once? The figures below should say mapped, not memory.", "font mapping"),
+            new Step("color", "Color glyphs", "Are the color glyphs below drawn with gradients? In Safari: do many emoji appear in one go?", "colrv1", "web emoji batching"),
+            new Step("motion", "Motion and scrolling", "Does the moving text run smoothly? Is a long document smooth to scroll?", "os preferences", "motion", "documents"),
+            new Step("touch", "Handles", "Do selection handles, the loupe and the context menu look right, and sit where they should?", "handles"),
+        };
+
+        readonly List<string> m_Results = new List<string>();
+        RectTransform m_Root;
+        LetteraText m_Title, m_Body, m_Facts;
+        int m_Index;
+        string m_Note = "";
+        LetteraEditable m_NoteField;
+
+        void Start()
+        {
+            if (FindAnyObjectByType<EventSystem>() == null)
+            {
+                var events = new GameObject("EventSystem", typeof(EventSystem));
+                Type module = Type.GetType("UnityEngine.InputSystem.UI.InputSystemUIInputModule, Unity.InputSystem");
+                if (module != null) events.AddComponent(module);
+                else events.AddComponent<StandaloneInputModule>();
+            }
+            var canvasObject = new GameObject("Device Check", typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster));
+            canvasObject.GetComponent<Canvas>().renderMode = RenderMode.ScreenSpaceOverlay;
+            var scaler = canvasObject.GetComponent<CanvasScaler>();
+            scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+            scaler.referenceResolution = new Vector2(720, 1280);
+            scaler.matchWidthOrHeight = 0.5f;
+            m_Root = (RectTransform)canvasObject.transform;
+            ShowStep();
+            string[] arguments = Environment.GetCommandLineArgs();
+            if (Array.IndexOf(arguments, "-lettera-kit-auto") >= 0 || Application.absoluteURL.Contains("kit=auto")) AutoRun();
+        }
+
+        // By script, to prove the kit itself: every step gets an answer, and the report comes out whole.
+        void AutoRun()
+        {
+            while (m_Index < Steps.Length) Answer("Skip");
+            Debug.Log("LETTERA_KIT_RESULT " + Result().Replace("\n", "|"));
+#if !UNITY_WEBGL
+            if (Application.isBatchMode) Application.Quit();
+#endif
+        }
+
+        LetteraText Label(string text, float size, Vector2 anchorMin, Vector2 anchorMax)
+        {
+            var go = new GameObject("Label", typeof(RectTransform));
+            go.transform.SetParent(m_Root, false);
+            var rect = (RectTransform)go.transform;
+            rect.anchorMin = anchorMin;
+            rect.anchorMax = anchorMax;
+            rect.offsetMin = new Vector2(24, 8);
+            rect.offsetMax = new Vector2(-24, -8);
+            var label = go.AddComponent<LetteraText>();
+            label.Text = text;
+            label.FontSize = size;
+            label.WordWrap = true;
+            label.raycastTarget = false;
+            return label;
+        }
+
+        void Button(string text, Vector2 anchorMin, Vector2 anchorMax, Color color, Action action)
+        {
+            var go = new GameObject(text, typeof(RectTransform), typeof(Image), typeof(Button));
+            go.transform.SetParent(m_Root, false);
+            var rect = (RectTransform)go.transform;
+            rect.anchorMin = anchorMin;
+            rect.anchorMax = anchorMax;
+            rect.offsetMin = rect.offsetMax = new Vector2(0, 0);
+            rect.offsetMin = new Vector2(8, 8);
+            rect.offsetMax = new Vector2(-8, -8);
+            go.GetComponent<Image>().color = color;
+            go.GetComponent<Button>().onClick.AddListener(() => action());
+            var label = new GameObject("Text", typeof(RectTransform));
+            label.transform.SetParent(go.transform, false);
+            var labelRect = (RectTransform)label.transform;
+            labelRect.anchorMin = Vector2.zero;
+            labelRect.anchorMax = Vector2.one;
+            labelRect.offsetMin = labelRect.offsetMax = Vector2.zero;
+            var shown = label.AddComponent<LetteraText>();
+            shown.Text = text;
+            shown.FontSize = 32;
+            shown.HorizontalAlignment = LetteraHorizontalAlignment.Center;
+            shown.VerticalAlignment = LetteraVerticalAlignment.Middle;
+            shown.raycastTarget = false;
+        }
+
+        void Clear()
+        {
+            for (int i = m_Root.childCount - 1; i >= 0; i--) Destroy(m_Root.GetChild(i).gameObject);
+        }
+
+        void ShowStep()
+        {
+            Clear();
+            if (m_Index >= Steps.Length)
+            {
+                ShowResult();
+                return;
+            }
+            Step step = Steps[m_Index];
+            Label($"{m_Index + 1} of {Steps.Length}: {step.Title}", 40, new Vector2(0, 0.88f), new Vector2(1, 1));
+            Label(step.Instructions, 26, new Vector2(0, 0.62f), new Vector2(1, 0.88f));
+            Sample(step.Id);
+            GameObject note = LetteraFieldFactory.CreateInputField(m_Root, "A note, if there is anything to say");
+            var noteRect = (RectTransform)note.transform;
+            noteRect.anchorMin = new Vector2(0, 0.2f);
+            noteRect.anchorMax = new Vector2(1, 0.27f);
+            noteRect.offsetMin = new Vector2(24, 0);
+            noteRect.offsetMax = new Vector2(-24, 0);
+            m_NoteField = note.GetComponentInChildren<LetteraEditable>();
+            Button("Pass", new Vector2(0, 0), new Vector2(0.34f, 0.18f), new Color(0.15f, 0.55f, 0.3f), () => Answer("Pass"));
+            Button("Fail", new Vector2(0.34f, 0), new Vector2(0.67f, 0.18f), new Color(0.7f, 0.2f, 0.2f), () => Answer("Fail"));
+            Button("Skip", new Vector2(0.67f, 0), new Vector2(1, 0.18f), new Color(0.35f, 0.35f, 0.4f), () => Answer("Skip"));
+        }
+
+        // What a step needs on screen.
+        void Sample(string id)
+        {
+            switch (id)
+            {
+                case "basics":
+                    Label("Hello, Мир, مرحبا, שלום, नमस्ते 🎉", 40, new Vector2(0, 0.4f), new Vector2(1, 0.6f));
+                    break;
+                case "fonts":
+                    LetteraFontMemory.Sums sums = LetteraFontMemory.Totals;
+                    Label($"{sums.Faces} faces: {sums.RetainedBytes / 1024} KB held in memory, {sums.MappedBytes / 1024} KB mapped from disk, {sums.CacheFolderBytes / 1024} KB in the cache folder.", 26, new Vector2(0, 0.4f), new Vector2(1, 0.6f));
+                    break;
+                case "color":
+                    Label("🎉😀🚀🌈🍕🐱🎸🌍🔥⭐🦄🎈🍩🌻🐙🎨", 48, new Vector2(0, 0.4f), new Vector2(1, 0.6f));
+                    break;
+                case "fallback":
+                case "rise":
+                case "mirror":
+                case "composition":
+                case "clipboard":
+                case "menu":
+                case "touch":
+                    Field(new Vector2(0, 0.3f), new Vector2(1, 0.6f));
+                    break;
+                case "traits":
+                    Traits();
+                    break;
+                case "replica":
+                    GameObject replica = Field(new Vector2(0, 0.42f), new Vector2(1, 0.5f));
+                    LetteraEditable field = replica.GetComponentInChildren<LetteraEditable>();
+                    field.AddRule(new ReplicaFieldRule());
+                    field.AddRule(new MaxLengthRule { Limit = 10 });
+                    break;
+                case "motion":
+                    Label("<wave>This text should move smoothly.</wave>", 32, new Vector2(0, 0.4f), new Vector2(1, 0.6f));
+                    break;
+            }
+        }
+
+        GameObject Field(Vector2 anchorMin, Vector2 anchorMax)
+        {
+            GameObject area = LetteraFieldFactory.CreateTextArea(m_Root, "Tap here");
+            var rect = (RectTransform)area.transform;
+            rect.anchorMin = anchorMin;
+            rect.anchorMax = anchorMax;
+            rect.offsetMin = new Vector2(24, 0);
+            rect.offsetMax = new Vector2(-24, 0);
+            area.GetComponentInChildren<LetteraEditable>().InsertText("The quick brown fox jumps over the lazy dog.", "code.set");
+            return area;
+        }
+
+        void Traits()
+        {
+            var kinds = new (string label, LetteraKeyboardTraits traits)[]
+            {
+                ("Number", new LetteraKeyboardTraits { Kind = LetteraKeyboardKind.Number }),
+                ("E-mail", new LetteraKeyboardTraits { Kind = LetteraKeyboardKind.Email, AutofillHint = LetteraAutofill.Email }),
+                ("Send key", new LetteraKeyboardTraits { ReturnKey = LetteraReturnKey.Send }),
+                ("One-time code", new LetteraKeyboardTraits { Kind = LetteraKeyboardKind.Number, AutofillHint = LetteraAutofill.OneTimeCode }),
+                ("Dark keyboard", new LetteraKeyboardTraits { IosAppearance = LetteraIosAppearance.Dark }),
+            };
+            for (int i = 0; i < kinds.Length; i++)
+            {
+                GameObject input = LetteraFieldFactory.CreateInputField(m_Root, kinds[i].label);
+                var rect = (RectTransform)input.transform;
+                float top = 0.6f - i * 0.065f;
+                rect.anchorMin = new Vector2(0, top - 0.055f);
+                rect.anchorMax = new Vector2(1, top);
+                rect.offsetMin = new Vector2(24, 0);
+                rect.offsetMax = new Vector2(-24, 0);
+                input.GetComponentInChildren<LetteraEditable>().AddRule(new KeyboardTraitsRule { Traits = kinds[i].traits });
+            }
+        }
+
+        void Answer(string answer)
+        {
+            m_Note = m_NoteField != null ? m_NoteField.PlainText : "";
+            Step step = Steps[m_Index];
+            m_Results.Add($"{step.Id}: {answer}" + (m_Note.Length > 0 ? " (" + m_Note + ")" : ""));
+            m_Index++;
+            ShowStep();
+        }
+
+        /// <summary>Everything to send back, as one block.</summary>
+        public string Result()
+        {
+            var text = new StringBuilder();
+            text.Append("Lettera device check\n");
+            text.Append("Platform: ").Append(Application.platform).Append(" / ").Append(SystemInfo.operatingSystem).Append('\n');
+            text.Append("Device: ").Append(SystemInfo.deviceModel).Append('\n');
+            text.Append("Unity: ").Append(Application.unityVersion).Append(", graphics ").Append(SystemInfo.graphicsDeviceType).Append('\n');
+            text.Append("Frame: ").Append((Time.smoothDeltaTime * 1000).ToString("0.0")).Append(" ms\n");
+            foreach (LetteraNativeFeature feature in Enum.GetValues(typeof(LetteraNativeFeature)))
+                text.Append(feature).Append(": ").Append(LetteraPlatform.IsActive(feature) ? "on" : "off").Append(" - ").Append(LetteraPlatform.Why(feature)).Append('\n');
+            foreach (string report in LetteraPlatform.Reports) text.Append("Report: ").Append(report).Append('\n');
+            foreach (string result in m_Results) text.Append(result).Append('\n');
+            return text.ToString();
+        }
+
+        void ShowResult()
+        {
+            string result = Result();
+            Label("Done. Please send this back.", 36, new Vector2(0, 0.9f), new Vector2(1, 1));
+            GameObject block = LetteraFieldFactory.CreateTextArea(m_Root);
+            var rect = (RectTransform)block.transform;
+            rect.anchorMin = new Vector2(0, 0.2f);
+            rect.anchorMax = new Vector2(1, 0.9f);
+            rect.offsetMin = new Vector2(24, 0);
+            rect.offsetMax = new Vector2(-24, 0);
+            LetteraEditable shown = block.GetComponentInChildren<LetteraEditable>();
+            shown.TypedMarkup = LetteraTypedMarkup.AsText;
+            shown.InsertText(result, "code.set");
+            shown.GetComponent<LetteraText>().FontSize = 16;
+            Button("Copy", new Vector2(0, 0), new Vector2(1, 0.18f), new Color(0.2f, 0.4f, 0.8f), () =>
+            {
+                shown.Selectable.Activate();
+                shown.Selectable.SelectAll();
+                shown.Selectable.Copy();
+            });
+#if UNITY_ANDROID || UNITY_IOS
+            try
+            {
+                File.WriteAllText(Path.Combine(Application.persistentDataPath, "lettera_device_check.txt"), result);
+            }
+            catch (IOException e)
+            {
+                Debug.LogWarning("The result could not be saved: " + e.Message);
+            }
+#endif
+            Debug.Log("LETTERA_KIT_RESULT " + result.Replace("\n", "|"));
+        }
+    }
+}

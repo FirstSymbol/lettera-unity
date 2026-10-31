@@ -53,6 +53,11 @@ namespace FirstSymbol.Lettera
                     case RuntimePlatform.IPhonePlayer:
                         return LetteraPlatformFamily.Apple;
                     case RuntimePlatform.WebGLPlayer:
+#if UNITY_WEBGL && !UNITY_EDITOR
+                        // The page knows better than the agent string, since an iPad says it is a Mac.
+                        return FamilyFromPage(PagePlatform, LetteraPage_TouchPoints());
+#endif
+#pragma warning disable CS0162
                         // Unity reports the visitor's system here.
                         string os = SystemInfo.operatingSystem ?? "";
                         return os.IndexOf("Mac", StringComparison.OrdinalIgnoreCase) >= 0 || os.IndexOf("iOS", StringComparison.OrdinalIgnoreCase) >= 0 || os.IndexOf("iPhone", StringComparison.OrdinalIgnoreCase) >= 0
@@ -67,6 +72,21 @@ namespace FirstSymbol.Lettera
         const LetteraKeyModifiers S = LetteraKeyModifiers.Shift, C = LetteraKeyModifiers.Control, A = LetteraKeyModifiers.Alt, M = LetteraKeyModifiers.Command;
 
         /// <summary>The verb of a key, or None. Control with Alt is AltGr on Windows and Linux: that is text, never a shortcut.</summary>
+        /// <summary>Which keys a page's system means. A phone has no such keys to speak of, so touch alone changes nothing, and an iPad claiming to be a Mac is still Apple's.</summary>
+        internal static LetteraPlatformFamily FamilyFromPage(string platform, int touchPoints)
+        {
+            platform = platform ?? "";
+            bool apple = platform.IndexOf("Mac", StringComparison.OrdinalIgnoreCase) >= 0 || platform.IndexOf("iPhone", StringComparison.OrdinalIgnoreCase) >= 0 || platform.IndexOf("iPad", StringComparison.OrdinalIgnoreCase) >= 0 || platform.IndexOf("iPod", StringComparison.OrdinalIgnoreCase) >= 0 || platform.IndexOf("iOS", StringComparison.OrdinalIgnoreCase) >= 0;
+            return apple ? LetteraPlatformFamily.Apple : LetteraPlatformFamily.Pc;
+        }
+
+#if UNITY_WEBGL && !UNITY_EDITOR
+        [System.Runtime.InteropServices.DllImport("__Internal")] static extern string LetteraPage_Platform();
+        [System.Runtime.InteropServices.DllImport("__Internal")] static extern int LetteraPage_TouchPoints();
+        static string s_PagePlatform;
+        static string PagePlatform => s_PagePlatform ?? (s_PagePlatform = LetteraPage_Platform() ?? "");
+#endif
+
         public static LetteraEditVerb Resolve(LetteraKeyCode key, LetteraKeyModifiers modifiers, LetteraPlatformFamily family)
         {
             return family == LetteraPlatformFamily.Apple ? ResolveApple(key, modifiers) : ResolvePc(key, modifiers);

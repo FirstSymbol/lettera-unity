@@ -294,6 +294,17 @@ namespace FirstSymbol.Lettera.Editor
         protected override void Fill(VisualElement root)
         {
             VisualElement card = LtUI.Card("Font");
+            FontFace colorFace = ((LetteraFontAsset)target).LoadFace();
+            if (colorFace != null)
+            {
+                int flags = LetteraNative.lt_face_color_flags(colorFace.Face);
+                var kinds = new List<string>();
+                if ((flags & 2) != 0) kinds.Add(LetteraNative.Version >= 2 ? "COLRv1" : "COLRv1 (restart the editor to draw these)");
+                if ((flags & 1) != 0) kinds.Add("COLRv0");
+                if ((flags & 4) != 0) kinds.Add("Bitmaps");
+                if ((flags & 8) != 0) kinds.Add("SVG (not drawn)");
+                card.Add(LtUI.Row("Color Kinds", LtUI.Text(kinds.Count > 0 ? string.Join(", ", kinds) : "None", "lt-row__value")));
+            }
             foreach (SerializedProperty child in TopLevel())
             {
                 if (child.name == "m_Script") continue;

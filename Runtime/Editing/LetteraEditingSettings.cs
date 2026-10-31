@@ -4,6 +4,12 @@ using UnityEngine;
 
 namespace FirstSymbol.Lettera
 {
+    /// <summary>Whose menu shows.</summary>
+    public enum LetteraMenuChoice { LetteraDrawn, System }
+
+    /// <summary>Whose loupe shows.</summary>
+    public enum LetteraLoupeChoice { MeshLoupe, System }
+
     public enum LetteraDeleteBackMode { Cluster, Codepoint }
 
     /// <summary>The selection and editing section of the project settings.</summary>
@@ -44,6 +50,15 @@ namespace FirstSymbol.Lettera
 
         [Header("Prefabs")]
         public LetteraMenuPresenter MenuPrefab;
+
+        [Tooltip("Whose menu shows on Android. System needs the System Menu gate on, and runs Lettera's commands all the same.")]
+        public LetteraMenuChoice AndroidMenu;
+
+        [Tooltip("Whose menu shows on iOS. System needs the System Menu gate on, and iOS 16.")]
+        public LetteraMenuChoice IosMenu;
+
+        [Tooltip("Whose loupe shows on a phone. System needs the System Loupe gate on, and Android 9 or iOS 17.")]
+        public LetteraLoupeChoice Loupe;
         public GameObject HandlesPrefab;
         public GameObject SelectablePrefab;
         public GameObject EditablePrefab;

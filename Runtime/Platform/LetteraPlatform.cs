@@ -146,9 +146,15 @@ namespace FirstSymbol.Lettera
             return true;
         }
 
+        static readonly List<string> s_Reports = new List<string>();
+
+        /// <summary>Everything reported so far this run, for a device check to send back.</summary>
+        public static IReadOnlyList<string> Reports => s_Reports;
+
         /// <summary>A host says something went wrong or which way it went. Each feature logs once.</summary>
         public static void Report(LetteraNativeFeature feature, string message)
         {
+            if (s_Reports.Count < 256) s_Reports.Add(feature + ": " + message);
             if (s_Reported.Add(feature)) Debug.Log($"Lettera: {feature}: {message}");
             Reported?.Invoke(feature, message);
         }
