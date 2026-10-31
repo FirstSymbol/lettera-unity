@@ -149,6 +149,14 @@ mergeInto(LibraryManager.library, {
                 e.stopPropagation();
                 if (e.isComposing) return;
                 var chord = e.ctrlKey || e.metaKey;
+                // A visible control keeps its own caret keys. What changes the text still belongs to the field.
+                if (state.replica) {
+                    if (e.code === "Enter" || e.code === "NumpadEnter") { e.preventDefault(); push({ kind: 6, text: "return" }); }
+                    else if (chord && e.code === "KeyZ") { e.preventDefault(); push({ kind: 6, text: e.shiftKey ? "redo" : "undo" }); }
+                    else if (chord && e.code === "KeyY") { e.preventDefault(); push({ kind: 6, text: "redo" }); }
+                    else if (e.code === "Escape") { e.preventDefault(); push({ kind: 6, text: "cancel" }); }
+                    return;
+                }
                 var letter = e.code && e.code.indexOf("Key") === 0 ? e.code.charCodeAt(3) - 65 : -1;
                 // Copy, cut and paste stay with the browser, which only then raises its clipboard events.
                 if (chord && !e.altKey && (e.code === "KeyC" || e.code === "KeyX" || e.code === "KeyV")) return;
@@ -227,6 +235,23 @@ mergeInto(LibraryManager.library, {
         };
         state.attach = attach;
         attach(state.box);
+        // Pages add surfaces by name. The plain one cannot be replaced, nor one a session is using.
+        var surfaces = {};
+        window.LetteraSurfaces = new Proxy(surfaces, {
+            set: function (target, name, value) {
+                if (name === "default") throw new Error("The default surface cannot be replaced.");
+                if (state.replica && state.replica.surface === name) throw new Error("Surface " + String(name) + " is in use by an open session.");
+                target[name] = value;
+                return true;
+            },
+            deleteProperty: function (target, name) {
+                if (name === "default") throw new Error("The default surface cannot be removed.");
+                if (state.replica && state.replica.surface === name) throw new Error("Surface " + String(name) + " is in use by an open session.");
+                delete target[name];
+                return true;
+            },
+        });
+        state.push = push;
         document.addEventListener("pointerdown", function (e) { state.pressedCanvas = e.target === (Module.canvas || document.querySelector("canvas")); }, true);
         // A press on the canvas would take the focus from the box, and the canvas losing it again makes Unity forget a button still held, which is every right click. So it never moves.
         document.addEventListener("mousedown", function (e) {
@@ -328,6 +353,84 @@ mergeInto(LibraryManager.library, {
         box.focus({ preventScroll: true });
     },
 
+    // The platform's own control in the field's place, through the same events: every rule of the field still decides.
+    LetteraHost_OpenReplica__deps: ["LetteraHost_Ensure"],
+    LetteraHost_OpenReplica: function (text, start, end, revision, multilineControl, secure, kind, returnKey, autocapitalize, autocorrect, spellCheck, autofill, placeholder, surface, controlId, surfaceData, readOnly) {
+        _LetteraHost_Ensure();
+        var state = Module.letteraInput;
+        var surfaceName = UTF8ToString(surface) || "default";
+        var hooks = null;
+        if (surfaceName !== "default") {
+            hooks = window.LetteraSurfaces[surfaceName];
+            if (!hooks) return 0;
+        }
+        var control;
+        if (multilineControl) control = document.createElement("textarea");
+        else {
+            control = document.createElement("input");
+            control.type = secure ? "password" : "text";
+        }
+        var id = UTF8ToString(controlId);
+        if (id) control.id = id;
+        control.placeholder = UTF8ToString(placeholder);
+        control.readOnly = !!readOnly;
+        var modes = ["text", "text", "url", "numeric", "decimal", "tel", "text", "email", "search"];
+        var keys = ["", "done", "go", "next", "search", "send"];
+        var caps = ["", "off", "sentences", "words", "characters"];
+        control.setAttribute("inputmode", modes[kind] || "text");
+        if (keys[returnKey]) control.setAttribute("enterkeyhint", keys[returnKey]);
+        if (caps[autocapitalize]) control.setAttribute("autocapitalize", caps[autocapitalize]);
+        control.setAttribute("autocorrect", autocorrect ? "on" : "off");
+        var hint = UTF8ToString(autofill);
+        if (hint) control.setAttribute("autocomplete", hint);
+        // Here it is seen, so the browser decides unless the field said otherwise.
+        if (spellCheck === 1) control.spellcheck = true;
+        if (spellCheck === 2) control.spellcheck = false;
+        control.style.cssText = "position:fixed;box-sizing:border-box;margin:0;font-size:16px;z-index:1000;resize:none;";
+
+        var open = { closed: false, control: control, surface: surfaceName, hooks: hooks, root: control, previous: state.box, context: null };
+        var context = {
+            control: control,
+            surface: surfaceName,
+            data: UTF8ToString(surfaceData),
+            rect: { x: 0, y: 0, width: 0, height: 0 },
+            performVerb: function (verb) {
+                if (open.closed) throw new Error("This session has closed.");
+                state.push({ kind: 6, text: String(verb) });
+            },
+        };
+        open.context = context;
+        if (hooks) {
+            var root = null;
+            try { root = hooks.build(context); } catch (error) { console.error(error); }
+            if (!root || !root.contains(control)) {
+                try { if (hooks.dispose) hooks.dispose(context); } catch (error) { console.error(error); }
+                return 0;
+            }
+            open.root = root;
+        }
+        document.body.appendChild(open.root);
+        if (!control.__letteraAttached) { state.attach(control); control.__letteraAttached = true; }
+        var report = function () { if (state.host && state.box === control && !state.pushing) state.push({ kind: 5, start: control.selectionStart, end: control.selectionEnd }); };
+        control.addEventListener("keyup", report);
+        control.addEventListener("mouseup", report);
+
+        state.replica = open;
+        state.box = control;
+        state.host = true;
+        state.open = true;
+        state.composing = false;
+        state.multiline = !!multilineControl;
+        state.revision = revision;
+        state.queue.length = 0;
+        state.pushing = true;
+        control.value = UTF8ToString(text);
+        try { control.setSelectionRange(start, end); } catch (error) { }
+        state.pushing = false;
+        control.focus({ preventScroll: true });
+        return 1;
+    },
+
     LetteraHost_Push: function (text, start, end, revision) {
         var state = Module.letteraInput;
         if (!state || !state.host || state.composing) return;
@@ -348,6 +451,15 @@ mergeInto(LibraryManager.library, {
         state.open = false;
         state.composing = false;
         state.queue.length = 0;
+        if (state.replica) {
+            var open = state.replica;
+            state.replica = null;
+            open.closed = true;
+            state.box = open.previous;
+            if (open.hooks && open.hooks.dispose) { try { open.hooks.dispose(open.context); } catch (error) { console.error(error); } }
+            if (open.root.parentNode) open.root.parentNode.removeChild(open.root);
+            return;
+        }
         state.box.style.pointerEvents = "none";
         state.box.style.zIndex = "-1";
         state.box.style.width = "2px";
@@ -393,6 +505,23 @@ mergeInto(LibraryManager.library, {
         var state = Module.letteraInput;
         if (!state) return;
         var canvas = Module.canvas || document.querySelector("canvas");
+        if (canvas && state.replica) {
+            // CSS pixels, whatever the canvas's scale and the page's zoom.
+            var area = canvas.getBoundingClientRect();
+            var scaled = { x: area.left + x * area.width / canvas.width, y: area.top + (canvas.height - y - height) * area.height / canvas.height, width: width * area.width / canvas.width, height: height * area.height / canvas.height };
+            var open = state.replica;
+            open.context.rect = scaled;
+            if (open.hooks) {
+                if (open.hooks.arrange) { try { open.hooks.arrange(open.context); } catch (error) { console.error(error); } }
+                return;
+            }
+            var style = open.control.style;
+            style.left = scaled.x + "px";
+            style.top = scaled.y + "px";
+            style.width = scaled.width + "px";
+            style.height = scaled.height + "px";
+            return;
+        }
         var box = state.box;
         if (!canvas || state.overlayShown) return;
         var rect = canvas.getBoundingClientRect();

@@ -7,10 +7,11 @@ using UnityEngine;
 namespace FirstSymbol.Lettera
 {
     /// <summary>A page's own text box, as what a field's session runs through on the web. It holds no rule: everything typed comes back as events.</summary>
-    internal sealed class LetteraWebHost : ILetteraNativeHost
+    internal sealed class LetteraWebHost : ILetteraNativeHost, ILetteraReplicaHost
     {
         const string Lib = "__Internal";
         [DllImport(Lib)] static extern void LetteraHost_Open(string text, int start, int end, int revision, int multiline, int secure, int kind, int returnKey, int autocapitalize, int autocorrect, int spellCheck, string autofill);
+        [DllImport(Lib)] static extern int LetteraHost_OpenReplica(string text, int start, int end, int revision, int multilineControl, int secure, int kind, int returnKey, int autocapitalize, int autocorrect, int spellCheck, string autofill, string placeholder, string surface, string controlId, string surfaceData, int readOnly);
         [DllImport(Lib)] static extern void LetteraHost_Push(string text, int start, int end, int revision);
         [DllImport(Lib)] static extern void LetteraHost_Close();
         [DllImport(Lib)] static extern int LetteraHost_Next(int[] ints, byte[] buffer, int size);
@@ -30,7 +31,31 @@ namespace FirstSymbol.Lettera
             m_CapturedKeys = WebGLInput.captureAllKeyboardInput;
             WebGLInput.captureAllKeyboardInput = false;
             m_Open = true;
+            IsReplicaOpen = false;
+            if (mode == LetteraHostMode.Replica && traits.Replica != null && TryReplica(state, traits)) return;
             LetteraHost_Open(state.Text, state.SelectionStart, state.SelectionEnd, state.Revision, traits.Multiline ? 1 : 0, traits.Secure ? 1 : 0, (int)traits.Kind, (int)traits.ReturnKey, (int)traits.AutoCapitalize, traits.Autocorrect ? 1 : 0, (int)traits.SpellCheck, traits.AutofillHint ?? "");
+        }
+
+        public bool IsReplicaOpen { get; private set; }
+
+        bool TryReplica(in LetteraMirrorState state, in LetteraKeyboardTraits traits)
+        {
+            LetteraReplicaRequest request = traits.Replica;
+            // Browsers have no secure multi-line control, and a window of a document cannot honestly show as a whole text.
+            bool secureWrap = traits.Secure && request.WantsMultilineControl;
+            if (secureWrap || state.Offset > 0 || state.Text.Length >= LetteraMirrorSource.WholeTextUnits)
+            {
+                LetteraPlatform.Report(LetteraNativeFeature.Replica, secureWrap ? "A secure field that wraps has no control of its own in a browser, so Lettera draws it." : "A long text has no control that could hold it, so Lettera draws it.");
+                return false;
+            }
+            int done = LetteraHost_OpenReplica(state.Text, state.SelectionStart, state.SelectionEnd, state.Revision, request.WantsMultilineControl ? 1 : 0, traits.Secure ? 1 : 0, (int)traits.Kind, (int)traits.ReturnKey, (int)traits.AutoCapitalize, traits.Autocorrect ? 1 : 0, (int)traits.SpellCheck, traits.AutofillHint ?? "", request.Placeholder ?? "", request.Surface ?? "", request.ControlId ?? "", request.SurfaceData ?? "", request.ReadOnly ? 1 : 0);
+            if (done == 0)
+            {
+                LetteraPlatform.Report(LetteraNativeFeature.Replica, "Surface '" + request.Surface + "' could not be built, so Lettera draws this field.");
+                return false;
+            }
+            IsReplicaOpen = true;
+            return true;
         }
 
         public void Push(in LetteraMirrorState state) => LetteraHost_Push(state.Text, state.SelectionStart, state.SelectionEnd, state.Revision);

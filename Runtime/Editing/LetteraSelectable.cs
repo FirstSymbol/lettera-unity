@@ -782,7 +782,7 @@ namespace FirstSymbol.Lettera
         void RefreshVisuals()
         {
             m_VisualsDirty = false;
-            bool visible = Host.IsVisible;
+            bool visible = Host.IsVisible && !m_SteppedAside;
             bool showRange = visible && !m_Selection.IsCaret && (m_HasFocus || m_InactiveHighlight != LetteraInactiveHighlight.Hide);
             m_Rects.Clear();
             if (showRange)
@@ -840,6 +840,34 @@ namespace FirstSymbol.Lettera
         void ILetteraMirrorField.SelectAll() => SelectAll();
 
         void ILetteraMirrorField.PasteItems(IReadOnlyList<LetteraClipItem> items) => Editable?.PasteItems(items);
+
+        void ILetteraMirrorField.StepAsideForReplica(bool aside)
+        {
+            m_SteppedAside = aside;
+            foreach (CanvasRenderer renderer in GetComponents<CanvasRenderer>()) renderer.SetAlpha(aside ? 0 : 1);
+            if (Editable != null)
+                foreach (LetteraFieldRule rule in Editable.ActiveRulesForReplica)
+                    if (rule is HintDecorator hint && hint.Target != null)
+                        hint.Target.canvasRenderer.SetAlpha(aside ? 0 : 1);
+            MarkVisualsDirty();
+        }
+
+        Rect ILetteraMirrorField.FieldScreenRect
+        {
+            get
+            {
+                LetteraFieldPressArea area = GetComponentInParent<LetteraFieldPressArea>();
+                var rect = (RectTransform)(area != null ? area.transform : transform);
+                var corners = new Vector3[4];
+                rect.GetWorldCorners(corners);
+                Canvas canvas = rect.GetComponentInParent<Canvas>();
+                Camera camera = canvas != null && canvas.renderMode != RenderMode.ScreenSpaceOverlay ? canvas.worldCamera : null;
+                Vector2 a = RectTransformUtility.WorldToScreenPoint(camera, corners[0]), b = RectTransformUtility.WorldToScreenPoint(camera, corners[2]);
+                return Rect.MinMaxRect(Mathf.Min(a.x, b.x), Mathf.Min(a.y, b.y), Mathf.Max(a.x, b.x), Mathf.Max(a.y, b.y));
+            }
+        }
+
+        bool m_SteppedAside;
 
         void ILetteraMirrorField.PlaceCaretAt(Vector2 screen)
         {
