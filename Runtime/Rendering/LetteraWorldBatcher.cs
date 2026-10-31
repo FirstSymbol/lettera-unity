@@ -88,6 +88,9 @@ namespace FirstSymbol.Lettera
         static readonly List<MaterialRun> s_Runs = new List<MaterialRun>();
         static bool s_ShardStyled;
 
+        /// <summary>Every enabled world text.</summary>
+        internal static IReadOnlyCollection<LetteraWorldText> Texts => s_ByText.Keys;
+
         public static void Register(LetteraWorldText text)
         {
             if (s_ByText.ContainsKey(text)) return;

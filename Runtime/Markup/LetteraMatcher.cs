@@ -19,6 +19,18 @@ namespace FirstSymbol.Lettera
 
         /// <summary>A copy for one text. Override when the matcher holds a list or another nested object.</summary>
         public virtual LetteraMatcher Clone() => (LetteraMatcher)MemberwiseClone();
+
+        /// <summary>This matcher can represent a new range, so formatting commands can write through it.</summary>
+        public virtual bool CanWrap => false;
+
+        /// <summary>Writes the delimiter that opens a range.</summary>
+        public virtual void WriteOpen(System.Text.StringBuilder target, string parameter, string label) { }
+
+        /// <summary>Writes the delimiter that closes a range.</summary>
+        public virtual void WriteClose(System.Text.StringBuilder target) { }
+
+        /// <summary>How literal text survives this matcher, or null when it has no way.</summary>
+        public virtual string EscapeFor(string literal) => null;
     }
 
     /// <summary>What a matcher sees and reports while the source text is parsed.</summary>
@@ -194,6 +206,18 @@ namespace FirstSymbol.Lettera
         public TagMatcher(string name) => m_Name = name;
 
         public string Name { get => m_Name; set => m_Name = value; }
+
+        public override bool CanWrap => !string.IsNullOrEmpty(m_Name);
+
+        public override void WriteOpen(System.Text.StringBuilder target, string parameter, string label)
+        {
+            target.Append('<').Append(m_Name);
+            if (!string.IsNullOrEmpty(label)) target.Append(" #").Append(label);
+            if (!string.IsNullOrEmpty(parameter)) target.Append('=').Append(parameter);
+            target.Append('>');
+        }
+
+        public override void WriteClose(System.Text.StringBuilder target) => target.Append("</").Append(m_Name).Append('>');
 
         readonly List<int> m_Open = new List<int>();
 
@@ -388,6 +412,8 @@ namespace FirstSymbol.Lettera
     {
         public override int Priority => int.MaxValue;
 
+        public override string EscapeFor(string literal) => literal.IndexOf('<') < 0 ? literal : "<noparse>" + literal.Replace("</noparse>", "</noparse>&lt;/noparse>") + "</noparse>";
+
         public override void Find(LetteraMatchContext context)
         {
             IReadOnlyList<int> positions = context.LessThanPositions;
@@ -421,6 +447,20 @@ namespace FirstSymbol.Lettera
     public class EscapeMatcher : LetteraMatcher
     {
         public override int Priority => int.MaxValue - 1;
+
+        public override string EscapeFor(string literal)
+        {
+            System.Text.StringBuilder builder = null;
+            for (int i = 0; i < literal.Length; i++)
+            {
+                char c = literal[i];
+                bool reserved = c == '<' || c == '\\' || c == '*' || c == '_' || c == '`' || c == '[' || c == '~';
+                if (reserved && builder == null) builder = new System.Text.StringBuilder(literal, 0, i, literal.Length + 8);
+                if (reserved) builder.Append('\\');
+                builder?.Append(c);
+            }
+            return builder != null ? builder.ToString() : literal;
+        }
 
         public override void Find(LetteraMatchContext context)
         {

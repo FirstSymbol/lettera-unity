@@ -1,0 +1,318 @@
+using System;
+using System.Collections.Generic;
+using System.Text;
+using UnityEngine;
+
+namespace FirstSymbol.Lettera
+{
+    public enum LetteraClauseKind { Raw, ActiveRaw, Converted, ActiveConverted, Invalid }
+
+    /// <summary>A part of a composition.</summary>
+    public struct LetteraClause
+    {
+        public int Length;
+        public LetteraClauseKind Kind;
+    }
+
+    /// <summary>Where an input source delivers what the user did.</summary>
+    public interface ILetteraInputSink
+    {
+        void Key(LetteraKeyCode key, LetteraKeyModifiers modifiers, bool repeat = false);
+        void Text(string text);
+
+        /// <summary>The running composition. Clauses can be null, for one raw clause.</summary>
+        void Composition(string text, int caret, LetteraClause[] clauses);
+
+        /// <summary>The composition ends: commit puts it into the text, otherwise it goes away.</summary>
+        void CompositionEnd(bool commit);
+
+        /// <summary>A soft keyboard's action: submit, next, previous, newline, done, cancel.</summary>
+        void Action(string verb);
+    }
+
+    /// <summary>What an input source can ask the text, to place a candidate window or to fill an OS text box.</summary>
+    public interface ILetteraInputHost
+    {
+        LetteraSelectionRange Selection { get; }
+        string CommittedPlainText { get; }
+
+        /// <summary>The caret in screen pixels, from the bottom left.</summary>
+        Rect CaretScreenRect { get; }
+        LetteraKeyboardTraits Traits { get; }
+    }
+
+    /// <summary>A way for keys and text to reach a field. Later platforms add theirs through <see cref="LetteraInput.Register"/>.</summary>
+    public interface ILetteraInputSource
+    {
+        void Attach(ILetteraInputSink sink, ILetteraInputHost host);
+        void Detach();
+
+        /// <summary>Called each frame while the text has the keyboard.</summary>
+        void Pump();
+    }
+
+    /// <summary>Which input source a text gets when it takes the keyboard.</summary>
+    public static class LetteraInput
+    {
+        static readonly List<(Func<ILetteraInputSource> create, int priority)> s_Sources = new List<(Func<ILetteraInputSource>, int)>();
+
+        /// <summary>Higher priorities are asked first. A factory that returns null passes.</summary>
+        public static void Register(Func<ILetteraInputSource> create, int priority)
+        {
+            s_Sources.Add((create, priority));
+            s_Sources.Sort((a, b) => b.priority.CompareTo(a.priority));
+        }
+
+        public static void Unregister(Func<ILetteraInputSource> create) => s_Sources.RemoveAll(s => s.create == create);
+
+        /// <summary>Tests set this so no OS input interferes.</summary>
+        internal static bool NoDefaultSource;
+
+        internal static ILetteraInputSource CreateSource()
+        {
+            foreach ((Func<ILetteraInputSource> create, int _) in s_Sources)
+            {
+                ILetteraInputSource source = create();
+                if (source != null) return source;
+            }
+            if (NoDefaultSource) return null;
+            if (Application.isMobilePlatform && TouchScreenKeyboard.isSupported) return new LetteraTouchKeyboardSource();
+            return new LetteraUnityInputSource();
+        }
+    }
+
+    /// <summary>Keys and composition as Unity queues them for UI, which works under either input backend.</summary>
+    public sealed class LetteraUnityInputSource : ILetteraInputSource
+    {
+        readonly Event m_Event = new Event();
+        readonly StringBuilder m_Typed = new StringBuilder();
+        ILetteraInputSink m_Sink;
+        ILetteraInputHost m_Host;
+        string m_Composition = "";
+        static bool s_LegacyCompositionBroken;
+
+        public void Attach(ILetteraInputSink sink, ILetteraInputHost host)
+        {
+            m_Sink = sink;
+            m_Host = host;
+            m_Composition = "";
+            TrySetComposition(true);
+        }
+
+        public void Detach()
+        {
+            TrySetComposition(false);
+            m_Sink = null;
+            m_Host = null;
+        }
+
+        // A project using only the Input System package has no legacy input class to ask.
+        static void TrySetComposition(bool on)
+        {
+            if (s_LegacyCompositionBroken) return;
+            try
+            {
+                UnityEngine.Input.imeCompositionMode = on ? IMECompositionMode.On : IMECompositionMode.Auto;
+            }
+            catch (InvalidOperationException)
+            {
+                s_LegacyCompositionBroken = true;
+            }
+        }
+
+        static string ReadComposition()
+        {
+            if (s_LegacyCompositionBroken) return "";
+            try
+            {
+                return UnityEngine.Input.compositionString ?? "";
+            }
+            catch (InvalidOperationException)
+            {
+                s_LegacyCompositionBroken = true;
+                return "";
+            }
+        }
+
+        public void Pump()
+        {
+            m_Typed.Clear();
+            while (m_Sink != null && Event.PopEvent(m_Event))
+            {
+                if (m_Event.rawType != EventType.KeyDown) continue;
+                LetteraKeyModifiers modifiers = Modifiers(m_Event);
+                LetteraKeyCode key = LetteraKeyTable.FromUnity(m_Event.keyCode);
+                char character = m_Event.character;
+                if (key != LetteraKeyCode.None && key != LetteraKeyCode.Space)
+                {
+                    bool plainKey = character == 0 || char.IsControl(character);
+                    Flush();
+                    bool letterChord = !plainKey && (modifiers & (LetteraKeyModifiers.Control | LetteraKeyModifiers.Alt | LetteraKeyModifiers.Command)) == 0;
+                    if (!letterChord) m_Sink.Key(key, modifiers);
+                    if (plainKey) continue;
+                }
+                if (character == 0 || char.IsControl(character)) continue;
+                // Control alone never types. Control with Alt is AltGr and does.
+                bool control = (modifiers & LetteraKeyModifiers.Control) != 0, alt = (modifiers & LetteraKeyModifiers.Alt) != 0, command = (modifiers & LetteraKeyModifiers.Command) != 0;
+                if (command || (control && !alt)) continue;
+                m_Typed.Append(character);
+            }
+            if (m_Sink == null) return;
+
+            string composition = ReadComposition();
+            if (composition != m_Composition)
+            {
+                if (composition.Length == 0)
+                {
+                    // Unity delivers what the IME commits as ordinary characters.
+                    if (m_Typed.Length > 0)
+                    {
+                        m_Sink.Composition(m_Typed.ToString(), m_Typed.Length, null);
+                        m_Sink.CompositionEnd(true);
+                        m_Typed.Clear();
+                    }
+                    else
+                    {
+                        m_Sink.CompositionEnd(false);
+                    }
+                }
+                else
+                {
+                    Flush();
+                    m_Sink.Composition(composition, composition.Length, null);
+                }
+                m_Composition = composition;
+            }
+            Flush();
+            if (m_Composition.Length > 0 && m_Sink != null && !s_LegacyCompositionBroken && m_Host != null)
+            {
+                Rect caret = m_Host.CaretScreenRect;
+                UnityEngine.Input.compositionCursorPos = new Vector2(caret.x, Screen.height - caret.y);
+            }
+        }
+
+        void Flush()
+        {
+            if (m_Typed.Length == 0) return;
+            string text = m_Typed.ToString();
+            m_Typed.Clear();
+            m_Sink.Text(text);
+        }
+
+        static LetteraKeyModifiers Modifiers(Event e)
+        {
+            LetteraKeyModifiers modifiers = LetteraKeyModifiers.None;
+            if (e.shift) modifiers |= LetteraKeyModifiers.Shift;
+            if (e.control) modifiers |= LetteraKeyModifiers.Control;
+            if (e.alt) modifiers |= LetteraKeyModifiers.Alt;
+            if (e.command) modifiers |= LetteraKeyModifiers.Command;
+            return modifiers;
+        }
+    }
+
+    /// <summary>Text from the system's on-screen keyboard. Its text box holds what the user types; each change comes back as one edit.</summary>
+    public sealed class LetteraTouchKeyboardSource : ILetteraInputSource, ILetteraKeyboardWriter
+    {
+        TouchScreenKeyboard m_Keyboard;
+        ILetteraInputSink m_Sink;
+        ILetteraInputHost m_Host;
+        string m_Known = "";
+
+        public void Attach(ILetteraInputSink sink, ILetteraInputHost host)
+        {
+            m_Sink = sink;
+            m_Host = host;
+            m_Known = host.CommittedPlainText ?? "";
+            LetteraKeyboardTraits traits = host.Traits;
+            TouchScreenKeyboard.hideInput = true;
+            m_Keyboard = TouchScreenKeyboard.Open(m_Known, traits.ToUnityType(), traits.Autocorrect, traits.Multiline, traits.Secure);
+            if (m_Keyboard != null && host.Selection.End <= m_Known.Length) SendSelection();
+        }
+
+        void SendSelection()
+        {
+            if (m_Keyboard == null || !m_Keyboard.canSetSelection) return;
+            LetteraSelectionRange selection = m_Host.Selection;
+            m_Keyboard.selection = new RangeInt(selection.Start, selection.Length);
+        }
+
+        public void Detach()
+        {
+            if (m_Keyboard != null) m_Keyboard.active = false;
+            m_Keyboard = null;
+            m_Sink = null;
+            m_Host = null;
+        }
+
+        public void Pump()
+        {
+            if (m_Keyboard == null || m_Sink == null) return;
+            string text = m_Keyboard.text ?? "";
+            if (text != m_Known)
+            {
+                if (m_Sink is ILetteraKeyboardSink keyboard) keyboard.Reconcile(text);
+                m_Known = m_Host?.CommittedPlainText ?? text;
+                // A rule refused or rewrote it: the OS box has to show what the field holds.
+                if (m_Known != text) m_Keyboard.text = m_Known;
+            }
+            switch (m_Keyboard.status)
+            {
+                case TouchScreenKeyboard.Status.Done:
+                    m_Sink.Action("done");
+                    break;
+                case TouchScreenKeyboard.Status.Canceled:
+                    m_Sink.Action("cancel");
+                    break;
+            }
+        }
+
+        void ILetteraKeyboardWriter.TextChanged(string text)
+        {
+            m_Known = text;
+            if (m_Keyboard != null && m_Keyboard.text != text) m_Keyboard.text = text;
+            if (m_Keyboard != null) SendSelection();
+        }
+    }
+
+    /// <summary>A sink that can take the whole text of an OS text box and find the edit in it.</summary>
+    public interface ILetteraKeyboardSink
+    {
+        void Reconcile(string text);
+    }
+
+    internal interface ILetteraKeyboardWriter
+    {
+        void TextChanged(string text);
+    }
+
+    public enum LetteraKeyboardKind { Default, Ascii, Url, Number, Decimal, Phone, Name, Email, Search }
+    public enum LetteraReturnKey { Default, Done, Go, Next, Search, Send }
+
+    /// <summary>What a soft keyboard should offer. What the current route cannot pass on does nothing.</summary>
+    [Serializable]
+    public struct LetteraKeyboardTraits
+    {
+        public LetteraKeyboardKind Kind;
+        public LetteraReturnKey ReturnKey;
+        public bool Autocorrect;
+        public bool Multiline;
+        public bool Secure;
+        public string AutofillHint;
+
+        public TouchScreenKeyboardType ToUnityType()
+        {
+            switch (Kind)
+            {
+                case LetteraKeyboardKind.Ascii: return TouchScreenKeyboardType.ASCIICapable;
+                case LetteraKeyboardKind.Url: return TouchScreenKeyboardType.URL;
+                case LetteraKeyboardKind.Number: return TouchScreenKeyboardType.NumberPad;
+                case LetteraKeyboardKind.Decimal: return TouchScreenKeyboardType.DecimalPad;
+                case LetteraKeyboardKind.Phone: return TouchScreenKeyboardType.PhonePad;
+                case LetteraKeyboardKind.Name: return TouchScreenKeyboardType.NamePhonePad;
+                case LetteraKeyboardKind.Email: return TouchScreenKeyboardType.EmailAddress;
+                case LetteraKeyboardKind.Search: return TouchScreenKeyboardType.Search;
+                default: return TouchScreenKeyboardType.Default;
+            }
+        }
+    }
+}

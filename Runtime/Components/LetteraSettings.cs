@@ -31,6 +31,7 @@ namespace FirstSymbol.Lettera
         [SerializeField] LetteraPaintLibrary m_Paints;
         [SerializeField] GameObject m_TextPrefab;
         [SerializeField] GameObject m_WorldTextPrefab;
+        [SerializeField] LetteraEditingSettings m_Editing = new LetteraEditingSettings();
 
         static LetteraSettings s_Instance;
 
@@ -60,6 +61,9 @@ namespace FirstSymbol.Lettera
         public LetteraPaintLibrary Paints { get => m_Paints; set { m_Paints = value; Changed?.Invoke(); } }
         public GameObject TextPrefab { get => m_TextPrefab; set => m_TextPrefab = value; }
         public GameObject WorldTextPrefab { get => m_WorldTextPrefab; set => m_WorldTextPrefab = value; }
+
+        /// <summary>Selection and editing defaults.</summary>
+        public LetteraEditingSettings Editing => m_Editing ?? (m_Editing = new LetteraEditingSettings());
 
         void OnValidate() => Changed?.Invoke();
 

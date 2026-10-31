@@ -66,7 +66,7 @@ namespace FirstSymbol.Lettera
             if (data.AutoSize) size = FitFontSize(data, width, height, wrap);
             CurrentFontSize = size;
 
-            if (m_Attributes.Elides.Count > 0) ApplyElide(size, width, height, wrap);
+            if (m_Attributes.Elides.Count > 0 && !SuspendElide) ApplyElide(size, width, height, wrap);
 
             LineStats stats = BreakLines(m_Lines, size, width, wrap, true);
             m_ContentWidth = stats.MaxWidth;

@@ -19,6 +19,7 @@ namespace FirstSymbol.Lettera
         void CollectStyles()
         {
             m_EffectiveStyles.Clear();
+            if (Literal) return;
             LetteraTextData data = m_Host.Data;
             m_EffectiveStyles.AddRange(data.Styles);
             foreach (LetteraStylePreset preset in data.StylePresets)
@@ -75,6 +76,7 @@ namespace FirstSymbol.Lettera
             CollectStyles();
             LetteraMatchContext context = m_MatchContext;
             context.Begin(source);
+            if (m_ProtectLength > 0 && m_ProtectStart + m_ProtectLength <= source.Length) context.Protect(m_ProtectStart, m_ProtectLength);
 
             // Higher priority first; the sort is stable so earlier styles win ties.
             m_MatcherOrder.Clear();
@@ -90,6 +92,7 @@ namespace FirstSymbol.Lettera
                 m_EffectiveStyles[index].Matcher.Find(context);
             }
 
+            if (RevealSource >= 0) RevealRangesAt(context, RevealSource);
             BuildRenderedText(source, context);
             ResolveRangeEnds(context);
             m_RangesApplied = false;
@@ -148,6 +151,7 @@ namespace FirstSymbol.Lettera
         {
             if (m_Dirty < DirtyLevel.Parse) return;
             Parse();
+            m_EarlyChanges |= LetteraChanges.Text;
             m_Dirty = DirtyLevel.Shape;
         }
 

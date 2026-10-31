@@ -100,7 +100,7 @@ namespace FirstSymbol.Lettera
             EnsureExtras(length);
             if (length == 0) return;
 
-            int direction = m_Attributes.DirectionOverride >= 0 ? m_Attributes.DirectionOverride
+            int direction = FieldDirection >= 0 ? FieldDirection : m_Attributes.DirectionOverride >= 0 ? m_Attributes.DirectionOverride
                 : data.BaseDirection == LetteraDirection.LeftToRight ? 0 : data.BaseDirection == LetteraDirection.RightToLeft ? 1 : 2;
             int baseLevel = direction == 2 ? -1 : direction;
 
@@ -140,12 +140,19 @@ namespace FirstSymbol.Lettera
             if (count > 0)
             {
                 var text = new ReadOnlySpan<int>(m_Text, start, count);
-                paragraph.Level = Bidi.ResolveParagraph(text, baseLevel, new Span<byte>(m_Levels, start, count));
                 GraphemeBreaker.FindBoundaries(text, new Span<bool>(m_Boundaries, start, count + 1));
+                if (MaskGlyph != 0)
+                {
+                    MaskParagraph(start, contentEnd);
+                    text = new ReadOnlySpan<int>(m_ShapeText, start, count);
+                }
+                paragraph.Level = Bidi.ResolveParagraph(text, baseLevel, new Span<byte>(m_Levels, start, count));
                 LineBreaker.FindBreaks(text, new Span<LineBreakOpportunity>(m_Breaks, start, count));
                 ScriptItemizer.Resolve(text, new Span<UnicodeScript>(m_Scripts, start, count));
                 BuildRuns(paragraph);
             }
+            // An empty paragraph has nothing to decide a direction with, so a caret on it stays on the side the text before it reads from.
+            if (contentEnd == start && baseLevel < 0 && m_Paragraphs.Count > 0) paragraph.Level = m_Paragraphs[m_Paragraphs.Count - 1].Level;
             m_Paragraphs.Add(paragraph);
         }
 
@@ -169,7 +176,7 @@ namespace FirstSymbol.Lettera
                 ref LetteraAttributes.Cp attr = ref attrs[i];
                 string family = attr.Family >= 0 ? m_Attributes.FamilyRequests[attr.Family] : null;
                 string language = LanguageOf(attr.Language);
-                bool emoji = EmojiClassifier.IsEmojiCluster(m_Text, i, clusterEnd - i);
+                bool emoji = MaskGlyph == 0 && EmojiClassifier.IsEmojiCluster(m_Text, i, clusterEnd - i);
                 FontFace face = m_Chain.Resolve(new ReadOnlySpan<int>(m_ShapeText, i, clusterEnd - i), emoji, family, language, out FontChain.Family owner);
                 AxisSet axes = attr.Axes >= 0 ? m_Attributes.AxisSets[attr.Axes] : null;
                 FontInstance instance = face == null ? null : FontChain.Style(face, owner, attr.Weight, attr.BoldMode, attr.Italic, attr.Slant, axes);

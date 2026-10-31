@@ -13,9 +13,16 @@ using UnityEngine;
 
 namespace FirstSymbol.Lettera
 {
-    public partial class CLASS
+    public partial class CLASS : ITextComponent
     {
         partial void MarkDirty(DirtyLevel level);
+
+        TextEngine ITextComponent.SharedEngine => Engine;
+        RectTransform ITextComponent.TextRect => (RectTransform)transform;
+        void ITextComponent.Dirty(DirtyLevel level) => MarkDirty(level);
+        string ITextComponent.SourceText { get => m_Data.Text; set => Text = value; }
+        event Action ITextComponent.SourceWritten { add => m_SourceWritten += value; remove => m_SourceWritten -= value; }
+        Action m_SourceWritten;
 
         /// <summary>Raised after a rebuild; the flags tell which outputs changed.</summary>
         public event Action<LetteraChanges> Rebuilt;
@@ -33,6 +40,7 @@ namespace FirstSymbol.Lettera
                 if (m_Data.Text == value) return;
                 m_Data.Text = value;
                 MarkDirty(DirtyLevel.Parse);
+                m_SourceWritten?.Invoke();
             }
         }
 
@@ -42,7 +50,9 @@ namespace FirstSymbol.Lettera
         /// <summary>Sets runtime text without changing the serialized field. The same characters again do nothing.</summary>
         public void SetText(ReadOnlySpan<char> text)
         {
-            if (Engine.SetRuntimeText(text)) MarkDirty(DirtyLevel.Parse);
+            if (!Engine.SetRuntimeText(text)) return;
+            MarkDirty(DirtyLevel.Parse);
+            m_SourceWritten?.Invoke();
         }
 
         /// <summary>Sets runtime text from a builder. The same characters again do nothing.</summary>
@@ -63,6 +73,7 @@ namespace FirstSymbol.Lettera
         {
             Engine.SetRuntimeText(new ReadOnlySpan<char>(buffer, start, length));
             MarkDirty(DirtyLevel.Parse);
+            m_SourceWritten?.Invoke();
         }
 
         public LetteraFontAsset Font { get => m_Data.Font; set { if (m_Data.Font == value) return; m_Data.Font = value; MarkDirty(DirtyLevel.Shape); } }
@@ -185,6 +196,41 @@ namespace FirstSymbol.Lettera
         /// <summary>The caret index at a screen point, snapped to cluster edges.</summary>
         public int HitTestCaret(Vector2 screenPoint, Camera camera) =>
             RectTransformUtility.ScreenPointToLocalPointInRectangle((RectTransform)transform, screenPoint, camera, out Vector2 local) ? Engine.HitTestCaret(local) : 0;
+
+        /// <summary>The caret index and side at a local point, snapped to cluster edges.</summary>
+        public int HitTestCaret(Vector2 localPoint, out LetteraCaretBias bias)
+        {
+            Engine.EnsurePositioned();
+            return Engine.HitTestCaret(localPoint, out bias);
+        }
+
+        /// <summary>The box a caret at an index stands in, in local space. Its width is zero.</summary>
+        public bool TryGetCaretRect(int index, LetteraCaretBias bias, out Rect local)
+        {
+            Engine.EnsurePositioned();
+            return Engine.TryGetCaretRect(index, bias, out local);
+        }
+
+        /// <summary>Adds one rectangle per stretch of a logical range, in local space: per line, in visual order, and several on a line that changes direction.</summary>
+        public void GetRangeRects(int start, int end, List<Rect> local)
+        {
+            Engine.EnsurePositioned();
+            Engine.GetRangeRects(start, end, local);
+        }
+
+        /// <summary>The union of a range's rectangles. False when no part of the range is shown.</summary>
+        public bool TryGetRangeBounds(int start, int end, out Rect local)
+        {
+            Engine.EnsurePositioned();
+            return Engine.TryGetRangeBounds(start, end, out local);
+        }
+
+        /// <summary>The line a caret at an index stands on.</summary>
+        public int GetLineIndex(int index, LetteraCaretBias bias)
+        {
+            Engine.EnsurePositioned();
+            return Engine.LineOf(index, bias);
+        }
 
         public int SourceIndexFromRendered(int rendered) => Engine.SourceIndexFromRendered(rendered);
         public int RenderedIndexFromSource(int source) => Engine.RenderedIndexFromSource(source);

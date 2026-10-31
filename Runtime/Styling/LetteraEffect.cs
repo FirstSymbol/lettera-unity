@@ -20,6 +20,9 @@ namespace FirstSymbol.Lettera
         /// <summary>A copy for one text. Override when the effect holds a list or another nested object; references to assets stay shared.</summary>
         public virtual LetteraEffect Clone() => (LetteraEffect)MemberwiseClone();
 
+        /// <summary>Whether text typed at the end of this effect's range joins it. A link does not.</summary>
+        public virtual bool ExtendsOnType => true;
+
         /// <summary>The effects this one runs inside it.</summary>
         internal virtual void CollectChildren(System.Collections.Generic.List<LetteraEffect> results) { }
     }

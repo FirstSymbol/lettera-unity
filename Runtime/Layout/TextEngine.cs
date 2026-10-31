@@ -4,6 +4,18 @@ using UnityEngine;
 
 namespace FirstSymbol.Lettera
 {
+    /// <summary>What selection and editing need from either text component.</summary>
+    internal interface ITextComponent
+    {
+        TextEngine SharedEngine { get; }
+        RectTransform TextRect { get; }
+        bool IsVisible { get; }
+        string SourceText { get; set; }
+        void Dirty(DirtyLevel level);
+        event Action SourceWritten;
+        event Action<LetteraChanges> Rebuilt;
+    }
+
     /// <summary>What the engine needs from the component that owns it.</summary>
     internal interface ITextHost
     {
@@ -123,8 +135,9 @@ namespace FirstSymbol.Lettera
             m_Snapshot = m_Host.Data.Take();
             DirtyLevel level = m_Dirty;
             m_Dirty = DirtyLevel.None;
-            LastChanges = LetteraChanges.None;
+            LastChanges = m_EarlyChanges;
             if (level == DirtyLevel.None) return false;
+            m_EarlyChanges = LetteraChanges.None;
             RebuildCount++;
 
             if (level >= DirtyLevel.Parse)
@@ -160,12 +173,31 @@ namespace FirstSymbol.Lettera
             return true;
         }
 
+        // What passes run ahead of the frame's rebuild changed, for the rebuild to report.
+        LetteraChanges m_EarlyChanges;
+
+        /// <summary>Makes glyph positions current, for caret and selection queries before the frame's rebuild. The mesh waits for it.</summary>
+        public void EnsurePositioned()
+        {
+            if (m_Dirty < DirtyLevel.Positions) return;
+            EnsureMeasured();
+            if (m_Dirty >= DirtyLevel.Layout)
+            {
+                RunLayout();
+                m_EarlyChanges |= LetteraChanges.Layout;
+            }
+            PositionGlyphs();
+            m_EarlyChanges |= LetteraChanges.Positions;
+            m_Dirty = DirtyLevel.Mesh;
+        }
+
         /// <summary>Makes parsing and shaping current, for queries before the frame's rebuild.</summary>
         public void EnsureMeasured()
         {
             if (m_Dirty >= DirtyLevel.Parse)
             {
                 Parse();
+                m_EarlyChanges |= LetteraChanges.Text;
                 m_Dirty = DirtyLevel.Shape;
             }
             else

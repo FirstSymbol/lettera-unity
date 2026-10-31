@@ -15,6 +15,8 @@ namespace FirstSymbol.Lettera
             public float X, Y, Advance, Unit, Size;
             public float XScale;    // Added to 1: justification, a fit and connecting strokes widen or narrow a glyph.
             public float Angle;     // Radians around the origin, on curved text.
+            public float Pen;       // Where the cluster's advance starts, without the glyph's own offset.
+            public bool Marker;     // An elision marker: drawn in the line, but no part of the text.
         }
 
         PlacedGlyph[] m_Placed = new PlacedGlyph[64];
@@ -41,6 +43,7 @@ namespace FirstSymbol.Lettera
         {
             LetteraTextData data = m_Host.Data;
             m_PlacedCount = 0;
+            m_SegmentsValid = false;
             m_VirtualGlyphs.Clear();
 
             float top = m_Box.yMax;
@@ -336,7 +339,7 @@ namespace FirstSymbol.Lettera
                 {
                     Glyph = g.Glyph, Instance = run.Instance, Cluster = g.Cluster, Line = lineIndex,
                     X = placedX, Y = placedY, Advance = advance + after, Unit = unit, Size = size,
-                    XScale = scaleHere - 1,
+                    XScale = scaleHere - 1, Pen = x,
                 };
                 x += advance;
                 if (extras && lastOfCluster && !rtl && after > 0 && m_CpKashida[g.Cluster]) AddKashida(run, x + (after - TrailOnly(g.Cluster, size)), TrailOnly(g.Cluster, size), baseline, lineIndex, g.Cluster, unit);
@@ -459,7 +462,7 @@ namespace FirstSymbol.Lettera
                 m_Placed[m_PlacedCount++] = new PlacedGlyph
                 {
                     Glyph = removal.Glyph, Instance = removal.Instance, Cluster = removal.Anchor, Line = lineIndex,
-                    X = x, Y = baseline, Advance = advance, Unit = unit, Size = size,
+                    X = x, Y = baseline, Advance = advance, Unit = unit, Size = size, Pen = x, Marker = true,
                 };
                 x += advance;
             }
@@ -529,38 +532,6 @@ namespace FirstSymbol.Lettera
             while (start > 0 && !m_Boundaries[start]) start--;
             end = cp + 1;
             while (end < m_TextLength && !m_Boundaries[end]) end++;
-        }
-
-        /// <summary>The caret index at a local point: left half of a cluster gives its start, right half its end, mirrored in RTL.</summary>
-        public int HitTestCaret(Vector2 point)
-        {
-            if (m_Lines.Count == 0 || m_RealCount == 0) return 0;
-            int lineIndex = 0;
-            for (int l = 0; l < m_Lines.Count; l++)
-            {
-                lineIndex = l;
-                LetteraLine line = m_Lines[l];
-                if (point.y >= line.Baseline - line.Descent) break;
-            }
-            int bestGlyph = -1;
-            float bestDistance = float.MaxValue;
-            for (int i = 0; i < m_RealCount; i++)
-            {
-                ref PlacedGlyph g = ref m_Placed[i];
-                if (g.Line != lineIndex) continue;
-                float distance = point.x < g.X ? g.X - point.x : point.x > g.X + g.Advance ? point.x - g.X - g.Advance : 0;
-                if (distance < bestDistance)
-                {
-                    bestDistance = distance;
-                    bestGlyph = i;
-                }
-            }
-            if (bestGlyph < 0) return m_Lines[lineIndex].Start;
-            ref PlacedGlyph hit = ref m_Placed[bestGlyph];
-            ClusterRange(hit.Cluster, out int start, out int end);
-            bool rtl = (m_Levels[hit.Cluster] & 1) != 0;
-            bool leftHalf = point.x < hit.X + hit.Advance * 0.5f;
-            return leftHalf != rtl ? start : end;
         }
     }
 }

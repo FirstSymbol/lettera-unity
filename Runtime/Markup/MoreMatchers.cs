@@ -100,6 +100,10 @@ namespace FirstSymbol.Lettera
         public string Marker { get => m_Marker; set => m_Marker = value; }
         public string DefaultParameter { get => m_DefaultParameter; set => m_DefaultParameter = value; }
 
+        public override bool CanWrap => !string.IsNullOrEmpty(m_Marker);
+        public override void WriteOpen(System.Text.StringBuilder target, string parameter, string label) => target.Append(m_Marker);
+        public override void WriteClose(System.Text.StringBuilder target) => target.Append(m_Marker);
+
         /// <summary>A longer marker claims first, so ** goes before *.</summary>
         public override int Priority => string.IsNullOrEmpty(m_Marker) ? 0 : Math.Min(m_Marker.Length + 1, 1000);
 
@@ -530,6 +534,8 @@ namespace FirstSymbol.Lettera
     [Serializable]
     public class LinkEffect : LetteraEffect
     {
+        public override bool ExtendsOnType => false;
+
         public override void Apply(LetteraAttributes attributes, int start, int end, in LetteraSlots slots) { }
     }
 
