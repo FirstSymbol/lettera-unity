@@ -175,7 +175,7 @@ namespace FirstSymbol.Lettera.Editor
                 return root;
             }
             var serialized = new SerializedObject(settings);
-            page.Add(LtFrame.AllFields(serialized, "Text", "m_Editing", "m_Motion", "m_Documents", "m_Platform"));
+            page.Add(LtFrame.AllFields(serialized, "Text", "m_Editing", "m_Motion", "m_Documents", "m_Platform", "m_FontMemory"));
             SerializedProperty editing = serialized.FindProperty("m_Editing");
             var rows = new List<VisualElement>();
             SerializedProperty child = editing.Copy();
@@ -221,6 +221,17 @@ namespace FirstSymbol.Lettera.Editor
                 platformRows.Add(LtFrame.Row(platformChild.Copy()));
             }
             page.Add(LtUI.Card("Platform", platformRows.ToArray()));
+            var fontRows = new List<VisualElement>();
+            SerializedProperty fontMemory = serialized.FindProperty("m_FontMemory");
+            SerializedProperty fontChild = fontMemory.Copy();
+            SerializedProperty fontEnd = fontMemory.GetEndProperty();
+            bool fontEnter = true;
+            while (fontChild.NextVisible(fontEnter) && !SerializedProperty.EqualContents(fontChild, fontEnd))
+            {
+                fontEnter = false;
+                fontRows.Add(LtFrame.Row(fontChild.Copy()));
+            }
+            page.Add(LtUI.Card("Font Memory", fontRows.ToArray()));
             page.Add(LtUI.Card("Commands", new LetteraReferenceList(editing.FindPropertyRelative("Commands"), () => LetteraRuleCatalog.Commands)));
             return root;
         }

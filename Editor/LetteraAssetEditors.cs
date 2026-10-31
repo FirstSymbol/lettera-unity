@@ -119,6 +119,18 @@ namespace FirstSymbol.Lettera.Editor
     {
         protected override string Title => "Lettera Font";
 
+        // Worked out when the card is drawn, so that a closed inspector costs nothing.
+        static VisualElement MemoryCard(LetteraFont font)
+        {
+            FontFace face = font.LoadedFace;
+            string where = face == null ? "Not loaded yet" : face.Source == LetteraFontSource.CacheMapped ? "Mapped from the cache" : face.Source == LetteraFontSource.SystemMapped ? "Mapped from the system" : "In memory";
+            LetteraFontMemory.Sums sums = LetteraFontMemory.Totals;
+            return LtUI.Card("Memory",
+                LtUI.Row("This Font", LtUI.Text(where, "lt-row__value")),
+                LtUI.Row("Held", LtUI.Text(face != null ? $"{face.RetainedBytes / 1024} KB, {face.InstanceCount} instances" : "Nothing", "lt-row__value"), "Bytes held in memory. A mapped file counts as none, and an instance is one set of variations or synthesis."),
+                LtUI.Row("All Fonts", LtUI.Text($"{sums.Faces} faces, {sums.RetainedBytes / 1024} KB held, {sums.MappedBytes / 1024} KB mapped", "lt-row__value")));
+        }
+
         protected override void Fill(VisualElement root)
         {
             var font = (LetteraFont)target;
@@ -135,10 +147,95 @@ namespace FirstSymbol.Lettera.Editor
             root.Add(LtUI.Card("Font",
                 LtUI.Row("Family", LtUI.Text(font.FamilyName, "lt-row__value")),
                 LtUI.Row("Stored", LtUI.Text($"{font.CompressedSize / 1024} KB of {font.OriginalSize / 1024} KB", "lt-row__value")),
-                Field("Face Index", "m_FaceIndex", "The face inside a .ttc or .otc file.")));
+                Field("Face Index", "m_FaceIndex", "The face inside a .ttc or .otc file."),
+                Field("Keep Inline", "m_KeepInline", "Keeps this font inside its asset in every build, whatever the project's packaging says.")));
+            root.Add(MemoryCard(font));
             root.Add(FontCommon());
             root.Add(PixelCard(font));
+            root.Add(LetteraSubsetCard.Create(font));
             root.Add(AtlasPreview());
+        }
+    }
+
+    /// <summary>Makes a smaller font from this one, here in the inspector.</summary>
+    internal static class LetteraSubsetCard
+    {
+        public static VisualElement Create(LetteraFont font)
+        {
+            if (!LetteraFontSubset.IsAvailable)
+                return LtUI.Card("Subset", LtUI.Text("This editor's platform has no copy of the subset tool. Everything else works without it.", "lt-note"));
+
+            var options = new LetteraSubsetOptions();
+            var characters = new TextField { multiline = true, value = LetteraFontSubset.Presets["Basic Latin"] };
+            characters.style.minHeight = 48;
+            characters.RegisterValueChangedCallback(e => options.Characters = e.newValue);
+            options.Characters = characters.value;
+
+            var report = LtUI.Text("", "lt-note");
+            LetteraSubsetResult last = null;
+
+            Label mode = null;
+            mode = LtUI.Clickable("Keep these", "lt-row__value", "Keep: only these characters stay. Remove: everything except these stays.", () =>
+            {
+                options.Mode = options.Mode == LetteraSubsetMode.Keep ? LetteraSubsetMode.Remove : LetteraSubsetMode.Keep;
+                mode.text = options.Mode == LetteraSubsetMode.Keep ? "Keep these" : "Remove these";
+            });
+
+            var presets = LtUI.El("lt-row__value");
+            presets.style.flexDirection = FlexDirection.Row;
+            presets.style.flexWrap = Wrap.Wrap;
+            foreach (KeyValuePair<string, string> preset in LetteraFontSubset.Presets)
+            {
+                string value = preset.Value;
+                Label chip = LtUI.Clickable(preset.Key, "lt-row__value", "Use " + preset.Key, () => characters.value = value);
+                chip.style.marginRight = 8;
+                presets.Add(chip);
+            }
+
+            Label scan = null;
+            scan = LtUI.Clickable("Off", "lt-row__value", "Also keeps every character of Lettera texts in scenes and prefabs.", () =>
+            {
+                options.FromProject = !options.FromProject;
+                scan.text = options.FromProject ? "On" : "Off";
+            });
+
+            void Run()
+            {
+                last = LetteraFontSubset.Run(font, options);
+                if (!last.Succeeded)
+                {
+                    report.text = last.Refused;
+                    return;
+                }
+                report.text = $"{last.BytesBefore / 1024} KB to {last.BytesAfter / 1024} KB, {last.GlyphsBefore} to {last.GlyphsAfter} glyphs."
+                              + (last.Warnings.Count > 0 ? " " + string.Join(" ", last.Warnings) : "");
+            }
+
+            Label preview = LtUI.Clickable("Try it", "lt-row__value", "Makes the subset and says what came of it. Nothing changes yet.", Run);
+            Label saveAs = LtUI.Clickable("Save As New Asset", "lt-row__value", "Stores the subset beside this font, and leaves this one alone.", () =>
+            {
+                Run();
+                if (!last.Succeeded) return;
+                string path = System.IO.Path.GetDirectoryName(AssetDatabase.GetAssetPath(font)).Replace('\\', '/') + "/" + font.name + " Subset.asset";
+                EditorGUIUtility.PingObject(LetteraFontSubset.SaveAs(font, last.Bytes, path));
+            });
+            Label replace = LtUI.Clickable("Replace This Font", "lt-row__value", "Replaces this font's data. Undo brings it back; after that only reimporting its file can.", () =>
+            {
+                Run();
+                if (!last.Succeeded) return;
+                if (EditorUtility.DisplayDialog("Replace this font?", "The original file is not kept in the asset. Undo brings it back for now; after that, reimport it from its file.", "Replace", "Cancel"))
+                    LetteraFontSubset.Replace(font, last.Bytes);
+            });
+
+            return LtUI.Card("Subset",
+                LtUI.Row("Mode", mode),
+                LtUI.Row("Presets", presets),
+                LtUI.Row("Characters", characters, "Text, or ranges such as U+0400-04FF."),
+                LtUI.Row("From Project", scan),
+                LtUI.Row("", preview),
+                LtUI.Row("", saveAs),
+                LtUI.Row("", replace),
+                report);
         }
     }
 

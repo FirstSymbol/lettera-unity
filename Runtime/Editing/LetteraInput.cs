@@ -412,6 +412,46 @@ namespace FirstSymbol.Lettera
 
     /// <summary>What a soft keyboard should offer. What the current route cannot pass on does nothing.</summary>
     [Serializable]
+    public enum LetteraAutoCapitalize { Default, None, Sentences, Words, All }
+
+    public enum LetteraTraitToggle { Default, On, Off }
+
+    public enum LetteraIosAppearance { Default, Light, Dark }
+
+    [Flags]
+    public enum LetteraAndroidImeFlags { None = 0, NoFullscreen = 1, NoExtractUi = 2, NoAccessoryAction = 4, NoPersonalizedLearning = 8 }
+
+    /// <summary>iOS's own typing helps.</summary>
+    [Serializable]
+    public struct LetteraIosSmart
+    {
+        public LetteraTraitToggle Quotes, Dashes, InsertDelete;
+    }
+
+    /// <summary>The portable names of what an autofill can offer, which follow the web's autocomplete tokens. A string not listed here goes to the web unchanged.</summary>
+    public static class LetteraAutofill
+    {
+        public const string Username = "username", CurrentPassword = "current-password", NewPassword = "new-password", OneTimeCode = "one-time-code", Email = "email", Name = "name", GivenName = "given-name", FamilyName = "family-name", Tel = "tel", StreetAddress = "street-address", PostalCode = "postal-code", Country = "country", CreditCardNumber = "cc-number";
+    }
+
+    /// <summary>What a platform's keyboard may report, as one vocabulary.</summary>
+    public static class LetteraVerbs
+    {
+        public const string Submit = "submit", Return = "return", Done = "done", Next = "next", Previous = "previous", Cancel = "cancel", Copy = "copy", Cut = "cut", Paste = "paste", PastePlain = "pastePlain", Undo = "undo", Redo = "redo", SelectAll = "selectAll", Newline = "newline", CutCopied = "cutCopied";
+
+        /// <summary>Whether a session's boundary should take this.</summary>
+        public static bool IsKnown(string verb)
+        {
+            switch (verb)
+            {
+                case Submit: case Return: case Done: case Next: case Previous: case Cancel: case Copy: case Cut: case Paste: case PastePlain: case Undo: case Redo: case SelectAll: case Newline: case CutCopied:
+                    return true;
+                default:
+                    return false;
+            }
+        }
+    }
+
     public struct LetteraKeyboardTraits
     {
         public LetteraKeyboardKind Kind;
@@ -420,6 +460,13 @@ namespace FirstSymbol.Lettera
         public bool Multiline;
         public bool Secure;
         public string AutofillHint;
+
+        [Tooltip("Web, Android, iOS.")] public LetteraAutoCapitalize AutoCapitalize;
+        [Tooltip("Web, iOS. Android follows suggestions.")] public LetteraTraitToggle SpellCheck;
+        [Tooltip("iOS only.")] public LetteraIosSmart IosSmart;
+        [Tooltip("iOS only.")] public LetteraIosAppearance IosAppearance;
+        [Tooltip("iOS only: the return key stays off while the field is empty.")] public LetteraTraitToggle IosReturnKeyWhenEmpty;
+        [Tooltip("Android only.")] public LetteraAndroidImeFlags AndroidImeFlags;
 
         public TouchScreenKeyboardType ToUnityType()
         {

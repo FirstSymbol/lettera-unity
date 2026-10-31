@@ -11,6 +11,9 @@ namespace FirstSymbol.Lettera
         internal static ILetteraInputSource Create()
         {
             if (!LetteraPlatform.IsActive(LetteraNativeFeature.TextInput)) return null;
+#if UNITY_STANDALONE_WIN && !UNITY_EDITOR
+            if (HostOverride == null) return new LetteraImmInputSource(new LetteraUnityInputSource(), new LetteraWindowsImm());
+#endif
             ILetteraNativeHost host = HostOverride?.Invoke() ?? PlatformHost();
             if (host == null || !host.IsAvailable) return null;
             return new LetteraMirrorSource(host);

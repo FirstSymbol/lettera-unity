@@ -85,6 +85,7 @@ namespace FirstSymbol.Lettera
         [DllImport(Lib)] public static extern int lt_glyph_color_layers(IntPtr face, uint glyph, uint* glyphs, uint* colorIndices, int capacity);
         [DllImport(Lib)] public static extern int lt_palette_colors(IntPtr face, int palette, uint* output, int capacity);
         [DllImport(Lib)] public static extern int lt_glyph_png(IntPtr font, uint glyph, byte* output, int capacity);
+        [DllImport(Lib)] public static extern int lt_face_collect_unicodes(IntPtr face, uint* output, int capacity);
 
         // Version 2.
         [DllImport(Lib)] public static extern int lt_shape_flagged(IntPtr font, int* text, int textLength, int start, int length,
