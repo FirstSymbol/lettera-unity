@@ -944,6 +944,34 @@ namespace FirstSymbol.Lettera.Editor.Tests
 
         // ------------------------------------------------------------- what it costs
 
+        [Test]
+        public void AKeystrokeInManyParagraphsReusesTheRest()
+        {
+            var body = new System.Text.StringBuilder();
+            for (int i = 0; i < 100; i++) body.Append(new string('a', 40)).Append(' ').Append(new string('b', 58)).Append('\n');
+            LetteraEditable field = Field(body.ToString());
+            LetteraWorldText label = field.GetComponent<LetteraWorldText>();
+            label.ForceRebuild();
+            LetteraCaches.ResetStats();
+            var clock = System.Diagnostics.Stopwatch.StartNew();
+            const int Rounds = 20;
+            System.Array.Clear(TextEngine.PassTicks, 0, TextEngine.PassTicks.Length);
+            TextEngine.TimePasses = true;
+            for (int i = 0; i < Rounds; i++)
+            {
+                Now += 1;
+                Type(field, "x");
+                label.ForceRebuild();
+            }
+            TextEngine.TimePasses = false;
+            double ms = clock.Elapsed.TotalMilliseconds / Rounds;
+            double Pass(int pass) => TextEngine.PassTicks[pass] * 1000.0 / System.Diagnostics.Stopwatch.Frequency / Rounds;
+            UnityEngine.Debug.Log($"LETTERA_BUDGET keystroke_100_paragraphs total={ms:0.00} shape={Pass(1):0.00} layout={Pass(2):0.00} positions={Pass(3):0.00} mesh={Pass(4):0.00} rest={ms - Pass(1) - Pass(2) - Pass(3) - Pass(4):0.00} ms");
+            // Only the paragraph typed in shapes: the other ninety-nine come from the cache each time.
+            Assert.LessOrEqual(LetteraCaches.Stats.Misses, Rounds * 2);
+            Assert.GreaterOrEqual(LetteraCaches.Stats.Hits, Rounds * 90);
+        }
+
         [TestCase(1000)]
         [TestCase(10000)]
         public void AKeystrokeStaysInItsBudget(int length)
