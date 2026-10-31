@@ -953,13 +953,18 @@ namespace FirstSymbol.Lettera.Editor.Tests
             label.ForceRebuild();
             var clock = System.Diagnostics.Stopwatch.StartNew();
             const int Rounds = 20;
+            System.Array.Clear(TextEngine.PassTicks, 0, TextEngine.PassTicks.Length);
+            TextEngine.TimePasses = true;
             for (int i = 0; i < Rounds; i++)
             {
                 Now += 1;
                 Type(field, "x");
                 label.ForceRebuild();
             }
+            TextEngine.TimePasses = false;
             double ms = clock.Elapsed.TotalMilliseconds / Rounds;
+            double Pass(int pass) => TextEngine.PassTicks[pass] * 1000.0 / System.Diagnostics.Stopwatch.Frequency / Rounds;
+            UnityEngine.Debug.Log($"LETTERA_BUDGET keystroke_split at {length}: parse={Pass(0):0.00} shape={Pass(1):0.00} layout={Pass(2):0.00} positions={Pass(3):0.00} mesh={Pass(4):0.00} rest={ms - Pass(0) - Pass(1) - Pass(2) - Pass(3) - Pass(4):0.00} ms");
             UnityEngine.Debug.Log($"LETTERA_BUDGET keystroke at {length} codepoints: {ms:0.00} ms");
             Assert.Less(ms, length <= 1000 ? 20 : 160, "ten times the budget: this is a sanity bound, since a shared editor is no benchmark");
         }

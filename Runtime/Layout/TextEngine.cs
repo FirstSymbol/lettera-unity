@@ -86,6 +86,22 @@ namespace FirstSymbol.Lettera
             if (level > m_Dirty) m_Dirty = level;
         }
 
+        static readonly Unity.Profiling.ProfilerMarker s_ParseMarker = new Unity.Profiling.ProfilerMarker("Lettera.Parse"),
+            s_ShapeMarker = new Unity.Profiling.ProfilerMarker("Lettera.Shape"),
+            s_LayoutMarker = new Unity.Profiling.ProfilerMarker("Lettera.Layout"),
+            s_PositionsMarker = new Unity.Profiling.ProfilerMarker("Lettera.Positions"),
+            s_MeshMarker = new Unity.Profiling.ProfilerMarker("Lettera.Mesh");
+
+        // Where a rebuild's time goes, for a test that splits it: Parse, Shape, Layout, Positions, Mesh.
+        internal static readonly long[] PassTicks = new long[5];
+        internal static bool TimePasses;
+        static long PassStart() => TimePasses ? System.Diagnostics.Stopwatch.GetTimestamp() : 0;
+
+        static void PassEnd(int pass, long start)
+        {
+            if (TimePasses) PassTicks[pass] += System.Diagnostics.Stopwatch.GetTimestamp() - start;
+        }
+
         bool m_Reapply, m_SemanticsStale;
 
         /// <summary>A rebuild moved or changed what a semantic tree reads.</summary>
@@ -171,30 +187,31 @@ namespace FirstSymbol.Lettera
 
             if (level >= DirtyLevel.Parse)
             {
-                Parse();
+                using (s_ParseMarker.Auto()) { long t = PassStart(); Parse(); PassEnd(0, t); }
                 LastChanges |= LetteraChanges.Text;
             }
             else
             {
                 ReapplyIfNeeded();
             }
-            if (level >= DirtyLevel.Shape) ShapeText();
+            if (level >= DirtyLevel.Shape)
+                using (s_ShapeMarker.Auto()) { long t = PassStart(); ShapeText(); PassEnd(1, t); }
             if (level >= DirtyLevel.Layout)
             {
-                RunLayout();
+                using (s_LayoutMarker.Auto()) { long t = PassStart(); RunLayout(); PassEnd(2, t); }
                 LastChanges |= LetteraChanges.Layout;
             }
             if (level >= DirtyLevel.Positions)
             {
                 m_ActiveRectsValid = false;
                 m_SemanticsStale = true;
-                PositionGlyphs();
+                using (s_PositionsMarker.Auto()) { long t = PassStart(); PositionGlyphs(); PassEnd(3, t); }
                 RunPlacedHooks();
                 LastChanges |= LetteraChanges.Positions;
             }
             if (level >= DirtyLevel.Mesh)
             {
-                BuildMesh();
+                using (s_MeshMarker.Auto()) { long t = PassStart(); BuildMesh(); PassEnd(4, t); }
                 LastChanges |= LetteraChanges.Mesh;
             }
             else if (level == DirtyLevel.Alpha || level == DirtyLevel.Tint)
