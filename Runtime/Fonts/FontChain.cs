@@ -22,6 +22,12 @@ namespace FirstSymbol.Lettera
 
         internal const string WebFontResource = "Lettera/LetteraWebFont";
 
+        /// <summary>Never reused, so what was shaped with a chain can be told from what another one would give.</summary>
+        public int Id;
+
+        /// <summary>What a text has until its first shaping.</summary>
+        public static readonly FontChain Empty = new FontChain();
+
         readonly List<Family> m_Families = new List<Family>();
         readonly Dictionary<long, FontFace> m_Cache = new Dictionary<long, FontFace>();
         readonly HashSet<string> m_WarnedFamilies = new HashSet<string>();

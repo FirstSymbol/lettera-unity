@@ -35,13 +35,10 @@ namespace FirstSymbol.Lettera
 
         static readonly Dictionary<string, byte[]> s_LanguageBytes = new Dictionary<string, byte[]>();
 
-        readonly FontChain m_Chain = new FontChain();
-        LetteraFontAsset m_ChainFont;
-        LetteraFontStack m_ChainStack;
-        bool m_ChainStale = true;
+        FontChain m_Chain = FontChain.Empty;
 
         /// <summary>Fonts, stacks or settings changed: resolve faces again at the next shaping.</summary>
-        public void InvalidateFonts() => m_ChainStale = true;
+        public void InvalidateFonts() => LetteraFontChains.Invalidate();
         readonly List<Paragraph> m_Paragraphs = new List<Paragraph>();
         readonly List<Run> m_Runs = new List<Run>();
         ShapedGlyph[] m_Shaped = new ShapedGlyph[64];
@@ -86,13 +83,7 @@ namespace FirstSymbol.Lettera
             Array.Clear(m_CpAdvanceEm, 0, length + 1);
 
             LetteraTextData data = m_Host.Data;
-            if (m_ChainStale || m_ChainFont != data.Font || m_ChainStack != data.FontStack)
-            {
-                m_Chain.Build(data.Font, data.FontStack);
-                m_ChainFont = data.Font;
-                m_ChainStack = data.FontStack;
-                m_ChainStale = false;
-            }
+            m_Chain = LetteraFontChains.Get(data.Font, data.FontStack);
 
             m_Paragraphs.Clear();
             m_Runs.Clear();
@@ -100,6 +91,7 @@ namespace FirstSymbol.Lettera
             EnsureExtras(length);
             if (length == 0) return;
             PrepareInlineShaping();
+            PrepareShapeSignatures(length);
 
             int direction = FieldDirection >= 0 ? FieldDirection : m_Attributes.DirectionOverride >= 0 ? m_Attributes.DirectionOverride
                 : data.BaseDirection == LetteraDirection.LeftToRight ? 0 : data.BaseDirection == LetteraDirection.RightToLeft ? 1 : 2;
@@ -141,6 +133,22 @@ namespace FirstSymbol.Lettera
         {
             var paragraph = new Paragraph { Start = start, ContentEnd = contentEnd, End = end, Level = baseLevel == 1 ? 1 : 0 };
             int count = end - start;
+            bool cacheable = count > 0 && ParagraphCacheApplies(count);
+            long hash = 0;
+            string language = null;
+            int firstRun = m_Runs.Count, firstGlyph = m_ShapedCount;
+            if (cacheable)
+            {
+                language = LanguageOf(-1);
+                hash = HashParagraph(start, count, baseLevel, language);
+                if (TryRestoreParagraph(hash, ref paragraph, start, count, baseLevel, language))
+                {
+                    if (contentEnd == start && baseLevel < 0 && m_Paragraphs.Count > 0) paragraph.Level = m_Paragraphs[m_Paragraphs.Count - 1].Level;
+                    m_Paragraphs.Add(paragraph);
+                    return;
+                }
+                LetteraCaches.s_Stats.Misses++;
+            }
             if (count > 0)
             {
                 var text = new ReadOnlySpan<int>(m_Text, start, count);
@@ -154,6 +162,7 @@ namespace FirstSymbol.Lettera
                 LineBreaker.FindBreaks(text, new Span<LineBreakOpportunity>(m_Breaks, start, count));
                 ScriptItemizer.Resolve(text, new Span<UnicodeScript>(m_Scripts, start, count));
                 BuildRuns(paragraph);
+                if (cacheable) StoreParagraph(hash, paragraph, start, count, baseLevel, language, firstRun, firstGlyph);
             }
             // An empty paragraph has nothing to decide a direction with, so a caret on it stays on the side the text before it reads from.
             if (contentEnd == start && baseLevel < 0 && m_Paragraphs.Count > 0) paragraph.Level = m_Paragraphs[m_Paragraphs.Count - 1].Level;
@@ -316,6 +325,7 @@ namespace FirstSymbol.Lettera
                 s_LanguageBytes[language] = languageBytes;
             }
 
+            LetteraCaches.s_Stats.ShapeCalls++;
             int direction = (run.Level & 1) != 0 ? 5 : 4;
             uint script = LetteraUnicode.ScriptToOpenTypeTag(run.Script);
             FeatureSet set = run.Features >= 0 ? m_Attributes.FeatureSets[run.Features] : null;

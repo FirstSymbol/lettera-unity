@@ -216,6 +216,7 @@ namespace FirstSymbol.Lettera
 
         // For tests.
         internal int HookFailureCount => m_HookFailed.Count;
+        internal FontChain ChainForTests => m_Chain;
         internal int HoldCount => m_Holds.Count;
         internal int OwnerOfQuad(int quad) => m_QuadOwner[quad];
         internal int ClusterOfGlyph(int glyph) => m_Placed[glyph].Cluster;
