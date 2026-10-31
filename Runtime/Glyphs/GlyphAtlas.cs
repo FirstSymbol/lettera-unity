@@ -141,6 +141,7 @@ namespace FirstSymbol.Lettera
 
         public static AtlasGlyph Get(FontInstance instance, uint glyph, int pixelsPerEm, float reach = 0, bool multi = false)
         {
+            instance.Face.LastUsedFrame = Time.frameCount;
             int grid = instance.Face.PixelGrid;
             if (grid > 0)
             {
