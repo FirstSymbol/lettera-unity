@@ -839,6 +839,16 @@ namespace FirstSymbol.Lettera
 
         void ILetteraMirrorField.SelectAll() => SelectAll();
 
+        void ILetteraMirrorField.PasteItems(IReadOnlyList<LetteraClipItem> items) => Editable?.PasteItems(items);
+
+        void ILetteraMirrorField.PlaceCaretAt(Vector2 screen)
+        {
+            Canvas canvas = GetComponentInParent<Canvas>();
+            Camera camera = canvas != null && canvas.renderMode != RenderMode.ScreenSpaceOverlay ? canvas.worldCamera : null;
+            int hit = HitTest(screen, camera, out LetteraCaretBias bias);
+            if (hit >= 0) Request(new LetteraSelectionRange(hit, hit, bias), "sel.os");
+        }
+
         internal static int CodepointsTo(string text, int utf16)
         {
             int count = 0;

@@ -20,6 +20,12 @@ namespace FirstSymbol.Lettera
         [Tooltip("Compiles the real iOS code into an iOS build. Off keeps a stub, so code nothing here has compiled cannot fail your Xcode build.")]
         public bool IosNativeInBuild;
 
+        [Tooltip("The largest pasted picture, in bytes. A larger one is left out.")]
+        public int PasteImageMaxBytes = 16 * 1024 * 1024;
+
+        [Tooltip("In a browser, a selection longer than this many bytes copies as plain text only, so a copy never holds the frame up.")]
+        public int WebCopySyncLimit = 1024 * 1024;
+
         internal LetteraGate Of(LetteraNativeFeature feature)
         {
             switch (feature)

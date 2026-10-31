@@ -6,7 +6,7 @@ namespace FirstSymbol.Lettera
 {
     public enum LetteraHostMode { Mirror, Replica }
 
-    public enum LetteraHostEventKind { Replace, WholeText, Compose, ComposeEnd, Select, Verb, Key, KeyboardFrame, Closed, TypedAtSelection }
+    public enum LetteraHostEventKind { Replace, WholeText, Compose, ComposeEnd, Select, Verb, Key, KeyboardFrame, Closed, TypedAtSelection, Paste, Tap }
 
     /// <summary>What a platform's control holds, or is told to hold. Positions are UTF-16 units of <see cref="Text"/>, which is a window of the field past a certain length.</summary>
     public struct LetteraMirrorState
@@ -32,6 +32,7 @@ namespace FirstSymbol.Lettera
         public LetteraKeyModifiers Modifiers;
         public bool Repeat;
         public Rect Frame;
+        public IReadOnlyList<LetteraClipItem> Items;
     }
 
     /// <summary>A platform's text control, from the protocol's side. Hosts only report events and show states. They hold no rule, filter or undo.</summary>
@@ -69,6 +70,12 @@ namespace FirstSymbol.Lettera
 
         /// <summary>Selects everything in the field, beyond what a partial mirror holds.</summary>
         void SelectAll();
+
+        /// <summary>What a control's own paste brought in, by the field's paste settings.</summary>
+        void PasteItems(IReadOnlyList<LetteraClipItem> items);
+
+        /// <summary>A press that landed on the control rather than on the field, in screen pixels from the bottom left.</summary>
+        void PlaceCaretAt(Vector2 screen);
     }
 
     /// <summary>
@@ -94,7 +101,7 @@ namespace FirstSymbol.Lettera
         string m_FieldText = "";
         LetteraSelectionRange m_SentSelection;
         Rect m_LastCaret;
-        bool m_Composing, m_Failed;
+        bool m_Composing, m_Failed, m_AfterComposition;
         int m_Revision;
 
         public LetteraMirrorSource(ILetteraNativeHost host, LetteraHostMode mode = LetteraHostMode.Mirror)
@@ -204,6 +211,8 @@ namespace FirstSymbol.Lettera
                 case LetteraHostEventKind.ComposeEnd:
                     m_Composing = false;
                     m_Sink.CompositionEnd(e.Commit);
+                    // What it became comes next as an edit, and it is a step of its own, apart from what was typed before it.
+                    m_AfterComposition = !e.Commit;
                     break;
                 case LetteraHostEventKind.Select:
                     if (!m_Composing && m_Sink is ILetteraMirrorField selecting && TryMap(e.BaseRevision, e.Start, e.End, out int from, out int to))
@@ -220,6 +229,13 @@ namespace FirstSymbol.Lettera
                     // The control's own caret is behind a key still on its way, so the field's place is the one that counts.
                     m_Sink.Text(e.Text ?? "");
                     AfterEdit();
+                    break;
+                case LetteraHostEventKind.Paste:
+                    if (m_Sink is ILetteraMirrorField pasting) pasting.PasteItems(e.Items);
+                    AfterEdit();
+                    break;
+                case LetteraHostEventKind.Tap:
+                    if (m_Sink is ILetteraMirrorField tapped) tapped.PlaceCaretAt(e.Frame.position);
                     break;
                 case LetteraHostEventKind.Verb:
                     if (e.Text == "selectAll" && m_Sink is ILetteraMirrorField all) all.SelectAll();
@@ -260,7 +276,9 @@ namespace FirstSymbol.Lettera
         void ApplyReplace(int start, int end, string text)
         {
             text = text ?? "";
-            if (m_Sink is ILetteraMirrorField field) field.ReplaceRange(start, end, text, text.Length > 0 ? "user.type" : "user.delete.back");
+            string reason = text.Length == 0 ? "user.delete.back" : m_AfterComposition ? "user.type.compose" : "user.type";
+            m_AfterComposition = false;
+            if (m_Sink is ILetteraMirrorField field) field.ReplaceRange(start, end, text, reason);
             else if (m_Sink is ILetteraKeyboardSink keyboard)
             {
                 string whole = m_Field.CommittedPlainText ?? "";

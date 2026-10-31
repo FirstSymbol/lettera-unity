@@ -121,6 +121,7 @@ namespace FirstSymbol.Lettera
             var fitter = field.gameObject.AddComponent<ContentSizeFitter>();
             fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
             field.AddRule(new HintDecorator { Target = hintText });
+            root.AddComponent<LetteraFieldPressArea>().Field = field;
             return root;
         }
 

@@ -118,7 +118,7 @@ namespace FirstSymbol.Lettera
     [Serializable] public class PasteCommand : LetteraEditCommand
     {
         public override bool CanRun(in LetteraCommandContext c) => c.CanEdit && LetteraClipboard.HasText;
-        public override void Execute(in LetteraCommandContext c) => c.Editable.Paste();
+        public override void Execute(in LetteraCommandContext c) => c.Editable.RunPaste();
     }
 
     [Serializable] public class PastePlainCommand : LetteraEditCommand
@@ -393,6 +393,7 @@ namespace FirstSymbol.Lettera
             group.blocksRaycasts = true;
             if (m_Blocker != null) m_Blocker.SetActive(placement.Trigger != LetteraMenuTrigger.Touch);
             Place(placement);
+            foreach ((GameObject target, int entry) in m_Shown) LetteraWebGestures.Arm(entries[entry].Command, target.transform as RectTransform);
             m_Highlight = -1;
             if (placement.Trigger == LetteraMenuTrigger.Keyboard) MoveHighlight(1);
         }
@@ -486,6 +487,8 @@ namespace FirstSymbol.Lettera
             group.interactable = false;
             group.blocksRaycasts = false;
             if (m_Blocker != null) m_Blocker.SetActive(false);
+            foreach ((GameObject target, int _) in m_Shown)
+                if (target != null) LetteraWebGestures.Disarm(target.transform as RectTransform);
             ClearCopies();
         }
 
@@ -643,6 +646,7 @@ namespace FirstSymbol.Lettera
             if (m_Toggle != null) m_Toggle.onValueChanged.AddListener(OnToggle);
             if (GetComponent<LetteraKeepFocus>() == null) gameObject.AddComponent<LetteraKeepFocus>();
             LetteraClipboard.Written += Refresh;
+            LetteraWebGestures.Arm(m_Command, transform as RectTransform);
             Refresh();
         }
 
@@ -651,6 +655,7 @@ namespace FirstSymbol.Lettera
             if (m_Button != null) m_Button.onClick.RemoveListener(Run);
             if (m_Toggle != null) m_Toggle.onValueChanged.RemoveListener(OnToggle);
             LetteraClipboard.Written -= Refresh;
+            LetteraWebGestures.Disarm(transform as RectTransform);
             Listen(null);
         }
 

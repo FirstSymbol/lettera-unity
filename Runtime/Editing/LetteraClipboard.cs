@@ -9,7 +9,7 @@ namespace FirstSymbol.Lettera
     /// <summary>The names of what a clipboard can hold.</summary>
     public static class LetteraClipFormat
     {
-        public const string PlainText = "text/plain", Html = "text/html", Markdown = "text/markdown", Lettera = "application/x-lettera-text+json", Url = "text/uri-list", Png = "image/png", Jpeg = "image/jpeg", Gif = "image/gif";
+        public const string PlainText = "text/plain", Html = "text/html", Markdown = "text/markdown", Lettera = "application/x-lettera-text+json", Url = "text/uri-list", Png = "image/png", Jpeg = "image/jpeg", Gif = "image/gif", Files = "text/x-lettera-file-list";
     }
 
     /// <summary>One format of a clipboard's content.</summary>
@@ -96,7 +96,7 @@ namespace FirstSymbol.Lettera
         /// <summary>Where copies go. Replace it for a platform or a test.</summary>
         public static ILetteraClipboardBackend Backend
         {
-            get => s_Backend ?? (s_Backend = new LetteraSystemClipboard());
+            get => s_Backend ?? (s_Backend = LetteraPlatformClipboard.CreateDefault() ?? new LetteraSystemClipboard());
             set => s_Backend = value;
         }
 
@@ -114,6 +114,12 @@ namespace FirstSymbol.Lettera
         {
             get
             {
+                // Reading could show a system's notice, so a clipboard that can tell without reading is asked first. Not knowing counts as yes: the Paste item shows.
+                if (Backend is ILetteraClipboardProbe probe)
+                {
+                    LetteraClipPresence presence = probe.Probe();
+                    return presence == LetteraClipPresence.Unknown || presence == LetteraClipPresence.Text || presence == LetteraClipPresence.Rich;
+                }
                 var items = new List<LetteraClipItem>();
                 Backend.Read(items);
                 foreach (LetteraClipItem item in items)
@@ -128,6 +134,7 @@ namespace FirstSymbol.Lettera
         {
             get
             {
+                if (Backend is ILetteraClipboardProbe probe) return probe.Probe() == LetteraClipPresence.Rich;
                 var items = new List<LetteraClipItem>();
                 Backend.Read(items);
                 foreach (LetteraClipItem item in items)
@@ -139,8 +146,13 @@ namespace FirstSymbol.Lettera
 
         internal static void WriteSelection(LetteraSelectable selectable)
         {
+            if (selectable.Selection.IsCaret) return;
+            Write(SelectionItems(selectable));
+        }
+
+        internal static List<LetteraClipItem> SelectionItems(LetteraSelectable selectable)
+        {
             LetteraSelectionRange s = selectable.Selection;
-            if (s.IsCaret) return;
             TextEngine engine = selectable.Engine;
             engine.EnsureParsed();
             string plain = selectable.SelectedPlainText();
@@ -156,7 +168,7 @@ namespace FirstSymbol.Lettera
                 items.Add(new LetteraClipItem(LetteraClipFormat.Html, LetteraHtmlCodec.Write(plain, spans)));
                 items.Add(new LetteraClipItem(LetteraClipFormat.Markdown, LetteraMarkdownCodec.Write(plain, spans)));
             }
-            Write(items);
+            return items;
         }
 
         static void CollectSpans(TextEngine engine, int start, int end, List<LetteraPastedSpan> spans)
@@ -343,6 +355,48 @@ namespace FirstSymbol.Lettera
     public static class LetteraHtmlCodec
     {
         const int MaxDepth = 64;
+        const string OwnAttribute = "data-lettera";
+
+        /// <summary>Puts Lettera's own format on an attribute, where a browser has no way to carry a format of its own.</summary>
+        internal static string CarryOwnFormat(string html, string own) => "<span " + OwnAttribute + "=\"" + Convert.ToBase64String(Encoding.UTF8.GetBytes(own)) + "\">" + html + "</span>";
+
+        /// <summary>
+        /// Lettera's own format from that attribute. It counts only when it says the same text the HTML shows,
+        /// so what is pasted is always what could be seen. Hostile input stays within the HTML's own limit.
+        /// </summary>
+        internal static bool TryReadCarried(string html, LetteraParsedClip clip)
+        {
+            int at = html.IndexOf(OwnAttribute + "=\"", StringComparison.Ordinal);
+            if (at < 0) return false;
+            at += OwnAttribute.Length + 2;
+            int end = html.IndexOf('"', at);
+            if (end < 0) return false;
+            byte[] data;
+            try
+            {
+                data = Convert.FromBase64String(html.Substring(at, end - at));
+            }
+            catch (FormatException)
+            {
+                return false;
+            }
+            var carried = new LetteraParsedClip();
+            if (!LetteraTextCodec.TryRead(Encoding.UTF8.GetString(data), carried)) return false;
+            if (Comparable(carried.Text) != Comparable(Read(html).Text)) return false;
+            clip.Text = carried.Text;
+            clip.Spans.AddRange(carried.Spans);
+            return true;
+        }
+
+        // HTML loses runs of spaces and tells line breaks in its own ways, so only the words are compared.
+        static string Comparable(string text)
+        {
+            var builder = new StringBuilder(text.Length);
+            foreach (char c in text)
+                if (!char.IsWhiteSpace(c))
+                    builder.Append(c);
+            return builder.ToString();
+        }
 
         static void Escape(StringBuilder builder, string text, int start, int end)
         {
@@ -1071,6 +1125,12 @@ namespace FirstSymbol.Lettera
         public bool Paste()
         {
             if (m_ReadOnly) return false;
+            if (LetteraClipboard.Backend is ILetteraClipboardAsyncOnly)
+            {
+                if (!s_WarnedAsyncPaste) Debug.LogWarning("Lettera: this clipboard can only be read later, so Paste did nothing. Use PasteAsync.");
+                s_WarnedAsyncPaste = true;
+                return false;
+            }
             m_ClipItems.Clear();
             LetteraClipboard.Backend.Read(m_ClipItems);
             return PasteItems(m_ClipItems);
@@ -1080,12 +1140,40 @@ namespace FirstSymbol.Lettera
         public bool PastePlain()
         {
             if (m_ReadOnly) return false;
+            if (LetteraClipboard.Backend is ILetteraClipboardAsyncOnly)
+            {
+                LetteraClipboard.Backend.ReadAsync(items => PastePlainItems(items));
+                return true;
+            }
             m_ClipItems.Clear();
             LetteraClipboard.Backend.Read(m_ClipItems);
-            foreach (LetteraClipItem item in m_ClipItems)
+            return PastePlainItems(m_ClipItems);
+        }
+
+        bool PastePlainItems(IReadOnlyList<LetteraClipItem> items)
+        {
+            foreach (LetteraClipItem item in items)
                 if (item.Format == LetteraClipFormat.PlainText)
                     return InsertPlain(item.Text, LetteraPlainPaste.AsText);
             return false;
+        }
+
+        static bool s_WarnedAsyncPaste;
+
+        // The way a command or a key pastes: at once where it can be, and later where only that works.
+        internal void RunPaste()
+        {
+            if (LetteraClipboard.Backend is ILetteraClipboardAsyncOnly) PasteAsync();
+            else Paste();
+        }
+
+        /// <summary>The second half of a cut whose copy a browser's own event already made.</summary>
+        internal void DeleteSelectionForCut()
+        {
+            if (m_ReadOnly) return;
+            CommitComposition();
+            LetteraSelectionRange s = Selectable.Selection;
+            if (!s.IsCaret) ProposeEdit(s.Start, s.End, "", "user.cut", null);
         }
 
         /// <summary>For a clipboard that reads later, as in a browser.</summary>
@@ -1109,7 +1197,11 @@ namespace FirstSymbol.Lettera
                 }
                 var clip = new LetteraParsedClip();
                 if (own >= 0 && LetteraTextCodec.TryRead(items[own].Text, clip)) return InsertClip(clip);
-                if (html >= 0 && items[html].Bytes.Length <= LetteraSettings.Instance.Editing.PasteHtmlMaxBytes) return InsertClip(LetteraHtmlCodec.Read(items[html].Text));
+                if (html >= 0 && items[html].Bytes.Length <= LetteraSettings.Instance.Editing.PasteHtmlMaxBytes)
+                {
+                    string markup = items[html].Text;
+                    return InsertClip(LetteraHtmlCodec.TryReadCarried(markup, clip) ? clip : LetteraHtmlCodec.Read(markup));
+                }
                 if (markdown >= 0) return InsertClip(LetteraMarkdownCodec.Read(items[markdown].Text));
             }
             for (int i = 0; i < items.Count; i++)

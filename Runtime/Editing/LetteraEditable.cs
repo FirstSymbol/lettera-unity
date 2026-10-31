@@ -954,7 +954,7 @@ namespace FirstSymbol.Lettera
                 case LetteraEditVerb.InsertNewline: InsertNewline(); return true;
                 case LetteraEditVerb.InsertTab: InsertTab(); return true;
                 case LetteraEditVerb.Cut: Cut(); return true;
-                case LetteraEditVerb.Paste: Paste(); return true;
+                case LetteraEditVerb.Paste: RunPaste(); return true;
                 case LetteraEditVerb.PastePlain: PastePlain(); return true;
                 case LetteraEditVerb.Undo: Undo(); return true;
                 case LetteraEditVerb.Redo: Redo(); return true;
@@ -1033,7 +1033,8 @@ namespace FirstSymbol.Lettera
                 case "previous": MoveFocus(false); break;
                 case "copy": Selectable.Copy(); break;
                 case "cut": Cut(); break;
-                case "paste": Paste(); break;
+                case "paste": RunPaste(); break;
+                case "cutCopied": DeleteSelectionForCut(); break;
                 case "pastePlain": PastePlain(); break;
                 case "undo": Undo(); break;
                 case "redo": Redo(); break;

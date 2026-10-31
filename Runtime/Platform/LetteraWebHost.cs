@@ -26,6 +26,7 @@ namespace FirstSymbol.Lettera
         public void Open(in LetteraMirrorState state, in LetteraKeyboardTraits traits, LetteraHostMode mode)
         {
             // Unity otherwise cancels every key on the page, which would keep them out of the box.
+            LetteraWebClipboard.EnsureCallback();
             m_CapturedKeys = WebGLInput.captureAllKeyboardInput;
             WebGLInput.captureAllKeyboardInput = false;
             m_Open = true;
@@ -42,6 +43,7 @@ namespace FirstSymbol.Lettera
         {
             if (!m_Open) return;
             m_Open = false;
+            if (LetteraHost_UsesOverlay() != 0) LetteraPlatform.Report(LetteraNativeFeature.TextInput, "Script focus raised no keyboard twice, so this page's field uses a real text box under the finger.");
             LetteraHost_Close();
             WebGLInput.captureAllKeyboardInput = m_CapturedKeys;
         }
@@ -90,6 +92,16 @@ namespace FirstSymbol.Lettera
                         break;
                     case 7:
                         e.Kind = LetteraHostEventKind.TypedAtSelection;
+                        break;
+                    case 8:
+                        var pasted = new List<LetteraClipItem>();
+                        LetteraWebClipboard.TakeItems(pasted);
+                        e.Kind = LetteraHostEventKind.Paste;
+                        e.Items = pasted;
+                        break;
+                    case 9:
+                        e.Kind = LetteraHostEventKind.Tap;
+                        e.Frame = new Rect(m_Ints[1], m_Ints[2], 0, 0);
                         break;
                     default:
                         continue;
@@ -140,7 +152,8 @@ namespace FirstSymbol.Lettera
                     continue;
                 }
                 if (!field.isActiveAndEnabled || field.ReadOnly || !field.Interactable) continue;
-                ((RectTransform)field.transform).GetWorldCorners(corners);
+                LetteraFieldPressArea area = field.GetComponentInParent<LetteraFieldPressArea>();
+                ((RectTransform)(area != null ? area.transform : field.transform)).GetWorldCorners(corners);
                 Canvas canvas = field.GetComponentInParent<Canvas>();
                 Camera camera = canvas != null && canvas.renderMode != RenderMode.ScreenSpaceOverlay ? canvas.worldCamera : null;
                 Vector2 a = RectTransformUtility.WorldToScreenPoint(camera, corners[0]), b = RectTransformUtility.WorldToScreenPoint(camera, corners[2]);
