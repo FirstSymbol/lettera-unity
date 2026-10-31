@@ -33,6 +33,7 @@ namespace FirstSymbol.Lettera
         [SerializeField] GameObject m_WorldTextPrefab;
         [SerializeField] LetteraEditingSettings m_Editing = new LetteraEditingSettings();
         [SerializeField] LetteraMotionSettings m_Motion = new LetteraMotionSettings();
+        [SerializeField] LetteraDocumentSettings m_Documents = new LetteraDocumentSettings();
 
         static LetteraSettings s_Instance;
 
@@ -68,6 +69,9 @@ namespace FirstSymbol.Lettera
 
         /// <summary>Animation and interaction defaults.</summary>
         public LetteraMotionSettings Motion => m_Motion ?? (m_Motion = new LetteraMotionSettings());
+
+        /// <summary>Limits of documents' windows.</summary>
+        public LetteraDocumentSettings Documents => m_Documents ?? (m_Documents = new LetteraDocumentSettings());
 
         void OnValidate() => Changed?.Invoke();
 

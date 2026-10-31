@@ -41,14 +41,24 @@ namespace FirstSymbol.Lettera
 
         void PositionGlyphs()
         {
+            PlaceGlyphs();
+            m_WindowPlaced = true;
+            m_ActiveRectsValid = false;
+            m_SemanticsStale = true;
+            RunPlacedHooks();
+        }
+
+        void PlaceGlyphs()
+        {
             LetteraTextData data = m_Host.Data;
             m_PlacedCount = 0;
             m_SegmentsValid = false;
             m_VirtualGlyphs.Clear();
 
             float top = m_Box.yMax;
-            bool clips = m_Host.ClipsOverflow || m_MarqueeScrolling;
-            if (m_Box.height > 0 || m_ContentHeight > 0)
+            bool clips = m_Host.ClipsOverflow || m_MarqueeScrolling || ClipsViewport;
+            // A viewport's content starts at its top, however tall it is.
+            if (!ClipsViewport && (m_Box.height > 0 || m_ContentHeight > 0))
             {
                 bool overflowY = m_ContentHeight > m_Box.height + Epsilon;
                 if (!(clips && overflowY))

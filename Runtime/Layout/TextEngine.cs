@@ -203,10 +203,7 @@ namespace FirstSymbol.Lettera
             }
             if (level >= DirtyLevel.Positions)
             {
-                m_ActiveRectsValid = false;
-                m_SemanticsStale = true;
                 using (s_PositionsMarker.Auto()) { long t = PassStart(); PositionGlyphs(); PassEnd(3, t); }
-                RunPlacedHooks();
                 LastChanges |= LetteraChanges.Positions;
             }
             if (level >= DirtyLevel.Mesh)
@@ -222,6 +219,7 @@ namespace FirstSymbol.Lettera
             }
             ApplyHookStale();
             if (level >= DirtyLevel.Mesh) RaiseInlinePlaced();
+            AfterWindowPasses();
             if (m_SemanticsStale)
             {
                 m_SemanticsStale = false;

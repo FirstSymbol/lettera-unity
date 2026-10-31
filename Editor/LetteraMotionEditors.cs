@@ -368,6 +368,13 @@ namespace FirstSymbol.Lettera.Editor
         }
     }
 
+    [CustomEditor(typeof(LetteraDocumentScroller)), CanEditMultipleObjects]
+    internal sealed class LetteraDocumentScrollerEditor : LetteraSimpleEditor
+    {
+        protected override string Title => "Document Scroller";
+        protected override string Subtitle => "A viewport for a text: drag, wheel, inertia and scrollbars, with no rebuild";
+    }
+
     [CustomEditor(typeof(LetteraRangeNavigator)), CanEditMultipleObjects]
     internal sealed class LetteraRangeNavigatorEditor : LetteraSimpleEditor
     {

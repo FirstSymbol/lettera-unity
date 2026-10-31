@@ -372,19 +372,19 @@ namespace FirstSymbol.Lettera
                 int v = q * 4;
                 if (owner < 0 || owner >= glyphs)
                 {
-                    if (m_MarqueeOffset != 0 || m_MarqueeWasMoved)
+                    if (m_MarqueeOffset != 0 || m_MarqueeWasMoved || m_WindowOffset != 0 || m_WindowOffsetWas)
                     {
                         for (int i = 0; i < 4; i++)
                         {
                             Vector3 r = m_RestVertices[v + i];
-                            Vertices[v + i] = new Vector3(r.x + m_MarqueeOffset, r.y);
+                            Vertices[v + i] = new Vector3(r.x + m_MarqueeOffset, r.y + m_WindowOffset);
                         }
                         moved = true;
                     }
                     continue;
                 }
                 ref LetteraGlyphPose pose = ref m_GlyphPoses[owner];
-                float a = pose.A, b = pose.B, c = pose.C, d = pose.D, tx = pose.Tx + m_MarqueeOffset, ty = pose.Ty;
+                float a = pose.A, b = pose.B, c = pose.C, d = pose.D, tx = pose.Tx + m_MarqueeOffset, ty = pose.Ty + m_WindowOffset;
                 if (a == 1 && b == 0 && c == 0 && d == 1)
                 {
                     for (int i = v; i < v + 4; i++)
@@ -426,6 +426,7 @@ namespace FirstSymbol.Lettera
                 moved = true;
             }
             m_MarqueeWasMoved = m_MarqueeOffset != 0;
+            m_WindowOffsetWas = m_WindowOffset != 0;
             ApplyCoverAlpha();
             if (moved) streams |= StreamPositions;
             // Colors stay in step each pass: a glyph whose fade ended has to go back as well.

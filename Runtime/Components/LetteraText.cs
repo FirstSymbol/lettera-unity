@@ -87,6 +87,7 @@ namespace FirstSymbol.Lettera
             {
                 LetteraRangeRouter.Forget(m_Engine);
                 LetteraInlineObjects.Forget(m_Engine);
+                m_Engine.AbandonDocument();
             }
             base.OnDestroy();
         }
@@ -213,7 +214,7 @@ namespace FirstSymbol.Lettera
         void ApplyMarqueeClip()
         {
             TextEngine e = Engine;
-            if (!e.IsMarqueeScrolling)
+            if (!e.IsMarqueeScrolling && !e.ClipsViewport)
             {
                 if (!m_MarqueeClipOn) return;
                 m_MarqueeClipOn = false;
@@ -229,12 +230,19 @@ namespace FirstSymbol.Lettera
             Vector3 a = root.transform.InverseTransformPoint(rectTransform.TransformPoint(new Vector3(own.xMin + m_Data.Padding.x, own.yMin)));
             Vector3 b = root.transform.InverseTransformPoint(rectTransform.TransformPoint(new Vector3(own.xMax - m_Data.Padding.z, own.yMax)));
             Rect clip = Rect.MinMaxRect(Mathf.Min(a.x, b.x), -100000, Mathf.Max(a.x, b.x), 100000);
+            if (e.ClipsViewport)
+            {
+                // A viewport clips all around, with no fade.
+                Vector3 c = root.transform.InverseTransformPoint(rectTransform.TransformPoint(new Vector3(own.xMin, own.yMin)));
+                Vector3 d = root.transform.InverseTransformPoint(rectTransform.TransformPoint(new Vector3(own.xMax, own.yMax)));
+                clip = Rect.MinMaxRect(Mathf.Min(c.x, d.x), Mathf.Min(c.y, d.y), Mathf.Max(c.x, d.x), Mathf.Max(c.y, d.y));
+            }
             if (m_ParentClipValid)
             {
                 clip = Rect.MinMaxRect(Mathf.Max(clip.xMin, m_ParentClip.xMin), Mathf.Max(clip.yMin, m_ParentClip.yMin), Mathf.Min(clip.xMax, m_ParentClip.xMax), Mathf.Min(clip.yMax, m_ParentClip.yMax));
             }
             canvasRenderer.EnableRectClipping(clip);
-            canvasRenderer.clippingSoftness = new Vector2(e.MarqueeFadeUnits, 0);
+            canvasRenderer.clippingSoftness = e.ClipsViewport ? Vector2.zero : new Vector2(e.MarqueeFadeUnits, 0);
         }
 
         public override void SetClipRect(Rect clipRect, bool validRect)

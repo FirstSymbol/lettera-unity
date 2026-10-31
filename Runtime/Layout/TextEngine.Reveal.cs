@@ -340,7 +340,7 @@ namespace FirstSymbol.Lettera
             m_MarqueeScrolling = false;
             m_Marquee = null;
             if (m_Attributes.Marquee == null) return;
-            if (!m_Host.SupportsMarquee)
+            if (!m_Host.SupportsMarquee || ClipsViewport)
             {
                 if (!s_MarqueeWarned)
                 {
@@ -472,6 +472,7 @@ namespace FirstSymbol.Lettera
         // A point on any copy means the same place on the first.
         Vector2 MapToContent(Vector2 point)
         {
+            point.y -= m_WindowOffset;
             if (!m_MarqueeScrolling) return point;
             point.x -= m_MarqueeOffset;
             if (m_MarqueeCopies > 1 && m_MarqueeD > 0)

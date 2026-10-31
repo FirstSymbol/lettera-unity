@@ -63,7 +63,8 @@ namespace FirstSymbol.Lettera
             ResetFit();
 
             float size = data.FontSize;
-            if (data.AutoSize) size = FitFontSize(data, width, height, wrap);
+            // A document cannot be fitted without measuring all of it: it shows at the smallest size, and scrolls.
+            if (data.AutoSize) size = IsWindowed ? data.MinFontSize : FitFontSize(data, width, height, wrap);
             CurrentFontSize = size;
 
             CollectRevealsOnce();
@@ -71,7 +72,7 @@ namespace FirstSymbol.Lettera
             ApplyHookRemovals();
             DecideMarquee(size, width);
             if (m_MarqueeScrolling) wrap = false;
-            if (m_Attributes.Elides.Count > 0 && !SuspendElide && !m_MarqueeScrolling) ApplyElide(size, width, height, wrap);
+            if (m_Attributes.Elides.Count > 0 && !SuspendElide && !m_MarqueeScrolling && !ClipsViewport) ApplyElide(size, width, height, wrap);
 
             LineStats stats = BreakLines(m_Lines, size, width, wrap, true);
             m_ContentWidth = stats.MaxWidth;

@@ -282,6 +282,14 @@ namespace FirstSymbol.Lettera
 
         public void GetRangeRects(int start, int end, List<Rect> rects)
         {
+            int first = rects.Count;
+            ContentRangeRects(start, end, rects);
+            if (m_WindowOffset == 0) return;
+            for (int r = first; r < rects.Count; r++) rects[r] = ScrolledRect(rects[r]);
+        }
+
+        void ContentRangeRects(int start, int end, List<Rect> rects)
+        {
             EnsureSegments();
             start = Math.Max(start, 0);
             end = Math.Min(end, m_TextLength);

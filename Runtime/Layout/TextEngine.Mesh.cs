@@ -63,7 +63,7 @@ namespace FirstSymbol.Lettera
             m_SegmentCustom = null;
             m_SegmentStart = 0;
             m_FilterRow = 0;
-            m_RecordOwners = HasPoseConsumers || m_RevealSpans.Count > 0 || (m_Marquee != null && m_MarqueeScrolling);
+            m_RecordOwners = HasPoseConsumers || m_RevealSpans.Count > 0 || (m_Marquee != null && m_MarqueeScrolling) || NeedsRestState;
             if (m_StageHooks.Count > 0) m_CoverQuads.Clear();
             m_CurrentOwner = -1;
             GlyphAtlasRegistration.EnsureRegistered();

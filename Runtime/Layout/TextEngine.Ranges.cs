@@ -169,7 +169,7 @@ namespace FirstSymbol.Lettera
             {
                 ActiveRange range = m_Active[a];
                 range.SegmentStart = m_ActiveRects.Count;
-                GetRangeRects(range.Start, range.End, m_ActiveRects);
+                ContentRangeRects(range.Start, range.End, m_ActiveRects);
                 range.SegmentCount = m_ActiveRects.Count - range.SegmentStart;
                 m_Active[a] = range;
                 float xMin = float.MaxValue, yMin = float.MaxValue, xMax = float.MinValue, yMax = float.MinValue;
@@ -197,7 +197,7 @@ namespace FirstSymbol.Lettera
             foreach (ActiveRange range in m_Active)
             {
                 if (range.Id != id) continue;
-                for (int s = 0; s < range.SegmentCount; s++) rects.Add(m_ActiveRects[range.SegmentStart + s]);
+                for (int s = 0; s < range.SegmentCount; s++) rects.Add(ScrolledRect(m_ActiveRects[range.SegmentStart + s]));
                 return;
             }
         }

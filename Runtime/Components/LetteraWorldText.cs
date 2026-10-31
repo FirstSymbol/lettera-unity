@@ -110,6 +110,7 @@ namespace FirstSymbol.Lettera
             {
                 LetteraRangeRouter.Forget(m_Engine);
                 LetteraInlineObjects.Forget(m_Engine);
+                m_Engine.AbandonDocument();
             }
         }
 

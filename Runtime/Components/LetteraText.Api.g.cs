@@ -208,6 +208,20 @@ namespace FirstSymbol.Lettera
         }
 
         /// <summary>Adds one rectangle per stretch of a logical range, in local space: per line, in visual order, and several on a line that changes direction.</summary>
+        /// <summary>Shows a document through a window of its text. The serialized text is left as it was.</summary>
+        public void OpenDocument(LetteraRope rope, bool takeOwnership = false) => Engine.OpenDocument(rope, takeOwnership, LetteraSettings.Instance.Documents);
+
+        /// <summary>Goes back to the serialized text.</summary>
+        public void CloseDocument() => Engine.CloseDocument();
+
+        /// <summary>The open document, or null.</summary>
+        public LetteraRope Document => Engine.View?.Rope;
+
+        public bool IsWindowed => Engine.IsWindowed;
+
+        /// <summary>Where a document stands, and how to move it. Null with none open.</summary>
+        public LetteraDocumentView View => Engine.View;
+
         public void GetRangeRects(int start, int end, List<Rect> local)
         {
             Engine.EnsurePositioned();

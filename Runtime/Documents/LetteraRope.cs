@@ -389,6 +389,15 @@ namespace FirstSymbol.Lettera
 
         public int BlockChars(int block) => BlockAtIndex(block, out _).Chars;
 
+        internal void BlockTotals(int block, out int codepoints, out int paragraphs)
+        {
+            Block found = BlockAtIndex(block, out _);
+            codepoints = found.Codepoints;
+            paragraphs = found.Paragraphs;
+        }
+
+        internal double BlockHeight(int block) => BlockAtIndex(block, out _).Height;
+
         internal bool BlockHasMarkup(int block) => (BlockAtIndex(block, out _).Flags & RopeBlockFlags.HasMarkupTrigger) != 0;
         internal bool BlockEndsParagraph(int block) => (BlockAtIndex(block, out _).Flags & RopeBlockFlags.EndsParagraph) != 0;
         internal bool BlockHasInvalidSequences(int block) => (BlockAtIndex(block, out _).Flags & RopeBlockFlags.InvalidSequences) != 0;
