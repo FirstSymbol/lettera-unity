@@ -76,6 +76,12 @@ namespace FirstSymbol.Lettera
 
         /// <summary>A press that landed on the control rather than on the field, in screen pixels from the bottom left.</summary>
         void PlaceCaretAt(Vector2 screen);
+
+        /// <summary>A control stands in the field's place: the field's own drawing steps aside while it does.</summary>
+        void StepAsideForReplica(bool aside);
+
+        /// <summary>The field's frame, in screen pixels from the bottom left.</summary>
+        Rect FieldScreenRect { get; }
     }
 
     /// <summary>
@@ -101,7 +107,7 @@ namespace FirstSymbol.Lettera
         string m_FieldText = "";
         LetteraSelectionRange m_SentSelection;
         Rect m_LastCaret;
-        bool m_Composing, m_Failed, m_AfterComposition;
+        bool m_Composing, m_Failed, m_AfterComposition, m_ReplicaOpen;
         int m_Revision;
 
         public LetteraMirrorSource(ILetteraNativeHost host, LetteraHostMode mode = LetteraHostMode.Mirror)
@@ -118,11 +124,18 @@ namespace FirstSymbol.Lettera
             m_Field = host;
             m_Revision = 1;
             m_Sent = MakeState();
-            Guarded(() => m_Host.Open(m_Sent, host.Traits, m_Mode));
+            LetteraKeyboardTraits traits = host.Traits;
+            // A rule asks; the host may still say no, and then the field draws itself as ever.
+            LetteraHostMode mode = traits.Replica != null ? LetteraHostMode.Replica : m_Mode;
+            Guarded(() => m_Host.Open(m_Sent, traits, mode));
+            m_ReplicaOpen = m_Host is ILetteraReplicaHost replica && replica.IsReplicaOpen;
+            if (m_ReplicaOpen && m_Sink is ILetteraMirrorField field) field.StepAsideForReplica(true);
         }
 
         public void Detach()
         {
+            if (m_ReplicaOpen && m_Sink is ILetteraMirrorField field) field.StepAsideForReplica(false);
+            m_ReplicaOpen = false;
             Guarded(m_Host.Close);
             m_Sink = null;
             m_Field = null;
@@ -365,6 +378,15 @@ namespace FirstSymbol.Lettera
 
         void PlaceIfMoved()
         {
+            if (m_ReplicaOpen && m_Sink is ILetteraMirrorField replica)
+            {
+                // A control stands over the whole field, and follows it.
+                Rect frame = replica.FieldScreenRect;
+                if (frame == m_LastCaret) return;
+                m_LastCaret = frame;
+                Guarded(() => m_Host.Place(frame, frame));
+                return;
+            }
             Rect caret = m_Field.CaretScreenRect;
             if (caret == m_LastCaret) return;
             m_LastCaret = caret;

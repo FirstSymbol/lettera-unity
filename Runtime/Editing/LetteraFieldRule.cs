@@ -269,6 +269,8 @@ namespace FirstSymbol.Lettera
                     results.Add(match);
         }
 
+        internal IReadOnlyList<LetteraFieldRule> ActiveRulesForReplica => m_ActiveRules;
+
         internal LetteraKeyboardTraits KeyboardTraits
         {
             get
@@ -899,8 +901,10 @@ namespace FirstSymbol.Lettera
         public override void RequestKeyboard(ref LetteraKeyboardTraits traits)
         {
             bool secure = traits.Secure;
+            LetteraReplicaRequest replica = traits.Replica;
             traits = m_Traits;
             traits.Secure |= secure;
+            traits.Replica = replica;
         }
     }
 

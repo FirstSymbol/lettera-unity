@@ -468,6 +468,9 @@ namespace FirstSymbol.Lettera
         [Tooltip("iOS only: the return key stays off while the field is empty.")] public LetteraTraitToggle IosReturnKeyWhenEmpty;
         [Tooltip("Android only.")] public LetteraAndroidImeFlags AndroidImeFlags;
 
+        /// <summary>Set by a replica rule for this session. Not stored.</summary>
+        [NonSerialized] public LetteraReplicaRequest Replica;
+
         public TouchScreenKeyboardType ToUnityType()
         {
             switch (Kind)
