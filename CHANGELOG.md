@@ -4,6 +4,75 @@ All notable changes to this package are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.6.0] - 2026-11-01
+
+The platform's own text controls, clipboards and menus, COLRv1 color fonts, and fonts that cost no memory until they are used.
+
+Everything that has not been seen to run on a real device ships **off**: on Android, iOS and macOS a project turns it on in Project Settings > Lettera > Native Platform, and the Device Check sample walks through what to look at.
+
+### Added
+- **One input protocol.** `ILetteraNativeHost` and `LetteraMirrorSource`: a platform's control reports what happened, and the field decides. So whatever a control produces, by keys, voice, autofill or paste, goes through the field's rules, and a refused edit puts the control right. A control only ever holds a window of a long text.
+- **Web input.** A field's session runs through one hidden text box on every web device, with its rules for words and graphemes, composition shown inline, and a keyboard raised in the touch handler itself, since where fields stand reaches the page ahead of time. When the page never shrinks, twice, the next tap lands on a real text box under the finger.
+- **Replicas.** `ReplicaFieldRule` puts the platform's own control in a field's place through the same session, so every rule still holds: on the web a plain element, or a surface a page registers on `window.LetteraSurfaces`. Elsewhere it does nothing, so one prefab fits every target.
+- **Clipboard with its formats.** `LetteraPlatformClipboard` over Windows' own calls (plain text, HTML with its offsets, Markdown, Lettera's format, PNG, DIB, JPEG, GIF, files) and the browser's copy, cut and paste events, so styled text goes to and from other applications. Lettera's menu items reach the clipboard inside the user's own gesture through `LetteraWebGestures`. `ILetteraClipboardProbe` says what is there with no read, and `ILetteraClipboardAsyncOnly` marks a clipboard that reads later.
+- **Windows composition** through the input method's own messages, in players: several clauses, the caret inside them, candidates beside the caret.
+- **Android, iOS and macOS routes**, off by default: the system's text control, clipboard, menu, loupe and preferences on phones, the pasteboard on macOS. On iOS a default build compiles a stub, so code nothing here could compile cannot fail your Xcode build: `IosNativeInBuild` swaps the real file in.
+- **Keyboard traits.** `AutoCapitalize`, `SpellCheck`, iOS smart typing, appearance and return key, Android flags, and `LetteraAutofill` names, with a zero value meaning the platform's default, so old assets read as they did. `LetteraVerbs` names what a control may report, and an unknown verb is refused out loud.
+- **COLRv1** through HarfBuzz's own raster code, chosen glyph by glyph, with variable fonts. The native library is now version 2.
+- **Fonts that cost no memory until used.** A font is unpacked once, the first time a text needs it, and mapped from disk after that. On desktop a build carries each in a file of its own, so an unused font costs nothing. No asset on disk changes in a build. `LetteraFontMemory` shows what each face holds, and Project Settings bound the cache folder.
+- **Subset tool**, in the font's inspector and as `LetteraFontSubset`: keep or remove characters, by presets, ranges or what the project's texts use. By default it keeps what a default subset quietly drops. Its library is for the editor, and no player holds it.
+- **Batched web emoji.** Many new emoji in a frame draw on one canvas and read it back once.
+- **OS preferences.** `LetteraAccessibility.SteadyCaret`, and reduced motion, follow the system until a script sets them.
+- **Public selection geometry** on `LetteraSelectable`: `SelectionOnScreen`, `HandlesOnScreen`, `CaretOnScreen`, `LineOnScreen`, `ViewportOnScreen`, `IsMenuShown`.
+- **`LetteraFieldPressArea`.** A press on the empty part of a text area now counts as the field.
+- **Device Check sample**, and the menu Lettera > Device Check, which builds it with every native route on for that build only.
+
+### Changed
+- On the web, `LetteraEditable.Paste()` returns false with a warning, because a browser reads its clipboard later: use `PasteAsync`, or `PasteCommand`, which picks the way. `HasText` asks the probe first, and not knowing counts as yes.
+- `LetteraNative.ExpectedVersion` became `MinimumVersion` and `CurrentVersion`. An editor still holding the older library gets a warning, not an error, and everything but COLRv1 works.
+- The package now depends on `com.unity.modules.unitywebrequest` and `com.unity.modules.androidjni`.
+- A web emoji's pixels come at the frame's flush rather than when its glyph is asked for. Its rect is valid at once.
+
+### Fixed
+- A press on the empty part of a text area did nothing, because the text inside is only as tall as its lines.
+- On the web, Unity's own handler overwrote what a page set on the clipboard further up, and with it the plain text of any copy made from a page's own elements.
+- On the web, a second click in a field being edited took the keyboard away and lost keys, and made Unity forget a held right button, so a real right click opened no menu. The menu had only ever been opened from code.
+- A hostile bitmap header could overflow when read.
+
+### Verified
+- Real keys, paste, cut, focus rules, menu items by real clicks, replicas and surfaces in Chromium and in WebKit, by a driver that reads what a field holds after every step. Composition through CDP in Chromium. iPhone emulation: a tap while the main loop stalls, a swipe, a tap outside, and the overlay route forced.
+- COLRv1 against Chromium, per pixel at 96 px: mean error about 1.3 of 255 over 190 of the test font's 200 glyphs, and the same with a variable axis at two values, at about 0.5 ms a glyph. The other 10 are in Limits.
+- A Windows player, with the real clipboard read and written by another process: plain text, HTML with valid offsets, a picture, and a clipboard held by another program, which gives up in 25 ms. What was there is put back.
+- Input method messages through a Windows player's real window with a fake reader: two clauses, one undo step, no character twice, the window procedure restored after 1000 sessions.
+- Fonts in a Windows player: payloads in StreamingAssets and nowhere else, mapped with nothing retained, a deleted or cut cache file written again, a blocked folder held in memory instead, and a font only a bundle holds working after `AssetBundle.Unload(false)`.
+- Gradle builds for both the `Activity` and `GameActivity` entries, with the classes and the manifest's `queries` inspected in the APK. The JVM checks of the Android core. iOS export with stub and with real file, `pbxproj` inspected. Objective-C++ compiled against hand-written declarations of Apple's API, which proves syntax and not that those selectors exist.
+- All tests against the old library in the owner's editor, with the COLRv1 ones inconclusive, and against the new one in a separate editor process.
+
+### Figures
+Windows Mono player, against a 0.5.0 build made the same way, in turns, median of 5, in ms:
+
+| Row | 0.5.0 | 0.6.0 | Change |
+|---|---|---|---|
+| 64 labels a frame | 1.655 | 1.664 | +0.6% |
+| 500 labels, first build | 109.6 | 112.1 | +2.2% |
+| One level: parse, shape, layout, mesh | .0331, .0269, .0246, .0178 | .0330, .0269, .0248, .0181 | up to +1.7% |
+| 200 world texts, first build | 33.3 | 31.9 | -4.2% |
+| One world text changing | .0869 | .0912 | +4.9% |
+| 100 alpha, 100 color a frame | .674, .733 | .677, .741 | +0.4%, +1.1% |
+
+Plain text stays within the 5% this phase allowed itself. COLRv1 about 0.5 ms a glyph at 260 px square. Sizes: web archive 532 KB to 564 KB gzipped, so raster code stays in the web build; jslib 10 KB to 43 KB unminified; Android arm64 library 1.79 MB to 1.85 MB; Windows library 1.63 MB to 1.70 MB.
+
+### Limits
+- **Nothing on a phone has run.** Safari on a real iPhone: whether a keyboard rises, copy, paste. All of Android and iOS. macOS clipboard. Real Japanese and Korean input anywhere: Windows' input method was driven with a fake reader, and the web through CDP.
+- COLRv1: 10 of the test font's 200 glyphs draw nothing, nine sweep gradients with coincident angles and one more, because HarfBuzz's raster code skips them. A gradient through alpha differs slightly from Chromium's, which interpolates premultiplied. A glyph using the text's own color does not follow it, as with COLRv0.
+- The word-shape cache of 0.5.0's Limits is still not there. The library's `lt_shape_flagged` waits for it.
+- Batching web emoji reads the canvas once rather than 64 times, but it was not 3 times faster as aimed for: about 1 time in headless Chromium and 2 in WebKit, whose cost here is drawing the glyphs. A real GPU browser was not measured.
+- Safari's copy could not be proved: Playwright's WebKit on Windows does not keep what a page's copy handler sets, so those checks say SKIP. Paste into a field was proved there.
+- macOS has no native text input. Scriptable Build Pipeline gets no callback of its own, so a font in such a bundle stays inline.
+- `LetteraPasteButton` and iOS's paste control are not there: paste goes through a menu or a key. The device check shows its page's address as text, with no QR code. A Lettera menu has no Share on the web.
+- Android carries images on the clipboard in neither direction yet, and its keyboards' image commits are not wired.
+- The Input-System-only Windows variant and Word and Chrome paste were not run. The Project Settings cards were only built by a test, since the stand has no settings asset. The surface hooks for phones are not there: on a phone a replica is the plain control.
+
 ## [0.5.0] - 2026-10-31
 
 Documents and performance: text of any length through one window, shared caches, word dictionaries and threads.

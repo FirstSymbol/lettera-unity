@@ -200,6 +200,31 @@ Browsers expose no font files, so on the web:
 - `LetteraSettings.WebGLFallbackFont` replaces the bundled font.
 - Glyph memory is capped lower than on other platforms: the least recently used atlas page is recycled when the limit is reached.
 
+### Native platform
+
+Fields, clipboards and menus can run through the platform's own controls. Each piece has a gate under Project Settings > Lettera > Native Platform, and it says why it is on or off where you are building.
+
+| | Windows | Web | Android, iOS | macOS |
+|---|---|---|---|---|
+| Text input | composition through the input method | one text box, inline composition | off until turned on | Unity's |
+| Clipboard with formats | on | on | off until turned on | off until turned on |
+| Replica (`ReplicaFieldRule`) | inert | on, when a field asks | off until turned on | inert |
+| Fonts packed beside the build | on | no | inside the asset | on |
+| COLRv1 | on | on | on, not yet seen on a device | on, not yet seen on a device |
+
+What has not been seen to run on a real device ships off. The Device Check sample walks through a device one screen at a time, and gives one text block to send back: **Lettera > Device Check > Build for...** turns the routes on for that build only.
+
+```csharp
+// Paste works everywhere through the command. In a browser the clipboard can only be read later.
+new PasteCommand().Execute(new LetteraCommandContext(field.Selectable));
+field.PasteAsync();
+
+// What fonts cost right now.
+LetteraFontMemory.Sums sums = LetteraFontMemory.Totals;
+```
+
+After updating, the editor keeps the native library it loaded until it restarts: COLRv1 waits for that, and everything else works.
+
 ## Rebuilding the native plugin
 
 `Native~/build.py` builds HarfBuzz and the C wrapper for every platform with [zig](https://ziglang.org), and Android with the NDK from Unity's Android module. Shaping comes from [HarfBuzz](https://harfbuzz.github.io), compiled from source in `Native~/third_party`; see [third-party notices](THIRD-PARTY-NOTICES.md). The iOS and web libraries link statically, so they rename HarfBuzz's symbols to avoid the copy Unity's web player links.
