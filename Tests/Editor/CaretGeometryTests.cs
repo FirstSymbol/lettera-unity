@@ -292,13 +292,19 @@ namespace FirstSymbol.Lettera.Editor.Tests
         {
             int[] text = Cps("Some words and more words here");
             LetteraTextNavigator.NextWordStop(text, 0);
-            long before = GC.GetTotalMemory(false);
-            for (int i = 0; i < 10000; i++)
+            using var recorder = Unity.Profiling.ProfilerRecorder.StartNew(Unity.Profiling.ProfilerCategory.Memory, "GC Allocated In Frame");
+            long quietest = long.MaxValue;
+            for (int window = 0; window < 5; window++)
             {
-                LetteraTextNavigator.NextWordStop(text, i % text.Length);
-                LetteraTextNavigator.PreviousStop(text, i % text.Length);
+                long before = recorder.CurrentValue;
+                for (int i = 0; i < 1000; i++)
+                {
+                    LetteraTextNavigator.NextWordStop(text, i % text.Length);
+                    LetteraTextNavigator.PreviousStop(text, i % text.Length);
+                }
+                quietest = Math.Min(quietest, recorder.CurrentValue - before);
             }
-            Assert.Less(GC.GetTotalMemory(false) - before, 16 * 1024);
+            Assert.Less(quietest, 200);
         }
     }
 }

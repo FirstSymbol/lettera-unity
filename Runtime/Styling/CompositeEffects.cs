@@ -20,6 +20,17 @@ namespace FirstSymbol.Lettera
 
         public List<LetteraEffect> Children => m_Children;
 
+        public override bool ExtendsOnType
+        {
+            get
+            {
+                foreach (LetteraEffect child in m_Children)
+                    if (child != null && !child.ExtendsOnType)
+                        return false;
+                return true;
+            }
+        }
+
         public override LetteraEffect Clone()
         {
             var copy = (CompositeEffect)base.Clone();

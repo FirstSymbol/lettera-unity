@@ -150,6 +150,7 @@ namespace FirstSymbol.Lettera
 
     /// <summary>A droplet at the top of an invisible target as wide as a finger.</summary>
     [AddComponentMenu("")]
+    [RequireComponent(typeof(CanvasRenderer))]
     internal sealed class LetteraHandleGraphic : MaskableGraphic
     {
         protected override void OnPopulateMesh(VertexHelper vh)

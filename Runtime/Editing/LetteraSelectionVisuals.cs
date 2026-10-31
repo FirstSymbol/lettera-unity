@@ -26,8 +26,24 @@ namespace FirstSymbol.Lettera
         public static void Destroy(Object target)
         {
             if (target == null) return;
-            if (Application.isPlaying) Object.Destroy(target);
-            else Object.DestroyImmediate(target);
+            if (Application.isPlaying)
+            {
+                Object.Destroy(target);
+                return;
+            }
+#if UNITY_EDITOR
+            // In the middle of a parent going away the editor refuses this, so it waits for that to end.
+            GameObject go = target as GameObject;
+            if (go != null && !go.activeInHierarchy)
+            {
+                UnityEditor.EditorApplication.delayCall += () =>
+                {
+                    if (target != null) Object.DestroyImmediate(target);
+                };
+                return;
+            }
+#endif
+            Object.DestroyImmediate(target);
         }
 
         public const HideFlags Flags = HideFlags.HideInHierarchy | HideFlags.DontSave;
@@ -35,6 +51,7 @@ namespace FirstSymbol.Lettera
 
     /// <summary>Solid rectangles in the text's own local space.</summary>
     [AddComponentMenu("")]
+    [RequireComponent(typeof(CanvasRenderer))]
     internal sealed class LetteraSelectionOverlay : MaskableGraphic
     {
         readonly List<Rect> m_Rects = new List<Rect>();
@@ -234,6 +251,7 @@ namespace FirstSymbol.Lettera
         }
 
         internal int QuadCount => m_Vertices.Count / 4;
+        internal IReadOnlyList<Rect> LineRects => m_Lines;
 
         public void Show(List<Rect> rects, Color color)
         {

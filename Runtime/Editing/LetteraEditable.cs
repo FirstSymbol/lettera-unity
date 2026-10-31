@@ -168,14 +168,21 @@ namespace FirstSymbol.Lettera
         {
             LetteraSelectionRange selection = Selectable.Selection;
             Engine.EnsureParsed();
-            int anchor = SourceOfIndex(selection.Anchor), head = SourceOfIndex(selection.Head);
+            SourceEnds(selection, out int anchor, out int head);
             change();
             Engine.EnsureParsed();
             Selectable.SetSelectionUnchecked(new LetteraSelectionRange(Engine.RenderedIndexFromSource(anchor), Engine.RenderedIndexFromSource(head), selection.Bias), "sel.restore");
             Host.Dirty(DirtyLevel.Parse);
         }
 
-        int SourceOfIndex(int shown) => Engine.SourceStartOf(shown);
+        // A range's far end stands right after its last character, so delimiters that follow it stay out.
+        void SourceEnds(LetteraSelectionRange selection, out int anchor, out int head)
+        {
+            int start = Engine.SourceStartOf(selection.Start);
+            int end = selection.IsCaret ? start : Engine.SourceEndOf(selection.End - 1);
+            anchor = selection.Anchor <= selection.Head ? start : end;
+            head = selection.Anchor <= selection.Head ? end : start;
+        }
 
         // ------------------------------------------------------------- value
 
@@ -640,13 +647,18 @@ namespace FirstSymbol.Lettera
 
         string EscapeLiteral(string text)
         {
+            // A backslash stays next to its character. A wrap would catch what is typed after it, so it is the last resort.
             IReadOnlyList<LetteraStyle> styles = Engine.EffectiveStyles;
+            string wrapped = null;
             for (int i = 0; i < styles.Count; i++)
             {
-                string escaped = styles[i]?.Matcher?.EscapeFor(text);
-                if (escaped != null) return escaped;
+                LetteraMatcher matcher = styles[i]?.Matcher;
+                string escaped = matcher?.EscapeFor(text);
+                if (escaped == null) continue;
+                if (matcher is EscapeMatcher) return escaped;
+                if (wrapped == null) wrapped = escaped;
             }
-            return text;
+            return wrapped ?? text;
         }
 
         // ------------------------------------------------------------- deleting
@@ -843,7 +855,7 @@ namespace FirstSymbol.Lettera
             if (m_Revealing) return;
             m_Revealing = true;
             Engine.EnsureParsed();
-            int anchor = Engine.SourceStartOf(selection.Anchor), head = Engine.SourceStartOf(selection.Head);
+            SourceEnds(selection, out int anchor, out int head);
             if (head != Engine.RevealSource)
             {
                 Engine.RevealSource = head;
@@ -1207,7 +1219,7 @@ namespace FirstSymbol.Lettera
         static float ClampScroll(float position, float home, float contentMin, float contentMax, float viewMin, float viewMax, float margin)
         {
             float offset = position - home;
-            float lowest = Mathf.Min(viewMax - margin - contentMax, 0), highest = Mathf.Max(viewMin + margin - contentMin, 0);
+            float lowest = Mathf.Min(viewMax - margin - contentMax, 0), highest = Mathf.Max(viewMin - contentMin, 0);
             if (contentMax - contentMin <= viewMax - viewMin && contentMin >= viewMin && contentMax <= viewMax) return home;
             return home + Mathf.Clamp(offset, lowest, highest);
         }

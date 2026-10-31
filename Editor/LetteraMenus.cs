@@ -5,6 +5,7 @@ using UnityEditor;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
+using UnityEngine.UIElements;
 
 namespace FirstSymbol.Lettera.Editor
 {
@@ -60,7 +61,7 @@ namespace FirstSymbol.Lettera.Editor
             Selection.activeGameObject = go;
         }
 
-        static Transform FindOrCreateCanvas(GameObject context)
+        internal static Transform FindOrCreateCanvas(GameObject context)
         {
             if (context != null)
             {
@@ -75,12 +76,22 @@ namespace FirstSymbol.Lettera.Editor
                 canvas.renderMode = RenderMode.ScreenSpaceOverlay;
                 Undo.RegisterCreatedObjectUndo(canvasObject, "Create Canvas");
             }
-            if (UnityEngine.Object.FindAnyObjectByType<EventSystem>() == null)
-            {
-                var events = new GameObject("EventSystem", typeof(EventSystem));
-                Undo.RegisterCreatedObjectUndo(events, "Create EventSystem");
-            }
+            if (UnityEngine.Object.FindAnyObjectByType<EventSystem>() == null) CreateEventSystem();
             return canvas.transform;
+        }
+
+        // Without an input module UI gets no input. Which one a project can use depends on its input handling.
+        internal static void CreateEventSystem()
+        {
+            var events = new GameObject("EventSystem", typeof(EventSystem));
+#if ENABLE_INPUT_SYSTEM
+            Type module = Type.GetType("UnityEngine.InputSystem.UI.InputSystemUIInputModule, Unity.InputSystem");
+            if (module != null) events.AddComponent(module);
+            else events.AddComponent<StandaloneInputModule>();
+#else
+            events.AddComponent<StandaloneInputModule>();
+#endif
+            Undo.RegisterCreatedObjectUndo(events, "Create EventSystem");
         }
 
         static bool IsFontPath(string path)
@@ -141,33 +152,44 @@ namespace FirstSymbol.Lettera.Editor
         [SettingsProvider]
         static SettingsProvider Create() => new SettingsProvider("Project/Lettera", SettingsScope.Project)
         {
-            guiHandler = _ =>
-            {
-                var settings = Resources.Load<LetteraSettings>(LetteraSettings.ResourceName);
-                if (settings == null)
-                {
-                    EditorGUILayout.HelpBox("This project uses Lettera's defaults.", MessageType.Info);
-                    if (GUILayout.Button("Create Settings Asset"))
-                    {
-                        Directory.CreateDirectory("Assets/Resources");
-                        AssetDatabase.CreateAsset(ScriptableObject.CreateInstance<LetteraSettings>(), AssetPath);
-                        AssetDatabase.SaveAssets();
-                    }
-                    return;
-                }
-                var serialized = new SerializedObject(settings);
-                serialized.Update();
-                SerializedProperty property = serialized.GetIterator();
-                bool enter = true;
-                while (property.NextVisible(enter))
-                {
-                    enter = false;
-                    if (property.name == "m_Script") continue;
-                    EditorGUILayout.PropertyField(property, true);
-                }
-                serialized.ApplyModifiedProperties();
-            },
-            keywords = new HashSet<string>(new[] { "Lettera", "Text", "Font", "Emoji", "Fallback" }),
+            activateHandler = (_, root) => root.Add(Build()),
+            keywords = new HashSet<string>(new[] { "Lettera", "Text", "Font", "Emoji", "Fallback", "Caret", "Selection", "Undo", "Clipboard", "Commands" }),
         };
+
+        internal static VisualElement Build()
+        {
+            VisualElement root = LtUI.Root();
+            VisualElement page = LtFrame.Header(root, "Lettera", "Project-wide defaults");
+            var settings = Resources.Load<LetteraSettings>(LetteraSettings.ResourceName);
+            if (settings == null)
+            {
+                page.Add(LtUI.Card("", LtUI.Text("This project uses Lettera's defaults.", "lt-subtitle"), LtUI.Clickable("Create Settings Asset", "lt-tool", "Create it in Assets/Resources", () =>
+                {
+                    Directory.CreateDirectory("Assets/Resources");
+                    AssetDatabase.CreateAsset(ScriptableObject.CreateInstance<LetteraSettings>(), AssetPath);
+                    AssetDatabase.SaveAssets();
+                    VisualElement parent = root.parent;
+                    root.RemoveFromHierarchy();
+                    parent?.Add(Build());
+                })));
+                return root;
+            }
+            var serialized = new SerializedObject(settings);
+            page.Add(LtFrame.AllFields(serialized, "Text", "m_Editing"));
+            SerializedProperty editing = serialized.FindProperty("m_Editing");
+            var rows = new List<VisualElement>();
+            SerializedProperty child = editing.Copy();
+            SerializedProperty end = editing.GetEndProperty();
+            bool enter = true;
+            while (child.NextVisible(enter) && !SerializedProperty.EqualContents(child, end))
+            {
+                enter = false;
+                if (child.name == "Commands") continue;
+                rows.Add(LtUI.Field(LtFrame.Nice(child.name), child.Copy(), child.tooltip));
+            }
+            page.Add(LtUI.Card("Selection & Editing", rows.ToArray()));
+            page.Add(LtUI.Card("Commands", new LetteraReferenceList(editing.FindPropertyRelative("Commands"), () => LetteraRuleCatalog.Commands)));
+            return root;
+        }
     }
 }

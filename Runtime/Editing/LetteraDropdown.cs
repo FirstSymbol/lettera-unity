@@ -271,11 +271,18 @@ namespace FirstSymbol.Lettera
             var own = (RectTransform)transform;
             var rootRect = (RectTransform)root.transform;
             LayoutRebuilder.ForceRebuildLayoutImmediate(list);
+            var scroll = m_List.GetComponent<ScrollRect>();
+            float limit = list.rect.height;
+            if (scroll != null && scroll.content != null)
+            {
+                LayoutRebuilder.ForceRebuildLayoutImmediate(scroll.content);
+                limit = Mathf.Min(limit, LayoutUtility.GetPreferredHeight(scroll.content));
+            }
             var corners = new Vector3[4];
             own.GetWorldCorners(corners);
             Vector2 bottomLeft = rootRect.InverseTransformPoint(corners[0]), topRight = rootRect.InverseTransformPoint(corners[2]);
             Rect area = rootRect.rect;
-            float height = list.rect.height;
+            float height = limit;
             float width = Mathf.Max(topRight.x - bottomLeft.x, 1);
             list.anchorMin = list.anchorMax = new Vector2(rootRect.pivot.x, rootRect.pivot.y);
             list.pivot = new Vector2(0, 1);

@@ -55,6 +55,7 @@ namespace FirstSymbol.Lettera.Editor
             m_BuildRenderPage(render);
             AddTab(tabs, "Render", render);
             SelectTab(Mathf.Clamp(s_LastTab, 0, m_Pages.Count - 1));
+            m_Root.Add(LetteraEditingMenus.InteractionCard(m_Object.targetObjects));
 
             m_Root.schedule.Execute(RefreshHeader).Every(400);
             RefreshHeader();

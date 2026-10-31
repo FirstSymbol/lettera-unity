@@ -8,6 +8,7 @@ namespace FirstSymbol.Lettera
     /// <see cref="CaretRect"/> and <see cref="IsBlinkOn"/>.
     /// </summary>
     [AddComponentMenu("Lettera/Caret")]
+    [RequireComponent(typeof(CanvasRenderer))]
     public class LetteraCaret : MaskableGraphic
     {
         [Tooltip("Percent of the line height. 0 uses the project's. Never thinner than a device pixel.")]

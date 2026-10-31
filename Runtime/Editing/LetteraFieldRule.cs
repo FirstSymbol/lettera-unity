@@ -203,8 +203,13 @@ namespace FirstSymbol.Lettera
                             m_PresetCopies.Add(copy);
                             m_ActiveRules.Add(copy);
                         }
+            m_AttachingRules = true;
             foreach (LetteraFieldRule rule in m_ActiveRules) rule.Attach(this);
+            m_AttachingRules = false;
+            m_HasSnapshot = false;
         }
+
+        bool m_AttachingRules;
 
         void DetachRules()
         {
@@ -288,7 +293,7 @@ namespace FirstSymbol.Lettera
 
         void PushSnapshot()
         {
-            if (Selectable == null || Selectable.Host == null) return;
+            if (m_AttachingRules || Selectable == null || Selectable.Host == null) return;
             var snapshot = new LetteraFieldSnapshot(Length == 0 && m_CompText == null, Selectable.HasFocus, m_CompText != null, m_ReadOnly, Length, PublishedLimit, m_LastCheck);
             if (m_HasSnapshot && snapshot.Same(m_LastSnapshot)) return;
             m_LastSnapshot = snapshot;

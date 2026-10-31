@@ -54,7 +54,7 @@ namespace FirstSymbol.Lettera
 
         struct RawSplice
         {
-            public int Position, Removed;
+            public int Position, Removed, Rank;
             public string Inserted;
         }
 
@@ -214,8 +214,8 @@ namespace FirstSymbol.Lettera
             if (add) AddWrap(writer, raw, newStart, newEnd);
             if (m_RawSplices.Count == 0) return false;
 
-            // From the end, so earlier positions stay valid. At one position a closer goes in before an opener.
-            m_RawSplices.Sort((x, y) => x.Position != y.Position ? y.Position.CompareTo(x.Position) : x.Removed.CompareTo(y.Removed));
+            // From the end, so earlier positions stay valid. At one position what goes away goes first; then an opener goes in, and a closer before it.
+            m_RawSplices.Sort((x, y) => x.Position != y.Position ? y.Position.CompareTo(x.Position) : x.Rank.CompareTo(y.Rank));
             m_Builder.Clear();
             m_Builder.Append(Engine.RawText);
             foreach (RawSplice splice in m_RawSplices)
@@ -236,8 +236,8 @@ namespace FirstSymbol.Lettera
             var close = new StringBuilder();
             writer.Matcher.WriteOpen(open, raw, null);
             writer.Matcher.WriteClose(close);
-            m_RawSplices.Add(new RawSplice { Position = Engine.SourceStartOf(start), Inserted = open.ToString() });
-            m_RawSplices.Add(new RawSplice { Position = Engine.SourceEndOf(end - 1), Inserted = close.ToString() });
+            m_RawSplices.Add(new RawSplice { Position = Engine.SourceStartOf(start), Inserted = open.ToString(), Rank = 1 });
+            m_RawSplices.Add(new RawSplice { Position = Engine.SourceEndOf(end - 1), Inserted = close.ToString(), Rank = 2 });
         }
 
         /// <summary>Would typing now produce this effect, or does it cover all of the selection?</summary>

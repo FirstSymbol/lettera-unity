@@ -183,6 +183,9 @@ namespace FirstSymbol.Lettera
         public Func<string, string> ToCss;
         public Func<string, string> FromCss;
 
+        /// <summary>For an effect with several elements: which one a value writes, and what value one reads as.</summary>
+        public Func<string, string> HtmlElementFromRaw, RawFromElement;
+
         /// <summary>An attribute that holds the parameter, such as href.</summary>
         public string HtmlAttribute;
         public string MarkdownMarker;
@@ -196,6 +199,7 @@ namespace FirstSymbol.Lettera
 
         static LetteraClipSchemas()
         {
+            s_Schemas[typeof(SuperSubEffect).FullName] = new LetteraClipSchema { HtmlElements = new[] { "sup", "sub" }, HtmlElementFromRaw = raw => raw == "sub" ? "sub" : "sup", RawFromElement = element => element };
             s_Schemas[typeof(SuperSubEffect).FullName + ":Super"] = new LetteraClipSchema { HtmlElements = new[] { "sup" } };
             s_Schemas[typeof(SuperSubEffect).FullName + ":Sub"] = new LetteraClipSchema { HtmlElements = new[] { "sub" } };
             Register<BoldEffect>(new LetteraClipSchema { HtmlElements = new[] { "b", "strong" }, CssProperty = "font-weight", ToCss = _ => "700", FromCss = v => IsBoldWeight(v) ? "" : null, MarkdownMarker = "**" });
@@ -417,7 +421,7 @@ namespace FirstSymbol.Lettera
         {
             if (schema.HtmlElements != null && schema.HtmlElements.Length > 0)
             {
-                string element = schema.HtmlElements[0];
+                string element = schema.HtmlElementFromRaw != null ? schema.HtmlElementFromRaw(span.Raw) : schema.HtmlElements[0];
                 builder.Append('<').Append(element);
                 if (schema.HtmlAttribute != null)
                 {
@@ -616,7 +620,7 @@ namespace FirstSymbol.Lettera
                 if (block) BlockEdge();
                 stack.Add(new Open { Name = name, Pre = pre, Block = block });
                 if (pre) preDepth++;
-                AddSpansOfElement(name, html, nameEnd, attributesEnd, cps, stack.Count - 1, openSpans);
+                AddSpansOfElement(name, html, nameEnd, attributesEnd, cps + (pendingBreak && anyText ? 1 : 0) + (pendingSpace && !pendingBreak ? 1 : 0), stack.Count - 1, openSpans);
             }
             PopTo(0);
             clip.Text = text.ToString();
@@ -744,7 +748,7 @@ namespace FirstSymbol.Lettera
                 if (schema.HtmlElements == null || Array.IndexOf(schema.HtmlElements, name) < 0) continue;
                 // An element Docs wraps a whole document in with its weight turned off means nothing.
                 if (weightOverride && name == "b") continue;
-                string raw = null;
+                string raw = schema.RawFromElement?.Invoke(name);
                 if (schema.HtmlAttribute != null)
                 {
                     if (schema.HtmlAttribute == "href")
