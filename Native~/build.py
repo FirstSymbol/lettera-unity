@@ -25,7 +25,7 @@ FLAGS = ["-O2", "-std=c++17", "-fno-exceptions", "-fno-rtti", "-fvisibility=hidd
 # Static targets link into a player that holds its own HarfBuzz: see tools/gen_hb_prefix.py.
 STATIC = ["-include", os.path.join("src", "lt_hb_prefix.h")]
 POSIX = ["-DHAVE_MMAP", "-DHAVE_SYS_MMAN_H", "-DHAVE_UNISTD_H"]  # lets hb_blob map font files
-SOURCES = [os.path.join(HB, "harfbuzz.cc"), os.path.join("src", "lettera_native.cpp")]
+SOURCES = [os.path.join(HB, "harfbuzz.cc"), os.path.join(HB, "hb-raster-draw.cc"), os.path.join(HB, "hb-raster-image.cc"), os.path.join(HB, "hb-raster-paint.cc"), os.path.join("src", "lettera_native.cpp")]
 DEFAULT_ZIG = r"D:\General\Other\Unity\Tools\zig\zig.exe"
 DEFAULT_EDITOR = r"D:\General\Other\Unity\Editors\6000.4.8f1"
 
@@ -40,7 +40,16 @@ def place(built, *relative):
     if os.path.getsize(built) < 500_000:
         raise RuntimeError(f"{built} is only {os.path.getsize(built)} bytes; HarfBuzz alone is over 1 MB")
     os.makedirs(os.path.dirname(target), exist_ok=True)
-    shutil.copyfile(built, target)
+    try:
+        shutil.copyfile(built, target)
+    except PermissionError:
+        # A running editor holds its DLL, and Windows allows renaming a loaded file but not writing over it.
+        aside = os.path.join(OUT, "replaced", *relative)
+        os.makedirs(os.path.dirname(aside), exist_ok=True)
+        if os.path.exists(aside):
+            os.remove(aside)
+        os.replace(target, aside)
+        shutil.copyfile(built, target)
     print("  ->", os.path.relpath(target, PLUGINS), os.path.getsize(target), flush=True)
 
 

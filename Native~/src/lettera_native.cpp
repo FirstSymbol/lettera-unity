@@ -6,6 +6,9 @@
 
 #include "hb.h"
 #include "hb-ot.h"
+#ifndef LT_NO_PAINT
+#include "hb-raster.h"
+#endif
 #include <string.h>
 #include <stdint.h>
 
@@ -15,7 +18,7 @@
 #define LT_API extern "C" __attribute__((visibility("default")))
 #endif
 
-#define LT_VERSION 1
+#define LT_VERSION 2
 
 struct LtGlyph
 {
@@ -277,11 +280,12 @@ static hb_buffer_t* shared_buffer()
 // script: OpenType/ISO-15924 tag as hb_script_t, 0 = guess.
 // Clusters are indices into `text` (UTF-32). Context outside [start, start+length) is used for shaping.
 // Returns the glyph count; when it exceeds `capacity`, returns -count and writes nothing.
-LT_API int lt_shape(hb_font_t* font, const uint32_t* text, int textLength, int start, int length,
-                    int direction, uint32_t script, const char* language,
-                    const LtFeature* features, int featureCount, LtGlyph* output, int capacity)
+static int shape_with_flags(hb_font_t* font, const uint32_t* text, int textLength, int start, int length,
+                            int direction, uint32_t script, const char* language,
+                            const LtFeature* features, int featureCount, LtGlyph* output, int capacity, hb_buffer_flags_t flags)
 {
     hb_buffer_t* buffer = shared_buffer();
+    hb_buffer_set_flags(buffer, flags);
     hb_buffer_set_cluster_level(buffer, HB_BUFFER_CLUSTER_LEVEL_MONOTONE_CHARACTERS);
     hb_buffer_add_utf32(buffer, text, textLength, (unsigned)start, length);
     if (direction != 0) hb_buffer_set_direction(buffer, (hb_direction_t)direction);
@@ -315,6 +319,107 @@ LT_API int lt_shape(hb_font_t* font, const uint32_t* text, int textLength, int s
         output[i].flags = hb_glyph_info_get_glyph_flags(&infos[i]);
     }
     return (int)count;
+}
+
+LT_API int lt_shape(hb_font_t* font, const uint32_t* text, int textLength, int start, int length,
+                    int direction, uint32_t script, const char* language,
+                    const LtFeature* features, int featureCount, LtGlyph* output, int capacity)
+{
+    return shape_with_flags(font, text, textLength, start, length, direction, script, language, features, featureCount, output, capacity, HB_BUFFER_FLAG_DEFAULT);
+}
+
+// The same, also saying where a run may be cut and joined again with no reshaping. That costs something, so plain shaping does not ask.
+LT_API int lt_shape_flagged(hb_font_t* font, const uint32_t* text, int textLength, int start, int length,
+                            int direction, uint32_t script, const char* language,
+                            const LtFeature* features, int featureCount, LtGlyph* output, int capacity)
+{
+    return shape_with_flags(font, text, textLength, start, length, direction, script, language, features, featureCount, output, capacity, HB_BUFFER_FLAG_PRODUCE_UNSAFE_TO_CONCAT);
+}
+
+// ---------------------------------------------------------------- COLRv1
+
+// 0 where this build has no raster code, so the caller falls through to what else the font offers.
+LT_API int lt_glyph_has_paint(hb_face_t* face, uint32_t glyph)
+{
+#ifdef LT_NO_PAINT
+    (void)face; (void)glyph;
+    return 0;
+#else
+    return hb_ot_color_glyph_has_paint(face, glyph) ? 1 : 0;
+#endif
+}
+
+// box: min x, min y, max x, max y in design units, y up. Returns 0 when the glyph has no extents.
+LT_API int lt_glyph_paint_extents(hb_font_t* font, uint32_t glyph, float* box)
+{
+    hb_glyph_extents_t extents;
+    if (!hb_font_get_glyph_extents(font, glyph, &extents)) return 0;
+    if (extents.width == 0 || extents.height == 0) return 0;
+    float x0 = (float)extents.x_bearing, x1 = (float)(extents.x_bearing + extents.width);
+    float y0 = (float)extents.y_bearing, y1 = (float)(extents.y_bearing + extents.height);
+    box[0] = x0 < x1 ? x0 : x1;
+    box[1] = y0 < y1 ? y0 : y1;
+    box[2] = x0 < x1 ? x1 : x0;
+    box[3] = y0 < y1 ? y1 : y0;
+    return 1;
+}
+
+// Paints one glyph into straight-alpha RGBA, the bottom row first, as a texture holds it. (originX, originY) is the image's bottom left
+// corner in pixels of glyph space at this scale. Foreground is an hb_color_t, 0xBBGGRRAA. Returns 0 on failure with nothing written.
+LT_API int lt_glyph_paint_rgba(hb_font_t* font, uint32_t glyph, float scale, int palette, uint32_t foreground,
+                               int originX, int originY, uint8_t* rgba, int width, int height)
+{
+#ifdef LT_NO_PAINT
+    (void)font; (void)glyph; (void)scale; (void)palette; (void)foreground; (void)originX; (void)originY; (void)rgba; (void)width; (void)height;
+    return 0;
+#else
+    if (width <= 0 || height <= 0 || width > 4096 || height > 4096) return 0;
+    hb_raster_paint_t* paint = hb_raster_paint_create_or_fail();
+    if (!paint) return 0;
+    hb_raster_paint_set_transform(paint, scale, 0, 0, scale, 0, 0);
+    hb_raster_extents_t extents;
+    extents.x_origin = originX;
+    extents.y_origin = originY;
+    extents.width = (unsigned)width;
+    extents.height = (unsigned)height;
+    extents.stride = 0;
+    hb_raster_paint_set_extents(paint, &extents);
+    hb_raster_paint_set_palette(paint, (unsigned)palette);
+    hb_raster_paint_set_foreground(paint, (hb_color_t)foreground);
+    int done = 0;
+    if (hb_raster_paint_glyph_or_fail(paint, font, glyph))
+    {
+        hb_raster_image_t* image = hb_raster_paint_render(paint);
+        if (image)
+        {
+            const uint8_t* source = hb_raster_image_get_buffer(image);
+            hb_raster_extents_t got;
+            hb_raster_image_get_extents(image, &got);
+            if (source && hb_raster_image_get_format(image) == HB_RASTER_FORMAT_BGRA32 && (int)got.width == width && (int)got.height == height)
+            {
+                for (int y = 0; y < height; y++)
+                {
+                    const uint8_t* row = source + (size_t)y * got.stride;
+                    uint8_t* out = rgba + (size_t)y * width * 4;
+                    for (int x = 0; x < width; x++, row += 4, out += 4)
+                    {
+                        unsigned a = row[3];
+                        if (a == 0) { out[0] = out[1] = out[2] = out[3] = 0; continue; }
+                        // It holds premultiplied color, and the atlas does not.
+                        out[0] = (uint8_t)((row[2] * 255u + a / 2) / a);
+                        out[1] = (uint8_t)((row[1] * 255u + a / 2) / a);
+                        out[2] = (uint8_t)((row[0] * 255u + a / 2) / a);
+                        out[3] = (uint8_t)a;
+                    }
+                }
+                done = 1;
+            }
+            hb_raster_paint_recycle_image(paint, image);
+        }
+    }
+    hb_raster_paint_destroy(paint);
+    return done;
+#endif
 }
 
 // ---------------------------------------------------------------- outlines
