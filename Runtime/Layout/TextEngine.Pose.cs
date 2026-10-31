@@ -327,7 +327,8 @@ namespace FirstSymbol.Lettera
         {
             PoseCount++;
             int glyphs = m_PlacedCount;
-            for (int i = 0; i < glyphs; i++) m_GlyphPoses[i] = LetteraGlyphPose.Identity;
+            LetteraGlyphPose identity = LetteraGlyphPose.Identity;
+            for (int i = 0; i < glyphs; i++) m_GlyphPoses[i] = identity;
             int streams = 0;
             bool reduced = LetteraAccessibility.ReducedMotion;
 
@@ -349,10 +350,13 @@ namespace FirstSymbol.Lettera
                     effect.PoseBody(new LetteraMotionContext(t, phi, b, span.BodyCount, effect.Seed, body.Box, body.Em, span.Effective), ref pose);
                     m_BodyPoses[span.BodyStart + b] = effect.Strengthen(pose, body.Box);
                 }
+                // Only a glyph something already posed needs composing: the first span over it, usually the only one, just takes its body's pose.
+                bool first = m_MotionSpans.Count == 1 && m_RevealSpans.Count == 0;
                 for (int l = span.LinkStart; l < span.LinkStart + span.LinkCount; l++)
                 {
                     PoseLink link = m_PoseLinks[l];
-                    m_GlyphPoses[link.Glyph] = m_BodyPoses[link.Body].After(m_GlyphPoses[link.Glyph]);
+                    if (first) m_GlyphPoses[link.Glyph] = m_BodyPoses[link.Body];
+                    else m_GlyphPoses[link.Glyph] = m_BodyPoses[link.Body].After(m_GlyphPoses[link.Glyph]);
                 }
             }
 
@@ -380,21 +384,44 @@ namespace FirstSymbol.Lettera
                     continue;
                 }
                 ref LetteraGlyphPose pose = ref m_GlyphPoses[owner];
-                for (int i = 0; i < 4; i++)
+                float a = pose.A, b = pose.B, c = pose.C, d = pose.D, tx = pose.Tx + m_MarqueeOffset, ty = pose.Ty;
+                if (a == 1 && b == 0 && c == 0 && d == 1)
                 {
-                    Vector3 r = m_RestVertices[v + i];
-                    Vertices[v + i] = new Vector3(pose.A * r.x + pose.C * r.y + pose.Tx + m_MarqueeOffset, pose.B * r.x + pose.D * r.y + pose.Ty);
-                    Color32 rest = m_RestColors[v + i];
-                    if (pose.Alpha != 1 || pose.Tint != Color.white)
+                    for (int i = v; i < v + 4; i++)
                     {
-                        Color tint = pose.Tint;
-                        rest.r = (byte)(rest.r * tint.r);
-                        rest.g = (byte)(rest.g * tint.g);
-                        rest.b = (byte)(rest.b * tint.b);
-                        rest.a = (byte)(rest.a * tint.a * Mathf.Clamp01(pose.Alpha));
-                        colors = true;
+                        ref Vector3 r = ref m_RestVertices[i];
+                        ref Vector3 o = ref Vertices[i];
+                        o.x = r.x + tx;
+                        o.y = r.y + ty;
+                        o.z = 0;
                     }
-                    Colors[v + i] = rest;
+                }
+                else
+                {
+                    for (int i = v; i < v + 4; i++)
+                    {
+                        ref Vector3 r = ref m_RestVertices[i];
+                        ref Vector3 o = ref Vertices[i];
+                        o.x = a * r.x + c * r.y + tx;
+                        o.y = b * r.x + d * r.y + ty;
+                        o.z = 0;
+                    }
+                }
+                // Comparing a Color field by field is far cheaper than its operator, and this runs per quad.
+                if (pose.Alpha != 1 || pose.Tint.r != 1 || pose.Tint.g != 1 || pose.Tint.b != 1 || pose.Tint.a != 1)
+                {
+                    float red = pose.Tint.r, green = pose.Tint.g, blue = pose.Tint.b, alpha = pose.Tint.a * Mathf.Clamp01(pose.Alpha);
+                    for (int i = v; i < v + 4; i++)
+                    {
+                        ref Color32 rest = ref m_RestColors[i];
+                        Colors[i] = new Color32((byte)(rest.r * red), (byte)(rest.g * green), (byte)(rest.b * blue), (byte)(rest.a * alpha));
+                    }
+                    colors = true;
+                }
+                else if (m_PoseHadColors)
+                {
+                    // Only what an earlier pass tinted has anything to go back from.
+                    for (int i = v; i < v + 4; i++) Colors[i] = m_RestColors[i];
                 }
                 moved = true;
             }

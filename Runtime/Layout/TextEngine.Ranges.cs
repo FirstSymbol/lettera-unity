@@ -154,11 +154,17 @@ namespace FirstSymbol.Lettera
             }
         }
 
+        // Each range's box, kept apart from the range so a hit test rejects most of them with four comparisons and no copy of anything.
+        float[] m_ActiveBoxes = new float[0];
+        LetteraRangeEffect[] m_ActiveEffects = new LetteraRangeEffect[0];
+
         void EnsureActiveRects()
         {
             if (m_ActiveRectsValid) return;
             m_ActiveRectsValid = true;
             m_ActiveRects.Clear();
+            EnsureExact(ref m_ActiveBoxes, m_Active.Count * 4);
+            EnsureExact(ref m_ActiveEffects, m_Active.Count);
             for (int a = 0; a < m_Active.Count; a++)
             {
                 ActiveRange range = m_Active[a];
@@ -166,6 +172,20 @@ namespace FirstSymbol.Lettera
                 GetRangeRects(range.Start, range.End, m_ActiveRects);
                 range.SegmentCount = m_ActiveRects.Count - range.SegmentStart;
                 m_Active[a] = range;
+                float xMin = float.MaxValue, yMin = float.MaxValue, xMax = float.MinValue, yMax = float.MinValue;
+                for (int s = range.SegmentStart; s < m_ActiveRects.Count; s++)
+                {
+                    Rect rect = m_ActiveRects[s];
+                    xMin = Mathf.Min(xMin, rect.xMin);
+                    yMin = Mathf.Min(yMin, rect.yMin);
+                    xMax = Mathf.Max(xMax, rect.xMax);
+                    yMax = Mathf.Max(yMax, rect.yMax);
+                }
+                m_ActiveBoxes[a * 4] = xMin;
+                m_ActiveBoxes[a * 4 + 1] = yMin;
+                m_ActiveBoxes[a * 4 + 2] = xMax;
+                m_ActiveBoxes[a * 4 + 3] = yMax;
+                m_ActiveEffects[a] = range.Effect;
             }
         }
 
@@ -192,11 +212,16 @@ namespace FirstSymbol.Lettera
             if (InMarqueeGap(point)) return 0;
             int best = -1;
             float bestDistance = float.MaxValue;
-            for (int a = 0; a < m_Active.Count; a++)
+            float[] boxes = m_ActiveBoxes;
+            LetteraRangeEffect[] effects = m_ActiveEffects;
+            int count = m_Active.Count;
+            for (int a = 0; a < count; a++)
             {
+                LetteraRangeEffect effect = effects[a];
+                float padding = Math.Max(effect.HitPadding * CurrentFontSize, touchPadding);
+                if (point.x < boxes[a * 4] - padding || point.y < boxes[a * 4 + 1] - padding || point.x > boxes[a * 4 + 2] + padding || point.y > boxes[a * 4 + 3] + padding) continue;
+                if (!effect.Enabled) continue;
                 ActiveRange range = m_Active[a];
-                if (!range.Effect.Enabled) continue;
-                float padding = Math.Max(range.Effect.HitPadding * CurrentFontSize, touchPadding);
                 float distance = float.MaxValue;
                 for (int s = 0; s < range.SegmentCount; s++)
                 {
