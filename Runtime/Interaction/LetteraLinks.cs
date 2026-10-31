@@ -172,7 +172,7 @@ namespace FirstSymbol.Lettera
     public enum LetteraSemanticActions { None = 0, Activate = 1, Context = 2, Focus = 4, Dismiss = 8 }
 
     /// <summary>Describes a range for what cannot read pixels. Nothing enters the tree on its own: a range is described only where this covers it.</summary>
-    [Serializable]
+    [Serializable, UnityEngine.Scripting.Preserve]
     public class SemanticEffect : LetteraEffect
     {
         [SerializeField] LetteraSemanticRole m_Role;

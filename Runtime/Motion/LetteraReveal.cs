@@ -313,7 +313,7 @@ namespace FirstSymbol.Lettera
     public enum LetteraMarqueeMode { Loop, BackAndForth }
 
     /// <summary>Scrolls a Canvas text sideways through its box, when it does not fit or when told to. Whole-text only; world text has no clip to scroll within.</summary>
-    [Serializable]
+    [Serializable, UnityEngine.Scripting.Preserve]
     public class MarqueeEffect : LetteraEffect
     {
         [SerializeField] LetteraMarqueeMode m_Mode;

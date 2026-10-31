@@ -4,6 +4,52 @@ All notable changes to this package are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.4.0] - 2026-10-31
+
+Animation and interaction: text that moves with no rebuild, ranges that answer a pointer and a keyboard, and things that stand in the flow.
+
+### Added
+- **Pose pass.** Motion rewrites vertex data from what the last mesh left, with no pass of the rebuild and no allocation per frame. A text with nothing moving is not in the hub at all. A moving world text re-uploads only its own part of a batch.
+- **Motions.** `<wave>`, `<wobble>`, `<shake>`, `<bounce>`, `<float>`, `<spin>`, `<pulse>`, `<pendulum>`, `<deform>`, `<glitch>`, `<scramble>`, `<roll>`, by cluster, word, line or range, with scaled, unscaled and manual clocks. Subclass `LetteraMotionEffect` for your own.
+- **Reveal and marquee.** `RevealEffect` with an entrance library, by cluster, word, line or paragraph, keeping space or reflowing. `MarqueeEffect` loops or goes back and forth when a text does not fit.
+- **Sequencer.** `LetteraSequencer` ramps any published parameter over one timeline with no code: staggered members, restart, retrace, return and accumulate, a `Progress` a curve can drive. Its values are holds, so no field is written. Inspector with transport, a strip of cues and edit-mode scrubbing.
+- **Animator and Timeline.** An alpha curve costs an alpha pass. `LetteraParamLink` gives one effect parameter a field curves can bind. An optional assembly adds `LetteraSequenceTrack` and `LetteraParamTrack` when the Timeline package is present; nothing depends on it.
+- **Ranges.** `LetteraRangeEffect`, `ActionEffect`, `LinkEffect`, `SpoilerEffect`. `LetteraRangeRouter` gives one target by priority, then style, then length; capture and bubble along a nest; `Stop` and `PreventDefault`; hover that follows a moving range; touch padding; long press. Ids stay across a parse that left a range alone. `LetteraRoute` says how a text takes a press, and a text without ranges behaves as before.
+- **Keyboard.** Tab and Shift+Tab step through ranges on read-only text, Enter activates, a focus ring shows when focus came from a key. `LetteraRangeNavigator` joins Unity's UI navigation. In a field, Ctrl+Enter or Cmd+Enter follows the link at the caret.
+- **Selection and ranges together.** On read-only text a click activates and a drag selects; in a field a plain press places the caret and the modifier follows the link.
+- **Links.** `LetteraLinks.Open` takes only `http`, `https`, `mailto` and `tel` by default, and refuses the rest with a warning. `www.` gains `https://`. On the web, the page's own release handler opens the address, so a popup blocker lets it through.
+- **Spoilers.** `<spoiler>` draws a cover above glyphs that are not drawn at all. Plain copy masks covered text, and rich formats do not carry it.
+- **State rules.** `LetteraRangeRule` changes parameters by condition, with an envelope, through weighted holds. `RangeTintEffect` is hover feedback that costs only a pose. Holds gained `Weight`.
+- **Inline items.** `<sprite=name>` and `<obj=name>` are one U+FFFC each. A sprite is one quad in the text's mesh, and moves, fades and reveals like a glyph. An object is a pooled prefab or an adopted scene object placed where the character landed.
+- **Semantics.** `SemanticEffect` and `LetteraSemanticTree`: a platform-neutral description of roles, labels, states and actions.
+- **Stage hooks.** `LetteraEffect.Stages` with `OnAnalyzed`, `OnShaped`, `OnLinesBroken`, `OnPlaced`, `OnMesh`, `OnPose`. An effect that asks for none costs nothing.
+- **Reduced motion.** `LetteraAccessibility.ReducedMotion` applies on change. On the web it follows the browser's preference.
+- **Tools.** Picker groups Animation, Interactive, Inline and Semantic, found also by words like "typewriter" and "ticker". Motion preview in edit mode. Project settings for animation and interaction. A Motion sample.
+
+### Changed
+- `<wave>`, `<wobble>`, `<shake>`, `<bounce>`, `<float>`, `<spin>`, `<pulse>`, `<pendulum>`, `<glitch>`, `<scramble>`, `<roll>`, `<deform>`, `<reveal>`, `<spoiler>`, `<sprite>` and `<obj>` are now default tags, so these words in text no longer show literally. A project with its own global preset is not affected.
+- `<a>` and `<link>` now open their URL when clicked. `LinkEffect.OpenOnActivate` turns that off.
+- `LinkEffect` derives from `LetteraRangeEffect`.
+- A typed or pasted U+FFFC is dropped from fields.
+
+### Limits
+- Measured in the editor on the development machine, two budgets are missed: 2000 waving glyphs take 1.12 ms against a target of 0.6 ms, and a hit test across 200 ranges takes 21.8 us against 20 us. A sequencer with 20 cues takes 0.07 ms against 0.2 ms. All three allocate 0 bytes per frame. Figures for players and the other rows of the budget table were not measured.
+- Safari on a real iPhone, a real Android device, a real popup opened by clicking a link in a browser, and frame rates in any player were not tried.
+- A sequencer has its inspector strip but no separate timeline window: cues do not drag, and Split, copy and marquee selection do not exist. The rule editor is plain rows, with no condition builder or target menu. Only the sequencer's inspector has a parameter menu, and the live play-mode card is not implemented.
+- `Auto` route takes the whole rect and forwards what no range took to the parents. Text behind it gets a press only with `Ranges` or `Observe`. `Observe` and the parent `Button` and `ScrollRect` paths were tried by calling handlers, not with a real input module and a real swipe.
+- Hit tests stay at rest positions: a bouncing link's area does not move. A world text whose transform moves still re-merges its whole batch. World marquee is refused.
+- Scramble and roll collapse layers during the effect and replace whole clusters, so cursive letters stand apart until they settle.
+- A rule's target inside a preset does not follow `EnsureOwnCopies`: on a text's own copy of shared styles the rule finds nothing. Link stage: `Selected` and uncovered signals, per-segment rule scope, custom envelopes, gesture recognizers, `RouteAsked`, viewports and topic filters on queries are not implemented.
+- Stage hooks: `OnAnalyzed` runs after shaping, so hiding a cluster does not reshape its neighbours, and it cannot ask for a language or a feature. `OnPlaced` cannot add a virtual glyph. Built-in motions do not run through `OnPose`.
+- Inline: layers such as stroke and shadow skip sprites, and rotated atlas sprites and the `turn` slot on a sprite do not apply. An object spawns only in play mode or during a preview. A selection holding an inline item copies as plain text only, so it does not paste back as the item. A spoiler's underline draws under its cover, not hidden with the glyphs.
+- A managed stripping `High` player was not run with effects reached only through serialized references; those types carry `[Preserve]`. Marquee, spoiler and rule pixels were not compared against a reference.
+
+### Verified
+- EditMode 907 tests (906 pass, 1 is inconclusive, since it needs a font without real small caps), among them 10 000 random edits with animation and ranges: no exception, no reused id, and the hub empties. PlayMode 24, among them budgets at 0 bytes per frame.
+- Builds succeed for Windows, Linux, macOS, iOS, Android and the web, in a clean Built-in project with no Timeline package. The Timeline assembly compiles in a project that has the package; its tracks were never played.
+- A player self-test with a wave, a reveal, a marquee, a link pressed through the text's own handlers with a fake opener, and a sprite passes on Windows (Direct3D 12) and on the web in Chromium, WebKit and WebKit's iPhone emulation. It checks that motion runs with no rebuild and that things exist, and does not compare pixels.
+- The Motion sample compiles; it was not run. The new inspectors are covered by a test that they build with no default Unity look, and were not seen or clicked.
+
 ## [0.3.0] - 2026-10-31
 
 Selection and editing: any text can be selected, and any text can be a field.

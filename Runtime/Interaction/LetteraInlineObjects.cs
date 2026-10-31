@@ -6,7 +6,7 @@ using UnityEngine.UI;
 namespace FirstSymbol.Lettera
 {
     /// <summary>The tag of an inline item: exactly one U+FFFC in the shown text for each occurrence. A closer is stripped, and "/&gt;" is optional.</summary>
-    [Serializable]
+    [Serializable, UnityEngine.Scripting.Preserve]
     public class InlineMediaMatcher : LetteraMatcher
     {
         [SerializeField] string m_Name = "sprite";
@@ -49,7 +49,7 @@ namespace FirstSymbol.Lettera
     /// Places a sprite or an object in the text's flow. Slots: name, size, advance, lift, above, below, pivot, turn, tint, aspect. In em where a length.
     /// What a name means comes from the runtime lookup, this list, then the project's library.
     /// </summary>
-    [Serializable]
+    [Serializable, UnityEngine.Scripting.Preserve]
     public class InlineEffect : LetteraEffect
     {
         [SerializeField] List<LetteraInlineEntry> m_Items = new List<LetteraInlineEntry>();

@@ -153,6 +153,19 @@ field.Submitted += value => Debug.Log(value);
 - Тексту в мире нужен `LetteraWorldRaycaster` на камере, а любому тексту — `EventSystem` с модулем ввода.
 - До ОС всё доходит через `ILetteraInputSource` и `ILetteraClipboardBackend`, которые можно заменить.
 
+## Анимация и интерактив
+
+```
+<wave>движется без перестроения</wave>  <shake>дрожит</shake>  <roll>1234</roll>
+<a=https://unity.com>ссылка</a>  <spoiler>секрет под обложкой</spoiler>  <sprite=star>
+```
+
+- **Анимация** работает через проход поз: без перестроения и без аллокаций за кадр. `RevealEffect` работает как печатная машинка, `MarqueeEffect` как бегущая строка.
+- **`LetteraSequencer`** плавно меняет любой параметр эффекта на таймлайне, а его `Progress` можно вести кривой. `LetteraParamLink` даёт одному параметру поле для анимации. Дорожки Timeline появляются, когда установлен этот пакет.
+- **Диапазоны** реагируют на указатель и клавиатуру: `LetteraRangeRouter.Of(text).All.Activated += e => Debug.Log(e.Primary);`. Ссылки открываются только со схемами из списка `LetteraSettings.Motion.LinkSchemes`.
+- **`LetteraRangeRule`** меняет параметры при наведении, нажатии или фокусе. **Инлайн-элементы** берутся из `InlineEffect` или `LetteraInlineLibrary`. **`LetteraSemanticTree`** описывает диапазоны для моста к экранным дикторам. Эффекты могут участвовать в любой стадии перестроения через `Stages`.
+- `LetteraAccessibility.ReducedMotion` учитывается везде, а в вебе следует настройке браузера.
+
 ## Платформы
 
 | Платформа | Нативный плагин | Системные шрифты и эмодзи |

@@ -153,6 +153,19 @@ field.Submitted += value => Debug.Log(value);
 - World text needs a `LetteraWorldRaycaster` on the camera, and every text an `EventSystem` with an input module.
 - Everything reaches the OS through `ILetteraInputSource` and `ILetteraClipboardBackend`, which you can replace.
 
+## Motion and interaction
+
+```
+<wave>moves with no rebuild</wave>  <shake>shakes</shake>  <roll>1234</roll>
+<a=https://unity.com>a link</a>  <spoiler>a secret under a cover</spoiler>  <sprite=star>
+```
+
+- **Motion** runs on a pose pass: no rebuild and nothing allocated per frame. `RevealEffect` is a typewriter, `MarqueeEffect` a ticker.
+- **`LetteraSequencer`** ramps any effect parameter over a timeline, and a curve can drive its `Progress`. `LetteraParamLink` gives one parameter an animatable field. Timeline tracks appear when that package is installed.
+- **Ranges** answer a pointer and a keyboard: `LetteraRangeRouter.Of(text).All.Activated += e => Debug.Log(e.Primary);`. Links open through an allow-list of schemes, in `LetteraSettings.Motion.LinkSchemes`.
+- **`LetteraRangeRule`** changes parameters on hover, press or focus. **Inline items** come from `InlineEffect` or a `LetteraInlineLibrary`. **`LetteraSemanticTree`** describes ranges for an assistive bridge. Effects can join any stage of a rebuild through `Stages`.
+- `LetteraAccessibility.ReducedMotion` is honored everywhere, and on the web it follows the browser.
+
 ## Platforms
 
 | Platform | Native plugin | System fonts and emoji |

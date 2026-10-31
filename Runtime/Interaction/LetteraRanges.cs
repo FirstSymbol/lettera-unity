@@ -133,7 +133,7 @@ namespace FirstSymbol.Lettera
     }
 
     /// <summary>Raises events and does nothing else: mentions, hashtags and your own actions. The range's first slot is its value.</summary>
-    [Serializable]
+    [Serializable, UnityEngine.Scripting.Preserve]
     public class ActionEffect : LetteraRangeEffect
     {
         public override bool ExtendsOnType => false;
@@ -142,7 +142,7 @@ namespace FirstSymbol.Lettera
     public enum LetteraSpoilerCopy { Mask, Skip, Keep }
 
     /// <summary>Text under a cover until someone taps it. Covered glyphs do not draw, so nothing shows through.</summary>
-    [Serializable]
+    [Serializable, UnityEngine.Scripting.Preserve]
     public class SpoilerEffect : LetteraRangeEffect
     {
         [SerializeField] Color32 m_CoverColor = new Color32(70, 72, 80, 255);
@@ -167,7 +167,7 @@ namespace FirstSymbol.Lettera
     }
 
     /// <summary>A pose-level tint for feedback such as hover, which costs no mesh pass. Slot: weight, 0 none to 1 the full color.</summary>
-    [Serializable]
+    [Serializable, UnityEngine.Scripting.Preserve]
     public class RangeTintEffect : LetteraMotionEffect
     {
         [SerializeField] Color m_Color = new Color(0.8f, 0.9f, 1, 1);
@@ -880,7 +880,7 @@ namespace FirstSymbol.Lettera
         internal virtual float Scalar(LetteraRangeRouter router, int id) => Test(router, id) ? 1 : 0;
     }
 
-    [Serializable]
+    [Serializable, UnityEngine.Scripting.Preserve]
     public class SignalIs : LetteraRangeCondition
     {
         public string Signal = LetteraSignals.Hovered;
@@ -889,7 +889,7 @@ namespace FirstSymbol.Lettera
         internal override bool Test(LetteraRangeRouter router, int id) => router.Signal(id, Signal);
     }
 
-    [Serializable]
+    [Serializable, UnityEngine.Scripting.Preserve]
     public class ScalarAtLeast : LetteraRangeCondition
     {
         public string Signal = "";
@@ -898,7 +898,7 @@ namespace FirstSymbol.Lettera
         internal override float Scalar(LetteraRangeRouter router, int id) => router.Scalar(id, Signal);
     }
 
-    [Serializable]
+    [Serializable, UnityEngine.Scripting.Preserve]
     public class AllOf : LetteraRangeCondition
     {
         [SerializeReference] public List<LetteraRangeCondition> Items = new List<LetteraRangeCondition>();
@@ -911,7 +911,7 @@ namespace FirstSymbol.Lettera
         }
     }
 
-    [Serializable]
+    [Serializable, UnityEngine.Scripting.Preserve]
     public class AnyOf : LetteraRangeCondition
     {
         [SerializeReference] public List<LetteraRangeCondition> Items = new List<LetteraRangeCondition>();
@@ -924,7 +924,7 @@ namespace FirstSymbol.Lettera
         }
     }
 
-    [Serializable]
+    [Serializable, UnityEngine.Scripting.Preserve]
     public class NotOf : LetteraRangeCondition
     {
         [SerializeReference] public LetteraRangeCondition Item;
