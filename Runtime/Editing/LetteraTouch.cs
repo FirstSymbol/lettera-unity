@@ -352,6 +352,8 @@ namespace FirstSymbol.Lettera
                 if (m_Loupe != null) return m_Loupe;
                 m_Loupe = m_LoupeComponent as ILetteraLoupe;
                 if (m_Loupe != null) return m_Loupe;
+                m_Loupe = LetteraSystemUi.Loupe();
+                if (m_Loupe != null) return m_Loupe;
                 if (s_DefaultLoupe == null) s_DefaultLoupe = LetteraMeshLoupe.CreateDefault();
                 return m_Loupe = s_DefaultLoupe;
             }

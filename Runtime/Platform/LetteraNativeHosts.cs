@@ -23,6 +23,10 @@ namespace FirstSymbol.Lettera
         {
 #if UNITY_WEBGL && !UNITY_EDITOR
             return new LetteraWebHost();
+#elif UNITY_ANDROID && !UNITY_EDITOR
+            return new LetteraAndroidHost();
+#elif UNITY_IOS && !UNITY_EDITOR
+            return new LetteraIosHost();
 #else
             return null;
 #endif

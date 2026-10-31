@@ -164,10 +164,12 @@ namespace FirstSymbol.Lettera.Editor.Tests
             AtlasGlyph second = GlyphAtlas.Get(Face.Regular, glyph, 64);
             Assert.AreEqual(AtlasGlyph.Color, first.Kind);
             Assert.AreEqual(first.U0, second.U0);
+            Assert.AreEqual(0, m_Renderer.Rendered.Count, "the rect comes at once, the pixels with the frame");
+            GlyphAtlas.Flush();
+            GlyphAtlas.Flush();
             Assert.AreEqual(1, m_Renderer.Rendered.Count);
             Assert.Greater(first.Top, 0);
             Assert.Less(first.Bottom, 0);
-            GlyphAtlas.Flush();
         }
 
         [Test]

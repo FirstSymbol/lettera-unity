@@ -618,26 +618,45 @@ namespace FirstSymbol.Lettera
 
         static byte[] s_EmojiPixels;
 
+        struct PendingEmoji
+        {
+            public string Cluster;
+            public int Page, X, Y, Width, Height, Baseline;
+        }
+
+        const int EmojiCanvasSide = 2048, EmojiPadding = 2;
+        const double EmojiBatchMaxMs = 2;
+        static readonly List<PendingEmoji> s_EmojiPending = new List<PendingEmoji>();
+        static string[] s_EmojiNames = new string[64];
+        static int[] s_EmojiSpots = new int[128];
+        static byte[] s_EmojiCanvas;
+
+        /// <summary>Canvas reads so far, for a test that many new emoji in a frame cost one.</summary>
+        internal static int EmojiBatches { get; private set; }
+
+        internal static byte[] ColorPixelsForTests(int page)
+        {
+            var copy = new byte[PageSize * PageSize * 4];
+            fixed (byte* target = copy) UnsafeUtility.MemCpy(target, (byte*)s_Color.Pixels[page], copy.Length);
+            return copy;
+        }
+
+        // The room is taken now, so a text's mesh can be built as ever. The pixels come at the frame's flush, all at once.
         static AtlasGlyph CreateBrowserEmoji(uint glyph)
         {
             string cluster = BrowserEmoji.ClusterText(glyph);
             int pixels = BrowserEmoji.TilePixels;
-            int width = Mathf.Clamp(Mathf.CeilToInt(BrowserEmoji.Advance(glyph) * pixels / (float)BrowserEmoji.Upem), 1, PageSize - 2 * Bleed);
+            int width = Mathf.Clamp(Mathf.CeilToInt(BrowserEmoji.Advance(glyph) * pixels / (float)BrowserEmoji.Upem), 1, PageSize / 2);
             int ascent = Mathf.CeilToInt(BrowserEmoji.AscentEm * pixels);
             int height = ascent + Mathf.CeilToInt(BrowserEmoji.DescentEm * pixels);
-            int bytes = width * height * 4;
-            if (s_EmojiPixels == null || s_EmojiPixels.Length < bytes) s_EmojiPixels = new byte[bytes];
-            BrowserEmoji.Renderer.Render(cluster, pixels, width, height, ascent, s_EmojiPixels);
             if (!Allocate(s_Color, width + 2 * Bleed, height + 2 * Bleed, out int page, out int x, out int y)) return default;
             x += Bleed;
             y += Bleed;
 
-            // The canvas fills from the top; the atlas's first row is the bottom.
-            byte* target = (byte*)s_Color.Pixels[page];
-            fixed (byte* source = s_EmojiPixels)
-                for (int row = 0; row < height; row++)
-                    UnsafeUtility.MemCpy(target + ((y + row) * PageSize + x) * 4, source + (height - 1 - row) * width * 4, width * 4);
-            s_Uploads.Add(new PendingUpload { Set = s_Color, Page = page, X = x, Y = y, Width = width, Height = height });
+            // Until its pixels come, a recycled place must not show what stood there before.
+            byte* clear = (byte*)s_Color.Pixels[page];
+            for (int row = 0; row < height; row++) UnsafeUtility.MemClear(clear + ((y + row) * PageSize + x) * 4, width * 4);
+            s_EmojiPending.Add(new PendingEmoji { Cluster = cluster, Page = page, X = x, Y = y, Width = width, Height = height, Baseline = ascent });
 
             float unit = (float)BrowserEmoji.Upem / pixels;
             return new AtlasGlyph
@@ -721,6 +740,8 @@ namespace FirstSymbol.Lettera
                     s_Uploads.RemoveAt(i);
 
             UnsafeUtility.MemClear((void*)set.Pixels[oldest], (long)PageSize * PageSize * set.Bytes);
+            // A page going back to the pool takes what was still to be drawn on it.
+            if (set == s_Color) s_EmojiPending.RemoveAll(e => e.Page == oldest);
             set.Current = oldest;
             set.NeedsFullUpload = true;
             s_ClearPending = true;
@@ -793,6 +814,7 @@ namespace FirstSymbol.Lettera
         {
             s_Tick++;
             EnsureBound();
+            FlushEmoji();
             if (s_Uploads.Count > 0 || s_Tiles.Count > 0 || s_Sdf.NeedsFullUpload || s_Color.NeedsFullUpload || s_Msdf.NeedsFullUpload)
             {
                 CompleteRaster();
@@ -916,11 +938,95 @@ namespace FirstSymbol.Lettera
             }
         }
 
+        static void FlushEmoji()
+        {
+            if (s_EmojiPending.Count == 0) return;
+            IEmojiRenderer renderer = BrowserEmoji.Renderer;
+            if (renderer == null)
+            {
+                s_EmojiPending.Clear();
+                return;
+            }
+            if (renderer is IEmojiBatchRenderer batch) FlushEmojiBatches(batch);
+            else FlushEmojiOneByOne(renderer);
+        }
+
+        static void FlushEmojiOneByOne(IEmojiRenderer renderer)
+        {
+            foreach (PendingEmoji emoji in s_EmojiPending)
+            {
+                int bytes = emoji.Width * emoji.Height * 4;
+                if (s_EmojiPixels == null || s_EmojiPixels.Length < bytes) s_EmojiPixels = new byte[bytes];
+                renderer.Render(emoji.Cluster, BrowserEmoji.TilePixels, emoji.Width, emoji.Height, emoji.Baseline, s_EmojiPixels);
+                PlaceEmoji(emoji, s_EmojiPixels, emoji.Width, 0, 0);
+            }
+            s_EmojiPending.Clear();
+        }
+
+        static void FlushEmojiBatches(IEmojiBatchRenderer batch)
+        {
+            var clock = System.Diagnostics.Stopwatch.StartNew();
+            int done = 0;
+            while (done < s_EmojiPending.Count)
+            {
+                // Rows, left to right, until the canvas is full.
+                int count = 0, x = 0, y = 0, rowHeight = 0, canvasWidth = 1;
+                if (s_EmojiPending.Count - done > s_EmojiNames.Length)
+                {
+                    s_EmojiNames = new string[s_EmojiPending.Count - done];
+                    s_EmojiSpots = new int[s_EmojiNames.Length * 2];
+                }
+                for (int i = done; i < s_EmojiPending.Count; i++)
+                {
+                    PendingEmoji emoji = s_EmojiPending[i];
+                    if (x > 0 && x + emoji.Width > EmojiCanvasSide)
+                    {
+                        x = 0;
+                        y += rowHeight + EmojiPadding;
+                        rowHeight = 0;
+                    }
+                    if (count > 0 && y + emoji.Height > EmojiCanvasSide) break;
+                    s_EmojiNames[count] = emoji.Cluster;
+                    s_EmojiSpots[count * 2] = x;
+                    s_EmojiSpots[count * 2 + 1] = y + emoji.Baseline;
+                    x += emoji.Width + EmojiPadding;
+                    canvasWidth = Mathf.Max(canvasWidth, x);
+                    rowHeight = Mathf.Max(rowHeight, emoji.Height);
+                    count++;
+                }
+                int canvasHeight = y + rowHeight;
+                int bytes = canvasWidth * canvasHeight * 4;
+                if (s_EmojiCanvas == null || s_EmojiCanvas.Length < bytes) s_EmojiCanvas = new byte[bytes];
+                batch.RenderBatch(s_EmojiNames, 0, count, s_EmojiSpots, BrowserEmoji.TilePixels, canvasWidth, canvasHeight, s_EmojiCanvas);
+                EmojiBatches++;
+                for (int i = 0; i < count; i++)
+                {
+                    PendingEmoji emoji = s_EmojiPending[done + i];
+                    PlaceEmoji(emoji, s_EmojiCanvas, canvasWidth, s_EmojiSpots[i * 2], s_EmojiSpots[i * 2 + 1] - emoji.Baseline);
+                }
+                done += count;
+                // What did not fit in this frame's time comes in the next: until then it draws as nothing.
+                if (clock.Elapsed.TotalMilliseconds > EmojiBatchMaxMs) break;
+            }
+            s_EmojiPending.RemoveRange(0, done);
+        }
+
+        // The canvas fills from the top; the atlas's first row is the bottom.
+        static void PlaceEmoji(in PendingEmoji emoji, byte[] canvas, int canvasWidth, int fromX, int fromY)
+        {
+            byte* target = (byte*)s_Color.Pixels[emoji.Page];
+            fixed (byte* source = canvas)
+                for (int row = 0; row < emoji.Height; row++)
+                    UnsafeUtility.MemCpy(target + ((emoji.Y + row) * PageSize + emoji.X) * 4, source + ((fromY + emoji.Height - 1 - row) * canvasWidth + fromX) * 4, emoji.Width * 4);
+            s_Uploads.Add(new PendingUpload { Set = s_Color, Page = emoji.Page, X = emoji.X, Y = emoji.Y, Width = emoji.Width, Height = emoji.Height });
+        }
+
         /// <summary>Forgets every glyph, keeping one empty page per set. Texts rebuild through <see cref="Cleared"/>.</summary>
         public static void Clear()
         {
             CompleteRaster();
             s_Uploads.Clear();
+            s_EmojiPending.Clear();
             s_Glyphs.Clear();
             s_Unions.Clear();
             ResetSet(s_Sdf);

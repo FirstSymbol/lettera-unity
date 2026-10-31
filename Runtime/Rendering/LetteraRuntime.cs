@@ -84,6 +84,7 @@ namespace FirstSymbol.Lettera
             if (version != LetteraNative.CurrentVersion)
                 Debug.LogError($"Lettera: the native plugin is version {version}, the scripts expect {LetteraNative.CurrentVersion}. Reinstall the package.");
             Canvas.willRenderCanvases += GlyphAtlas.Flush;
+            LetteraOsPreferences.Install();
             InstallLoop();
 #if UNITY_EDITOR
             UnityEditor.AssemblyReloadEvents.beforeAssemblyReload += Shutdown;

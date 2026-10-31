@@ -44,6 +44,12 @@ namespace FirstSymbol.Lettera
             return new LetteraWebClipboard();
 #elif UNITY_EDITOR_WIN || UNITY_STANDALONE_WIN
             return new LetteraPlatformClipboard(new LetteraWindowsClipboard());
+#elif UNITY_ANDROID && !UNITY_EDITOR
+            return new LetteraPlatformClipboard(new LetteraAndroidClipboard());
+#elif UNITY_IOS && !UNITY_EDITOR
+            return new LetteraPlatformClipboard(new LetteraIosClipboard());
+#elif UNITY_STANDALONE_OSX && !UNITY_EDITOR
+            return new LetteraPlatformClipboard(new LetteraMacClipboard());
 #else
             return null;
 #endif

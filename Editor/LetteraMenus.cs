@@ -220,7 +220,10 @@ namespace FirstSymbol.Lettera.Editor
                 platformEnter = false;
                 platformRows.Add(LtFrame.Row(platformChild.Copy()));
             }
-            page.Add(LtUI.Card("Platform", platformRows.ToArray()));
+            // What each gate means where this project is built right now. Words like "has not been seen to work" are there on purpose.
+            foreach (LetteraNativeFeature feature in System.Enum.GetValues(typeof(LetteraNativeFeature)))
+                platformRows.Add(LtUI.Row(feature + " Here", LtUI.Text(LetteraPlatform.Why(feature), "lt-row__value")));
+            page.Add(LtUI.Card("Native Platform", platformRows.ToArray()));
             var fontRows = new List<VisualElement>();
             SerializedProperty fontMemory = serialized.FindProperty("m_FontMemory");
             SerializedProperty fontChild = fontMemory.Copy();

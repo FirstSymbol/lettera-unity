@@ -111,7 +111,7 @@ namespace FirstSymbol.Lettera
             if (reduced != s_WebReduced)
             {
                 s_WebReduced = reduced;
-                LetteraAccessibility.ReducedMotion = reduced;
+                LetteraAccessibility.FromSystem(reduced, LetteraAccessibility.SteadyCaret);
             }
 #endif
         }

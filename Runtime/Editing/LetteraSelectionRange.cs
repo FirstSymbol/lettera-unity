@@ -74,7 +74,7 @@ namespace FirstSymbol.Lettera
     /// <summary>For scripts and for what later reads the system's preference.</summary>
     public static class LetteraAccessibility
     {
-        static bool s_ReducedMotion;
+        static bool s_ReducedMotion, s_ScriptSetMotion, s_SteadyCaret, s_ScriptSetCaret;
 
         /// <summary>Animations snap to their end. On the web this follows the browser's preference, until a script sets it.</summary>
         public static bool ReducedMotion
@@ -82,10 +82,47 @@ namespace FirstSymbol.Lettera
             get => s_ReducedMotion;
             set
             {
+                s_ScriptSetMotion = true;
                 if (s_ReducedMotion == value) return;
                 s_ReducedMotion = value;
                 Changed?.Invoke();
             }
+        }
+
+        /// <summary>The caret stays on rather than blinking. Follows the system's preference, until a script sets it.</summary>
+        public static bool SteadyCaret
+        {
+            get => s_SteadyCaret;
+            set
+            {
+                s_ScriptSetCaret = true;
+                if (s_SteadyCaret == value) return;
+                s_SteadyCaret = value;
+                Changed?.Invoke();
+            }
+        }
+
+        /// <summary>What the system prefers. A value a script set wins over this.</summary>
+        internal static void FromSystem(bool reducedMotion, bool steadyCaret)
+        {
+            bool changed = false;
+            if (!s_ScriptSetMotion && s_ReducedMotion != reducedMotion)
+            {
+                s_ReducedMotion = reducedMotion;
+                changed = true;
+            }
+            if (!s_ScriptSetCaret && s_SteadyCaret != steadyCaret)
+            {
+                s_SteadyCaret = steadyCaret;
+                changed = true;
+            }
+            if (changed) Changed?.Invoke();
+        }
+
+        internal static void ResetForTests()
+        {
+            s_ScriptSetMotion = s_ScriptSetCaret = false;
+            s_ReducedMotion = s_SteadyCaret = false;
         }
 
         /// <summary>Raised when ReducedMotion changes.</summary>

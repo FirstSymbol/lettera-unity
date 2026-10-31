@@ -397,6 +397,51 @@ namespace FirstSymbol.Lettera
             return Engine.IsOverLine(local);
         }
 
+        /// <summary>The selection's bounds, in screen pixels from the bottom left. False for a caret, or one scrolled away. For a presenter of one's own.</summary>
+        public bool SelectionOnScreen(out Rect screen) => TrySelectionOnScreen(EventCameraGuess(), out screen);
+
+        /// <summary>The caret's bottom, in screen pixels from the bottom left.</summary>
+        public bool CaretOnScreen(out Vector2 point)
+        {
+            point = default;
+            if (!TryCaretOnScreen(EventCameraGuess(), out Rect caret)) return false;
+            point = new Vector2(caret.center.x, caret.yMin);
+            return true;
+        }
+
+        /// <summary>Where a selection's handles stand, in screen pixels from the bottom left. False for a caret.</summary>
+        public bool HandlesOnScreen(out Vector2 start, out Vector2 end)
+        {
+            start = end = default;
+            if (m_Selection.IsCaret) return false;
+            Engine.EnsurePositioned();
+            Camera camera = EventCameraGuess();
+            if (!Engine.TryGetCaretRect(m_Selection.Start, LetteraCaretBias.Forward, out Rect a) || !Engine.TryGetCaretRect(m_Selection.End, LetteraCaretBias.Backward, out Rect b)) return false;
+            Rect first = ToScreen(a, camera), last = ToScreen(b, camera);
+            start = new Vector2(first.center.x, first.yMin);
+            end = new Vector2(last.center.x, last.yMin);
+            return true;
+        }
+
+        /// <summary>The box of a line, in screen pixels from the bottom left.</summary>
+        public bool LineOnScreen(int line, out Rect screen)
+        {
+            screen = default;
+            Engine.EnsurePositioned();
+            if (line < 0 || line >= Engine.Lines.Count) return false;
+            return TryLineOnScreen(Engine.Lines[line].Start, EventCameraGuess(), out screen);
+        }
+
+        /// <summary>The text's frame, in screen pixels from the bottom left.</summary>
+        public bool ViewportOnScreen(out Rect screen)
+        {
+            screen = ((ILetteraMirrorField)this).FieldScreenRect;
+            return screen.width > 0;
+        }
+
+        /// <summary>Whether this text's menu shows.</summary>
+        public bool IsMenuShown => m_Menu != null && m_Menu.IsVisible;
+
         /// <summary>The caret's box in screen pixels.</summary>
         public bool TryCaretOnScreen(Camera camera, out Rect screen)
         {

@@ -37,6 +37,11 @@
   },
   "samples": [
     {
+      "displayName": "Device Check",
+      "description": "A guided session per device for what only a real phone can answer: one screen a step, Pass, Fail or Skip, and one text block to send back. Lettera > Device Check builds it with every native route on.",
+      "path": "Samples~/DeviceCheck"
+    },
+    {
       "displayName": "Basic",
       "description": "A Canvas built from code: mixed scripts, emoji, tags, wrapping, eliding, auto size and runtime text, with no fonts in the project.",
       "path": "Samples~/Basic"

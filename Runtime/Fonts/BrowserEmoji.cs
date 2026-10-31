@@ -14,6 +14,13 @@ namespace FirstSymbol.Lettera
         void Render(string cluster, int pixels, int width, int height, int baselineY, byte[] output);
     }
 
+    /// <summary>A renderer that draws many clusters onto one surface and reads it back once.</summary>
+    internal interface IEmojiBatchRenderer
+    {
+        /// <summary>Draws clusters[start..start + count] at positions x, baseline y (two ints each), and writes canvasWidth * canvasHeight RGBA pixels, top row first.</summary>
+        void RenderBatch(string[] clusters, int start, int count, int[] positions, int pixels, int canvasWidth, int canvasHeight, byte[] output);
+    }
+
     /// <summary>
     /// Emoji on platforms where no font file can be read. Each distinct cluster becomes one glyph of a
     /// virtual face, so it flows through shaping, layout and the color atlas like any other glyph.
@@ -91,8 +98,13 @@ namespace FirstSymbol.Lettera
         }
 
 #if UNITY_WEBGL && !UNITY_EDITOR
-        sealed class CanvasRenderer : IEmojiRenderer
+        sealed class CanvasRenderer : IEmojiRenderer, IEmojiBatchRenderer
         {
+            [DllImport("__Internal")] static extern void LetteraEmoji_RenderBatch(string text, int count, int[] positions, int pixels, int canvasWidth, int canvasHeight, byte[] output);
+
+            public void RenderBatch(string[] clusters, int start, int count, int[] positions, int pixels, int canvasWidth, int canvasHeight, byte[] output) =>
+                LetteraEmoji_RenderBatch(string.Join("\u0001", clusters, start, count), count, positions, pixels, canvasWidth, canvasHeight, output);
+
             [DllImport("__Internal")] static extern float LetteraEmoji_Measure(string text, int pixels);
             [DllImport("__Internal")] static extern void LetteraEmoji_Render(string text, int pixels, int width, int height, int baselineY, byte[] output);
 

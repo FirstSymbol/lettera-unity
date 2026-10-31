@@ -760,6 +760,38 @@ mergeInto(LibraryManager.library, {
         state.box.style.top = (rect.top + rect.height * (1 - y)) + "px";
     },
 
+    // Many clusters on one canvas, read back once: setting a canvas's size and reading it are what cost here.
+    LetteraEmoji_RenderBatch: function (text, count, positions, pixels, canvasWidth, canvasHeight, output) {
+        var state = Module.letteraEmoji;
+        var canvas = state.canvas;
+        canvas.width = canvasWidth;
+        canvas.height = canvasHeight;
+        var context = state.context;
+        context.font = pixels + 'px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif';
+        context.textBaseline = "alphabetic";
+        context.fillStyle = "#fff";
+        var clusters = UTF8ToString(text).split("\u0001");
+        var at = positions >> 2;
+        for (var i = 0; i < count; i++) context.fillText(clusters[i], HEAP32[at + i * 2], HEAP32[at + i * 2 + 1]);
+        HEAPU8.set(context.getImageData(0, 0, canvasWidth, canvasHeight).data, output);
+        // A browser limits what all canvases may hold together.
+        canvas.width = 1;
+        canvas.height = 1;
+    },
+
+    LetteraPage_Platform: function () {
+        var nav = navigator;
+        var name = (nav.userAgentData && nav.userAgentData.platform) || nav.platform || "";
+        var bytes = lengthBytesUTF8(name) + 1;
+        var buffer = _malloc(bytes);
+        stringToUTF8(name, buffer, bytes);
+        return buffer;
+    },
+
+    LetteraPage_TouchPoints: function () {
+        return navigator.maxTouchPoints | 0;
+    },
+
     LetteraEmoji_Measure: function (text, pixels) {
         var state = Module.letteraEmoji;
         if (!state) {
