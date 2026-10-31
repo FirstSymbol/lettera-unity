@@ -16,6 +16,13 @@ namespace FirstSymbol.Lettera
             return new LetteraMirrorSource(host);
         }
 
-        static ILetteraNativeHost PlatformHost() => null;
+        static ILetteraNativeHost PlatformHost()
+        {
+#if UNITY_WEBGL && !UNITY_EDITOR
+            return new LetteraWebHost();
+#else
+            return null;
+#endif
+        }
     }
 }

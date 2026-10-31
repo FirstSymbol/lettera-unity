@@ -126,6 +126,9 @@ namespace FirstSymbol.Lettera
 
         void OnEnable()
         {
+#if UNITY_WEBGL && !UNITY_EDITOR
+            LetteraWebFields.Add(this);
+#endif
             if (Selectable.Host == null) return;
             Selectable.Editable = this;
             Selectable.MarkVisualsDirty();
@@ -138,6 +141,9 @@ namespace FirstSymbol.Lettera
 
         void OnDisable()
         {
+#if UNITY_WEBGL && !UNITY_EDITOR
+            LetteraWebFields.Remove(this);
+#endif
             if (Selectable == null || Selectable.Host == null) return;
             if (Selectable.HasFocus) Selectable.EndSession(LetteraBlurReason.Disabled);
             CommitComposition();

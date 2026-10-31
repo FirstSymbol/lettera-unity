@@ -6,7 +6,7 @@ namespace FirstSymbol.Lettera
 {
     public enum LetteraHostMode { Mirror, Replica }
 
-    public enum LetteraHostEventKind { Replace, WholeText, Compose, ComposeEnd, Select, Verb, Key, KeyboardFrame, Closed }
+    public enum LetteraHostEventKind { Replace, WholeText, Compose, ComposeEnd, Select, Verb, Key, KeyboardFrame, Closed, TypedAtSelection }
 
     /// <summary>What a platform's control holds, or is told to hold. Positions are UTF-16 units of <see cref="Text"/>, which is a window of the field past a certain length.</summary>
     public struct LetteraMirrorState
@@ -215,6 +215,11 @@ namespace FirstSymbol.Lettera
                         m_Sent.SelectionStart = e.Start;
                         m_Sent.SelectionEnd = e.End;
                     }
+                    break;
+                case LetteraHostEventKind.TypedAtSelection:
+                    // The control's own caret is behind a key still on its way, so the field's place is the one that counts.
+                    m_Sink.Text(e.Text ?? "");
+                    AfterEdit();
                     break;
                 case LetteraHostEventKind.Verb:
                     if (e.Text == "selectAll" && m_Sink is ILetteraMirrorField all) all.SelectAll();

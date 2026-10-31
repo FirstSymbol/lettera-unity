@@ -71,12 +71,13 @@ mergeInto(LibraryManager.library, {
             box.spellcheck = false;
             document.body.appendChild(box);
             state = Module.letteraInput = { box: box, armed: false, flags: 0, composition: "", startX: 0, startY: 0, moved: false, open: false };
-            box.addEventListener("input", function () { state.flags |= 1; });
+            box.addEventListener("input", function () { if (!state.host) state.flags |= 1; });
             box.addEventListener("compositionstart", function () { state.composing = true; state.composition = ""; state.flags |= 2; });
             box.addEventListener("compositionupdate", function (e) { state.composition = e.data || ""; state.flags |= 2; });
             box.addEventListener("compositionend", function () { state.composing = false; state.composition = ""; state.flags |= 3; });
             box.addEventListener("keydown", function (e) {
                 e.stopPropagation();
+                if (state.host) return;
                 if (e.key === "Enter" && !e.isComposing && !state.multiline) {
                     e.preventDefault();
                     state.flags |= 4;
@@ -86,7 +87,7 @@ mergeInto(LibraryManager.library, {
             box.addEventListener("keyup", function (e) { e.stopPropagation(); });
             box.addEventListener("blur", function () {
                 // A press on the page takes the focus for a moment; only staying away counts.
-                setTimeout(function () { if (state.open && document.activeElement !== box) state.flags |= 8; }, 150);
+                setTimeout(function () { if (state.open && !state.host && document.activeElement !== box) state.flags |= 8; }, 150);
             });
             document.addEventListener("touchstart", function (e) {
                 var touch = e.touches[0];
@@ -104,6 +105,224 @@ mergeInto(LibraryManager.library, {
             document.addEventListener("mouseup", lift, true);
         }
         state.armed = true;
+    },
+
+    // The box a field's session runs through, on every web device. What happens in it becomes events; the field decides what they mean.
+    LetteraHost_Ensure__deps: ["LetteraInput_Arm"],
+    LetteraHost_Ensure: function () {
+        _LetteraInput_Arm();
+        var state = Module.letteraInput;
+        state.armed = false;
+        if (state.queue) return;
+        state.queue = [];
+        state.revision = 0;
+        state.silent = 0;
+        state.fields = [];
+        var push = function (event) {
+            event.revision = state.revision;
+            state.queue.push(event);
+        };
+        // The keys that do not type go to the field's own rules, so word and grapheme steps are the same everywhere.
+        var codes = { Backspace: 1, Delete: 2, Enter: 3, NumpadEnter: 4, Tab: 5, Escape: 6, ArrowLeft: 7, ArrowRight: 8, ArrowUp: 9, ArrowDown: 10, Home: 11, End: 12, PageUp: 13, PageDown: 14, Insert: 15, ContextMenu: 16, F10: 17 };
+        var attach = function (box) {
+            box.addEventListener("input", function () {
+                if (!state.host || state.composing) return;
+                push({ kind: 1, text: box.value, caret: box.selectionStart });
+            });
+            box.addEventListener("compositionstart", function () {
+                if (!state.host) return;
+                state.compositionFrom = box.selectionStart;
+            });
+            box.addEventListener("compositionupdate", function (e) {
+                if (!state.host) return;
+                var text = e.data || "";
+                push({ kind: 2, text: text, caret: Math.max(0, box.selectionStart - state.compositionFrom), start: 0, end: 0 });
+            });
+            box.addEventListener("compositionend", function () {
+                if (!state.host) return;
+                // What it became arrives with the box's text, as one edit.
+                push({ kind: 3, commit: 0 });
+                push({ kind: 1, text: box.value, caret: box.selectionStart });
+            });
+            box.addEventListener("keydown", function (e) {
+                if (!state.host) return;
+                e.stopPropagation();
+                if (e.isComposing) return;
+                var chord = e.ctrlKey || e.metaKey;
+                var letter = e.code && e.code.indexOf("Key") === 0 ? e.code.charCodeAt(3) - 65 : -1;
+                // Copy, cut and paste stay with the browser, which only then raises its clipboard events.
+                if (chord && !e.altKey && (e.code === "KeyC" || e.code === "KeyX" || e.code === "KeyV")) return;
+                var modifiers = (e.shiftKey ? 1 : 0) | (e.ctrlKey ? 2 : 0) | (e.altKey ? 4 : 0) | (e.metaKey ? 8 : 0);
+                var code = codes[e.code] || 0;
+                if (!code && chord && letter >= 0) code = 18 + letter;
+                if (!code) return;
+                e.preventDefault();
+                state.keyPending = true;
+                push({ kind: 4, code: code, modifiers: modifiers, repeat: e.repeat ? 1 : 0 });
+            }, true);
+            // A key went to the field and has not come back yet, so the box's caret is behind: what is typed now goes by the field's place.
+            box.addEventListener("beforeinput", function (e) {
+                if (!state.host || !state.keyPending || state.composing || e.isComposing) return;
+                if (e.inputType !== "insertText" || !e.data) return;
+                e.preventDefault();
+                push({ kind: 7, text: e.data });
+            });
+            box.addEventListener("select", function () {
+                if (!state.host || state.composing || state.pushing) return;
+                push({ kind: 5, start: box.selectionStart, end: box.selectionEnd });
+            });
+            box.addEventListener("blur", function () {
+                if (!state.host) return;
+                // The window going away is no reason to end a session: focus comes back with it.
+                setTimeout(function () { if (state.host && document.hasFocus() && document.activeElement !== state.box) push({ kind: 6, text: "done" }); }, 150);
+            });
+        };
+        state.attach = attach;
+        attach(state.box);
+        window.addEventListener("focus", function () { if (state.host) state.box.focus({ preventScroll: true }); });
+        // A touch lands on a published field before Unity has seen it, and only a touch handler may raise a keyboard.
+        var isInField = function (point) {
+            var canvas = Module.canvas || document.querySelector("canvas");
+            if (!canvas) return false;
+            var rect = canvas.getBoundingClientRect();
+            var x = (point.clientX - rect.left) * canvas.width / rect.width, y = canvas.height - (point.clientY - rect.top) * canvas.height / rect.height;
+            for (var i = 0; i + 3 < state.fields.length; i += 4)
+                if (x >= state.fields[i] && y >= state.fields[i + 1] && x <= state.fields[i + 2] && y <= state.fields[i + 3]) return true;
+            return false;
+        };
+        var startHeight = function () { return window.visualViewport ? window.visualViewport.height : window.innerHeight; };
+        document.addEventListener("touchend", function (e) {
+            var touch = e.changedTouches && e.changedTouches[0];
+            if (!touch || state.moved || !isInField(touch)) return;
+            state.box.focus({ preventScroll: true });
+            // Whether a keyboard rose can only be guessed from the page shrinking. Twice with no sign, the next tap lands on a real element instead.
+            var before = startHeight();
+            setTimeout(function () {
+                var shrank = startHeight() < before - 40 && !window.letteraForceNoKeyboardSignal;
+                state.silent = shrank ? 0 : state.silent + 1;
+                if (state.silent >= 2) state.overlay = true;
+            }, 800);
+        }, true);
+    },
+
+    LetteraHost_Open__deps: ["LetteraHost_Ensure"],
+    LetteraHost_Open: function (text, start, end, revision, multiline, secure, kind, returnKey, autocapitalize, autocorrect) {
+        _LetteraHost_Ensure();
+        var state = Module.letteraInput;
+        if (secure) {
+            // Browsers have no secure textarea, so a password takes an element of its own, and the rest stays as it was.
+            if (!state.password) {
+                var input = document.createElement("input");
+                input.type = "password";
+                input.style.cssText = state.box.style.cssText;
+                input.setAttribute("aria-hidden", "true");
+                document.body.appendChild(input);
+                state.password = input;
+                state.textBox = state.box;
+                state.attach(input);
+            }
+            state.box = state.password;
+        } else if (state.textBox) state.box = state.textBox;
+        var box = state.box;
+        state.host = true;
+        state.open = true;
+        state.composing = false;
+        state.multiline = !!multiline;
+        state.revision = revision;
+        state.queue.length = 0;
+        var modes = ["text", "text", "url", "numeric", "decimal", "tel", "text", "email", "search"];
+        var keys = ["", "done", "go", "next", "search", "send"];
+        var caps = ["off", "sentences", "words", "characters"];
+        box.setAttribute("inputmode", modes[kind] || "text");
+        if (keys[returnKey]) box.setAttribute("enterkeyhint", keys[returnKey]);
+        else box.removeAttribute("enterkeyhint");
+        box.setAttribute("autocapitalize", caps[autocapitalize] || "off");
+        box.setAttribute("autocorrect", autocorrect ? "on" : "off");
+        box.setAttribute("autocomplete", secure ? "off" : "on");
+        state.pushing = true;
+        box.value = UTF8ToString(text);
+        box.setSelectionRange(start, end);
+        state.pushing = false;
+        box.focus({ preventScroll: true });
+    },
+
+    LetteraHost_Push: function (text, start, end, revision) {
+        var state = Module.letteraInput;
+        if (!state || !state.host || state.composing) return;
+        var box = state.box;
+        var value = UTF8ToString(text);
+        state.revision = revision;
+        state.keyPending = false;
+        state.pushing = true;
+        if (box.value !== value) box.value = value;
+        if (box.selectionStart !== start || box.selectionEnd !== end) box.setSelectionRange(start, end);
+        setTimeout(function () { state.pushing = false; }, 0);
+    },
+
+    LetteraHost_Close: function () {
+        var state = Module.letteraInput;
+        if (!state) return;
+        state.host = false;
+        state.open = false;
+        state.composing = false;
+        state.queue.length = 0;
+        state.box.style.pointerEvents = "none";
+        state.box.value = "";
+        state.box.blur();
+    },
+
+    // One event at a time, as ints and a string, so nothing but plain values crosses. The kind is returned: 0 for no more.
+    LetteraHost_Next: function (ints, buffer, size) {
+        var state = Module.letteraInput;
+        if (!state || !state.queue || state.queue.length === 0) return 0;
+        var event = state.queue[0];
+        var text = event.text || "";
+        var needed = lengthBytesUTF8(text) + 1;
+        if (needed > size) return -needed;
+        state.queue.shift();
+        var at = ints >> 2;
+        HEAP32[at] = event.revision | 0;
+        HEAP32[at + 1] = (event.start === undefined ? -1 : event.start) | 0;
+        HEAP32[at + 2] = (event.end === undefined ? -1 : event.end) | 0;
+        HEAP32[at + 3] = (event.caret === undefined ? -1 : event.caret) | 0;
+        HEAP32[at + 4] = (event.code | 0);
+        HEAP32[at + 5] = (event.modifiers | 0);
+        HEAP32[at + 6] = (event.repeat | event.commit | 0);
+        stringToUTF8(text, buffer, size);
+        return event.kind;
+    },
+
+    // Where editable fields stand, in canvas pixels from the bottom left, ahead of any touch.
+    LetteraHost_SetFields__deps: ["LetteraHost_Ensure"],
+    LetteraHost_SetFields: function (rects, count) {
+        _LetteraHost_Ensure();
+        var fields = [];
+        for (var i = 0; i < count; i++) fields.push(HEAPF32[(rects >> 2) + i]);
+        Module.letteraInput.fields = fields;
+    },
+
+    // A box a real tap lands on, for when script focus raised no keyboard.
+    LetteraHost_Place: function (x, y, width, height) {
+        var state = Module.letteraInput;
+        if (!state) return;
+        var canvas = Module.canvas || document.querySelector("canvas");
+        var box = state.box;
+        if (!canvas) return;
+        var rect = canvas.getBoundingClientRect();
+        var left = rect.left + x * rect.width / canvas.width, top = rect.top + (canvas.height - y - height) * rect.height / canvas.height;
+        box.style.left = left + "px";
+        box.style.top = top + "px";
+        if (state.overlay && !window.letteraNoOverlay) {
+            box.style.width = Math.max(width * rect.width / canvas.width, 40) + "px";
+            box.style.height = Math.max(height * rect.height / canvas.height, 20) + "px";
+            box.style.pointerEvents = "auto";
+            box.style.zIndex = "1000";
+        }
+    },
+
+    LetteraHost_UsesOverlay: function () {
+        var state = Module.letteraInput;
+        return state && state.overlay ? 1 : 0;
     },
 
     LetteraInput_Open: function (text, start, end, multiline, secure, kind, returnKey) {
