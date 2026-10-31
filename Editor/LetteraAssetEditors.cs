@@ -294,7 +294,7 @@ namespace FirstSymbol.Lettera.Editor
         protected override void Fill(VisualElement root)
         {
             VisualElement card = LtUI.Card("Font");
-            FontFace colorFace = ((LetteraFontAsset)target).LoadFace();
+            FontFace colorFace = target is LetteraFont stored && stored.HasData ? stored.LoadFace() : null;
             if (colorFace != null)
             {
                 int flags = LetteraNative.lt_face_color_flags(colorFace.Face);
