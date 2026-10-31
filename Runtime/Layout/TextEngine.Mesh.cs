@@ -364,7 +364,9 @@ namespace FirstSymbol.Lettera
             {
                 Color32 color = attr.HasColor ? attr.Color : new Color32(baseColor.r, baseColor.g, baseColor.b, 255);
                 color.a = (byte)(color.a * attr.Alpha);
+                m_QuadTakesBase = !attr.HasColor;
                 AddQuad(g, atlas, color, atlas.Pixel ? ModePixel : atlas.Kind == AtlasGlyph.Msdf ? ModeMedian : ModeSdf, 0.5f, 0, 0, s_NoPaint, default, 0, 0, WarpOf(g, atlas));
+                m_QuadTakesBase = false;
             }
         }
 
@@ -826,6 +828,11 @@ namespace FirstSymbol.Lettera
         {
             Colors[v] = Colors[v + 1] = Colors[v + 2] = Colors[v + 3] = color;
             m_OwnAlpha[v] = m_OwnAlpha[v + 1] = m_OwnAlpha[v + 2] = m_OwnAlpha[v + 3] = color.a;
+            if (m_TrackBase)
+            {
+                if (m_TakesBase.Length < Colors.Length) System.Array.Resize(ref m_TakesBase, Colors.Length);
+                m_TakesBase[v] = m_TakesBase[v + 1] = m_TakesBase[v + 2] = m_TakesBase[v + 3] = m_QuadTakesBase;
+            }
         }
 
         int Reserve()
@@ -883,12 +890,48 @@ namespace FirstSymbol.Lettera
         /// <summary>The fade path: rewrites vertex alpha only, without touching geometry.</summary>
         void ApplyBaseColor()
         {
-            int alpha = m_Host.BaseColor.a;
+            Color32 baseColor = m_Host.BaseColor;
+            int alpha = baseColor.a;
             for (int i = 0; i < VertexCount; i++)
                 Colors[i].a = (byte)(m_OwnAlpha[i] * alpha / 255);
+            if (m_TrackBase && m_TakesBase.Length >= VertexCount)
+            {
+                for (int i = 0; i < VertexCount; i++)
+                {
+                    if (!m_TakesBase[i]) continue;
+                    Colors[i].r = baseColor.r;
+                    Colors[i].g = baseColor.g;
+                    Colors[i].b = baseColor.b;
+                }
+            }
             if (!m_WantsPose || m_Dirty >= DirtyLevel.Mesh || m_RestColors.Length < VertexCount) return;
             // The fade goes under whatever a pose does to alpha.
-            for (int i = 0; i < VertexCount; i++) m_RestColors[i].a = Colors[i].a;
+            for (int i = 0; i < VertexCount; i++)
+            {
+                m_RestColors[i].a = Colors[i].a;
+                if (m_TrackBase && m_TakesBase[i])
+                {
+                    m_RestColors[i].r = baseColor.r;
+                    m_RestColors[i].g = baseColor.g;
+                    m_RestColors[i].b = baseColor.b;
+                }
+            }
+        }
+
+        bool[] m_TakesBase = new bool[0];
+        bool m_TrackBase, m_QuadTakesBase;
+
+        /// <summary>
+        /// What a change of the text's color needs. The first change draws again, noting which glyphs take that color, so a text that never changes it pays nothing;
+        /// later ones only rewrite those glyphs. Anything else that draws in the text's color, such as a line, needs the full pass.
+        /// </summary>
+        public DirtyLevel LevelForColorChange()
+        {
+            bool others = m_Attributes.Decorations.Count > 0 || m_Attributes.Layers.Count > 0 || m_Attributes.Highlights.Count > 0 || m_MarqueeCopies > 1 || m_StageHooks.Count > 0;
+            if (others) return DirtyLevel.Mesh;
+            if (m_TrackBase) return DirtyLevel.Tint;
+            m_TrackBase = true;
+            return DirtyLevel.Mesh;
         }
 
         /// <summary>Marks mesh dirty when the atlas lost its glyphs.</summary>

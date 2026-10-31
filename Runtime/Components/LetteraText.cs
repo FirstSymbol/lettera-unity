@@ -52,7 +52,7 @@ namespace FirstSymbol.Lettera
                 if (old == value) return;
                 bool alphaOnly = old.r == value.r && old.g == value.g && old.b == value.b;
                 base.color = value;
-                MarkDirty(alphaOnly ? DirtyLevel.Alpha : DirtyLevel.Mesh);
+                MarkDirty(alphaOnly ? DirtyLevel.Alpha : Engine.LevelForColorChange());
             }
         }
 
@@ -74,7 +74,7 @@ namespace FirstSymbol.Lettera
             {
                 bool alphaOnly = now.r == m_AnimatedColor.r && now.g == m_AnimatedColor.g && now.b == m_AnimatedColor.b;
                 m_AnimatedColor = now;
-                Engine.SetDirty(alphaOnly ? DirtyLevel.Alpha : DirtyLevel.Mesh);
+                Engine.SetDirty(alphaOnly ? DirtyLevel.Alpha : Engine.LevelForColorChange());
             }
             if (Engine.Dirty == DirtyLevel.None || !IsActive()) return;
             if (Engine.Dirty >= DirtyLevel.Layout) SetLayoutDirty();

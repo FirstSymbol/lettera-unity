@@ -59,7 +59,7 @@ namespace FirstSymbol.Lettera
                 if (m_Color == value) return;
                 bool alphaOnly = m_Color.r == value.r && m_Color.g == value.g && m_Color.b == value.b;
                 m_Color = value;
-                MarkDirty(alphaOnly ? DirtyLevel.Alpha : DirtyLevel.Mesh);
+                MarkDirty(alphaOnly ? DirtyLevel.Alpha : Engine.LevelForColorChange());
             }
         }
 
@@ -99,7 +99,7 @@ namespace FirstSymbol.Lettera
             if (m_Color == m_AnimatedColor) return;
             bool alphaOnly = m_Color.r == m_AnimatedColor.r && m_Color.g == m_AnimatedColor.g && m_Color.b == m_AnimatedColor.b;
             m_AnimatedColor = m_Color;
-            Engine.SetDirty(alphaOnly ? DirtyLevel.Alpha : DirtyLevel.Mesh);
+            Engine.SetDirty(alphaOnly ? DirtyLevel.Alpha : Engine.LevelForColorChange());
         }
 
         void OnTransformParentChanged() => m_HasAnimator = GetComponentInParent<Animator>() != null;
