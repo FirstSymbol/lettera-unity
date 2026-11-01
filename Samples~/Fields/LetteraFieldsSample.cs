@@ -6,7 +6,7 @@ namespace FirstSymbol.Lettera.Samples
 {
     /// <summary>
     /// Fields built from code: a chat box, a checked e-mail field, a password, a rich text area with shortcuts and a dropdown.
-    /// Add this to an empty object in an empty scene and press Play. It needs an EventSystem with an input module for your project's input handling.
+    /// Add this to an empty object in an empty scene and press Play.
     /// </summary>
     public class LetteraFieldsSample : MonoBehaviour
     {
@@ -23,7 +23,13 @@ namespace FirstSymbol.Lettera.Samples
             var canvasObject = new GameObject("Canvas", typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster));
             var canvas = canvasObject.GetComponent<Canvas>();
             canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-            if (FindAnyObjectByType<EventSystem>() == null) Debug.LogWarning("Add an EventSystem with an input module to use these fields.");
+            if (FindAnyObjectByType<EventSystem>() == null)
+            {
+                var events = new GameObject("EventSystem", typeof(EventSystem));
+                System.Type module = System.Type.GetType("UnityEngine.InputSystem.UI.InputSystemUIInputModule, Unity.InputSystem");
+                if (module != null) events.AddComponent(module);
+                else events.AddComponent<StandaloneInputModule>();
+            }
 
             RectTransform column = new GameObject("Column", typeof(RectTransform), typeof(VerticalLayoutGroup)).GetComponent<RectTransform>();
             column.SetParent(canvas.transform, false);

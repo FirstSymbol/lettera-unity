@@ -8,7 +8,7 @@ namespace FirstSymbol.Lettera.Samples
 {
     /// <summary>
     /// A very long document in a scrolling view, built from code: only what is near the view is ever laid out, and a scroll inside that is no rebuild.
-    /// It also searches, and jumps to what it found. Add this to an empty object in an empty scene and press Play. It needs an EventSystem with an input module for the wheel and drags.
+    /// It also searches, and jumps to what it found. Add this to an empty object in an empty scene and press Play.
     /// </summary>
     public class LetteraDocumentsSample : MonoBehaviour
     {
@@ -19,7 +19,13 @@ namespace FirstSymbol.Lettera.Samples
         {
             var canvasObject = new GameObject("Canvas", typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster));
             canvasObject.GetComponent<Canvas>().renderMode = RenderMode.ScreenSpaceOverlay;
-            if (FindAnyObjectByType<EventSystem>() == null) Debug.LogWarning("Add an EventSystem with an input module to scroll with the wheel and by dragging.");
+            if (FindAnyObjectByType<EventSystem>() == null)
+            {
+                var events = new GameObject("EventSystem", typeof(EventSystem));
+                System.Type module = System.Type.GetType("UnityEngine.InputSystem.UI.InputSystemUIInputModule, Unity.InputSystem");
+                if (module != null) events.AddComponent(module);
+                else events.AddComponent<StandaloneInputModule>();
+            }
 
             // The scroller is the viewport, and the text fills it. Neither grows to the document's size.
             var view = new GameObject("View", typeof(RectTransform));
