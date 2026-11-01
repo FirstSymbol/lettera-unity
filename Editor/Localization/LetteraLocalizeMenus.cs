@@ -72,7 +72,7 @@ namespace FirstSymbol.Lettera.Localization.Editor
         {
             VisualElement root = LtUI.Root();
             // The table entry is picked in Unity's own control: only it knows the tables.
-            root.Add(LtUI.Card("", LtUI.Text("A font or a font stack per locale, from an asset table. It applies in play mode, and an empty entry goes back to the saved font.", "lt-subtitle"), new UnityEditor.UIElements.PropertyField(serializedObject.FindProperty("m_LocalizedAssetReference"), "Font")));
+            root.Add(LtUI.Card("", LtUI.Text("A font or a font stack per locale, from an asset table. It applies in play mode, and an empty entry goes back to the saved font.", "lt-hint"), new UnityEditor.UIElements.PropertyField(serializedObject.FindProperty("m_LocalizedAssetReference"), "Font")));
             return root;
         }
     }

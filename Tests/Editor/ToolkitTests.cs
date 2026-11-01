@@ -264,7 +264,7 @@ namespace FirstSymbol.Lettera.Editor.Tests
         [Test]
         public void TheWindowsOpenFullAndClose()
         {
-            foreach (System.Type type in new[] { typeof(LetteraGlyphsWindow), typeof(LetteraRangesWindow), typeof(LetteraAtlasesWindow), typeof(LetteraClipboardWindow), typeof(LetteraFontToolsWindow) })
+            foreach (System.Type type in new[] { typeof(LetteraGlyphsWindow), typeof(LetteraRangesWindow), typeof(LetteraAtlasesWindow), typeof(LetteraClipboardWindow), typeof(LetteraFontToolsWindow), typeof(LetteraGettingStarted) })
             {
                 var window = (EditorWindow)ScriptableObject.CreateInstance(type);
                 try
@@ -280,6 +280,40 @@ namespace FirstSymbol.Lettera.Editor.Tests
                 }
             }
         }
+
+        [Test]
+        public void GettingStartedOffersWhatItNames()
+        {
+            string[] menu = Unsupported.GetSubmenus("Tools/Lettera");
+            CollectionAssert.Contains(menu, "Tools/Lettera/Getting Started");
+            foreach ((string title, string path, string what) in LetteraGettingStarted.Windows) CollectionAssert.Contains(menu, path, title);
+            // Every window of the Tools menu is listed, but for itself and what is on another of its cards.
+            foreach (string path in menu)
+            {
+                if (path.EndsWith("/Getting Started") || path.EndsWith("/Migrate From TextMesh Pro") || !LooksLikeAWindow(path)) continue;
+                Assert.IsTrue(System.Array.Exists(LetteraGettingStarted.Windows, w => w.menu == path), path);
+            }
+            Assert.AreEqual(14, LetteraGettingStarted.Guides.Length, "The list of guides in the spec's documentation section.");
+            StringAssert.StartsWith("https://", LetteraGettingStarted.GuideAddress("No Such Guide.md"));
+            var samples = new System.Collections.Generic.List<UnityEditor.PackageManager.UI.Sample>(UnityEditor.PackageManager.UI.Sample.FindByPackage(LetteraGettingStarted.PackageName, null));
+            Assert.Greater(samples.Count, 7);
+            var window = ScriptableObject.CreateInstance<LetteraGettingStarted>();
+            try
+            {
+                typeof(LetteraGettingStarted).GetMethod("CreateGUI", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic).Invoke(window, null);
+                var names = window.rootVisualElement.Query<UnityEngine.UIElements.Label>().ToList().ConvertAll(l => l.text);
+                foreach (var sample in samples) CollectionAssert.Contains(names, sample.displayName);
+                CollectionAssert.Contains(names, "Open The Migration Tool");
+            }
+            finally
+            {
+                Object.DestroyImmediate(window);
+            }
+            CollectionAssert.Contains(new System.Collections.Generic.List<LetteraCommand>(LetteraPalette.Commands()).ConvertAll(c => c.Name), "Getting Started");
+        }
+
+        // The options under Scene are switches, not places to go.
+        static bool LooksLikeAWindow(string path) => !path.Contains("/Scene/");
 
         sealed class Holder : ScriptableObject
         {
