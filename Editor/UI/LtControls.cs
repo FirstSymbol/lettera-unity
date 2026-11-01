@@ -372,7 +372,7 @@ namespace FirstSymbol.Lettera.Editor
             m_Field.RegisterCallback<WheelEvent>(e =>
             {
                 if (!e.ctrlKey) return;
-                Write(Read() - Mathf.Sign(e.delta.y) * StepFor(e));
+                Write(Read() - Mathf.Sign(e.delta.y) * (e.shiftKey ? 10 : e.altKey ? 0.1f : 1) * m_Step);
                 e.StopPropagation();
             });
 
@@ -401,8 +401,6 @@ namespace FirstSymbol.Lettera.Editor
                 m_Label.ReleasePointer(e.pointerId);
             });
         }
-
-        float StepFor(IKeyboardEvent e) => (e.shiftModifier() ? 10 : e.altKey ? 0.1f : 1) * m_Step;
 
         double Read()
         {
@@ -445,11 +443,6 @@ namespace FirstSymbol.Lettera.Editor
             Writes++;
             Refresh(m_Property);
         }
-    }
-
-    internal static class LtEventExtensions
-    {
-        internal static bool shiftModifier(this IKeyboardEvent e) => e.shiftKey;
     }
 
     /// <summary>Shows what is wrong, and mends it with a click where a click can. It goes when it is mended.</summary>
@@ -916,7 +909,7 @@ namespace FirstSymbol.Lettera.Editor
             var rows = new List<int>(Selection.Selected);
             rows.Sort();
             m_Array.serializedObject.Update();
-            for (int i = rows.Count - 1; i >= 0; i--) m_Array.DuplicateCommand(rows[i]);
+            for (int i = rows.Count - 1; i >= 0; i--) m_Array.GetArrayElementAtIndex(rows[i]).DuplicateCommand();
             m_Array.serializedObject.ApplyModifiedProperties();
             AfterChange();
         }
