@@ -162,7 +162,7 @@ namespace FirstSymbol.Lettera.Editor
             if (glyphs.Length == 0) m_Table.Add(LtUI.Text("No glyphs.", "lt-hint"));
         }
 
-        static string FaceName(FontFace face) => face.IsVirtual ? "browser" : face.FamilyName;
+        static string FaceName(FontFace face) => face.IsVirtual ? "browser" : face.Family;
 
         static VisualElement Line(string a, string b, string c, string d, bool head)
         {
@@ -309,7 +309,7 @@ namespace FirstSymbol.Lettera.Editor
         internal static IEnumerable<string> Of(TextEngine engine)
         {
             var tags = new HashSet<string>();
-            foreach (LetteraStyle style in engine.Host.Data.Styles)
+            foreach (LetteraStyle style in engine.HostForTools.Data.Styles)
             {
                 if (style?.Matcher is TagMatcher tag && !string.IsNullOrEmpty(tag.Name) && !tags.Add(tag.Name))
                     yield return $"<{tag.Name}> is bound twice in this text's own styles: the later one wins.";
@@ -628,7 +628,7 @@ namespace FirstSymbol.Lettera.Editor
             }
             Handles.color = baseline;
             foreach (LetteraLine line in engine.Lines)
-                Handles.DrawLine(new Vector3(line.Left, line.Baseline), new Vector3(line.Left + line.Width, line.Baseline));
+                Handles.DrawLine(new Vector3(line.X, line.Baseline), new Vector3(line.X + line.Width, line.Baseline));
             Handles.matrix = before;
         }
     }
