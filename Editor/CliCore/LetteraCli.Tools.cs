@@ -170,12 +170,16 @@ namespace FirstSymbol.Lettera.Editor.Cli
             bool ownFont = data.Font != null || data.FontStack != null || settings.DefaultFont != null;
             var formulas = new List<LetteraFormulaInfo>();
             engine.CollectFormulas(formulas);
+            // With no platform named these are worth knowing, and no fault of the text: ok answers for what is wrong anywhere.
+            List<object> onPlatform = where != null ? problems : new List<object>();
             foreach (string place in where != null ? new[] { where } : new[] { "web", "android", "ios" })
             {
-                if (place == "web" && !ownFont && settings.WebGLFallbackFont == null) problems.Add("On the web a browser exposes no OS fonts, and this text has no font, and the project no WebGL fallback font.");
-                if ((place == "web" || place == "android" || place == "ios") && formulas.Count > 0 && settings.Math.Font == null) problems.Add($"On {place} there is no system math font, and the project sets none: its formulas use fallback layout.");
+                if (place == "web" && !ownFont && settings.WebGLFallbackFont == null) onPlatform.Add("On the web a browser exposes no OS fonts, and this text has no font, and the project no WebGL fallback font.");
+                if ((place == "web" || place == "android" || place == "ios") && formulas.Count > 0 && settings.Math.Font == null) onPlatform.Add($"On {place} there is no system math font, and the project sets none: its formulas use fallback layout.");
             }
-            return new Dictionary<string, object> { ["path"] = LetteraCliScene.Path(text.gameObject), ["ok"] = problems.Count == 0, ["problems"] = problems };
+            var answer = new Dictionary<string, object> { ["path"] = LetteraCliScene.Path(text.gameObject), ["ok"] = problems.Count == 0, ["problems"] = problems };
+            if (where == null) answer["otherPlatforms"] = onPlatform;
+            return answer;
         });
 
         static List<TextEngine.PlacedGlyph> Placed(TextEngine engine)
@@ -454,7 +458,7 @@ namespace FirstSymbol.Lettera.Editor.Cli
             for (int i = 0; i < SceneManager.sceneCount; i++)
             {
                 Scene scene = SceneManager.GetSceneAt(i);
-                if (scene.isDirty) throw new InvalidOperationException($"The open scene '{(string.IsNullOrEmpty(scene.path) ? scene.name : scene.path)}' has unsaved changes. Save or discard them first. Nothing was changed.");
+                if (scene.isDirty) throw new InvalidOperationException($"The open scene '{(string.IsNullOrEmpty(scene.path) ? "Untitled" : scene.path)}' has unsaved changes. Save or discard them first. Nothing was changed.");
             }
         }
 

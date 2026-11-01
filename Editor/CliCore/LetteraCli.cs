@@ -39,7 +39,7 @@ namespace FirstSymbol.Lettera.Editor.Cli
             ("font_stack", "--fonts a.asset,b.asset [--path Assets/...asset] [--target <t>]", "A font stack from font assets"),
             ("font_info", "--path <font asset or file>", "Family, style, metrics, glyph count, color, axes"),
             ("font_subset", "--path <font asset> --keep <text or U+0020-007E> [--output Assets/...asset]", "A smaller copy of a font, as a new asset"),
-            ("validate", "--target <t> [--platform web|android|ios]", "Problems: unbound tags, broken formulas, missing fonts, bound twice"),
+            ("validate", "--target <t> [--platform web|android|ios|windows|mac|linux]", "Problems: unbound tags, broken formulas, missing glyphs, bound twice; with a platform, fonts missing there"),
             ("measure", "--target <t> [--width <w>]", "Size, bounds, lines"),
             ("glyphs", "--target <t> | --text <text> [--font <asset>]", "The shaping result, glyph by glyph"),
             ("atlas", "", "The shared atlases: pages, glyphs, limits, bytes"),
@@ -558,12 +558,24 @@ namespace FirstSymbol.Lettera.Editor.Cli
             return i;
         }
 
-        static List<object> StyleRows(LetteraTextData data) => data.Styles.Select((s, i) =>
+        // Only what differs from a fresh style: a paint at full length runs to a page.
+        static List<object> StyleRows(LetteraTextData data)
         {
-            var row = (Dictionary<string, object>)LetteraCliData.ToData(s);
-            row["index"] = i;
-            return (object)row;
-        }).ToList();
+            LetteraCliData.Compact = true;
+            try
+            {
+                return data.Styles.Select((s, i) =>
+                {
+                    var row = (Dictionary<string, object>)LetteraCliData.ToData(s);
+                    row["index"] = i;
+                    return (object)row;
+                }).ToList();
+            }
+            finally
+            {
+                LetteraCliData.Compact = false;
+            }
+        }
 
         internal static object StyleList(string target) => Run(() => new Dictionary<string, object>
         {
