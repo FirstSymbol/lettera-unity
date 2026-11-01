@@ -692,21 +692,18 @@ namespace FirstSymbol.Lettera.Editor.Tests
         {
             LetteraWorldText text = Make("A <a=https://x>link</a> here");
             LetteraSceneEdit session = Begin(text);
-            int fired = 0;
             LetteraSelectable.s_LinkModifierOverride = true;
             try
             {
-                LetteraRangeRouter router = LetteraRangeRouter.Of(text);
-                router.Activated += _ => fired++;
                 Vector2 at = ScreenOf(text, 3);
                 session.PointerDown(at, SceneCamera());
+                Assert.IsFalse(session.Selectable.Claimed, "the press is the caret's, even with what makes a link answer in a field");
                 session.PointerUp(at);
             }
             finally
             {
                 LetteraSelectable.s_LinkModifierOverride = null;
             }
-            Assert.AreEqual(0, fired);
             Assert.AreEqual(3, session.Selectable.Selection.Head);
         }
 
@@ -763,8 +760,9 @@ namespace FirstSymbol.Lettera.Editor.Tests
             LetteraSceneEdit session = Begin(text);
             Keys(session, " typed");
             Assert.AreEqual("Canvas words typed", text.Text);
-            text.Engine.EnsurePositioned();
-            text.Engine.TryGetCaretRect(7, LetteraCaretBias.Forward, out Rect caret);
+            TextEngine engine = ((ITextComponent)text).SharedEngine;
+            engine.EnsurePositioned();
+            engine.TryGetCaretRect(7, LetteraCaretBias.Forward, out Rect caret);
             Vector2 at = RectTransformUtility.WorldToScreenPoint(SceneCamera(), go.transform.TransformPoint(caret.center));
             session.PointerDown(at, SceneCamera());
             session.PointerUp(at);
