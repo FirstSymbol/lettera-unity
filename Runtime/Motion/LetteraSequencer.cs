@@ -137,7 +137,11 @@ namespace FirstSymbol.Lettera
         float m_Time;
         int m_Pass;
         float m_AppliedProgress = -1;
-        bool m_Playing, m_InHub, m_Laid;
+        // Where it stands. In edit mode only this moves, so that a preview leaves the serialized field alone.
+        float m_Shown;
+        bool m_Playing, m_InHub, m_Laid, m_Stale;
+        // Who holds what, apart from the list itself: an undo or an edit can replace the list's cues under a live hold.
+        readonly List<LetteraCue> m_Holding = new List<LetteraCue>();
 
         public List<LetteraCue> Cues => m_Cues;
         public LetteraClock Clock { get => m_Clock; set => m_Clock = value; }
@@ -179,14 +183,13 @@ namespace FirstSymbol.Lettera
         /// <summary>Normalized position. Setting it shows exactly that moment of the first pass.</summary>
         public float Progress
         {
-            get => m_Progress;
+            get => m_Progress != m_AppliedProgress ? m_Progress : m_Shown;
             set
             {
                 float length = ResolvedLength;
-                m_Progress = Mathf.Clamp01(value);
-                m_AppliedProgress = m_Progress;
+                Show(Mathf.Clamp01(value));
                 m_Pass = 0;
-                m_Time = m_Progress * length;
+                m_Time = m_Shown * length;
                 Evaluate();
             }
         }
@@ -194,11 +197,26 @@ namespace FirstSymbol.Lettera
         /// <summary>The position in seconds. A pass that runs back reads as its mirrored position, never past the end.</summary>
         public float Playhead => Mirrored(m_Pass) ? ResolvedLength - m_Time : m_Time;
 
+        /// <summary>A track or a tool has the clock: no tick moves it, and nothing is written to say so.</summary>
+        internal bool Driven { get; set; }
+
+        /// <summary>Where this cue ends now, with its staggered members.</summary>
+        internal float EndOfCue(LetteraCue cue) => EndOf(cue);
+
+        void Show(float progress)
+        {
+            m_Shown = progress;
+            if (!Application.isPlaying) return;
+            m_Progress = progress;
+            m_AppliedProgress = progress;
+        }
+
         bool Mirrored(int pass) => (m_Repeat == LetteraRepeat.Retrace || m_Repeat == LetteraRepeat.Return) && (pass & 1) == 1;
 
         void OnEnable()
         {
             m_AppliedProgress = m_Progress;
+            m_Shown = m_Progress;
             if (m_PlayOnEnable && Application.isPlaying) Play();
         }
 
@@ -258,8 +276,7 @@ namespace FirstSymbol.Lettera
             LeaveHub();
             m_Time = 0;
             m_Pass = 0;
-            m_Progress = 0;
-            m_AppliedProgress = 0;
+            Show(0);
             Evaluate();
             Stopped?.Invoke();
         }
@@ -292,7 +309,7 @@ namespace FirstSymbol.Lettera
                 JumpToEnd();
                 return (m_InHub = false);
             }
-            if (m_Clock != LetteraClock.Manual) Step((m_Clock == LetteraClock.Scaled ? scaled : unscaled) * m_Speed);
+            if (m_Clock != LetteraClock.Manual && !Driven) Step((m_Clock == LetteraClock.Scaled ? scaled : unscaled) * m_Speed);
             if (!m_Playing) return (m_InHub = false);
             return true;
         }
@@ -359,8 +376,7 @@ namespace FirstSymbol.Lettera
         void SyncProgress()
         {
             float length = ResolvedLength;
-            m_Progress = length > 0 ? Mathf.Clamp01(Playhead / length) : 0;
-            m_AppliedProgress = m_Progress;
+            Show(length > 0 ? Mathf.Clamp01(Playhead / length) : 0);
         }
 
         // A curve wrote the field: this is how it gets here.
@@ -369,30 +385,22 @@ namespace FirstSymbol.Lettera
         void LateUpdate()
         {
             // The message does not reach every path that writes the field. A compare costs nothing when it has.
-            if (!m_Playing) ApplyProgressIfMoved();
+            if (m_Playing) return;
+            ApplyProgressIfMoved();
+            if (m_Stale && m_Holding.Count > 0) Rebind();
         }
 
         void OnValidate()
         {
-            if (isActiveAndEnabled) m_AppliedProgress = -1;
+            // An edit or an undo: it may have replaced the cues. What moved the field is seen by the compare.
+            if (m_Holding.Count > 0) m_Stale = true;
         }
 
         void ApplyProgressIfMoved()
         {
             if (m_Progress == m_AppliedProgress) return;
-            if (m_AppliedProgress < 0 && m_Progress == 0 && !HasHolds) return;
+            m_AppliedProgress = m_Progress;
             Progress = m_Progress;
-        }
-
-        bool HasHolds
-        {
-            get
-            {
-                foreach (LetteraCue cue in m_Cues)
-                    if (cue.Hold != null)
-                        return true;
-                return false;
-            }
         }
 
         static float EndOf(LetteraCue cue)
@@ -415,6 +423,7 @@ namespace FirstSymbol.Lettera
         void Release(LetteraCue cue)
         {
             cue.HoldHandle?.Dispose();
+            m_Holding.Remove(cue);
             cue.Hold = null;
             cue.BoundEffect = null;
             cue.BoundInfo = null;
@@ -422,13 +431,29 @@ namespace FirstSymbol.Lettera
 
         void ReleaseAll()
         {
-            foreach (LetteraCue cue in m_Cues) Release(cue);
+            for (int i = m_Holding.Count - 1; i >= 0; i--) Release(m_Holding[i]);
+            m_Stale = false;
+        }
+
+        // A cue that left the list, by an edit or an undo, must not keep its hold.
+        void ReleaseOrphans()
+        {
+            int live = 0;
+            foreach (LetteraCue cue in m_Cues)
+                if (cue.Hold != null)
+                    live++;
+            if (live == m_Holding.Count) return;
+            for (int i = m_Holding.Count - 1; i >= 0; i--)
+                if (!m_Cues.Contains(m_Holding[i]))
+                    Release(m_Holding[i]);
         }
 
         // Runs every tick, so a style that came back or went away is noticed with no message; the walk allocates nothing.
         void BindAll()
         {
             if (Engine == null) return;
+            if (m_Stale) ReleaseAll();
+            ReleaseOrphans();
             foreach (LetteraCue cue in m_Cues) Bind(cue);
             if (m_Laid && m_Cues.Count == m_LaidCount) return;
             m_Laid = true;
@@ -478,6 +503,7 @@ namespace FirstSymbol.Lettera
                     cue.Hold = query.Hold<string>(info.Slot, LetteraHoldComposition.Replace, info.Level, cue.Priority);
                     break;
             }
+            m_Holding.Add(cue);
             m_Laid = false;
         }
 
@@ -607,11 +633,12 @@ namespace FirstSymbol.Lettera
         {
             m_Playing = false;
             LeaveHub();
+            float length = ResolvedLength;
             ReleaseAll();
-            m_Time = 0;
             m_Pass = 0;
-            m_Progress = 0;
-            m_AppliedProgress = 0;
+            m_AppliedProgress = m_Progress;
+            m_Shown = m_Progress;
+            m_Time = m_Shown * length;
         }
     }
 

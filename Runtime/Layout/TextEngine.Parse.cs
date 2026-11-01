@@ -37,7 +37,11 @@ namespace FirstSymbol.Lettera
                 m_EffectiveStyles.AddRange(global != null ? global.Styles : LetteraDefaultStyles.Styles);
             }
             if (m_OwnCopies) ReplaceSharedStylesWithCopies(hostStyles + data.Styles.Count);
+            if (ClipStyle != null) m_EffectiveStyles.Add(ClipStyle);
         }
+
+        /// <summary>A style that a clip lends while it plays. It comes last, so no index of a saved style moves, and it is in no serialized list.</summary>
+        internal LetteraStyle ClipStyle { get; set; }
 
         // Shared styles are used directly until someone asks for this text's effects to change them.
         bool m_OwnCopies;
