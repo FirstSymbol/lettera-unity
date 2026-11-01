@@ -283,7 +283,6 @@ namespace FirstSymbol.Lettera.Editor
         {
             string words = WordOf(t.Name) ?? "Your own effect.";
             if (applied) return words + " On now: a click takes it away.";
-            if (t.Driven == WholeText) return words + " For all of this text.";
             return words;
         }
 
