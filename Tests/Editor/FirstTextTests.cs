@@ -36,15 +36,11 @@ namespace FirstSymbol.Lettera.Editor.Tests
             try
             {
                 // With the search allowed, a line feed still goes to the primary face and leaves the lines as they were.
-                LetteraWorldText off = Make("one
-two
-three");
+                LetteraWorldText off = Make("one\ntwo\r\nthree");
                 float heightOff = off.Lines[0].Height, secondOff = off.Lines[1].Baseline;
                 int linesOff = off.Lines.Count;
                 LetteraSettings.Instance.DisableSystemFontFallback = false;
-                LetteraWorldText on = Make("one
-two
-three");
+                LetteraWorldText on = Make("one\ntwo\r\nthree");
                 Assert.AreEqual(linesOff, on.Lines.Count);
                 Assert.AreEqual(heightOff, on.Lines[0].Height);
                 Assert.AreEqual(secondOff, on.Lines[1].Baseline);
@@ -108,8 +104,8 @@ three");
         [Test]
         public void ABackslashStillEscapes()
         {
-            Assert.AreEqual("<b>", Make("\<b>").CleanText);
-            Assert.AreEqual("a*b", Make("a\*b").CleanText);
+            Assert.AreEqual("<b>", Make("\\<b>").CleanText);
+            Assert.AreEqual("a*b", Make("a\\*b").CleanText);
         }
     }
 }
