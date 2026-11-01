@@ -852,6 +852,9 @@ namespace FirstSymbol.Lettera
             NativeArray<float> front = InsetsFor(points, miters, loops, ref frontWidth, ref frontHeight);
             NativeArray<float> back = InsetsFor(points, miters, loops, ref backWidth, ref backHeight);
             bool hasFront = frontWidth > 0 || frontHeight != 0, hasBack = backWidth > 0 || backHeight != 0;
+            // What this used, which a build that gave a bevel up differs from what it was asked for.
+            Report[5] = (int)math.round(frontHeight * 1000000f);
+            Report[6] = (int)math.round(backHeight * 1000000f);
 
             // From the middle of the face, over the rim and down the side, to the middle of the back.
             var path = new NativeList<PathPoint>(32, Allocator.Temp);
