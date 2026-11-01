@@ -358,7 +358,8 @@ namespace FirstSymbol.Lettera
                 if (range.Effect is LinkEffect || range.Effect is ActionEffect) node.Actions |= LetteraSemanticActions.Activate | LetteraSemanticActions.Context;
                 if (range.Effect is SpoilerEffect) node.Actions |= LetteraSemanticActions.Activate;
             }
-            if (node.Role == LetteraSemanticRole.Text && request.End - request.Start == 1 && m_Engine.ShownCodepoints[request.Start] == 0xFFFC) node.Role = LetteraSemanticRole.Image;
+            if (node.Role == LetteraSemanticRole.Text && request.End - request.Start == 1 && m_Engine.ShownCodepoints[request.Start] == 0xFFFC)
+                node.Role = m_Engine.IsFormulaAt(request.Start) ? LetteraSemanticRole.Math : LetteraSemanticRole.Image;
         }
 
         string DerivedLabel(ReadOnlySpan<int> text, int start, int end, LetteraSemanticNode node)
@@ -371,7 +372,7 @@ namespace FirstSymbol.Lettera
             {
                 if (text[c] == 0xFFFC)
                 {
-                    string alt = m_Engine.InlineAltAt(c);
+                    string alt = m_Engine.IsFormulaAt(c) ? m_Engine.FormulaLabelAt(c) : m_Engine.InlineAltAt(c);
                     if (!string.IsNullOrEmpty(alt)) builder.Append(alt);
                     continue;
                 }

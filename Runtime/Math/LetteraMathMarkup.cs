@@ -9,6 +9,23 @@ namespace FirstSymbol.Lettera
         /// <summary>The source as MathML Core. Null when it cannot be read.</summary>
         public static string ToMathML(string source, bool display) => ToMathML(source, display, null);
 
+        /// <summary>For the clipboard: an application reads the MathML, and the source goes along.</summary>
+        internal static string ToClipboardMathML(string source, bool display)
+        {
+            string mathml = ToMathML(source, display);
+            if (mathml == null) return null;
+            var escaped = new StringBuilder(source.Length + 16);
+            foreach (char c in source)
+            {
+                if (c == '&') escaped.Append("&amp;");
+                else if (c == '<') escaped.Append("&lt;");
+                else if (c == '>') escaped.Append("&gt;");
+                else escaped.Append(c);
+            }
+            int open = mathml.IndexOf('>') + 1, close = mathml.LastIndexOf("</math>", System.StringComparison.Ordinal);
+            return mathml.Substring(0, open) + "<semantics>" + mathml.Substring(open, close - open) + "<annotation encoding=\"application/x-tex\">" + escaped + "</annotation></semantics></math>";
+        }
+
         /// <summary>With a font, the spaces its italic corrections make are written too, so that a browser's boxes can be held against ours.</summary>
         internal static string ToMathML(string source, bool display, LetteraMathFont font)
         {
@@ -232,6 +249,13 @@ namespace FirstSymbol.Lettera
                         Out.Append("</mo>");
                         break;
                     case MathNodeKind.Table:
+                    {
+                        (int left, int right) = FencesOf(n.Text);
+                        if (left != 0)
+                        {
+                            Out.Append("<mrow>");
+                            Fence(left);
+                        }
                         Out.Append("<mtable>");
                         for (int r = n.A; r >= 0; r = m_Tree.Nodes[r].Next)
                         {
@@ -246,7 +270,13 @@ namespace FirstSymbol.Lettera
                             Out.Append("</mtr>");
                         }
                         Out.Append("</mtable>");
+                        if (left != 0)
+                        {
+                            if (right != 0) Fence(right);
+                            Out.Append("</mrow>");
+                        }
                         break;
+                    }
                     case MathNodeKind.Accent:
                         Out.Append("<mover accent=\"true\">");
                         Group(n.A, style);
@@ -302,6 +332,20 @@ namespace FirstSymbol.Lettera
                         Group(n.A, style);
                         Out.Append("</mphantom>");
                         break;
+                }
+            }
+
+            (int, int) FencesOf(int name)
+            {
+                switch (name >= 0 && name < m_Tree.Strings.Count ? m_Tree.Strings[name] : "")
+                {
+                    case "pmatrix": return ('(', ')');
+                    case "bmatrix": return ('[', ']');
+                    case "Bmatrix": return ('{', '}');
+                    case "vmatrix": return ('|', '|');
+                    case "Vmatrix": return (0x2016, 0x2016);
+                    case "cases": return ('{', 0);
+                    default: return (0, 0);
                 }
             }
 

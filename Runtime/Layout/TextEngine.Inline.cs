@@ -54,6 +54,15 @@ namespace FirstSymbol.Lettera
                     bool colored = part.Color > 0 && part.Color <= item.Math.Colors.Length;
                     if (part.Kind == MathItemKind.Rule)
                     {
+                        // Thin rules read as missing, so one under a pixel draws at a pixel, around the same middle. Nothing moves in the layout.
+                        float least = LetteraSettings.Instance.Math.MinRulePixels / (Mathf.Max(m_Host.RasterScale, 0.01f) * Mathf.Max(em, 0.01f));
+                        if (part.Thickness < least)
+                        {
+                            float grow = (least - part.Thickness) / 2 * em;
+                            if (part.Vertical) placed.X -= grow * cos;
+                            else placed.Y -= grow * cos;
+                            part.Thickness = least;
+                        }
                         placed.Special = SpecialRule;
                         placed.Size = em;
                         placed.Unit = em / 1000;
@@ -314,6 +323,54 @@ namespace FirstSymbol.Lettera
                 if (m_InlineItems[i].Cp >= start && m_InlineItems[i].Cp < end)
                     return true;
             return false;
+        }
+
+        internal bool SpanHasSprite(int start, int end)
+        {
+            for (int i = 0; i < m_InlineItems.Count; i++)
+                if (m_InlineItems[i].Cp >= start && m_InlineItems[i].Cp < end && m_InlineItems[i].Math == null)
+                    return true;
+            return false;
+        }
+
+        internal bool SpanHasFormula(int start, int end)
+        {
+            if (m_FormulaCount == 0) return false;
+            for (int i = 0; i < m_InlineItems.Count; i++)
+                if (m_InlineItems[i].Cp >= start && m_InlineItems[i].Cp < end && m_InlineItems[i].Math != null)
+                    return true;
+            return false;
+        }
+
+        internal bool IsFormulaAt(int cp) => m_FormulaCount > 0 && m_InlineByCp.TryGetValue(cp, out int item) && m_InlineItems[item].Math != null;
+
+        internal string FormulaSourceAt(int cp) => m_InlineByCp.TryGetValue(cp, out int item) ? m_InlineItems[item].MathSource : null;
+
+        internal bool FormulaIsDisplay(int cp) => m_InlineByCp.TryGetValue(cp, out int item) && m_InlineItems[item].MathDisplay;
+
+        /// <summary>What a formula says to a screen reader: its alternative text, else its source.</summary>
+        internal string FormulaLabelAt(int cp)
+        {
+            if (!m_InlineByCp.TryGetValue(cp, out int item)) return null;
+            return string.IsNullOrEmpty(m_InlineItems[item].Alt) ? m_InlineItems[item].MathSource : m_InlineItems[item].Alt;
+        }
+
+        internal void CollectFormulas(List<LetteraFormulaInfo> output)
+        {
+            for (int i = 0; i < m_InlineItems.Count; i++)
+            {
+                InlineItem item = m_InlineItems[i];
+                if (item.Math == null) continue;
+                int glyph = FirstGlyphOf(item.Cp);
+                Rect box = default;
+                if (glyph >= 0)
+                {
+                    PlacedGlyph at = m_Placed[glyph];
+                    float em = at.Size * item.MathScale;
+                    box = new Rect(at.X, at.Y - item.Math.Descent * em, item.Math.Width * em, (item.Math.Ascent + item.Math.Descent) * em);
+                }
+                output.Add(new LetteraFormulaInfo { CodePoint = item.Cp, Source = item.MathSource, Display = item.MathDisplay, Box = box, Failed = item.Math.Failed, Message = item.Math.Message, ErrorPosition = item.Math.ErrorPosition });
+            }
         }
 
         internal bool PosesObjects => m_WantsPose && HasMoving;
