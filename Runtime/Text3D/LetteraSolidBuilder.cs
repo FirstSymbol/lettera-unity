@@ -1203,7 +1203,7 @@ namespace FirstSymbol.Lettera
             do
             {
                 float2 p = ring[nodes[n].Vertex];
-                if (p.x >= from.x && p.x <= candidate.x && !Same(p, candidate) && InTriangle(from.y < candidate.y ? from : mid, candidate, from.y < candidate.y ? mid : from, p))
+                if (p.x >= from.x && p.x <= candidate.x && !Same(p, candidate) && InTriangle(from.y < candidate.y ? from : mid, from.y < candidate.y ? mid : from, candidate, p))
                 {
                     float tan = math.abs(from.y - p.y) / math.max(p.x - from.x, 1e-9f);
                     int previous = nodes[n].Previous, next = nodes[n].Next;
