@@ -5,7 +5,6 @@ using UnityEngine;
 
 namespace FirstSymbol.Lettera.Editor.Tests
 {
-    /// <summary>What stays across windows, reading a document whole, and bars.</summary>
     public class DocumentFeatureCanvasTests
     {
         [Test]
@@ -25,7 +24,7 @@ namespace FirstSymbol.Lettera.Editor.Tests
                 text.View.ScrollToChar(rope.Length / 2, LetteraRevealAlign.Center);
                 // A log of an error here fails the test by itself.
                 Canvas.ForceUpdateCanvases();
-                Assert.Greater(text.Engine.VertexCount, 0);
+                Assert.Greater(((ITextComponent)text).SharedEngine.VertexCount, 0);
                 text.CloseDocument();
             }
             finally
@@ -35,6 +34,7 @@ namespace FirstSymbol.Lettera.Editor.Tests
         }
     }
 
+    /// <summary>What stays across windows, reading a document whole, and bars.</summary>
     public class DocumentFeatureTests : EditingFixture
     {
         static string Lines(int count)
@@ -279,7 +279,7 @@ namespace FirstSymbol.Lettera.Editor.Tests
             text.ForceRebuild();
             Assert.IsTrue(text.View.IsShownAsBars);
             Assert.AreEqual(shapes, text.Engine.ShapeCount, "bars shape nothing");
-            Assert.Greater(text.Engine.VertexCount, 0);
+            Assert.Greater(((ITextComponent)text).SharedEngine.VertexCount, 0);
             Assert.Less(text.Engine.VertexCount / 4, 400 / 2);
 
             // At the edge a slow zoom does not flicker.
