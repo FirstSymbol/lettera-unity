@@ -50,6 +50,9 @@ namespace FirstSymbol.Lettera
         [SerializeField] LetteraPaintLibrary m_Paints;
         [SerializeField] GameObject m_TextPrefab;
         [SerializeField] GameObject m_WorldTextPrefab;
+        [SerializeField] GameObject m_Text3DPrefab;
+        [SerializeField] GameObject m_ButtonPrefab;
+        [SerializeField] GameObject m_DocumentPrefab;
         [SerializeField] LetteraEditingSettings m_Editing = new LetteraEditingSettings();
         [SerializeField] LetteraMotionSettings m_Motion = new LetteraMotionSettings();
         [SerializeField] LetteraDocumentSettings m_Documents = new LetteraDocumentSettings();
@@ -88,6 +91,14 @@ namespace FirstSymbol.Lettera
         public LetteraPaintLibrary Paints { get => m_Paints; set { m_Paints = value; Changed?.Invoke(); } }
         public GameObject TextPrefab { get => m_TextPrefab; set => m_TextPrefab = value; }
         public GameObject WorldTextPrefab { get => m_WorldTextPrefab; set => m_WorldTextPrefab = value; }
+        public GameObject Text3DPrefab { get => m_Text3DPrefab; set => m_Text3DPrefab = value; }
+        public GameObject ButtonPrefab { get => m_ButtonPrefab; set => m_ButtonPrefab = value; }
+        public GameObject DocumentPrefab { get => m_DocumentPrefab; set => m_DocumentPrefab = value; }
+
+#if UNITY_EDITOR
+        /// <summary>Set by the editor: copies a default prefab's fields onto a component just added or reset.</summary>
+        internal static System.Action<Component> SeedFromDefault;
+#endif
 
         /// <summary>Selection and editing defaults.</summary>
         public LetteraEditingSettings Editing => m_Editing ?? (m_Editing = new LetteraEditingSettings());

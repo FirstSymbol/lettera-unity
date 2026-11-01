@@ -150,21 +150,19 @@ namespace FirstSymbol.Lettera.Editor
         {
             var text = (LetteraText3D)target;
             return new LetteraTextInspector(serializedObject, "Lettera Text 3D",
-                () => LetteraTextEditor.StatsOf(text.GlyphCount, text.Lines.Count, text.CurrentFontSize),
-                () => LetteraTextEditor.OverrideOf(text.TextOverrideReason),
+                () => LetteraTextEditorBase.StatsOf(text.GlyphCount, text.Lines.Count, text.CurrentFontSize),
+                () => LetteraTextEditorBase.OverrideOf(text.TextOverrideReason),
                 page =>
                 {
                     page.Add(Chips());
-                    page.Add(LetteraMathInspector.Card(text.Engine.CollectFormulas));
-                    page.Add(LtUI.Card("Appearance", LtUI.Field("Color", P("m_Color"))));
 
                     Label count = LtUI.Text("", "lt-subtitle");
                     page.Add(LtUI.Card("Solid",
                         LtUI.Field("Depth", P("m_Depth"), "How deep the text is, in em. Changing it builds no glyph."),
                         LtUI.Row("Pivot", LtUI.Segments(P("m_Pivot"), "Middle", "Front", "Back"), "Which plane lies on the transform."),
-                        LtUI.Row("Front Face", LetteraTextEditor.Holder(LtUI.Switch(P("m_FrontFace")))),
-                        LtUI.Row("Back Face", LetteraTextEditor.Holder(LtUI.Switch(P("m_BackFace")))),
-                        LtUI.Row("Sides", LetteraTextEditor.Holder(LtUI.Switch(P("m_Sides")))),
+                        LtUI.Row("Front Face", LetteraTextEditorBase.Holder(LtUI.Switch(P("m_FrontFace")))),
+                        LtUI.Row("Back Face", LetteraTextEditorBase.Holder(LtUI.Switch(P("m_BackFace")))),
+                        LtUI.Row("Sides", LetteraTextEditorBase.Holder(LtUI.Switch(P("m_Sides")))),
                         LtUI.Field("Smoothing Angle", P("m_SmoothingAngle"), "Corners within this angle shade smooth."),
                         LtUI.Field("Curve Tolerance", P("m_CurveTolerance"), "How far a curve may stray from its true line, in em. Less means more vertices."),
                         count));
@@ -173,7 +171,7 @@ namespace FirstSymbol.Lettera.Editor
                     page.Add(LtUI.Card("Edges",
                         LtUI.Text("Front", "lt-subtitle"),
                         BevelFields(P("m_FrontBevel")),
-                        LtUI.Row("Mirror", LetteraTextEditor.Holder(LtUI.Switch(P("m_MirrorBevel"))), "The back takes the front's edge."),
+                        LtUI.Row("Mirror", LetteraTextEditorBase.Holder(LtUI.Switch(P("m_MirrorBevel"))), "The back takes the front's edge."),
                         backFields));
                     void Mirror(SerializedProperty property) => backFields.style.display = property.boolValue ? DisplayStyle.None : DisplayStyle.Flex;
                     Mirror(P("m_MirrorBevel"));
@@ -204,9 +202,9 @@ namespace FirstSymbol.Lettera.Editor
                     Label live = LtUI.Text("", "lt-subtitle");
                     page.Add(LtUI.Card("Cache And Build",
                         LtUI.Field("Warm Characters", P("m_WarmCharacters"), "Built with the text and kept, so that a counter's digits never build in a frame that shows."),
-                        LtUI.Row("Share Mesh", LetteraTextEditor.Holder(LtUI.Switch(P("m_ShareMesh"))), "Identical texts draw one mesh, which is what lets them instance."),
+                        LtUI.Row("Share Mesh", LetteraTextEditorBase.Holder(LtUI.Switch(P("m_ShareMesh"))), "Identical texts draw one mesh, which is what lets them instance."),
                         LtUI.Row("Color Glyphs", LtUI.Segments(P("m_ColorGlyphs"), "Flat", "Hide"), "A color glyph has no outline to build from: it draws flat on the front plane, or not at all."),
-                        LtUI.Row("Raycast Target", LetteraTextEditor.Holder(LtUI.Switch(P("m_RaycastTarget")))),
+                        LtUI.Row("Raycast Target", LetteraTextEditorBase.Holder(LtUI.Switch(P("m_RaycastTarget")))),
                         live));
                     void Stats()
                     {
@@ -244,7 +242,7 @@ namespace FirstSymbol.Lettera.Editor
             page.Add(LtUI.Card("Edges",
                 LtUI.Text("Front", "lt-subtitle"),
                 Bevel(P("m_FrontBevel")),
-                LtUI.Row("Mirror", LetteraTextEditor.Holder(LtUI.Switch(P("m_MirrorBevel")))),
+                LtUI.Row("Mirror", LetteraTextEditorBase.Holder(LtUI.Switch(P("m_MirrorBevel")))),
                 LtUI.Text("Back", "lt-subtitle"),
                 Bevel(P("m_BackBevel"))));
             page.Add(LtUI.Card("Materials",
@@ -341,17 +339,52 @@ namespace FirstSymbol.Lettera.Editor
     }
 
     /// <summary>Creating solid text, and saving one out of the text system.</summary>
+    internal sealed class LetteraText3DPalette : ILetteraPaletteSource
+    {
+        public IEnumerable<LetteraCommand> Commands()
+        {
+            yield return new LetteraCommand { Name = "Text 3D", Group = "Create", Words = "solid mesh extrude bevel", MenuPath = "GameObject/Lettera/Text 3D", Source = LetteraPaletteSource.Scene, Run = () => EditorApplication.ExecuteMenuItem("GameObject/Lettera/Text 3D") };
+            yield return new LetteraCommand { Name = "Solid Look", Group = "Assets", Words = "create material 3d", MenuPath = "Assets/Create/Lettera/Solid Look", Source = LetteraPaletteSource.Project, Run = () => EditorApplication.ExecuteMenuItem("Assets/Create/Lettera/Solid Look") };
+        }
+    }
+
     internal static class LetteraText3DMenus
     {
         [MenuItem("GameObject/Lettera/Text 3D", false, 12)]
         static void Create(MenuCommand command)
         {
-            var go = new GameObject("Text 3D (Lettera)", typeof(RectTransform));
-            GameObjectUtility.SetParentAndAlign(go, command.context as GameObject);
-            go.AddComponent<LetteraText3D>();
+            GameObject go;
+            GameObject prefab = LetteraSettings.Instance.Text3DPrefab;
+            if (prefab != null)
+            {
+                go = (GameObject)PrefabUtility.InstantiatePrefab(prefab, (command.context as GameObject)?.transform);
+            }
+            else
+            {
+                go = new GameObject("Text 3D (Lettera)", typeof(RectTransform));
+                GameObjectUtility.SetParentAndAlign(go, command.context as GameObject);
+                go.AddComponent<LetteraText3D>();
+            }
             Undo.RegisterCreatedObjectUndo(go, "Create Text 3D");
             Selection.activeGameObject = go;
         }
+
+        [MenuItem("CONTEXT/LetteraText3D/Copy Text")]
+        static void CopyText(MenuCommand command) => EditorGUIUtility.systemCopyBuffer = ((LetteraText3D)command.context).Text;
+
+        [MenuItem("CONTEXT/LetteraText3D/Paste Text")]
+        static void PasteText(MenuCommand command)
+        {
+            var serialized = new SerializedObject(command.context);
+            serialized.FindProperty("m_Data").FindPropertyRelative("Text").stringValue = EditorGUIUtility.systemCopyBuffer;
+            serialized.ApplyModifiedProperties();
+        }
+
+        [MenuItem("CONTEXT/LetteraText3D/Edit In Scene")]
+        static void EditInScene(MenuCommand command) => LetteraSceneEditView.Begin(new[] { command.context });
+
+        [MenuItem("CONTEXT/LetteraText3D/Save As Default")]
+        static void SaveDefault(MenuCommand command) => LetteraMenus.SaveAsDefault(((LetteraText3D)command.context).gameObject);
 
         [MenuItem("Lettera/3D/Allow Creating From Scripts")]
         static void AllowFromScripts()

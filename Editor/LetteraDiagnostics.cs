@@ -89,7 +89,7 @@ namespace FirstSymbol.Lettera.Editor
             m_Target = LtUI.Text("", "lt-hint");
             m_Font = new ObjectField { objectType = typeof(LetteraFontAsset), allowSceneObjects = false };
             m_Text = new TextField { value = "Hello مرحبا" };
-            m_Text.AddToClassList("lt-text-input");
+            m_Text.AddToClassList("lt-source");
             m_Text.RegisterValueChangedCallback(_ => ShowFree());
             m_Font.RegisterValueChangedCallback(_ => ShowFree());
             Page.Add(LtUI.Card("From A Text", PinToggle(), m_Target, LtUI.Clickable("Use Selected Text", "lt-add lt-add--small", "Shows what the selected text is drawing.", ShowSelected)));
@@ -376,7 +376,7 @@ namespace FirstSymbol.Lettera.Editor
                 LtUI.Clickable("Export PNG", "lt-chip", "Saves this page where you choose.", Export));
             Page.Add(LtUI.Card("Pages", tabs, m_Image, steps, m_Info));
             m_Warm = new TextField { value = "" };
-            m_Warm.AddToClassList("lt-text-input");
+            m_Warm.AddToClassList("lt-source");
             Page.Add(LtUI.Card("Actions",
                 LtUI.Clickable("Clear And Rebuild", "lt-add lt-add--small", "Empties every atlas. Each text makes what it needs again.", () =>
                 {

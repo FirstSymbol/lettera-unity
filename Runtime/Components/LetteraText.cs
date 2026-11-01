@@ -563,6 +563,7 @@ namespace FirstSymbol.Lettera
         {
             base.Reset();
             if (string.IsNullOrEmpty(m_Data.Text)) m_Data.Text = "New Text";
+            LetteraSettings.SeedFromDefault?.Invoke(this);
         }
 #endif
 

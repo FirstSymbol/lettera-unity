@@ -151,7 +151,7 @@ namespace FirstSymbol.Lettera.Editor.Tests
 
         // ------------------------------------------------------------- warnings
 
-        static string[] Chips(VisualElement root) => root.Query<Label>(className: "lt-chip").ToList().Select(l => l.text).ToArray();
+        static string[] Chips(VisualElement root) => root.Query<Label>().ToList().Where(l => l.ClassListContains("lt-chip") || l.ClassListContains("lt-fix__text")).Select(l => l.text).ToArray();
 
         [Test]
         public void DuplicateTagWarns()

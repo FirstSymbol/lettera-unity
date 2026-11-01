@@ -529,6 +529,19 @@ namespace FirstSymbol.Lettera.Editor
     /// <summary>What the Scene view adds to a selected text: its padding, and the circle of a curved baseline, with a handle for the radius.</summary>
     internal static class LetteraSceneHandles
     {
+        /// <summary>The area that takes pointers, in a colour of its own.</summary>
+        public static void DrawRaycast(Component text, Vector4 padding)
+        {
+            var rect = text.transform as RectTransform;
+            if (rect == null) return;
+            Matrix4x4 saved = Handles.matrix;
+            Handles.matrix = rect.localToWorldMatrix;
+            Rect box = rect.rect;
+            var inner = Rect.MinMaxRect(box.xMin + padding.x, box.yMin + padding.y, box.xMax - padding.z, box.yMax - padding.w);
+            Handles.DrawSolidRectangleWithOutline(inner, Color.clear, new Color(0.3f, 1f, 0.5f, 0.8f));
+            Handles.matrix = saved;
+        }
+
         public static void Draw(Component text, Vector4 padding, IReadOnlyList<LetteraStyle> styles, float fontSize)
         {
             var rect = text.transform as RectTransform;

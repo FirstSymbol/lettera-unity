@@ -255,7 +255,7 @@ namespace FirstSymbol.Lettera.Timeline.Editor
         {
             SerializedProperty text = serializedObject.FindProperty("Text");
             var field = new TextField { multiline = true };
-            field.AddToClassList("lt-text-input");
+            field.AddToClassList("lt-source");
             field.BindProperty(text);
             card.Add(LtUI.El("lt-editor", field));
 

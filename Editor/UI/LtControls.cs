@@ -337,14 +337,21 @@ namespace FirstSymbol.Lettera.Editor
         readonly SerializedProperty m_Property;
         readonly Label m_Label;
         readonly float m_Step;
-        double m_Editing;
+        double m_Min = double.NegativeInfinity, m_Max = double.PositiveInfinity;
         bool m_Scrubbing;
         float m_LastX;
         double m_ScrubValue;
+        int m_ScrubGroup;
 
-        /// <summary>How many times a typed value has been written, for tests.</summary>
+        /// <summary>How many times a value has been written, for tests.</summary>
         public int Writes { get; private set; }
         public TextField Field => m_Field;
+
+        /// <summary>False when Shift and Alt mean something else here, as they do in a box's sides.</summary>
+        public bool ModifiersScale { get; set; } = true;
+
+        /// <summary>After each write, with the keys held at that moment.</summary>
+        public event Action<double, EventModifiers> Wrote;
 
         public LtNumber(string label, SerializedProperty property, string tooltip = null, float step = 0)
         {
@@ -352,9 +359,9 @@ namespace FirstSymbol.Lettera.Editor
             AddToClassList("lt-row");
             AddToClassList("lt-number");
             this.tooltip = tooltip;
-            m_Step = step > 0 ? step : property.propertyType == SerializedPropertyType.Integer ? 1 : 0.01f;
-            m_Label = LtUI.Text(label, "lt-row__label lt-number__label");
-            Add(m_Label);
+            m_Step = step > 0 ? step : property.propertyType == SerializedPropertyType.Integer ? 1 : 0.1f;
+            m_Label = LtUI.Text(label ?? "", "lt-row__label lt-number__label");
+            if (!string.IsNullOrEmpty(label)) Add(m_Label);
             m_Field = new TextField { isDelayed = false };
             m_Field.AddToClassList("lt-row__field");
             m_Field.AddToClassList("lt-text-input");
@@ -362,7 +369,166 @@ namespace FirstSymbol.Lettera.Editor
 
             Refresh(m_Property);
             this.TrackPropertyValue(m_Property, Refresh);
+            LtUI.Mark(this, m_Label, m_Property);
 
+            m_Field.RegisterCallback<KeyDownEvent>(e =>
+            {
+                if (e.keyCode == KeyCode.Return || e.keyCode == KeyCode.KeypadEnter)
+                {
+                    Commit(e.modifiers);
+                    e.StopPropagation();
+                }
+                else if (e.keyCode == KeyCode.Escape)
+                {
+                    Refresh(m_Property);
+                    e.StopPropagation();
+                }
+            }, TrickleDown.TrickleDown);
+            m_Field.RegisterCallback<FocusOutEvent>(_ => Commit());
+            m_Field.RegisterCallback<WheelEvent>(e =>
+            {
+                if (!e.ctrlKey) return;
+                Write(Read() - Mathf.Sign(e.delta.y) * Scale(e.modifiers) * m_Step, e.modifiers);
+                e.StopPropagation();
+            });
+
+            m_Label.RegisterCallback<PointerDownEvent>(e =>
+            {
+                if (e.button != 0) return;
+                BeginScrub();
+                m_LastX = e.position.x;
+                m_Label.CapturePointer(e.pointerId);
+            });
+            m_Label.RegisterCallback<PointerMoveEvent>(e =>
+            {
+                if (!m_Scrubbing) return;
+                float delta = e.position.x - m_LastX;
+                if (Mathf.Abs(delta) < 1) return;
+                m_LastX = e.position.x;
+                ScrubBy(delta, e.modifiers);
+            });
+            m_Label.RegisterCallback<PointerUpEvent>(e =>
+            {
+                if (!m_Scrubbing) return;
+                m_Label.ReleasePointer(e.pointerId);
+                EndScrub();
+            });
+        }
+
+        float Scale(EventModifiers keys)
+        {
+            if (!ModifiersScale) return 1;
+            return (keys & EventModifiers.Shift) != 0 ? 10 : (keys & EventModifiers.Alt) != 0 ? 0.1f : 1;
+        }
+
+        internal void BeginScrub()
+        {
+            m_Scrubbing = true;
+            m_ScrubValue = Read();
+            Undo.IncrementCurrentGroup();
+            m_ScrubGroup = Undo.GetCurrentGroup();
+        }
+
+        internal void ScrubBy(float pixels, EventModifiers keys)
+        {
+            m_ScrubValue += pixels * Scale(keys) * m_Step;
+            m_ScrubValue = Math.Min(m_Max, Math.Max(m_Min, m_ScrubValue));
+            Write(m_ScrubValue, keys);
+        }
+
+        internal void EndScrub()
+        {
+            m_Scrubbing = false;
+            // However many steps a drag took, it is one undo.
+            Undo.CollapseUndoOperations(m_ScrubGroup);
+        }
+
+        /// <summary>Values outside this go to its edge.</summary>
+        public LtNumber Limit(double min, double max)
+        {
+            m_Min = min;
+            m_Max = max;
+            return this;
+        }
+
+        double Read()
+        {
+            m_Property.serializedObject.UpdateIfRequiredOrScript();
+            return m_Property.propertyType == SerializedPropertyType.Integer ? m_Property.longValue : m_Property.floatValue;
+        }
+
+        void Refresh(SerializedProperty property)
+        {
+            if (m_Property.hasMultipleDifferentValues)
+            {
+                m_Field.SetValueWithoutNotify("—");
+                return;
+            }
+            m_Field.SetValueWithoutNotify(m_Property.propertyType == SerializedPropertyType.Integer
+                ? m_Property.longValue.ToString(CultureInfo.InvariantCulture)
+                : ((double)m_Property.floatValue).ToString("0.####", CultureInfo.InvariantCulture));
+        }
+
+        /// <summary>What Enter does.</summary>
+        internal void Commit(EventModifiers keys = EventModifiers.None)
+        {
+            string typed = m_Field.value;
+            if (typed == "—") return;
+            double current = Read();
+            if (!LtExpression.TryEvaluate(typed, current, out double value))
+            {
+                Refresh(m_Property);
+                return;
+            }
+            if (m_Property.hasMultipleDifferentValues || Math.Abs(value - current) > 1e-9) Write(value, keys);
+            else Refresh(m_Property);
+        }
+
+        void Write(double value, EventModifiers keys)
+        {
+            value = Math.Min(m_Max, Math.Max(m_Min, value));
+            m_Property.serializedObject.Update();
+            if (m_Property.propertyType == SerializedPropertyType.Integer) m_Property.longValue = (long)Math.Round(value);
+            else m_Property.floatValue = (float)value;
+            m_Property.serializedObject.ApplyModifiedProperties();
+            Writes++;
+            Refresh(m_Property);
+            Wrote?.Invoke(value, keys);
+        }
+    }
+
+    /// <summary>A number with its unit: px, em or %. Held as text, as a tag's value is, so that what is no length stays as written.</summary>
+    public sealed class LtUnit : VisualElement
+    {
+        static readonly string[] s_Units = { "px", "em", "%" };
+        readonly SerializedProperty m_Property;
+        readonly TextField m_Field;
+        readonly Func<float> m_EmPixels;
+        readonly Label[] m_Items;
+        int m_Unit = 1;
+
+        public TextField Field => m_Field;
+        public int Writes { get; private set; }
+
+        public LtUnit(string label, SerializedProperty property, string tooltip = null, Func<float> emPixels = null)
+        {
+            m_Property = property.Copy();
+            m_EmPixels = emPixels;
+            AddToClassList("lt-row");
+            AddToClassList("lt-unit");
+            this.tooltip = tooltip;
+            Label caption = LtUI.Text(label ?? "", "lt-row__label");
+            if (!string.IsNullOrEmpty(label)) Add(caption);
+            m_Field = new TextField();
+            m_Field.AddToClassList("lt-text-input");
+            m_Field.AddToClassList("lt-unit__value");
+            Add(m_Field);
+            VisualElement units = LtUI.Choice(s_Units, () => m_Unit, Pick, out m_Items);
+            units.AddToClassList("lt-unit__units");
+            Add(units);
+            Refresh(m_Property);
+            this.TrackPropertyValue(m_Property, Refresh);
+            LtUI.Mark(this, caption, m_Property);
             m_Field.RegisterCallback<KeyDownEvent>(e =>
             {
                 if (e.keyCode == KeyCode.Return || e.keyCode == KeyCode.KeypadEnter)
@@ -377,79 +543,408 @@ namespace FirstSymbol.Lettera.Editor
                 }
             }, TrickleDown.TrickleDown);
             m_Field.RegisterCallback<FocusOutEvent>(_ => Commit());
-            m_Field.RegisterCallback<WheelEvent>(e =>
-            {
-                if (!e.ctrlKey) return;
-                Write(Read() - Mathf.Sign(e.delta.y) * (e.shiftKey ? 10 : e.altKey ? 0.1f : 1) * m_Step);
-                e.StopPropagation();
-            });
-
-            m_Label.RegisterCallback<PointerDownEvent>(e =>
-            {
-                if (e.button != 0) return;
-                m_Scrubbing = true;
-                m_LastX = e.position.x;
-                m_ScrubValue = Read();
-                m_Label.CapturePointer(e.pointerId);
-                Undo.IncrementCurrentGroup();
-            });
-            m_Label.RegisterCallback<PointerMoveEvent>(e =>
-            {
-                if (!m_Scrubbing) return;
-                float delta = e.position.x - m_LastX;
-                if (Mathf.Abs(delta) < 1) return;
-                m_LastX = e.position.x;
-                m_ScrubValue += delta * (e.shiftKey ? 10 : e.altKey ? 0.1f : 1) * m_Step;
-                Write(m_ScrubValue);
-            });
-            m_Label.RegisterCallback<PointerUpEvent>(e =>
-            {
-                if (!m_Scrubbing) return;
-                m_Scrubbing = false;
-                m_Label.ReleasePointer(e.pointerId);
-            });
         }
 
-        double Read()
+        /// <summary>A value in another unit: 0 px, 1 em, 2 %. Pixels need the size of an em: without it the number stays, and only the unit changes.</summary>
+        public static double Convert(double value, int from, int to, float emPixels)
         {
-            m_Property.serializedObject.UpdateIfRequiredOrScript();
-            return m_Property.propertyType == SerializedPropertyType.Integer ? m_Property.intValue : m_Property.floatValue;
+            if (from == to) return value;
+            if ((from == 0 || to == 0) && emPixels <= 0) return value;
+            double ems = from == 2 ? value / 100 : from == 1 ? value : value / emPixels;
+            return to == 2 ? ems * 100 : to == 1 ? ems : ems * emPixels;
         }
 
-        void Refresh(SerializedProperty property)
+        /// <summary>What a click on a unit does.</summary>
+        public void Pick(int unit)
+        {
+            if (!TryRead(m_Property.stringValue, out double value, out int from))
+            {
+                m_Unit = unit;
+                Write(m_Field.value.Trim() + s_Units[unit]);
+                return;
+            }
+            Write(Format(Convert(value, from, unit, m_EmPixels != null ? m_EmPixels() : 0), unit));
+        }
+
+        static string Format(double value, int unit) => value.ToString("0.####", CultureInfo.InvariantCulture) + s_Units[unit];
+
+        static bool TryRead(string token, out double value, out int unit)
+        {
+            value = 0;
+            unit = 1;
+            if (!LetteraLength.TryParse(token, out LetteraLength length)) return false;
+            value = length.Value;
+            unit = length.Kind == LetteraLength.Unit.Pixels ? 0 : length.Kind == LetteraLength.Unit.Percent ? 2 : 1;
+            return true;
+        }
+
+        void Refresh(SerializedProperty _)
         {
             if (m_Property.hasMultipleDifferentValues)
             {
                 m_Field.SetValueWithoutNotify("—");
                 return;
             }
-            m_Field.SetValueWithoutNotify(m_Property.propertyType == SerializedPropertyType.Integer
-                ? m_Property.intValue.ToString(CultureInfo.InvariantCulture)
-                : ((double)m_Property.floatValue).ToString("0.####", CultureInfo.InvariantCulture));
+            if (TryRead(m_Property.stringValue, out double value, out int unit))
+            {
+                m_Unit = unit;
+                m_Field.SetValueWithoutNotify(value.ToString("0.####", CultureInfo.InvariantCulture));
+            }
+            else
+            {
+                m_Field.SetValueWithoutNotify(m_Property.stringValue);
+            }
+            for (int i = 0; i < m_Items.Length; i++) m_Items[i].EnableInClassList("lt-seg__item--on", i == m_Unit);
         }
 
-        void Commit()
+        internal void Commit()
         {
-            string typed = m_Field.value;
+            string typed = m_Field.value.Trim();
             if (typed == "—") return;
-            double current = Read();
-            if (!LtExpression.TryEvaluate(typed, current, out double value))
+            TryRead(m_Property.stringValue, out double current, out int _);
+            string next = LtExpression.TryEvaluate(typed, current, out double value) ? Format(value, m_Unit) : typed;
+            if (next != m_Property.stringValue) Write(next);
+            else Refresh(m_Property);
+        }
+
+        void Write(string token)
+        {
+            m_Property.serializedObject.Update();
+            m_Property.stringValue = token;
+            m_Property.serializedObject.ApplyModifiedProperties();
+            Writes++;
+            Refresh(m_Property);
+        }
+    }
+
+    /// <summary>A searchable list to choose from: arrows, Enter and a click, in either keyboard layout.</summary>
+    public sealed class LtChoiceList : VisualElement
+    {
+        readonly List<(string name, string hint, object value)> m_All;
+        readonly List<(string name, string hint, object value)> m_Shown = new List<(string, string, object)>();
+        readonly Action<object> m_Chosen;
+        readonly ScrollView m_List = new ScrollView();
+        int m_At;
+
+        public LtSearch Search { get; }
+        public IReadOnlyList<(string name, string hint, object value)> Shown => m_Shown;
+
+        public LtChoiceList(List<(string name, string hint, object value)> items, Action<object> chosen, int current = -1, bool searchable = true)
+        {
+            m_All = items;
+            m_Chosen = chosen;
+            AddToClassList("lt-choices");
+            style.flexGrow = 1;
+            if (searchable)
+            {
+                Search = new LtSearch("Find");
+                Search.Changed += Refresh;
+                Add(Search);
+                Search.Field.schedule.Execute(() => Search.Field.Focus());
+            }
+            m_List.style.flexGrow = 1;
+            Add(m_List);
+            RegisterCallback<KeyDownEvent>(OnKey, TrickleDown.TrickleDown);
+            Refresh("");
+            if (current >= 0 && current < m_Shown.Count)
+            {
+                m_At = current;
+                Paint();
+            }
+        }
+
+        void OnKey(KeyDownEvent e)
+        {
+            switch (e.keyCode)
+            {
+                case KeyCode.UpArrow:
+                    m_At = Mathf.Max(0, m_At - 1);
+                    Paint();
+                    break;
+                case KeyCode.DownArrow:
+                    m_At = Mathf.Min(m_Shown.Count - 1, m_At + 1);
+                    Paint();
+                    break;
+                case KeyCode.Return:
+                case KeyCode.KeypadEnter:
+                    if (m_At >= 0 && m_At < m_Shown.Count) m_Chosen(m_Shown[m_At].value);
+                    break;
+                default:
+                    return;
+            }
+            e.StopPropagation();
+        }
+
+        internal void Refresh(string query)
+        {
+            m_Shown.Clear();
+            m_List.Clear();
+            foreach ((string name, string hint, object value) item in m_All)
+                if (LtSearchText.Score(query, item.name) > 0 || (!string.IsNullOrEmpty(item.hint) && LtSearchText.Score(query, item.hint) >= 30))
+                    m_Shown.Add(item);
+            foreach ((string name, string hint, object value) item in m_Shown)
+            {
+                object chosen = item.value;
+                VisualElement row = LtUI.El("lt-palette__row", LtUI.Text(item.name, "lt-palette__name"), LtUI.Text(item.hint ?? "", "lt-palette__group"));
+                row.RegisterCallback<ClickEvent>(_ => m_Chosen(chosen));
+                m_List.Add(row);
+            }
+            if (m_Shown.Count == 0) m_List.Add(LtUI.Text("Nothing by that name.", "lt-hint"));
+            m_At = 0;
+            Paint();
+        }
+
+        void Paint()
+        {
+            for (int i = 0; i < m_Shown.Count; i++) m_List[i].EnableInClassList("lt-palette__row--on", i == m_At);
+            if (m_At >= 0 && m_At < m_Shown.Count) m_List.ScrollTo(m_List[m_At]);
+        }
+    }
+
+    /// <summary>Up to four choices as segments, more as a list with a search. The value reads in plain words, with the accent when it is not the first.</summary>
+    public sealed class LtEnum : VisualElement
+    {
+        readonly SerializedProperty m_Property;
+        readonly string[] m_Names;
+        readonly Label[] m_Items;
+        readonly Label m_Value;
+
+        public LtEnum(string label, SerializedProperty property, string tooltip = null, string[] names = null)
+        {
+            m_Property = property.Copy();
+            m_Names = names ?? property.enumDisplayNames;
+            AddToClassList("lt-row");
+            AddToClassList("lt-enum");
+            this.tooltip = tooltip;
+            Label caption = LtUI.Text(label ?? "", "lt-row__label");
+            if (!string.IsNullOrEmpty(label)) Add(caption);
+            if (m_Names.Length <= 4)
+            {
+                VisualElement seg = LtUI.El("lt-seg lt-row__field");
+                m_Items = new Label[m_Names.Length];
+                for (int i = 0; i < m_Names.Length; i++)
+                {
+                    int index = i;
+                    m_Items[i] = LtUI.Clickable(m_Names[i], "lt-seg__item", m_Names[i], () => Choose(index));
+                    seg.Add(m_Items[i]);
+                }
+                Add(seg);
+            }
+            else
+            {
+                m_Value = LtUI.Clickable("", "lt-row__field lt-enum__value", "Choose", Open);
+                Add(m_Value);
+            }
+            Refresh(m_Property);
+            this.TrackPropertyValue(m_Property, Refresh);
+            LtUI.Mark(this, caption, m_Property);
+        }
+
+        public int Count => m_Names.Length;
+
+        /// <summary>What a click on a choice does.</summary>
+        public void Choose(int index)
+        {
+            m_Property.serializedObject.Update();
+            m_Property.enumValueIndex = index;
+            m_Property.serializedObject.ApplyModifiedProperties();
+            Refresh(m_Property);
+        }
+
+        void Open()
+        {
+            var items = new List<(string, string, object)>();
+            for (int i = 0; i < m_Names.Length; i++) items.Add((m_Names[i], null, i));
+            LtPopup.Show(m_Value, new Vector2(Mathf.Max(m_Value.worldBound.width, 200), Mathf.Min(44 + 24 * m_Names.Length, 300)), () =>
+                new LtChoiceList(items, chosen =>
+                {
+                    Choose((int)chosen);
+                    LtPopup.CloseCurrent();
+                }, m_Property.enumValueIndex, m_Names.Length > 8));
+        }
+
+        void Refresh(SerializedProperty _)
+        {
+            bool mixed = m_Property.hasMultipleDifferentValues;
+            int index = m_Property.enumValueIndex;
+            if (m_Items != null)
+                for (int i = 0; i < m_Items.Length; i++)
+                    m_Items[i].EnableInClassList("lt-seg__item--on", !mixed && i == index);
+            if (m_Value != null)
+            {
+                m_Value.text = mixed ? "—" : index >= 0 && index < m_Names.Length ? m_Names[index] : "";
+                m_Value.EnableInClassList("lt-enum__value--changed", !mixed && index != 0);
+            }
+        }
+    }
+
+    /// <summary>A slot for an object: its type's icon and its name. A click pings it, a drag sets it, the ring picks from a list with a search, and the arrow opens it.</summary>
+    public sealed class LtObject : VisualElement
+    {
+        readonly SerializedProperty m_Property;
+        readonly Type m_Type;
+        readonly VisualElement m_Slot;
+        readonly Label m_Name;
+        readonly VisualElement m_Go;
+
+        public LtObject(string label, SerializedProperty property, Type type = null, string tooltip = null)
+        {
+            m_Property = property.Copy();
+            m_Type = type != null && typeof(UnityEngine.Object).IsAssignableFrom(type) ? type : typeof(UnityEngine.Object);
+            AddToClassList("lt-row");
+            AddToClassList("lt-object");
+            this.tooltip = tooltip;
+            Label caption = LtUI.Text(label ?? "", "lt-row__label");
+            if (!string.IsNullOrEmpty(label)) Add(caption);
+            m_Slot = LtUI.El("lt-row__field lt-object__slot");
+            var icon = new Image { image = AssetPreview.GetMiniTypeThumbnail(m_Type) };
+            icon.AddToClassList("lt-object__icon");
+            m_Slot.Add(icon);
+            m_Name = LtUI.Clickable("", "lt-object__name", "Shows it in its window. Drag something here to set it.", Ping);
+            m_Slot.Add(m_Name);
+            VisualElement pick = LtUI.El("lt-object__button", new LtIcon(LtIcon.Kind.Pick));
+            pick.tooltip = "Choose from a list";
+            pick.RegisterCallback<ClickEvent>(e =>
+            {
+                e.StopPropagation();
+                OpenPicker();
+            });
+            m_Go = LtUI.El("lt-object__button", new LtIcon(LtIcon.Kind.GoTo));
+            m_Go.tooltip = "Opens it in the Inspector";
+            m_Go.RegisterCallback<ClickEvent>(e =>
+            {
+                e.StopPropagation();
+                if (m_Property.objectReferenceValue != null) Selection.activeObject = m_Property.objectReferenceValue;
+            });
+            m_Slot.Add(pick);
+            m_Slot.Add(m_Go);
+            Add(m_Slot);
+            m_Slot.RegisterCallback<DragUpdatedEvent>(_ =>
+            {
+                if (Fits(DragAndDrop.objectReferences) != null) DragAndDrop.visualMode = DragAndDropVisualMode.Link;
+            });
+            m_Slot.RegisterCallback<DragPerformEvent>(_ =>
+            {
+                UnityEngine.Object fit = Fits(DragAndDrop.objectReferences);
+                if (fit == null) return;
+                DragAndDrop.AcceptDrag();
+                Assign(fit);
+            });
+            Refresh(m_Property);
+            this.TrackPropertyValue(m_Property, Refresh);
+            LtUI.Mark(this, caption, m_Property);
+        }
+
+        void Ping()
+        {
+            if (m_Property.objectReferenceValue != null) EditorGUIUtility.PingObject(m_Property.objectReferenceValue);
+        }
+
+        internal string Shown => m_Name.text;
+
+        /// <summary>The first that can go in this slot: the object, or a component of that type on it.</summary>
+        internal UnityEngine.Object Fits(UnityEngine.Object[] objects)
+        {
+            foreach (UnityEngine.Object o in objects)
+            {
+                if (o != null && m_Type.IsInstanceOfType(o)) return o;
+                if (o is GameObject go && typeof(Component).IsAssignableFrom(m_Type) && go.GetComponent(m_Type) != null) return go.GetComponent(m_Type);
+            }
+            return null;
+        }
+
+        /// <summary>What a choice or a drop does.</summary>
+        public void Assign(UnityEngine.Object value)
+        {
+            m_Property.serializedObject.Update();
+            m_Property.objectReferenceValue = value;
+            m_Property.serializedObject.ApplyModifiedProperties();
+            Refresh(m_Property);
+        }
+
+        void OpenPicker() => LtPopup.Show(m_Slot, new Vector2(Mathf.Max(m_Slot.worldBound.width, 280), 320), () => new LtChoiceList(Candidates(m_Type), chosen =>
+        {
+            Assign((UnityEngine.Object)chosen);
+            LtPopup.CloseCurrent();
+        }));
+
+        internal static List<(string name, string hint, object value)> Candidates(Type type)
+        {
+            var items = new List<(string, string, object)> { ("None", null, null) };
+            if (typeof(Component).IsAssignableFrom(type))
+            {
+                foreach (UnityEngine.Object o in UnityEngine.Object.FindObjectsByType(type, FindObjectsInactive.Include, FindObjectsSortMode.None))
+                    items.Add((o.name, "Scene", o));
+                return items;
+            }
+            foreach (string guid in AssetDatabase.FindAssets("t:" + type.Name))
+            {
+                string path = AssetDatabase.GUIDToAssetPath(guid);
+                UnityEngine.Object asset = AssetDatabase.LoadAssetAtPath(path, type);
+                if (asset != null) items.Add((asset.name, System.IO.Path.GetDirectoryName(path)?.Replace('\\', '/'), asset));
+            }
+            return items;
+        }
+
+        void Refresh(SerializedProperty _)
+        {
+            UnityEngine.Object value = m_Property.objectReferenceValue;
+            m_Name.text = m_Property.hasMultipleDifferentValues ? "—" : value != null ? value.name : "None";
+            m_Name.EnableInClassList("lt-object__name--empty", value == null && !m_Property.hasMultipleDifferentValues);
+            m_Go.style.display = value != null ? DisplayStyle.Flex : DisplayStyle.None;
+        }
+    }
+
+    /// <summary>A colour: the swatch opens Unity's picker with its eyedropper, and hex can be typed or pasted beside it.</summary>
+    public sealed class LtColor : VisualElement
+    {
+        readonly SerializedProperty m_Property;
+        readonly TextField m_Hex;
+
+        public TextField Hex => m_Hex;
+
+        public LtColor(string label, SerializedProperty property, string tooltip = null)
+        {
+            m_Property = property.Copy();
+            AddToClassList("lt-row");
+            AddToClassList("lt-color");
+            this.tooltip = tooltip;
+            Label caption = LtUI.Text(label ?? "", "lt-row__label");
+            if (!string.IsNullOrEmpty(label)) Add(caption);
+            var swatch = new ColorField { showEyeDropper = true, showAlpha = true };
+            swatch.AddToClassList("lt-color__swatch");
+            swatch.BindProperty(m_Property);
+            Add(swatch);
+            m_Hex = new TextField { isDelayed = true };
+            m_Hex.AddToClassList("lt-text-input");
+            m_Hex.AddToClassList("lt-color__hex");
+            m_Hex.RegisterValueChangedCallback(e => SetHex(e.newValue));
+            Add(m_Hex);
+            Refresh(m_Property);
+            this.TrackPropertyValue(m_Property, Refresh);
+            LtUI.Mark(this, caption, m_Property);
+        }
+
+        internal void SetHex(string typed)
+        {
+            string text = (typed ?? "").Trim();
+            if (text.Length == 0 || text == "—") return;
+            if (text[0] != '#') text = "#" + text;
+            if (!ColorUtility.TryParseHtmlString(text, out Color color))
             {
                 Refresh(m_Property);
                 return;
             }
-            if (m_Property.hasMultipleDifferentValues || Math.Abs(value - current) > 1e-9) Write(value);
-            else Refresh(m_Property);
+            m_Property.serializedObject.Update();
+            m_Property.colorValue = color;
+            m_Property.serializedObject.ApplyModifiedProperties();
+            Refresh(m_Property);
         }
 
-        void Write(double value)
+        void Refresh(SerializedProperty _)
         {
-            m_Property.serializedObject.Update();
-            if (m_Property.propertyType == SerializedPropertyType.Integer) m_Property.intValue = (int)Math.Round(value);
-            else m_Property.floatValue = (float)value;
-            m_Property.serializedObject.ApplyModifiedProperties();
-            Writes++;
-            Refresh(m_Property);
+            Color color = m_Property.colorValue;
+            m_Hex.SetValueWithoutNotify(m_Property.hasMultipleDifferentValues ? "—" : "#" + (color.a < 1 ? ColorUtility.ToHtmlStringRGBA(color) : ColorUtility.ToHtmlStringRGB(color)));
         }
     }
 
@@ -543,8 +1038,16 @@ namespace FirstSymbol.Lettera.Editor
     /// <summary>One way to float something: on the side with more room, of a steady size, and gone with Esc or a click elsewhere.</summary>
     public sealed class LtPopup : PopupWindowContent
     {
+        static LtPopup s_Current;
         readonly Func<VisualElement> m_Build;
         readonly Vector2 m_Size;
+
+        /// <summary>Closes whichever is open.</summary>
+        public static void CloseCurrent()
+        {
+            if (s_Current != null && s_Current.editorWindow != null) s_Current.editorWindow.Close();
+            s_Current = null;
+        }
 
         LtPopup(Func<VisualElement> build, Vector2 size)
         {
@@ -555,7 +1058,8 @@ namespace FirstSymbol.Lettera.Editor
         /// <summary>Opens beside an element, built when it opens.</summary>
         public static void Show(VisualElement anchor, Vector2 size, Func<VisualElement> build)
         {
-            UnityEditor.PopupWindow.Show(anchor.worldBound, new LtPopup(build, size));
+            s_Current = new LtPopup(build, size);
+            UnityEditor.PopupWindow.Show(anchor.worldBound, s_Current);
         }
 
         public override Vector2 GetWindowSize() => m_Size;
@@ -590,11 +1094,13 @@ namespace FirstSymbol.Lettera.Editor
             m_Property = rectOffsetOrVector.Copy();
             AddToClassList("lt-row");
             this.tooltip = tooltip;
-            Add(LtUI.Text(label, "lt-row__label"));
+            Label caption = LtUI.Text(label, "lt-row__label");
+            Add(caption);
             m_Summary = LtUI.Clickable("", "lt-row__field lt-box__summary", "Opens the four sides.", OpenBox);
             Add(m_Summary);
             Refresh(m_Property);
             this.TrackPropertyValue(m_Property, Refresh);
+            LtUI.Mark(this, caption, m_Property);
         }
 
         // Left, right, top, bottom: as a padding's sides are stored here, whichever type holds them.
@@ -621,52 +1127,52 @@ namespace FirstSymbol.Lettera.Editor
 
         static float Read(SerializedProperty side) => side == null ? 0 : side.propertyType == SerializedPropertyType.Integer ? side.intValue : side.floatValue;
 
+        internal string Summary => m_Summary.text;
+
         void Refresh(SerializedProperty property)
         {
             SerializedProperty[] sides = Sides(m_Property);
-            m_Summary.text = SummaryOf(Read(sides[0]), Read(sides[1]), Read(sides[2]), Read(sides[3]));
+            m_Summary.text = m_Property.hasMultipleDifferentValues ? "—" : SummaryOf(Read(sides[0]), Read(sides[1]), Read(sides[2]), Read(sides[3]));
         }
 
-        void OpenBox()
+        /// <summary>Which sides change with one, by the keys held. Left 0, top 1, right 2, bottom 3.</summary>
+        internal static int[] Linked(int side, EventModifiers keys)
         {
-            LtPopup.Show(m_Summary, new Vector2(240, 150), () =>
-            {
-                SerializedProperty[] sides = Sides(m_Property);
-                VisualElement page = LtUI.El("lt-box");
-                page.Add(LtUI.Text("Shift links opposite sides, and Alt links all four.", "lt-hint"));
-                string[] names = { "Left", "Top", "Right", "Bottom" };
-                for (int i = 0; i < 4; i++)
-                {
-                    if (sides[i] == null) continue;
-                    int index = i;
-                    var field = new FloatField { value = Read(sides[i]) };
-                    field.RegisterValueChangedCallback(e =>
-                    {
-                        void Set(int s)
-                        {
-                            if (sides[s] == null) return;
-                            if (sides[s].propertyType == SerializedPropertyType.Integer) sides[s].intValue = Mathf.RoundToInt(e.newValue);
-                            else sides[s].floatValue = e.newValue;
-                        }
-                        m_Property.serializedObject.Update();
-                        Set(index);
-                        Event current = Event.current;
-                        bool shift = current != null && current.shift, alt = current != null && current.alt;
-                        if (alt)
-                        {
-                            for (int s = 0; s < 4; s++) Set(s);
-                        }
-                        else if (shift)
-                        {
-                            Set((index + 2) % 4);
-                        }
-                        m_Property.serializedObject.ApplyModifiedProperties();
-                    });
-                    page.Add(LtUI.Row(names[i], field));
-                }
-                return page;
-            });
+            if ((keys & EventModifiers.Alt) != 0) return new[] { 0, 1, 2, 3 };
+            if ((keys & EventModifiers.Shift) != 0) return new[] { side, (side + 2) % 4 };
+            return new[] { side };
         }
+
+        /// <summary>The four sides as a box, top over left and right over bottom, with a line on what the keys do.</summary>
+        internal VisualElement BuildBox()
+        {
+            SerializedProperty[] sides = Sides(m_Property);
+            VisualElement page = LtUI.El("lt-box");
+            page.Add(LtUI.Text("Drag a name or type. Shift links opposite sides, and Alt links all four.", "lt-hint"));
+            LtNumber Side(int index, string name)
+            {
+                var number = new LtNumber(name, sides[index]) { ModifiersScale = false };
+                number.AddToClassList("lt-box__side");
+                number.Wrote += (value, keys) =>
+                {
+                    m_Property.serializedObject.Update();
+                    foreach (int linked in Linked(index, keys))
+                    {
+                        if (linked == index) continue;
+                        if (sides[linked].propertyType == SerializedPropertyType.Integer) sides[linked].intValue = (int)Math.Round(value);
+                        else sides[linked].floatValue = (float)value;
+                    }
+                    m_Property.serializedObject.ApplyModifiedProperties();
+                };
+                return number;
+            }
+            page.Add(LtUI.El("lt-box__line", Side(1, "Top")));
+            page.Add(LtUI.El("lt-box__line", Side(0, "Left"), Side(2, "Right")));
+            page.Add(LtUI.El("lt-box__line", Side(3, "Bottom")));
+            return page;
+        }
+
+        void OpenBox() => LtPopup.Show(m_Summary, new Vector2(300, 150), BuildBox);
     }
 
     /// <summary>
@@ -676,6 +1182,8 @@ namespace FirstSymbol.Lettera.Editor
     public sealed class LtList : VisualElement
     {
         const int FirstRows = 30;
+        const string HiddenKey = "Lettera.List.ControlsHidden";
+        static event Action s_HiddenChanged;
         readonly SerializedProperty m_Array;
         readonly Func<SerializedProperty, int, VisualElement> m_MakeRow;
         readonly VisualElement m_Rows;
@@ -689,6 +1197,27 @@ namespace FirstSymbol.Lettera.Editor
         VisualElement m_DropMark;
 
         public LtListSelection Selection { get; } = new LtListSelection();
+
+        /// <summary>Where a list's own header buttons go, before its Add.</summary>
+        public VisualElement HeaderTools { get; } = LtUI.El("lt-list__tools");
+
+        /// <summary>A row as text and back, for Copy and Paste. Without them a row's text is its plain value.</summary>
+        public Func<SerializedProperty, string> RowToText { get; set; }
+        public Action<string> PasteText { get; set; }
+
+        /// <summary>More lines in a row's right click.</summary>
+        public Action<GenericMenu, int> RowMenuExtra { get; set; }
+
+        /// <summary>Grip, remove and the like hidden on every list, kept per user. Alt+R.</summary>
+        public static bool ControlsHidden
+        {
+            get => EditorPrefs.GetBool(HiddenKey, false);
+            set
+            {
+                EditorPrefs.SetBool(HiddenKey, value);
+                s_HiddenChanged?.Invoke();
+            }
+        }
 
         /// <summary>Runs after anything changed the list.</summary>
         public event Action Changed;
@@ -706,11 +1235,14 @@ namespace FirstSymbol.Lettera.Editor
             m_Count = LtUI.Text("0", "lt-chip");
             header.Add(m_Count);
             header.Add(LtUI.El("lt-list__space"));
-            header.Add(LtUI.Clickable(addLabel, "lt-add--small", "Adds a row.", () =>
+            header.Add(HeaderTools);
+            header.Add(LtUI.Clickable(addLabel, "lt-add lt-add--small", "Adds a row.", () =>
             {
                 if (onAdd != null) onAdd(this);
                 else AddDefault();
+                OpenEnclosing();
             }));
+            header.AddManipulator(new ContextualMenuManipulator(e => e.menu.AppendAction(ControlsHidden ? "Show Row Controls" : "Hide Row Controls", _ => ControlsHidden = !ControlsHidden)));
             Add(header);
             m_Rows = LtUI.El("lt-list__rows");
             Add(m_Rows);
@@ -718,11 +1250,34 @@ namespace FirstSymbol.Lettera.Editor
             RegisterCallback<KeyDownEvent>(OnKey);
             RegisterCallback<PointerMoveEvent>(OnDragMove);
             RegisterCallback<PointerUpEvent>(OnDragEnd);
+            void PaintHidden() => EnableInClassList("lt-list--bare", ControlsHidden);
+            void OnUndo()
+            {
+                if (m_Array.serializedObject.targetObject != null) Rebuild();
+            }
+            PaintHidden();
+            RegisterCallback<AttachToPanelEvent>(_ =>
+            {
+                s_HiddenChanged += PaintHidden;
+                Undo.undoRedoPerformed += OnUndo;
+            });
+            RegisterCallback<DetachFromPanelEvent>(_ =>
+            {
+                s_HiddenChanged -= PaintHidden;
+                Undo.undoRedoPerformed -= OnUndo;
+            });
             this.TrackPropertyValue(m_Array, _ => { if (m_Array.arraySize != m_RowElements.Count && !Truncated) Rebuild(); });
             Rebuild();
         }
 
         bool Truncated => m_Array.arraySize > m_Shown;
+
+        // Adding to a closed list opens it, so that what was added is seen.
+        internal void OpenEnclosing()
+        {
+            LtSection section = GetFirstAncestorOfType<LtSection>();
+            if (section != null && !section.Open) section.Open = true;
+        }
 
         public void Rebuild()
         {
@@ -740,7 +1295,9 @@ namespace FirstSymbol.Lettera.Editor
             {
                 int index = i;
                 VisualElement row = LtUI.El("lt-list__row");
-                row.Add(m_MakeRow(m_Array.GetArrayElementAtIndex(i), i));
+                SerializedProperty element = m_Array.GetArrayElementAtIndex(i);
+                row.EnableInClassList("lt-list__row--override", element.prefabOverride);
+                row.Add(m_MakeRow(element, i));
                 row.RegisterCallback<PointerDownEvent>(e => OnRowDown(index, e));
                 row.RegisterCallback<ContextClickEvent>(_ => RowMenu(index));
                 m_Rows.Add(row);
@@ -781,7 +1338,7 @@ namespace FirstSymbol.Lettera.Editor
         static bool IsControl(VisualElement element)
         {
             for (VisualElement at = element; at != null && !at.ClassListContains("lt-list__row"); at = at.parent)
-                if (at is Focusable focus && at.focusable || at.ClassListContains("lt-switch") || at.ClassListContains("lt-seg") || at.ClassListContains("lt-icon-btn"))
+                if (at.focusable || at.ClassListContains("lt-switch") || at.ClassListContains("lt-seg") || at.ClassListContains("lt-icon-btn") || at.ClassListContains("lt-add") || at.ClassListContains("lt-object__slot") || at.ClassListContains("lt-box__summary"))
                     return true;
             return false;
         }
@@ -852,6 +1409,15 @@ namespace FirstSymbol.Lettera.Editor
                 case KeyCode.D when control:
                     DuplicateSelected();
                     break;
+                case KeyCode.C when control:
+                    CopySelected();
+                    break;
+                case KeyCode.V when control:
+                    PasteFromClipboard();
+                    break;
+                case KeyCode.R when e.altKey:
+                    ControlsHidden = !ControlsHidden;
+                    break;
                 case KeyCode.UpArrow when e.altKey:
                     Apply(Selection.OrderAfterNudge(count, -1), "Move Up");
                     break;
@@ -887,10 +1453,13 @@ namespace FirstSymbol.Lettera.Editor
             menu.AddItem(new GUIContent("Remove"), false, RemoveSelected);
             menu.AddItem(new GUIContent("Duplicate"), false, DuplicateSelected);
             menu.AddItem(new GUIContent("Copy As Text"), false, CopySelected);
+            if (PasteText != null) menu.AddItem(new GUIContent("Paste"), false, PasteFromClipboard);
+            RowMenuExtra?.Invoke(menu, index);
             menu.ShowAsContext();
         }
 
-        void AddDefault()
+        /// <summary>What the header's Add does when a list has no way of its own.</summary>
+        public void AddDefault()
         {
             m_Array.serializedObject.Update();
             m_Array.arraySize++;
@@ -922,15 +1491,28 @@ namespace FirstSymbol.Lettera.Editor
             AfterChange();
         }
 
-        void CopySelected()
+        internal void CopySelected()
         {
             var text = new StringBuilder();
             foreach (int row in Selection.Selected)
             {
                 SerializedProperty element = m_Array.GetArrayElementAtIndex(row);
-                text.Append(element.managedReferenceValue != null ? JsonUtility.ToJson(element.managedReferenceValue) : element.displayName).Append('\n');
+                text.Append(RowToText != null ? RowToText(element) : PlainText(element)).Append('\n');
             }
             EditorGUIUtility.systemCopyBuffer = text.ToString();
+        }
+
+        void PasteFromClipboard() => PasteText?.Invoke(EditorGUIUtility.systemCopyBuffer);
+
+        static string PlainText(SerializedProperty element)
+        {
+            switch (element.propertyType)
+            {
+                case SerializedPropertyType.String: return element.stringValue;
+                case SerializedPropertyType.ObjectReference: return element.objectReferenceValue != null ? element.objectReferenceValue.name : "";
+                case SerializedPropertyType.ManagedReference: return element.managedReferenceValue != null ? JsonUtility.ToJson(element.managedReferenceValue) : "";
+                default: return element.displayName;
+            }
         }
 
         void Apply(int[] order, string undo)
