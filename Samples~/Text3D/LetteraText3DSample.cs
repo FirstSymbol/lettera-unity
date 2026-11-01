@@ -139,7 +139,7 @@ namespace FirstSymbol.Lettera.Samples
         // Solid text does not draw as a Graphic: a Canvas has no light. It draws through a camera of its own, and an image shows that.
         void BuildCanvas()
         {
-            var target = new RenderTexture(512, 128, 24);
+            var target = m_Target = new RenderTexture(512, 128, 24);
             var far = new Vector3(0, 1000, 0);
             var inner = new GameObject("Canvas Camera", typeof(Camera)).GetComponent<Camera>();
             inner.transform.position = far + new Vector3(0, 0, -14);
@@ -166,6 +166,13 @@ namespace FirstSymbol.Lettera.Samples
             statsRect.sizeDelta = new Vector2(600, 40);
             m_Stats = stats.AddComponent<LetteraText>();
             m_Stats.FontSize = 18;
+        }
+
+        RenderTexture m_Target;
+
+        void OnDestroy()
+        {
+            if (m_Target != null) m_Target.Release();
         }
 
         void Update()

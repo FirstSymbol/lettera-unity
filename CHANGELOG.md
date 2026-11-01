@@ -4,6 +4,22 @@ All notable changes to this package are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.7.1] - 2026-11-01
+
+### Added
+- The 3D sample makes its five looks in code: Plain, Gold, Chrome, Candy and Stone.
+- A font's inspector has a Math card, whose button opens the font and says what its math table holds.
+
+### Fixed
+- `GlyphAtlas.Clear` left a formula's rules pointing at tiles that were gone.
+- The 3D sample's tooltip named looks that did not exist, and it never released its render texture.
+
+### Verified
+- The Math and 3D samples run in a Windows player, and were looked at. Neither has run in a browser.
+
+### Known
+- **The 3D sample's player sometimes crashes on exit** on the development machine: about 1 run in 8, inside `D3D12Core.dll`, after all scripts have finished. Nothing is lost by then. Five scenes holding its parts one at a time, static, moving, counting, 500 shared and a render texture, did not do it in 40 runs, and nor did a control of Unity's cubes under the same light in 14. The cause is not found. A project's own scene has not been seen to do it.
+
 ## [0.7.0] - 2026-11-01
 
 Formulas in the text's flow, and solid lit text with depth.
