@@ -21,6 +21,12 @@ namespace FirstSymbol.Lettera
             m_EffectiveStyles.Clear();
             if (Literal) return;
             LetteraTextData data = m_Host.Data;
+            int hostStyles = 0;
+            if (m_Host.HostStyles != null)
+            {
+                foreach (LetteraStyle style in m_Host.HostStyles) m_EffectiveStyles.Add(style);
+                hostStyles = m_EffectiveStyles.Count;
+            }
             m_EffectiveStyles.AddRange(data.Styles);
             foreach (LetteraStylePreset preset in data.StylePresets)
                 if (preset != null)
@@ -30,7 +36,7 @@ namespace FirstSymbol.Lettera
                 LetteraStylePreset global = LetteraSettings.Instance.GlobalStylePreset;
                 m_EffectiveStyles.AddRange(global != null ? global.Styles : LetteraDefaultStyles.Styles);
             }
-            if (m_OwnCopies) ReplaceSharedStylesWithCopies(data.Styles.Count);
+            if (m_OwnCopies) ReplaceSharedStylesWithCopies(hostStyles + data.Styles.Count);
         }
 
         // Shared styles are used directly until someone asks for this text's effects to change them.

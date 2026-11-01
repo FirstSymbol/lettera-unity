@@ -53,7 +53,7 @@ namespace FirstSymbol.Lettera.Editor.Tests
             StringAssert.Contains("<math", html);
             StringAssert.Contains("application/x-tex", html);
             StringAssert.Contains("x^2</annotation>", html);
-            StringAssert.DoesNotContain("", html);
+            Assert.AreEqual(-1, html.IndexOf((char)0xE000), "no mark is left where a formula stood");
         }
 
         [Test]

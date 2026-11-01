@@ -40,6 +40,12 @@ namespace FirstSymbol.Lettera
 
         /// <summary>The ranges that take input changed.</summary>
         void ActiveRangesChanged(bool any);
+
+        /// <summary>Glyphs with an outline draw some other way: no tile is made for them, and no quad.</summary>
+        bool SolidsOnly { get; }
+
+        /// <summary>Styles only this kind of host has, read before all others. Null for most.</summary>
+        IReadOnlyList<LetteraStyle> HostStyles { get; }
     }
 
     /// <summary>
@@ -281,6 +287,8 @@ namespace FirstSymbol.Lettera
             public bool IsDrawn => false;
             public bool SupportsMarquee => false;
             public void ActiveRangesChanged(bool any) { }
+            public bool SolidsOnly => false;
+            public IReadOnlyList<LetteraStyle> HostStyles => null;
         }
 
         /// <summary>Measures a text without touching what a component displays.</summary>

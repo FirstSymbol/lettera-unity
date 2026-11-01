@@ -1,0 +1,22 @@
+{
+    "name": "FirstSymbol.Lettera.Text3D",
+    "rootNamespace": "FirstSymbol.Lettera",
+    "references": [
+        "FirstSymbol.Lettera",
+        "FirstSymbol.Lettera.Unicode",
+        "Unity.Burst",
+        "Unity.Collections",
+        "Unity.Mathematics"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": true,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [
+        "!LETTERA_NO_3D"
+    ],
+    "versionDefines": [],
+    "noEngineReferences": false
+}
