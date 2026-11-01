@@ -62,7 +62,9 @@ namespace FirstSymbol.Lettera.Samples
             scroller.horizontal = false;
 
             Row("<b>A formula in a sentence</b>");
-            Row("Energy is <math>E = mc^2</math>, and <math>\\frac{1}{2}mv^2</math> is the part that moves. Between שלום and שלום, it stays <math>x+1</math>, whichever way the line runs.");
+            // The web's default font has no Hebrew: assign one that has, and this line can run both ways there too.
+            string between = Application.platform == RuntimePlatform.WebGLPlayer ? "Between words" : "Between שלום and שלום";
+            Row("Energy is <math>E = mc^2</math>, and <math>\\frac{1}{2}mv^2</math> is the part that moves. " + between + ", it stays <math>x+1</math>, whichever way the line runs.");
             Row("<b>By itself</b>");
             Row("<math=display>\\int_0^\\infty e^{-x^2} dx = \\frac{\\sqrt{\\pi}}{2}</math>");
 

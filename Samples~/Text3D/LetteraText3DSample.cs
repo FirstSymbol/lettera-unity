@@ -12,6 +12,8 @@ namespace FirstSymbol.Lettera.Samples
     {
         [Tooltip("A material with the Lettera/Solid Lit shader. Without one, solid text has nothing to draw with in a build.")]
         public Material Material;
+        [Tooltip("The font of the formula. Empty uses the project's setting, then a system math font. The web has none, so assign LetteraMathNotoSans there.")]
+        public LetteraFontAsset MathFont;
         [Tooltip("Your own looks, in place of the five this sample makes: Plain, Gold, Chrome, Candy and Stone.")]
         public LetteraSolidLook[] Looks;
         [Tooltip("Shows many identical labels, sharing one mesh.")]
@@ -71,12 +73,15 @@ namespace FirstSymbol.Lettera.Samples
                 }
             }
 
-            Word("مرحبا Hello שלום", new Vector3(0, -2, 0), new Color(0.45f, 0.85f, 0.55f));
+            // The web's default font has neither script: assign a font that has them, and shaping works as everywhere.
+            Word(Application.platform == RuntimePlatform.WebGLPlayer ? "Hello, мир" : "مرحبا Hello שלום", new Vector3(0, -2, 0), new Color(0.45f, 0.85f, 0.55f));
             Word("<wave>Each letter moves</wave>", new Vector3(0, -6, 0), new Color(0.5f, 0.75f, 1));
             m_Counter = Word("0", new Vector3(0, -10, 0), new Color(1, 0.5f, 0.45f));
             m_Counter.WarmCharacters = "0123456789";
             Word("<u>Underlined</u>, and <depth=3>deeper</depth>", new Vector3(0, -14, 0), new Color(0.9f, 0.9f, 0.92f));
-            Word("<math>\\frac{a}{\\sqrt{b+1}} + \\sum_{i=0}^n i</math>", new Vector3(0, 8, 0), new Color(0.95f, 0.85f, 0.4f));
+            LetteraText3D formula = Word("", new Vector3(0, 8, 0), new Color(0.95f, 0.85f, 0.4f));
+            if (MathFont != null) formula.Styles.Insert(0, LetteraStyle.ForMatcher(new LetteraMathTagMatcher(), new LetteraMathEffect { Font = MathFont }));
+            formula.Text = "<math>\\frac{a}{\\sqrt{b+1}} + \\sum_{i=0}^n i</math>";
 
             // Many of the same text share one mesh, which is what lets them instance.
             var labels = new GameObject("Labels").transform;

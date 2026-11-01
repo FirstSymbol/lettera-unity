@@ -261,7 +261,8 @@ namespace FirstSymbol.Lettera.Samples
             switch (id)
             {
                 case "basics":
-                    Label("Hello, Мир, مرحبا, שלום, नमस्ते 🎉", 40, new Vector2(0, 0.4f), new Vector2(1, 0.6f));
+                    // A browser exposes no fonts, and the web's default has Latin, Cyrillic and Greek. That is no failure of the device.
+                    Label(Application.platform == RuntimePlatform.WebGLPlayer ? "Hello, Мир, Γειά 🎉" : "Hello, Мир, مرحبا, שלום, नमस्ते 🎉", 40, new Vector2(0, 0.4f), new Vector2(1, 0.6f));
                     break;
                 case "fonts":
                     LetteraFontMemory.Sums sums = LetteraFontMemory.Totals;

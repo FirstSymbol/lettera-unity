@@ -26,7 +26,9 @@ namespace FirstSymbol.Lettera.Samples
             Row("Flags. Windows' own emoji font draws these as two letters.", "\U0001F1FA\U0001F1E6 \U0001F1EF\U0001F1F5 \U0001F1E7\U0001F1F7 \U0001F1E8\U0001F1E6 \U0001F1F0\U0001F1EA");
             Row("Joined into one: a family, a job, a rainbow flag. A caret and Backspace take each as one.", "\U0001F468\u200D\U0001F469\u200D\U0001F467\u200D\U0001F466 \U0001F469\u200D\U0001F4BB \U0001F9D1\u200D\U0001F680 \U0001F469\U0001F3FD\u200D\U0001F527 \U0001F3F3\uFE0F\u200D\U0001F308");
             Row("Skin tones", "\U0001F44D \U0001F44D\U0001F3FB \U0001F44D\U0001F3FC \U0001F44D\U0001F3FD \U0001F44D\U0001F3FE \U0001F44D\U0001F3FF");
-            Row("Keycaps, and the same character as text and as emoji", "1\uFE0F\u20E3 #\uFE0F\u20E3 \u2764\uFE0E \u2764\uFE0F \u2600\uFE0E \u2600\uFE0F");
+            // The text forms come from a text font, and the web's default has none of these.
+            if (Application.platform == RuntimePlatform.WebGLPlayer) Row("Keycaps, and emoji with a variation selector", "1\uFE0F\u20E3 #\uFE0F\u20E3 \u2764\uFE0F \u2600\uFE0F");
+            else Row("Keycaps, and the same character as text and as emoji", "1\uFE0F\u20E3 #\uFE0F\u20E3 \u2764\uFE0E \u2764\uFE0F \u2600\uFE0E \u2600\uFE0F");
             Row("In a sentence, with markup around it", "Words \U0001F389 and <b>bold \U0001F600</b>, <size=125%>big \U0001F680</size>, <u>underlined \U0001F355</u>");
             Row("Alpha reaches an emoji", "<alpha=100%>\U0001F600</alpha> <alpha=75%>\U0001F600</alpha> <alpha=50%>\U0001F600</alpha> <alpha=25%>\U0001F600</alpha>");
             Row("A color leaves an emoji as it is drawn, and tints the words", "<color=#FF7755>Red words \U0001F600 stay red</color>");
