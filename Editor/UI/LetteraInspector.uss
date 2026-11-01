@@ -1329,3 +1329,7 @@
 .lt-build__size { flex-shrink: 0; margin-left: 6px; color: var(--lt-dim); font-size: 10px; }
 .lt-build__why { margin-left: 12px; color: var(--lt-dim); font-size: 10px; white-space: normal; }
 .lt-rule__when { margin-bottom: 2px; }
+
+/* Getting Started: a line with words that wrap and actions at the end. */
+.lt-start { flex-direction: row; align-items: center; padding: 3px 0; }
+.lt-start__words { flex-grow: 1; flex-shrink: 1; min-width: 0; margin-right: 6px; }
