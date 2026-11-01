@@ -1,0 +1,17 @@
+{
+    "name": "FirstSymbol.Lettera.Editor.Migration",
+    "rootNamespace": "FirstSymbol.Lettera.Editor.Migration",
+    "references": [
+        "FirstSymbol.Lettera",
+        "FirstSymbol.Lettera.Editor"
+    ],
+    "includePlatforms": ["Editor"],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

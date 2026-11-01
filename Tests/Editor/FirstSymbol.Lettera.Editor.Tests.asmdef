@@ -6,6 +6,7 @@
         "UnityEditor.TestRunner",
         "FirstSymbol.Lettera",
         "FirstSymbol.Lettera.Editor",
+        "FirstSymbol.Lettera.Editor.Migration",
         "FirstSymbol.Lettera.Unicode",
         "Unity.Collections",
         "Unity.Mathematics",
