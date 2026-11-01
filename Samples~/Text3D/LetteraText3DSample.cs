@@ -12,7 +12,7 @@ namespace FirstSymbol.Lettera.Samples
     {
         [Tooltip("A material with the Lettera/Solid Lit shader. Without one, solid text has nothing to draw with in a build.")]
         public Material Material;
-        [Tooltip("Plain, Gold, Chrome, Candy and Stone are beside this sample.")]
+        [Tooltip("Your own looks, in place of the five this sample makes: Plain, Gold, Chrome, Candy and Stone.")]
         public LetteraSolidLook[] Looks;
         [Tooltip("Shows many identical labels, sharing one mesh.")]
         public int SharedLabels = 500;
@@ -60,6 +60,7 @@ namespace FirstSymbol.Lettera.Samples
                 y -= 4;
             }
 
+            if ((Looks == null || Looks.Length == 0) && Material != null) Looks = MakeLooks();
             if (Looks != null)
             {
                 y = 26;
@@ -88,6 +89,36 @@ namespace FirstSymbol.Lettera.Samples
             }
 
             BuildCanvas();
+        }
+
+        // A look is an asset in a real project, made with Create > Lettera > Solid Look. These are made here so that the sample brings none into a build.
+        LetteraSolidLook[] MakeLooks()
+        {
+            LetteraSolidLook Look(string name, Color color, float metallic, float smoothness, LetteraBevelShape shape, float depth)
+            {
+                var look = ScriptableObject.CreateInstance<LetteraSolidLook>();
+                look.name = name;
+                look.Depth = depth;
+                var material = new Material(Material) { name = name };
+                material.SetColor("_BaseColor", color);
+                material.SetFloat("_Metallic", metallic);
+                material.SetFloat("_Smoothness", smoothness);
+                LetteraBevel bevel = LetteraBevel.Default;
+                bevel.Shape = shape;
+                bevel.Width = 0.03f;
+                bevel.Height = 0.03f;
+                look.FrontBevel = bevel;
+                look.FaceMaterial = material;
+                return look;
+            }
+            return new[]
+            {
+                Look("Plain", new Color(0.85f, 0.85f, 0.88f), 0, 0.3f, LetteraBevelShape.None, 0.15f),
+                Look("Gold", new Color(1, 0.76f, 0.3f), 1, 0.75f, LetteraBevelShape.Round, 0.2f),
+                Look("Chrome", new Color(0.9f, 0.92f, 0.95f), 1, 0.95f, LetteraBevelShape.Chamfer, 0.2f),
+                Look("Candy", new Color(1, 0.35f, 0.55f), 0, 0.85f, LetteraBevelShape.Round, 0.3f),
+                Look("Stone", new Color(0.5f, 0.5f, 0.48f), 0, 0.1f, LetteraBevelShape.Step, 0.25f),
+            };
         }
 
         LetteraText3D Word(string text, Vector3 position, Color color, float size = 3)

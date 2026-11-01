@@ -150,6 +150,11 @@ namespace FirstSymbol.Lettera.Editor
                 Field("Face Index", "m_FaceIndex", "The face inside a .ttc or .otc file."),
                 Field("Keep Inline", "m_KeepInline", "Keeps this font inside its asset in every build, whatever the project's packaging says.")));
             root.Add(MemoryCard(font));
+#if !LETTERA_NO_MATH
+            Label mathFacts = LtUI.Text("", "lt-subtitle");
+            mathFacts.style.whiteSpace = WhiteSpace.Normal;
+            root.Add(LtUI.Card("Math", LtUI.Clickable("Read The Math Table", "lt-button", "Opens the font and says what it holds for formulas.", () => mathFacts.text = LetteraMathInspector.DescribeFont(font)), mathFacts));
+#endif
             root.Add(FontCommon());
             root.Add(PixelCard(font));
             root.Add(LetteraSubsetCard.Create(font));
