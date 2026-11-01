@@ -148,7 +148,8 @@ namespace FirstSymbol.Lettera.Editor
                 }),
                 LtUI.Clickable("❚❚ Pause", "lt-tool", "Stops where it stands", () => m_Sequencer.Pause()),
                 LtUI.Clickable("■ Stop", "lt-tool", "Back to the start", () => m_Sequencer.Stop()),
-                LtUI.Clickable("✕ End Preview", "lt-tool", "Every value goes back, and nothing was written", () => m_Sequencer.EndPreview()));
+                LtUI.Clickable("✕ End Preview", "lt-tool", "Every value goes back, and nothing was written", () => m_Sequencer.EndPreview()),
+                LtUI.Clickable("Open Sequencer", "lt-tool", "The cues on rows, to drag, split and copy", () => LetteraSequencerWindow.Open(m_Sequencer)));
             page.Add(LtUI.Card("Transport", transport, m_Scrub, m_Time));
 
             m_Strip = new VisualElement { style = { height = 54, position = Position.Relative, overflow = Overflow.Hidden } };
@@ -182,19 +183,32 @@ namespace FirstSymbol.Lettera.Editor
 
         VisualElement CueCard(SerializedProperty list, int index, VisualElement holder)
         {
-            SerializedProperty cue = list.GetArrayElementAtIndex(index);
-            LetteraParamTarget paramTarget = m_Sequencer.Cues.Count > index ? m_Sequencer.Cues[index].Target : null;
+            VisualElement remove = LtUI.Clickable("✕", "lt-tool", "Remove this cue", () =>
+            {
+                list.DeleteArrayElementAtIndex(index);
+                serializedObject.ApplyModifiedProperties();
+                RebuildCues(holder);
+            });
+            VisualElement card = CueFields(m_Sequencer, serializedObject, list.GetArrayElementAtIndex(index), index);
+            card.Add(remove);
+            return card;
+        }
+
+        /// <summary>One cue's whole editor, here and in the window.</summary>
+        internal static VisualElement CueFields(LetteraSequencer sequencer, SerializedObject serialized, SerializedProperty cue, int index)
+        {
+            LetteraParamTarget paramTarget = sequencer.Cues.Count > index ? sequencer.Cues[index].Target : null;
             VisualElement values = LtUI.El("lt-list");
             void ShowValues()
             {
                 values.Clear();
-                LetteraParamKind kind = KindOf(paramTarget);
+                LetteraParamKind kind = KindOf(sequencer, paramTarget);
                 values.Add(ValueRow("From", cue.FindPropertyRelative("From"), kind));
                 values.Add(ValueRow("To", cue.FindPropertyRelative("To"), kind));
-                values.Bind(serializedObject);
+                values.Bind(serialized);
             }
 
-            var choices = LetteraParamChoices.For(m_Sequencer.GetComponent<LetteraText>() as Component ?? m_Sequencer.GetComponent<LetteraWorldText>());
+            var choices = LetteraParamChoices.For(sequencer.GetComponent<LetteraText>() as Component ?? sequencer.GetComponent<LetteraWorldText>());
             var picker = new DropdownField(choices.Select(c => c.Label).ToList(), choices.FindIndex(c => c.Matches(paramTarget)));
             picker.RegisterValueChangedCallback(e =>
             {
@@ -202,17 +216,11 @@ namespace FirstSymbol.Lettera.Editor
                 if (at < 0 || at >= choices.Count) return;
                 SerializedProperty stored = cue.FindPropertyRelative("Target");
                 choices[at].WriteTo(stored);
-                serializedObject.ApplyModifiedProperties();
+                serialized.ApplyModifiedProperties();
                 ShowValues();
             });
             ShowValues();
 
-            VisualElement remove = LtUI.Clickable("✕", "lt-tool", "Remove this cue", () =>
-            {
-                list.DeleteArrayElementAtIndex(index);
-                serializedObject.ApplyModifiedProperties();
-                RebuildCues(holder);
-            });
             return LtUI.Card("Cue " + (index + 1),
                 LtUI.Row("Parameter", picker),
                 values,
@@ -223,14 +231,13 @@ namespace FirstSymbol.Lettera.Editor
                 LtFrame.Row(cue.FindPropertyRelative("Mix").Copy()),
                 LtFrame.Row(cue.FindPropertyRelative("Priority").Copy()),
                 LtFrame.Row(cue.FindPropertyRelative("Muted").Copy()),
-                LtFrame.Row(cue.FindPropertyRelative("Lane").Copy()),
-                remove);
+                LtFrame.Row(cue.FindPropertyRelative("Lane").Copy()));
         }
 
-        LetteraParamKind KindOf(LetteraParamTarget paramTarget)
+        internal static LetteraParamKind KindOf(LetteraSequencer sequencer, LetteraParamTarget paramTarget)
         {
             if (paramTarget == null) return LetteraParamKind.Float;
-            TextEngine engine = m_Sequencer.Engine;
+            TextEngine engine = sequencer.Engine;
             LetteraEffect effect = engine != null ? paramTarget.Resolve(engine) : null;
             return LetteraParamTarget.Find(effect, paramTarget.Parameter)?.Kind ?? LetteraParamKind.Float;
         }

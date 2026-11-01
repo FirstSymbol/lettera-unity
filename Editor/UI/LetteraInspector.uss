@@ -804,3 +804,158 @@
 .lt-glyph-row:hover {
     background-color: rgba(155, 110, 255, 0.15);
 }
+
+/* ---------- Sequencer window ---------- */
+
+.lt-seq-page {
+    flex-grow: 1;
+}
+
+.lt-seq-body {
+    flex-grow: 1;
+}
+
+.lt-seq-time {
+    margin: 0 8px;
+    color: var(--lt-dim);
+    font-size: 11px;
+    -unity-text-align: middle-left;
+    min-width: 92px;
+}
+
+.lt-seq-timeline {
+    flex-direction: row;
+    flex-grow: 1;
+    min-height: 130px;
+    margin: 4px 0;
+    border-width: 1px;
+    border-color: var(--lt-border);
+    border-radius: 6px;
+    overflow: hidden;
+}
+
+.lt-seq-gutter {
+    width: 24px;
+    flex-shrink: 0;
+    overflow: hidden;
+    background-color: var(--lt-inset);
+}
+
+.lt-seq-rowlabel {
+    position: absolute;
+    left: 0;
+    right: 0;
+    height: 26px;
+    color: var(--lt-faint);
+    font-size: 10px;
+    -unity-text-align: middle-center;
+}
+
+.lt-seq-main {
+    flex-grow: 1;
+    flex-shrink: 1;
+    width: 0;
+}
+
+.lt-seq-ruler {
+    height: 22px;
+    flex-shrink: 0;
+    overflow: hidden;
+    color: var(--lt-faint);
+    background-color: var(--lt-inset);
+}
+
+.lt-seq-tick {
+    position: absolute;
+    top: 1px;
+    color: var(--lt-dim);
+    font-size: 9px;
+}
+
+.lt-seq-tracks {
+    flex-grow: 1;
+    overflow: hidden;
+    color: var(--lt-border);
+    background-color: var(--lt-card);
+}
+
+.lt-seq-layer {
+    position: absolute;
+    left: 0;
+    top: 0;
+    right: 0;
+    bottom: 0;
+}
+
+.lt-seq-cue {
+    position: absolute;
+    justify-content: center;
+    overflow: hidden;
+    border-width: 1px;
+    border-radius: 4px;
+    border-color: var(--lt-accent-strong);
+    background-color: var(--lt-accent-soft);
+}
+
+.lt-seq-cue--on {
+    border-color: var(--lt-accent);
+    background-color: var(--lt-accent-strong);
+    border-left-width: 3px;
+    border-right-width: 3px;
+}
+
+.lt-seq-cue--muted {
+    opacity: 0.4;
+}
+
+.lt-seq-cue--problem {
+    border-color: var(--lt-orange);
+}
+
+.lt-seq-cue__label {
+    margin: 0 4px;
+    color: var(--lt-text);
+    font-size: 10px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.lt-seq-head {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 1px;
+    background-color: var(--lt-red);
+}
+
+.lt-seq-snap {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 1px;
+    background-color: var(--lt-green);
+}
+
+.lt-seq-marquee {
+    position: absolute;
+    border-width: 1px;
+    border-color: var(--lt-accent);
+    background-color: var(--lt-accent-soft);
+}
+
+.lt-seq-detail {
+    flex-shrink: 0;
+    max-height: 45%;
+}
+
+.lt-seq-detail .lt-text-input > .unity-base-text-field__input {
+    min-height: 20px;
+    padding: 1px 6px;
+}
+
+.lt-seq-status {
+    padding: 2px 4px;
+    color: var(--lt-dim);
+    font-size: 10px;
+}
