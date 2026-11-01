@@ -1,3 +1,4 @@
+using FirstSymbol.Lettera.Timeline;
 using UnityEngine;
 using UnityEngine.Playables;
 using UnityEngine.Timeline;
