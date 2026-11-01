@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 ### Fixed
 - **A saved timeline lost Lettera's tracks and clips.** They lived in one file, and Unity finds a saved object's script by a file of its name, so they came back as missing scripts. Each now has its own file. In memory they had worked, which is why nothing showed it. Present since 0.4.0.
 - **Previewing a sequencer wrote its serialized `Progress`, and took it to 0 on the way out.** A preview now moves only what it shows, so a save during one keeps the field, and leaving returns to it. The same for a sequencer's clock under a track, and a linked parameter goes back to its value when a preview ends.
+- **Changing a text under a live cue could overflow the stack.** A query before the frame's rebuild parsed, and a hold, refreshing during that parse, asked for it again. Moving a sequencer right after setting its text was enough. The sample's first run in a player found this.
 - **A cue removed while its hold was live, by an edit or an undo, kept holding** the value on the text until the object was disabled.
 - A switch in a row of an inspector stretched across the row with its knob at the far left.
 
