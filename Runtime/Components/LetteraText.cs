@@ -163,6 +163,8 @@ namespace FirstSymbol.Lettera
             DestroyMesh();
         }
 
+        internal Mesh MeshForTests => m_Mesh;
+
         void DestroyMesh()
         {
             if (m_Mesh == null) return;
