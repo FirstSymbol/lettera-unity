@@ -35,7 +35,6 @@ namespace FirstSymbol.Lettera.Tests
         {
             if (AssetDatabase.IsValidFolder(Folder)) AssetDatabase.DeleteAsset(Folder);
             AssetDatabase.CreateFolder("Assets", "LetteraScriptIdentityTemp");
-            LogAssert.ignoreFailingMessages = true;
         }
 
         [TearDown]
@@ -58,6 +57,7 @@ namespace FirstSymbol.Lettera.Tests
         [Test]
         public void EveryClassHasAScriptOfItsOwnName()
         {
+            LogAssert.ignoreFailingMessages = true;
             var lost = new List<string>();
             foreach (Type type in SavedTypes())
             {
@@ -85,6 +85,7 @@ namespace FirstSymbol.Lettera.Tests
         [Test]
         public void EveryClassComesBackFromDisk()
         {
+            LogAssert.ignoreFailingMessages = true;
             var lost = new List<string>();
             foreach (Type type in SavedTypes())
             {
