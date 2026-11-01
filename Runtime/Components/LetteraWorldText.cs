@@ -9,6 +9,8 @@ namespace FirstSymbol.Lettera
     [ExecuteAlways]
     public partial class LetteraWorldText : MonoBehaviour, ITextHost
     {
+        [SerializeField, HideInInspector] internal int LetteraSerializedVersion;
+
         /// <summary>The formulas this text draws, with where they stand and whether they could be read.</summary>
         public void GetFormulas(System.Collections.Generic.List<LetteraFormulaInfo> output)
         {

@@ -9,7 +9,7 @@ namespace FirstSymbol.Lettera
     /// Does not store the file again. A missing source counts as no font: texts fall back.
     /// </summary>
     [CreateAssetMenu(menuName = "Lettera/Font Variant", fileName = "New Lettera Font Variant", order = 101)]
-    public class LetteraFontVariant : LetteraFontAsset
+    public partial class LetteraFontVariant : LetteraFontAsset
     {
         [Serializable]
         public struct AxisValue

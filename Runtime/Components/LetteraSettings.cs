@@ -25,8 +25,10 @@ namespace FirstSymbol.Lettera
     }
 
     /// <summary>Project-wide defaults. Lives at Resources/LetteraSettings in the project, so it survives a package update.</summary>
-    public class LetteraSettings : ScriptableObject
+    public partial class LetteraSettings : ScriptableObject
     {
+        [SerializeField, HideInInspector] internal int LetteraSerializedVersion;
+
         public const string ResourceName = "LetteraSettings";
 
         /// <summary>Raised when the settings change; every text rebuilds.</summary>

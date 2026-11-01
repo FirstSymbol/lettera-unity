@@ -6,8 +6,10 @@ namespace FirstSymbol.Lettera
 {
     /// <summary>A matcher that finds ranges, and an effect applied to them.</summary>
     [Serializable]
-    public class LetteraStyle
+    public partial class LetteraStyle
     {
+        [SerializeField, HideInInspector] internal int LetteraSerializedVersion;
+
         [SerializeReference] LetteraMatcher m_Matcher;
         [SerializeReference] LetteraEffect m_Effect;
         [SerializeField] bool m_Enabled = true;

@@ -8,8 +8,10 @@ namespace FirstSymbol.Lettera
 {
     /// <summary>One rule list for many fields, such as chat, password or form. Each field works on its own copy.</summary>
     [CreateAssetMenu(fileName = "Field Preset", menuName = "Lettera/Field Preset", order = 92)]
-    public class LetteraFieldPreset : ScriptableObject
+    public partial class LetteraFieldPreset : ScriptableObject
     {
+        [SerializeField, HideInInspector] internal int LetteraSerializedVersion;
+
         [SerializeReference] List<LetteraFieldRule> m_Rules = new List<LetteraFieldRule>();
 
         internal static event Action<LetteraFieldPreset> PresetChanged;

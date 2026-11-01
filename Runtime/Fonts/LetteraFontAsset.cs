@@ -4,8 +4,10 @@ using UnityEngine;
 namespace FirstSymbol.Lettera
 {
     /// <summary>Base of everything a text can use as a font.</summary>
-    public abstract class LetteraFontAsset : ScriptableObject
+    public abstract partial class LetteraFontAsset : ScriptableObject
     {
+        [SerializeField, HideInInspector] internal int LetteraSerializedVersion;
+
         /// <summary>Raised when an asset changes, so texts using it rebuild.</summary>
         public static event Action<LetteraFontAsset> FontAssetChanged;
 
