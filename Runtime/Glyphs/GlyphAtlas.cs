@@ -637,11 +637,12 @@ namespace FirstSymbol.Lettera
             if (!s_Lines.IsCreated) s_Lines = new NativeList<float4>(4096, Allocator.Persistent);
             if (!s_LineColors.IsCreated) s_LineColors = new NativeList<byte>(4096, Allocator.Persistent);
             PageSet set = multi ? s_Msdf : s_Sdf;
-            const float Sliver = 0.5f; // In thousandths of an em: far below a tile's pixel, so the middle column is the whole field across.
-            float w = vertical ? thickness : Sliver, h = vertical ? Sliver : thickness;
             float density = pixelsPerEm;
             float scale = density / 1000f;
             float spreadPixels = spread * density;
+            // Long enough that its ends reach nowhere near the middle column, which is then the whole field across the rule.
+            float along = (2 * spreadPixels + 4) / scale;
+            float w = vertical ? thickness : along, h = vertical ? along : thickness;
             int width = Mathf.Max(Mathf.CeilToInt(w * scale + 2 * spreadPixels), 1);
             int height = Mathf.Max(Mathf.CeilToInt(h * scale + 2 * spreadPixels), 1);
             if (!Allocate(set, width + 2 * Bleed, height + 2 * Bleed, out int page, out int x, out int y)) return default;

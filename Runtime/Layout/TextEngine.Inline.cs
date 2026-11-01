@@ -55,7 +55,8 @@ namespace FirstSymbol.Lettera
                     if (part.Kind == MathItemKind.Rule)
                     {
                         // Thin rules read as missing, so one under a pixel draws at a pixel, around the same middle. Nothing moves in the layout.
-                        float least = LetteraSettings.Instance.Math.MinRulePixels / (Mathf.Max(m_Host.RasterScale, 0.01f) * Mathf.Max(em, 0.01f));
+                        // Only a canvas knows its pixels: a world unit is whatever a camera makes of it.
+                        float least = m_Host.Owner is LetteraText ? LetteraSettings.Instance.Math.MinRulePixels / (Mathf.Max(m_Host.RasterScale, 0.01f) * Mathf.Max(em, 0.01f)) : 0;
                         if (part.Thickness < least)
                         {
                             float grow = (least - part.Thickness) / 2 * em;
@@ -81,6 +82,48 @@ namespace FirstSymbol.Lettera
         }
 
         const byte SpecialCrop = 1, SpecialRule = 2, SpecialColor = 3;
+
+        // A rule's tile is a short rule, whose middle column holds the whole field across it. Its two ends draw as they are,
+        // and between them that one column stretches, which is exact and not an approximation. A rule shorter than the tile takes its two ends cut.
+        void AddRule(in MathSpecial special, in AtlasGlyph atlas, in PlacedGlyph plain, Color32 color, float mode, float threshold, float softness, float upper, in ResolvedPaint paint, in Rect paintRect, float paintDx, float paintDy, float extra)
+        {
+            bool vertical = special.Vertical;
+            float low = vertical ? atlas.Bottom : atlas.Left, high = vertical ? atlas.Top : atlas.Right;
+            float t0 = vertical ? atlas.V0 : atlas.U0, t1 = vertical ? atlas.V1 : atlas.U1;
+            float span = high - low;
+            if (span <= 0 || special.Length <= 0) return;
+            float reach = -low, ink = span - 2 * reach;
+            float half = Mathf.Min(ink, special.Length) / 2;
+            float shareStart = (reach + half) / span;
+
+            void Part(float from, float to, float texFrom, float texTo, in AtlasGlyph source, in PlacedGlyph glyph)
+            {
+                AtlasGlyph part = source;
+                if (vertical)
+                {
+                    part.Bottom = from;
+                    part.Top = to;
+                    part.V0 = texFrom;
+                    part.V1 = texTo;
+                }
+                else
+                {
+                    part.Left = from;
+                    part.Right = to;
+                    part.U0 = texFrom;
+                    part.U1 = texTo;
+                }
+                AddQuad(glyph, part, color, mode, threshold, softness, upper, paint, paintRect, paintDx, paintDy, extra);
+            }
+
+            Part(low, half, t0, Mathf.Lerp(t0, t1, shareStart), atlas, plain);
+            if (special.Length > ink)
+            {
+                float middle = (t0 + t1) / 2;
+                Part(half, special.Length - half, middle, middle, atlas, plain);
+            }
+            Part(special.Length - half, special.Length + reach, Mathf.Lerp(t1, t0, shareStart), t1, atlas, plain);
+        }
 
         struct MathSpecial
         {
@@ -132,43 +175,7 @@ namespace FirstSymbol.Lettera
                     AddQuad(plain, piece, color, mode, threshold, softness, upper, paint, paintRect, paintDx, paintDy, extra);
                     return;
                 case SpecialRule:
-                    // A rule's tile has a tiny length, so one column of it holds the field across the rule: stretching that column is exact, not an approximation.
-                    if (special.Vertical)
-                    {
-                        float middle = (atlas.Bottom + atlas.Top) / 2, centreV = (atlas.V0 + atlas.V1) / 2;
-                        piece.Bottom = atlas.Bottom;
-                        piece.Top = middle;
-                        piece.V1 = centreV;
-                        AddQuad(plain, piece, color, mode, threshold, softness, upper, paint, paintRect, paintDx, paintDy, extra);
-                        piece = atlas;
-                        piece.Bottom = middle;
-                        piece.Top = middle + special.Length;
-                        piece.V0 = piece.V1 = centreV;
-                        AddQuad(plain, piece, color, mode, threshold, softness, upper, paint, paintRect, paintDx, paintDy, extra);
-                        piece = atlas;
-                        piece.Bottom = middle + special.Length;
-                        piece.Top = atlas.Top + special.Length;
-                        piece.V0 = centreV;
-                        AddQuad(plain, piece, color, mode, threshold, softness, upper, paint, paintRect, paintDx, paintDy, extra);
-                    }
-                    else
-                    {
-                        float middle = (atlas.Left + atlas.Right) / 2, centreU = (atlas.U0 + atlas.U1) / 2;
-                        piece.Left = atlas.Left;
-                        piece.Right = middle;
-                        piece.U1 = centreU;
-                        AddQuad(plain, piece, color, mode, threshold, softness, upper, paint, paintRect, paintDx, paintDy, extra);
-                        piece = atlas;
-                        piece.Left = middle;
-                        piece.Right = middle + special.Length;
-                        piece.U0 = piece.U1 = centreU;
-                        AddQuad(plain, piece, color, mode, threshold, softness, upper, paint, paintRect, paintDx, paintDy, extra);
-                        piece = atlas;
-                        piece.Left = middle + special.Length;
-                        piece.Right = atlas.Right + special.Length;
-                        piece.U0 = centreU;
-                        AddQuad(plain, piece, color, mode, threshold, softness, upper, paint, paintRect, paintDx, paintDy, extra);
-                    }
+                    AddRule(special, atlas, plain, color, mode, threshold, softness, upper, paint, paintRect, paintDx, paintDy, extra);
                     return;
                 default:
                     AddQuad(plain, piece, color, mode, threshold, softness, upper, paint, paintRect, paintDx, paintDy, extra);
