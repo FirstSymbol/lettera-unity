@@ -905,7 +905,11 @@ namespace FirstSymbol.Lettera
         void ILetteraMirrorField.SelectRange(int start, int end)
         {
             string plain = ((ILetteraInputHost)this).CommittedPlainText ?? "";
-            Request(new LetteraSelectionRange(CodepointsTo(plain, start), CodepointsTo(plain, end)), "sel.os");
+            var range = new LetteraSelectionRange(CodepointsTo(plain, start), CodepointsTo(plain, end));
+            // A control knows only a start and an end. Told what it already holds it says it back, and that must not turn a selection growing leftward around.
+            LetteraSelectionRange now = Selection;
+            if (range.Start == now.Start && range.End == now.End) return;
+            Request(range, "sel.os");
         }
 
         void ILetteraMirrorField.ComposeOver(int start, int end, string text, int caret, LetteraClause[] clauses) => Editable?.ComposeOverUtf16(start, end, text, caret, clauses);
