@@ -238,7 +238,8 @@ namespace FirstSymbol.Lettera
                             Out.Append("<mtr>");
                             for (int c = m_Tree.Nodes[r].A; c >= 0; c = m_Tree.Nodes[c].Next)
                             {
-                                Out.Append("<mtd style=\"padding:0 ").Append(Em(0.5f)).Append("\">");
+                                bool edgeLeft = c == m_Tree.Nodes[r].A, edgeRight = m_Tree.Nodes[c].Next < 0;
+                                Out.Append("<mtd style=\"padding:0 ").Append(edgeRight ? "0" : Em(0.5f)).Append(" 0 ").Append(edgeLeft ? "0" : Em(0.5f)).Append("\">");
                                 Group(m_Tree.Nodes[c].A, MathStyle.Text);
                                 Out.Append("</mtd>");
                             }
