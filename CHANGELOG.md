@@ -48,6 +48,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - A switch in a row of an inspector stretched across the row with its knob at the far left.
 - **A document that jumped before its first layout** logged "Trying to add Text for graphic rebuild" from inside the canvas's rebuild. The Documents sample did it, on the search result it opens at.
 - **Samples, the first time they ran in a player.** Fields, Motion, Documents and Math told you to add an EventSystem, and now bring one. Motion's typewriter never typed. Documents was dark blue on blue. Math's formula in world space was behind its own page. 3D Text turned far away and edge-on, and was hard to read. Basic asked the web for scripts it has no font for.
+- **On the web, Shift with an arrow key undid itself:** the second press shrank what the first had selected. The browser reported the selection it had just been given, without its direction, and the field took that for a new one. A person holding the keys down would see the selection stutter around one character.
+- The 3D Text and Device Check samples asked for a primitive with a collider, which a project with no Physics module has not got on the web. They make their ground from a mesh.
 
 ### Limits
 - A selectable has no menu or loupe of its own per platform: Android Menu, iOS Menu and Loupe stay project-wide, and the page says what they are. It would need new fields and a runtime path.
@@ -56,6 +58,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - The Hierarchy's eye reaches batched world text until Play, and hides it in the Game view too in edit mode. Canvas text, standalone world text and Text 3D are left to the editor, and were not looked at.
 - Atlas size and depth stay fixed, and read only.
 - Localization: **Localize Font** does not preview in edit mode, so that a scene keeps its saved font. The table entry is picked in Unity's own control. A tracked colour goes through Unity's `Convert.ToString`, so on a machine whose culture writes a decimal comma a fraction reads as 0; whole numbers are safe. Text 3D has Localize and Localize Font, and no tracked object.
+- On Direct3D 12 a Windows player can crash as it quits, inside Unity's `D3D12Core` with no Lettera frame on the stack, when a run adds shader states to the cache file left by an earlier run. Seen with the Math sample; never with a fresh cache or on Direct3D 11. The cause is not known. Nothing is lost, since it happens after the player has shut down.
 
 ## [0.7.3] - 2026-11-01
 

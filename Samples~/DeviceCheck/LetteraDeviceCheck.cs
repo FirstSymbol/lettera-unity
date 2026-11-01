@@ -86,10 +86,7 @@ namespace FirstSymbol.Lettera.Samples
             light.shadows = LightShadows.Soft;
             light.transform.rotation = Quaternion.Euler(50, -30, 0);
             m_Solids.Add(light.gameObject);
-            var ground = GameObject.CreatePrimitive(PrimitiveType.Plane);
-            ground.transform.position = new Vector3(0, -4, 0);
-            ground.GetComponent<MeshRenderer>().sharedMaterial = m_SolidMaterial;
-            m_Solids.Add(ground);
+            m_Solids.Add(MakeGround(new Vector3(0, -4, 0), 1, m_SolidMaterial));
             for (int i = 0; i < count; i++)
             {
                 var go = new GameObject("Solid", typeof(RectTransform));
@@ -113,6 +110,21 @@ namespace FirstSymbol.Lettera.Samples
                 }
                 m_Solids.Add(go);
             }
+        }
+
+        // A plane of 10 by 10 like the built-in one, but with no collider: a project with no Physics module has none to give it.
+        static GameObject MakeGround(Vector3 position, float scale, Material material)
+        {
+            var go = new GameObject("Ground", typeof(MeshFilter), typeof(MeshRenderer));
+            var mesh = new Mesh { name = "Ground" };
+            mesh.vertices = new[] { new Vector3(-5, 0, -5), new Vector3(-5, 0, 5), new Vector3(5, 0, 5), new Vector3(5, 0, -5) };
+            mesh.normals = new[] { Vector3.up, Vector3.up, Vector3.up, Vector3.up };
+            mesh.triangles = new[] { 0, 1, 2, 0, 2, 3 };
+            go.GetComponent<MeshFilter>().sharedMesh = mesh;
+            go.GetComponent<MeshRenderer>().sharedMaterial = material;
+            go.transform.position = position;
+            go.transform.localScale = new Vector3(scale, 1, scale);
+            return go;
         }
 
         void ClearSolids()

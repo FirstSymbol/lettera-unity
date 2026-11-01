@@ -715,6 +715,19 @@ namespace FirstSymbol.Lettera.Editor.Tests
         }
 
         [Test]
+        public void AControlSayingBackTheSelectionLeavesItsDirection()
+        {
+            LetteraEditable field = Field("hello");
+            Press(field, LetteraKeyCode.Left, Shift);
+            Assert.AreEqual(new LetteraSelectionRange(5, 4), new LetteraSelectionRange(field.Selectable.Selection.Anchor, field.Selectable.Selection.Head));
+            // What a browser's text box does after being given a selection: an event with its start and end.
+            ((ILetteraMirrorField)field.Selectable).SelectRange(4, 5);
+            Press(field, LetteraKeyCode.Left, Shift);
+            Assert.AreEqual(5, field.Selectable.Selection.Anchor);
+            Assert.AreEqual(3, field.Selectable.Selection.Head);
+        }
+
+        [Test]
         public void ClicksCountUpToParagraphAndBack()
         {
             LetteraSelectable text = ClickTarget("one two three\nfour", out _, out Func<int, Vector2> at);

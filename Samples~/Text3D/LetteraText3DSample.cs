@@ -37,14 +37,11 @@ namespace FirstSymbol.Lettera.Samples
             sun.shadows = LightShadows.Soft;
             sun.transform.rotation = Quaternion.Euler(50, -30, 0);
 
-            var ground = GameObject.CreatePrimitive(PrimitiveType.Plane);
-            ground.transform.position = new Vector3(0, -18, 0);
-            ground.transform.localScale = new Vector3(30, 1, 30);
             if (Material != null)
             {
                 var groundMaterial = new Material(Material);
                 groundMaterial.SetColor("_BaseColor", new Color(0.45f, 0.46f, 0.5f));
-                ground.GetComponent<MeshRenderer>().sharedMaterial = groundMaterial;
+                MakeGround(new Vector3(0, -18, 0), 30, groundMaterial);
             }
 
             float y = 26;
@@ -90,6 +87,21 @@ namespace FirstSymbol.Lettera.Samples
             }
 
             BuildCanvas();
+        }
+
+        // A plane of 10 by 10 like the built-in one, but with no collider: a project with no Physics module has none to give it.
+        static GameObject MakeGround(Vector3 position, float scale, Material material)
+        {
+            var go = new GameObject("Ground", typeof(MeshFilter), typeof(MeshRenderer));
+            var mesh = new Mesh { name = "Ground" };
+            mesh.vertices = new[] { new Vector3(-5, 0, -5), new Vector3(-5, 0, 5), new Vector3(5, 0, 5), new Vector3(5, 0, -5) };
+            mesh.normals = new[] { Vector3.up, Vector3.up, Vector3.up, Vector3.up };
+            mesh.triangles = new[] { 0, 1, 2, 0, 2, 3 };
+            go.GetComponent<MeshFilter>().sharedMesh = mesh;
+            go.GetComponent<MeshRenderer>().sharedMaterial = material;
+            go.transform.position = position;
+            go.transform.localScale = new Vector3(scale, 1, scale);
+            return go;
         }
 
         // A look is an asset in a real project, made with Create > Lettera > Solid Look. These are made here so that the sample brings none into a build.
