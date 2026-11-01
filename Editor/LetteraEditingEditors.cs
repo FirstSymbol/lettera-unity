@@ -332,7 +332,7 @@ namespace FirstSymbol.Lettera.Editor
             GameObject go = EditorUtility.CreateGameObjectWithHideFlags("Lettera Rule Trial", HideFlags.HideAndDontSave, typeof(RectTransform));
             try
             {
-                go.AddComponent<LetteraText>();
+                go.AddComponent<LetteraText>().Text = "";
                 go.AddComponent<LetteraSelectable>();
                 var field = go.AddComponent<LetteraEditable>();
                 foreach (LetteraFieldRule rule in rules)
@@ -346,7 +346,7 @@ namespace FirstSymbol.Lettera.Editor
                 field.enabled = true;
                 int refused = 0;
                 foreach (string piece in Clusters(typed))
-                    if (!field.InsertText(piece, "user.type"))
+                    if (!field.Replace(field.Length, field.Length, piece, "user.type"))
                         refused++;
                 if (refused > 0) note = refused + (refused == 1 ? " character turned away" : " characters turned away");
                 return field.PlainText;
