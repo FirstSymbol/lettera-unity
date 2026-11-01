@@ -282,7 +282,7 @@ namespace FirstSymbol.Lettera.Editor
         VisualElement BuildFontPage()
         {
             VisualElement page = new VisualElement();
-            page.Add(LtUI.Card("Font",
+            page.Add(LtUI.Card("",
                 LtUI.Field("Font", P("Font"), "The primary face. Empty uses the default font of the project, then of the operating system."),
                 LtUI.Field("Font Stack", P("FontStack"), "Families and fallbacks tried in order."),
                 LtUI.Field("Render Mode", P("RenderMode"))));

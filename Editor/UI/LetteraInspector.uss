@@ -777,3 +777,30 @@
 .lt-text-input--tall #unity-text-input {
     min-height: 220px;
 }
+
+.lt-search .lt-text-input {
+    min-height: 20px;
+    height: 22px;
+    margin: 0;
+}
+
+.lt-search #unity-text-input,
+.lt-search .unity-text-field__input {
+    min-height: 20px;
+    height: 22px;
+    padding: 1px 6px;
+}
+
+.lt-range {
+    padding: 3px 0;
+    border-bottom-width: 1px;
+    border-bottom-color: rgba(255, 255, 255, 0.06);
+}
+
+.lt-glyph-row {
+    padding: 1px 0;
+}
+
+.lt-glyph-row:hover {
+    background-color: rgba(155, 110, 255, 0.15);
+}

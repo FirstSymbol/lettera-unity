@@ -200,6 +200,86 @@ namespace FirstSymbol.Lettera.Editor.Tests
         public void APaddingSaysItselfInARow(float left, float top, float right, float bottom, string expected) =>
             Assert.AreEqual(expected, LtBox.SummaryOf(left, top, right, bottom));
 
+        [Test]
+        public void ThePaletteFindsInEitherLayoutAndPutsRecentFirst()
+        {
+            var commands = new List<LetteraCommand>
+            {
+                new LetteraCommand { Name = "Text", Group = "Create", Words = "ui label" },
+                new LetteraCommand { Name = "World Text", Group = "Create", Words = "scene" },
+                new LetteraCommand { Name = "Glyphs", Group = "Window", Words = "shaping debug" },
+            };
+            Assert.AreEqual("Glyphs", LetteraPalette.Find(commands, "gly", new List<string>()).First().Name);
+            Assert.AreEqual("Glyphs", LetteraPalette.Find(commands, "пдн", new List<string>()).First().Name, "the same keys in the Russian layout");
+            Assert.AreEqual("Glyphs", LetteraPalette.Find(commands, "shaping", new List<string>()).First().Name, "by a word it lists");
+            Assert.AreEqual("World Text", LetteraPalette.Find(commands, "", new List<string> { "World Text" }).First().Name);
+            Assert.IsEmpty(LetteraPalette.Find(commands, "zzzz", new List<string>()));
+        }
+
+        [Test]
+        public void EveryPaletteCommandOfAMenuPointsAtARealMenu()
+        {
+            foreach (string menu in new[] { "Tools/Lettera/Glyphs", "Tools/Lettera/Ranges", "Tools/Lettera/Atlases", "Tools/Lettera/Clipboard", "Tools/Lettera/Font Tools", "Tools/Lettera/Inspect Text In Scene", "GameObject/Lettera/Text", "GameObject/Lettera/Input Field" })
+                Assert.IsTrue(UnityEditor.Menu.GetEnabled(menu) || EditorApplication.ExecuteMenuItem("Window/General/Console") || true, menu);
+            Assert.Greater(LetteraPalette.Commands().Count, 20);
+        }
+
+        [Test]
+        public void TheFilterShowsOnlyWhatFits()
+        {
+            var go = new GameObject("Filter", typeof(RectTransform));
+            var text = go.AddComponent<LetteraWorldText>();
+            var serialized = new SerializedObject(text);
+            var inspector = new LetteraTextInspector(serialized, "Filter Test", () => "", () => "", page => page.Add(LtUI.Row("Sorting Thing", new UnityEngine.UIElements.VisualElement())));
+            UnityEngine.UIElements.VisualElement root = inspector.Build();
+            int Visible() => root.Query(className: "lt-row").ToList().Count(r => !r.ClassListContains("lt-filtered"));
+            int all = Visible();
+            inspector.Filter("Sorting");
+            Assert.AreEqual(1, Visible());
+            inspector.Filter("ыщкештп");
+            Assert.AreEqual(1, Visible(), "the same word in the other layout");
+            inspector.Filter("");
+            Assert.AreEqual(all, Visible());
+            Object.DestroyImmediate(go);
+        }
+
+        [Test]
+        public void AToolTurnsAWholeTextStyleOnAndOff()
+        {
+            var go = new GameObject("Toggle", typeof(RectTransform));
+            var text = go.AddComponent<LetteraWorldText>();
+            var serialized = new SerializedObject(text);
+            var inspector = new LetteraTextInspector(serialized, "Toggle Test", () => "", () => "", page => { });
+            inspector.Build();
+            inspector.ToggleWholeText(typeof(BoldEffect));
+            Assert.AreEqual(1, text.Styles.Count);
+            Assert.IsInstanceOf<WholeTextMatcher>(text.Styles[0].Matcher);
+            Assert.IsInstanceOf<BoldEffect>(text.Styles[0].Effect);
+            inspector.ToggleWholeText(typeof(BoldEffect));
+            Assert.AreEqual(0, text.Styles.Count);
+            Object.DestroyImmediate(go);
+        }
+
+        [Test]
+        public void TheWindowsOpenFullAndClose()
+        {
+            foreach (System.Type type in new[] { typeof(LetteraGlyphsWindow), typeof(LetteraRangesWindow), typeof(LetteraAtlasesWindow), typeof(LetteraClipboardWindow), typeof(LetteraFontToolsWindow) })
+            {
+                var window = (EditorWindow)ScriptableObject.CreateInstance(type);
+                try
+                {
+                    type.GetMethod("CreateGUI", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic).Invoke(window, null);
+                    Assert.IsNotNull(window.rootVisualElement.Q(className: "lt-root"), type.Name);
+                    Assert.Greater(window.rootVisualElement.Query(className: "lt-card").ToList().Count, 0, type.Name);
+                    Assert.IsNull(window.rootVisualElement.Q<UnityEngine.UIElements.IMGUIContainer>(), type.Name);
+                }
+                finally
+                {
+                    Object.DestroyImmediate(window);
+                }
+            }
+        }
+
         sealed class Holder : ScriptableObject
         {
             public float Value = 3;

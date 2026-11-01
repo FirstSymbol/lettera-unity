@@ -560,7 +560,7 @@ namespace FirstSymbol.Lettera.Editor
                 });
             }
             Refresh();
-            return LtUI.Card("Interaction", row);
+            return LtUI.Card("", row);
         }
     }
 }
