@@ -198,7 +198,11 @@ public class LetteraCompare : MonoBehaviour
         m_Engine = new TmpEngine();
     }
 
-    void Say(string row, double ms, long bytes = -1, string note = "") => m_Rows.Add((row, ms, bytes, note));
+    void Say(string row, double ms, long bytes = -1, string note = "")
+    {
+        m_Rows.Add((row, ms, bytes, note));
+        Debug.Log("LETTERA_COMPARE_ROW " + row + " " + ms.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture) + " ms " + note + " heap=" + (Profiler.GetTotalAllocatedMemoryLong() / 1048576) + "MB");
+    }
 
     static double Median(List<double> values)
     {
