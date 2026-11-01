@@ -220,6 +220,7 @@ namespace FirstSymbol.Lettera
         internal int MotionBodiesForTests(int span) => m_MotionSpans[span].BodyCount;
         internal int DocCharOfLineForTests(int line) => m_SourceIndex[m_Lines[line].Start];
         internal FontChain ChainForTests => m_Chain;
+        internal LetteraAttributes AttributesForTests => m_Attributes;
         internal int HoldCount => m_Holds.Count;
         internal int OwnerOfQuad(int quad) => m_QuadOwner[quad];
         internal int ClusterOfGlyph(int glyph) => m_Placed[glyph].Cluster;

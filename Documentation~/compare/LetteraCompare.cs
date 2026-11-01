@@ -338,6 +338,7 @@ public class LetteraCompare : MonoBehaviour
         {
             case "extra": yield return ExtraRows(); break;
             case "first": yield return FirstRows(); break;
+            case "prepared": yield return PreparedRows(); break;
             case "multilang": yield return MultilingualRows(); break;
             case "font": yield return FontRows(); break;
             case "memory": yield return MemoryRows(); break;
@@ -722,6 +723,25 @@ public class LetteraCompare : MonoBehaviour
         yield return null;
         yield return null;
         Say("R23_second_text_two_frames", clock.Elapsed.TotalMilliseconds);
+    }
+
+    // The same first text, after the call Lettera offers for a loading screen. Other engines have their own ways, so this row is Lettera's only.
+    IEnumerator PreparedRows()
+    {
+        if (m_Name != "lettera") yield break;
+        for (int i = 0; i < 10; i++) yield return null;
+        var clock = Stopwatch.StartNew();
+        LetteraTextWarmUp.Prepare(s_LetteraFont);
+        Say("R23p_prepare_call", clock.Elapsed.TotalMilliseconds);
+        for (int i = 0; i < 10; i++) yield return null;
+        clock.Restart();
+        Component first = m_Engine.Label(m_Canvas.transform, "Hello, world", 18, new Vector2(400, 30));
+        m_Engine.Force(first);
+        Say("R23p_first_text_call", clock.Elapsed.TotalMilliseconds);
+        yield return null;
+        Say("R23p_first_text_frame", clock.Elapsed.TotalMilliseconds);
+        yield return null;
+        Say("R23p_first_text_two_frames", clock.Elapsed.TotalMilliseconds);
     }
 
     static readonly string[] Languages =
