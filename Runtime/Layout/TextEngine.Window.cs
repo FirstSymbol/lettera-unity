@@ -300,8 +300,8 @@ namespace FirstSymbol.Lettera
             public int DocChar, Style;
         }
 
-        readonly Dictionary<long, int> m_DocumentRangeIds = new Dictionary<long, int>();
-        readonly List<long> m_DocumentRangeScratch = new List<long>();
+        Dictionary<long, int> m_DocumentRangeIds = Rare<long, int>.Map;
+        List<long> m_DocumentRangeScratch = Rare<long>.List;
 
         /// <summary>Tells whether a range holds state worth keeping out of a window, beyond the covers this knows itself.</summary>
         internal Func<int, bool> RangeHasOutsideState;
@@ -322,15 +322,15 @@ namespace FirstSymbol.Lettera
                 if (!m_DocumentRangeIds.TryGetValue(key, out int id))
                 {
                     id = m_NextRangeId++;
-                    m_DocumentRangeIds[key] = id;
+                    Own(ref m_DocumentRangeIds)[key] = id;
                 }
                 present.Add(key);
-                m_RangeIds.Add(id);
+                Own(ref m_RangeIds).Add(id);
             }
             m_DocumentRangeScratch.Clear();
             foreach (KeyValuePair<long, int> pair in m_DocumentRangeIds)
                 if (!present.Contains(pair.Key) && !(m_CoverTarget.TryGetValue(pair.Value, out bool open) && open) && !(RangeHasOutsideState != null && RangeHasOutsideState(pair.Value)))
-                    m_DocumentRangeScratch.Add(pair.Key);
+                    Own(ref m_DocumentRangeScratch).Add(pair.Key);
             foreach (long key in m_DocumentRangeScratch)
             {
                 int id = m_DocumentRangeIds[key];
@@ -353,7 +353,7 @@ namespace FirstSymbol.Lettera
                 mapped[DocumentRangeKey(patch.Map(docChar), style)] = pair.Value;
             }
             m_DocumentRangeIds.Clear();
-            foreach (KeyValuePair<long, int> pair in mapped) m_DocumentRangeIds[pair.Key] = pair.Value;
+            foreach (KeyValuePair<long, int> pair in mapped) Own(ref m_DocumentRangeIds)[pair.Key] = pair.Value;
         }
 
         // ------------------------------------------------------------- reading what a document holds

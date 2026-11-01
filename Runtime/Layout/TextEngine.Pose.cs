@@ -36,10 +36,10 @@ namespace FirstSymbol.Lettera
             public double Time;
         }
 
-        readonly List<MotionSpan> m_MotionSpans = new List<MotionSpan>();
-        readonly List<MotionPhase> m_Phases = new List<MotionPhase>();
-        readonly List<PoseLink> m_PoseLinks = new List<PoseLink>();
-        readonly List<PoseBody> m_PoseBodies = new List<PoseBody>();
+        List<MotionSpan> m_MotionSpans = Rare<MotionSpan>.List;
+        List<MotionPhase> m_Phases = Rare<MotionPhase>.List;
+        List<PoseLink> m_PoseLinks = Rare<PoseLink>.List;
+        List<PoseBody> m_PoseBodies = Rare<PoseBody>.List;
         LetteraGlyphPose[] m_GlyphPoses = new LetteraGlyphPose[0];
         LetteraGlyphPose[] m_BodyPoses = new LetteraGlyphPose[0];
         Vector3[] m_RestVertices = new Vector3[0];
@@ -76,7 +76,7 @@ namespace FirstSymbol.Lettera
                 request.Effect.Resolve(request.Slots, ref span.Base);
                 span.Effective = span.Base;
                 span.PhaseIndex = PhaseOf(request.Effect);
-                m_MotionSpans.Add(span);
+                Own(ref m_MotionSpans).Add(span);
             }
             RemoveUnusedPhases();
             UpdateHubMembership();
@@ -87,7 +87,7 @@ namespace FirstSymbol.Lettera
             for (int i = 0; i < m_Phases.Count; i++)
                 if (m_Phases[i].Effect == effect)
                     return i;
-            m_Phases.Add(new MotionPhase { Effect = effect, Time = effect.Phase });
+            Own(ref m_Phases).Add(new MotionPhase { Effect = effect, Time = effect.Phase });
             return m_Phases.Count - 1;
         }
 
@@ -178,14 +178,14 @@ namespace FirstSymbol.Lettera
                 span.BodyStart = m_PoseBodies.Count;
                 span.LinkStart = m_PoseLinks.Count;
                 span.BodyCount = NumberBodies(span);
-                for (int b = 0; b < span.BodyCount; b++) m_PoseBodies.Add(new PoseBody { Box = LetteraBodyBox.Empty });
+                for (int b = 0; b < span.BodyCount; b++) Own(ref m_PoseBodies).Add(new PoseBody { Box = LetteraBodyBox.Empty });
                 for (int i = 0; i < m_PlacedCount; i++)
                 {
                     ref PlacedGlyph g = ref m_Placed[i];
                     if (g.Cluster < span.Start || g.Cluster >= span.End) continue;
                     int body = m_CpBody[g.Cluster];
                     if (body < 0) continue;
-                    m_PoseLinks.Add(new PoseLink { Glyph = i, Body = span.BodyStart + body });
+                    Own(ref m_PoseLinks).Add(new PoseLink { Glyph = i, Body = span.BodyStart + body });
                     PoseBody box = m_PoseBodies[span.BodyStart + body];
                     LetteraLine line = m_Lines[Math.Min(g.Line, m_Lines.Count - 1)];
                     float bottom = g.Y - line.Descent * 0.8f, top = g.Y + line.Ascent * 0.8f;

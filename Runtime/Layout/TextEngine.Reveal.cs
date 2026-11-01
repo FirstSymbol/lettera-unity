@@ -22,14 +22,13 @@ namespace FirstSymbol.Lettera
             public float Em;
         }
 
-        readonly List<RevealSpan> m_RevealSpans = new List<RevealSpan>();
-        readonly List<RevealEffect> m_RevealListening = new List<RevealEffect>();
-        readonly List<RevealBody> m_RevealBodies = new List<RevealBody>();
+        List<RevealSpan> m_RevealSpans = Rare<RevealSpan>.List;
+        List<RevealEffect> m_RevealListening = Rare<RevealEffect>.List;
+        List<RevealBody> m_RevealBodies = Rare<RevealBody>.List;
         int[] m_CpReveal = new int[0], m_CpUnit = new int[0];
         float[] m_CpVisible = new float[0], m_CpTarget = new float[0];
         bool[] m_CpShownEvent = new bool[0];
         bool m_RevealSettled = true, m_RevealInitialized, m_RevealRemovalsDirty;
-        readonly Action m_OnRevealTouched;
 
         bool HasRevealOrMarquee => (m_RevealSpans.Count > 0 && !m_RevealSettled) || m_Marquee != null && m_MarqueeScrolling;
 
@@ -48,13 +47,13 @@ namespace FirstSymbol.Lettera
             for (int c = 0; c < m_TextLength; c++) m_CpReveal[c] = -1;
             foreach (LetteraAttributes.RevealRequest request in requests)
             {
-                m_RevealSpans.Add(new RevealSpan { Effect = request.Effect, Start = request.Start, End = Math.Min(request.End, m_TextLength), Entrance = request.Entrance ?? request.Effect.Entrance, Reach = request.Reach ?? request.Effect.Reach, Unit = request.Unit });
+                Own(ref m_RevealSpans).Add(new RevealSpan { Effect = request.Effect, Start = request.Start, End = Math.Min(request.End, m_TextLength), Entrance = request.Entrance ?? request.Effect.Entrance, Reach = request.Reach ?? request.Effect.Reach, Unit = request.Unit });
                 // Inner ranges come later, and the innermost governs a codepoint.
                 for (int c = request.Start; c < request.End && c < m_TextLength; c++) m_CpReveal[c] = m_RevealSpans.Count - 1;
                 if (!m_RevealListening.Contains(request.Effect))
                 {
-                    m_RevealListening.Add(request.Effect);
-                    request.Effect.Touched += m_OnRevealTouched;
+                    Own(ref m_RevealListening).Add(request.Effect);
+                    request.Effect.Touched += OnRevealTouched;
                 }
             }
             NumberRevealUnits();
@@ -257,7 +256,7 @@ namespace FirstSymbol.Lettera
                 }
                 int end = c + 1;
                 while (end < m_TextLength && m_CpReveal[end] >= 0 && m_RevealSpans[m_CpReveal[end]].Effect.Reflow && m_CpVisible[end] <= 0 && m_CpTarget[end] <= 0 && !LetteraTextNavigator.IsParagraphSeparator(m_Text[end])) end++;
-                m_Removals.Add(new Removal { Start = c, End = end, Anchor = c });
+                Own(ref m_Removals).Add(new Removal { Start = c, End = end, Anchor = c });
                 c = end;
             }
         }
@@ -272,7 +271,7 @@ namespace FirstSymbol.Lettera
                 ref PlacedGlyph g = ref m_Placed[i];
                 if (m_CpReveal[g.Cluster] < 0) continue;
                 int key = BodyKey(g.Cluster);
-                while (m_RevealBodies.Count <= key) m_RevealBodies.Add(new RevealBody { Box = LetteraBodyBox.Empty });
+                while (m_RevealBodies.Count <= key) Own(ref m_RevealBodies).Add(new RevealBody { Box = LetteraBodyBox.Empty });
                 RevealBody body = m_RevealBodies[key];
                 LetteraLine line = m_Lines[Math.Min(g.Line, m_Lines.Count - 1)];
                 body.Box.Add(g.X, g.Y - line.Descent * 0.8f, g.X + g.Advance, g.Y + line.Ascent * 0.8f);

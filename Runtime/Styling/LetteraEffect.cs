@@ -417,8 +417,22 @@ namespace FirstSymbol.Lettera
         /// <summary>A base direction forced by an effect: -1 none, 0 ltr, 1 rtl, 2 auto.</summary>
         internal int DirectionOverride = -1;
 
-        // Only effects and eliding write what follows the characters, so a text with neither has nothing to clear of forty lists.
-        internal bool Touched = true;
+        /// <summary>What a text with no range reads. Nothing writes to it, and its characters have their defaults.</summary>
+        internal static readonly LetteraAttributes Plain = new LetteraAttributes();
+
+        /// <summary>A longer plain text keeps its own characters, so that one long text does not hold memory for good.</summary>
+        internal const int PlainLength = 4096;
+
+        internal void PreparePlain(int length)
+        {
+            Length = length;
+            if (Chars.Length >= length) return;
+            int capacity = Mathf.Min(Mathf.Max(Mathf.Max(length, 64), Chars.Length * 2), PlainLength);
+            var chars = new Cp[capacity];
+            var plain = new Cp { SizeMul = 1, Weight = 0, Alpha = 1, Family = -1, Language = -1, Slant = -1, Features = -1, Axes = -1, Warp = -1 };
+            for (int i = 0; i < capacity; i++) chars[i] = plain;
+            Chars = chars;
+        }
 
         internal void Reset(int length)
         {
@@ -427,8 +441,6 @@ namespace FirstSymbol.Lettera
             Length = length;
             for (int i = 0; i < length; i++)
                 Chars[i] = new Cp { SizeMul = 1, Weight = 0, Alpha = 1, Family = -1, Language = -1, Slant = -1, Features = -1, Axes = -1, Warp = -1 };
-            if (!Touched) return;
-            Touched = false;
             Filters.Clear();
             Warps.Clear();
             MotionRequests.Clear();

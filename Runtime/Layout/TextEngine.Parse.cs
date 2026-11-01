@@ -5,8 +5,10 @@ namespace FirstSymbol.Lettera
 {
     internal sealed partial class TextEngine
     {
-        readonly LetteraMatchContext m_MatchContext = new LetteraMatchContext();
-        readonly LetteraAttributes m_Attributes = new LetteraAttributes();
+        // A text with no markup and no style reads these and writes nothing, so all such texts share one of each. Their own come with the first range.
+        static readonly LetteraMatchContext s_PlainContext = new LetteraMatchContext();
+        LetteraMatchContext m_MatchContext = s_PlainContext, m_OwnContext;
+        LetteraAttributes m_Attributes = LetteraAttributes.Plain, m_OwnAttributes;
         readonly List<LetteraStyle> m_EffectiveStyles = new List<LetteraStyle>();
         readonly List<int> m_MatcherOrder = new List<int>();
         readonly List<int> m_RangeOrder = new List<int>();
@@ -45,7 +47,7 @@ namespace FirstSymbol.Lettera
 
         // Shared styles are used directly until someone asks for this text's effects to change them.
         bool m_OwnCopies;
-        readonly Dictionary<LetteraStyle, LetteraStyle> m_Copies = new Dictionary<LetteraStyle, LetteraStyle>();
+        Dictionary<LetteraStyle, LetteraStyle> m_Copies = Rare<LetteraStyle, LetteraStyle>.Map;
 
         void ReplaceSharedStylesWithCopies(int ownStyles)
         {
@@ -56,7 +58,7 @@ namespace FirstSymbol.Lettera
                 if (!m_Copies.TryGetValue(shared, out LetteraStyle copy))
                 {
                     copy = shared.Clone();
-                    m_Copies[shared] = copy;
+                    Own(ref m_Copies)[shared] = copy;
                 }
                 m_EffectiveStyles[i] = copy;
             }
@@ -83,15 +85,20 @@ namespace FirstSymbol.Lettera
                 source = m_ResolvedText.AsSpan();
             }
 
-            CollectStyles();
-            LetteraMatchContext context = m_MatchContext;
-            context.Begin(source);
-            if (m_ProtectLength > 0 && m_ProtectStart + m_ProtectLength <= source.Length) context.Protect(m_ProtectStart, m_ProtectLength);
-
-            context.HasEscapes = false;
-            bool markup = context.LessThanPositions.Count > 0 || source.IndexOf('\\') >= 0;
-            if (markup || !OnlyTheDefaultVocabulary())
+            bool markup = source.IndexOf('<') >= 0 || source.IndexOf('\\') >= 0;
+            LetteraMatchContext context;
+            if (!markup && m_ProtectLength == 0 && RevealSource < 0 && OnlyTheDefaultVocabulary())
             {
+                context = m_MatchContext = s_PlainContext;
+                m_EffectiveStyles.Clear();
+            }
+            else
+            {
+                context = m_MatchContext = m_OwnContext ?? (m_OwnContext = new LetteraMatchContext());
+                CollectStyles();
+                context.Begin(source);
+                if (m_ProtectLength > 0 && m_ProtectStart + m_ProtectLength <= source.Length) context.Protect(m_ProtectStart, m_ProtectLength);
+                context.HasEscapes = false;
                 // Higher priority first; the sort is stable so earlier styles win ties.
                 m_MatcherOrder.Clear();
                 for (int i = 0; i < m_EffectiveStyles.Count; i++)
@@ -160,13 +167,13 @@ namespace FirstSymbol.Lettera
 
         // ------------------------------------------------------------- queries and holds
 
-        readonly List<IHoldSource> m_Holds = new List<IHoldSource>();
+        List<IHoldSource> m_Holds = Rare<IHoldSource>.List;
         readonly List<HoldEntry> m_HoldEntries = new List<HoldEntry>();
         bool m_RangesApplied;
 
         internal void AddHold(IHoldSource hold)
         {
-            m_Holds.Add(hold);
+            Own(ref m_Holds).Add(hold);
             m_Holds.Sort((a, b) => a.Priority.CompareTo(b.Priority));
         }
 
@@ -319,10 +326,18 @@ namespace FirstSymbol.Lettera
 
         void ApplyEffects(LetteraMatchContext context)
         {
-            LetteraAttributes attributes = m_Attributes;
-            attributes.Reset(m_TextLength);
             List<LetteraMatchContext.RangeRecord> ranges = context.Ranges;
-            attributes.Touched = ranges.Count > 0 || m_Host.Data.Overflow != LetteraOverflow.Visible;
+            LetteraAttributes attributes;
+            if (ranges.Count == 0 && m_Host.Data.Overflow == LetteraOverflow.Visible && m_TextLength <= LetteraAttributes.PlainLength)
+            {
+                attributes = m_Attributes = LetteraAttributes.Plain;
+                attributes.PreparePlain(m_TextLength);
+            }
+            else
+            {
+                attributes = m_Attributes = m_OwnAttributes ?? (m_OwnAttributes = new LetteraAttributes());
+                attributes.Reset(m_TextLength);
+            }
             ClearStageHooks();
 
             // Outer ranges first, so inner ones refine them: innermost wins.

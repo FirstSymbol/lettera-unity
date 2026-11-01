@@ -7,10 +7,10 @@ namespace FirstSymbol.Lettera
     // Effects that ask for it get called at the stages of a rebuild, and each frame for a pose. Others pay one count check per pass.
     internal sealed partial class TextEngine
     {
-        readonly List<(LetteraEffect effect, int start, int end)> m_PoseHooks = new List<(LetteraEffect, int, int)>();
-        readonly List<(LetteraEffect effect, int start, int end)> m_StageHooks = new List<(LetteraEffect, int, int)>();
-        readonly List<Vector2Int> m_HookedHidden = new List<Vector2Int>();
-        readonly HashSet<LetteraEffect> m_HookFailed = new HashSet<LetteraEffect>();
+        List<(LetteraEffect effect, int start, int end)> m_PoseHooks = Rare<(LetteraEffect effect, int start, int end)>.List;
+        List<(LetteraEffect effect, int start, int end)> m_StageHooks = Rare<(LetteraEffect effect, int start, int end)>.List;
+        List<Vector2Int> m_HookedHidden = Rare<Vector2Int>.List;
+        HashSet<LetteraEffect> m_HookFailed;
         DirtyLevel m_HookStale;
         bool m_HookRanBreak;
 
@@ -31,13 +31,13 @@ namespace FirstSymbol.Lettera
             if (effect == null) return;
             LetteraStages stages = effect.Stages;
             if (stages == LetteraStages.None) return;
-            if ((stages & ~LetteraStages.Pose) != 0) m_StageHooks.Add((effect, start, end));
-            if ((stages & LetteraStages.Pose) != 0) m_PoseHooks.Add((effect, start, end));
+            if ((stages & ~LetteraStages.Pose) != 0) Own(ref m_StageHooks).Add((effect, start, end));
+            if ((stages & LetteraStages.Pose) != 0) Own(ref m_PoseHooks).Add((effect, start, end));
         }
 
         void HookFailed(LetteraEffect effect, Exception e)
         {
-            if (m_HookFailed.Add(effect)) Debug.LogException(e, m_Host.Owner);
+            if ((m_HookFailed ?? (m_HookFailed = new HashSet<LetteraEffect>())).Add(effect)) Debug.LogException(e, m_Host.Owner);
         }
 
         void RunAnalyzedHooks()
@@ -106,7 +106,7 @@ namespace FirstSymbol.Lettera
 
         internal void HookHide(int start, int end)
         {
-            m_HookedHidden.Add(new Vector2Int(start, end));
+            Own(ref m_HookedHidden).Add(new Vector2Int(start, end));
         }
 
         // Hidden clusters go the way an elided one goes, after each layout clears those.
@@ -115,7 +115,7 @@ namespace FirstSymbol.Lettera
             for (int i = 0; i < m_HookedHidden.Count; i++)
             {
                 Vector2Int span = m_HookedHidden[i];
-                m_Removals.Add(new Removal { Start = span.x, End = span.y, Anchor = span.x });
+                Own(ref m_Removals).Add(new Removal { Start = span.x, End = span.y, Anchor = span.x });
             }
         }
 
@@ -215,7 +215,7 @@ namespace FirstSymbol.Lettera
         internal void HookInvalidateActive() => m_ActiveRectsValid = false;
 
         // For tests.
-        internal int HookFailureCount => m_HookFailed.Count;
+        internal int HookFailureCount => m_HookFailed?.Count ?? 0;
         internal Unicode.LineBreakOpportunity BreakAfterForTests(int cp) => m_Breaks[cp];
         internal int MotionBodiesForTests(int span) => m_MotionSpans[span].BodyCount;
         internal int DocCharOfLineForTests(int line) => m_SourceIndex[m_Lines[line].Start];

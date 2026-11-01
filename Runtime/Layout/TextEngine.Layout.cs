@@ -13,7 +13,7 @@ namespace FirstSymbol.Lettera
         readonly List<LetteraLine> m_MeasureLines = new List<LetteraLine>();
         Rect m_Box;
         float m_ContentWidth, m_ContentHeight;
-        readonly List<Removal> m_Removals = new List<Removal>();
+        List<Removal> m_Removals = Rare<Removal>.List;
         float m_PendingGap, m_TrimTop;
 
         // What the last auto-size fit spends, on top of the shaped widths.
@@ -192,7 +192,7 @@ namespace FirstSymbol.Lettera
             if (clusters == 0) return;
 
             int slot = m_Removals.Count;
-            m_Removals.Add(default);
+            Own(ref m_Removals).Add(default);
             int low = 1, high = clusters;
             while (low < high)
             {

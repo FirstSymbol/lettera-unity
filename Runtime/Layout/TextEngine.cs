@@ -71,7 +71,6 @@ namespace FirstSymbol.Lettera
         {
             m_SolidsOnly = host.SolidsOnly;
             m_Host = host;
-            m_OnRevealTouched = OnRevealTouched;
         }
 
         public DirtyLevel Dirty => m_Dirty;
@@ -304,6 +303,20 @@ namespace FirstSymbol.Lettera
             var engine = new TextEngine(new MeasureHost { Data = copy, Owner = owner });
             return engine.Measure(size, width, height, wrap, autoSize, minSize, maxSize);
         }
+
+        // What few texts ever use starts as one shared empty collection, and the text's own comes with the first write. A shared one is only read and cleared.
+        static class Rare<T>
+        {
+            public static readonly List<T> List = new List<T>();
+        }
+
+        static class Rare<TKey, TValue>
+        {
+            public static readonly Dictionary<TKey, TValue> Map = new Dictionary<TKey, TValue>();
+        }
+
+        static List<T> Own<T>(ref List<T> list) => ReferenceEquals(list, Rare<T>.List) ? list = new List<T>() : list;
+        static Dictionary<K, V> Own<K, V>(ref Dictionary<K, V> map) => ReferenceEquals(map, Rare<K, V>.Map) ? map = new Dictionary<K, V>() : map;
 
         // Thousands of short labels each hold these, so they start empty and grow to what the text asks.
         const int SmallestBuffer = 16;

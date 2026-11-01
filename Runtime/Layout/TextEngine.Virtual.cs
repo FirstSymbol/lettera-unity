@@ -33,9 +33,9 @@ namespace FirstSymbol.Lettera
             public ShapedInline Reading;
         }
 
-        readonly List<ShapedGlyph> m_InlineGlyphs = new List<ShapedGlyph>();
-        readonly List<ListItem> m_ListItems = new List<ListItem>();
-        readonly List<RubyItem> m_RubyItems = new List<RubyItem>();
+        List<ShapedGlyph> m_InlineGlyphs = Rare<ShapedGlyph>.List;
+        List<ListItem> m_ListItems = Rare<ListItem>.List;
+        List<RubyItem> m_RubyItems = Rare<RubyItem>.List;
         float[] m_CpListIndent = Array.Empty<float>();
         const float MarkerGapEm = 0.4f;
 
@@ -93,7 +93,7 @@ namespace FirstSymbol.Lettera
             for (int i = 0; i < shaped; i++)
             {
                 NativeGlyph g = output[i];
-                m_InlineGlyphs.Add(new ShapedGlyph { Glyph = g.Glyph, Cluster = (int)g.Cluster, XAdvance = g.XAdvance, XOffset = g.XOffset, YOffset = g.YOffset });
+                Own(ref m_InlineGlyphs).Add(new ShapedGlyph { Glyph = g.Glyph, Cluster = (int)g.Cluster, XAdvance = g.XAdvance, XOffset = g.XOffset, YOffset = g.YOffset });
                 result.WidthEm += g.XAdvance * unitEm;
             }
             result.Count = Math.Max(shaped, 0);
@@ -170,7 +170,7 @@ namespace FirstSymbol.Lettera
                 }
                 ShapedInline marker = ShapeInline(text, instance, unit, script);
                 if (marker.WidthEm > widest[level]) widest[level] = marker.WidthEm;
-                m_ListItems.Add(new ListItem { Start = item.Start, Marker = marker, GapEm = MarkerGapEm });
+                Own(ref m_ListItems).Add(new ListItem { Start = item.Start, Marker = marker, GapEm = MarkerGapEm });
             }
             FinishList(listStart, items.Count, widest);
         }
@@ -270,7 +270,7 @@ namespace FirstSymbol.Lettera
             for (int g = shaped.First; g < shaped.First + shaped.Count; g++)
             {
                 ShapedGlyph glyph = m_InlineGlyphs[g];
-                m_VirtualGlyphs.Add(new PlacedGlyph
+                Own(ref m_VirtualGlyphs).Add(new PlacedGlyph
                 {
                     Glyph = glyph.Glyph, Instance = shaped.Instance, Cluster = cluster, Line = line,
                     X = x + glyph.XOffset * unit, Y = baseline + glyph.YOffset * unit, Unit = unit, Size = size,
@@ -290,7 +290,7 @@ namespace FirstSymbol.Lettera
                 Run run = m_Runs[m_CpRun[spec.Start]];
                 ShapedInline reading = ShapeInline(spec.Reading, run.Instance, run.UnitEm, UnicodeScript.Common);
                 float scaled = reading.WidthEm * spec.Scale;
-                m_RubyItems.Add(new RubyItem { Spec = spec, Reading = reading });
+                Own(ref m_RubyItems).Add(new RubyItem { Spec = spec, Reading = reading });
 
                 // A reading wider than its base widens the base's space, centered.
                 float baseWidth = 0;

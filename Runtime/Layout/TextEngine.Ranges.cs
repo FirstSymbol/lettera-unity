@@ -22,10 +22,10 @@ namespace FirstSymbol.Lettera
             public string Label;
         }
 
-        readonly List<ActiveRange> m_Active = new List<ActiveRange>();
+        List<ActiveRange> m_Active = Rare<ActiveRange>.List;
         readonly List<Rect> m_ActiveRects = new List<Rect>();
-        readonly List<OldRange> m_OldRanges = new List<OldRange>();
-        readonly List<int> m_RangeIds = new List<int>();
+        List<OldRange> m_OldRanges = Rare<OldRange>.List;
+        List<int> m_RangeIds = Rare<int>.List;
         int[] m_OldText = new int[0];
         int m_OldLength = -1, m_NextRangeId = 1;
         bool m_ActiveRectsValid;
@@ -63,7 +63,7 @@ namespace FirstSymbol.Lettera
             MapRevealValues(prefix, suffix, oldLength);
 
             m_RangeIds.Clear();
-            for (int r = 0; r < ranges.Count; r++) m_RangeIds.Add(0);
+            for (int r = 0; r < ranges.Count; r++) Own(ref m_RangeIds).Add(0);
             bool same = delta == 0 && prefix == oldLength;
             for (int r = 0; r < ranges.Count; r++)
             {
@@ -101,7 +101,7 @@ namespace FirstSymbol.Lettera
 
             m_OldRanges.Clear();
             for (int r = 0; r < ranges.Count; r++)
-                m_OldRanges.Add(new OldRange { Style = ranges[r].StyleIndex, Start = ranges[r].RenderedStart, End = ranges[r].RenderedEnd, Id = m_RangeIds[r], Label = ranges[r].Label });
+                Own(ref m_OldRanges).Add(new OldRange { Style = ranges[r].StyleIndex, Start = ranges[r].RenderedStart, End = ranges[r].RenderedEnd, Id = m_RangeIds[r], Label = ranges[r].Label });
             EnsureExact(ref m_OldText, m_TextLength);
             Array.Copy(m_Text, m_OldText, m_TextLength);
             m_OldLength = m_TextLength;
@@ -150,7 +150,7 @@ namespace FirstSymbol.Lettera
                 if (request.End <= request.Start) continue;
                 LetteraMatchContext.RangeRecord record = ranges[request.Range];
                 string primary = record.Primary ?? request.Value;
-                m_Active.Add(new ActiveRange { Effect = request.Effect, Id = RangeIdOf(request.Range), Start = request.Start, End = request.End, RecordIndex = request.Range, StyleIndex = record.StyleIndex, Primary = primary, Label = record.Label });
+                Own(ref m_Active).Add(new ActiveRange { Effect = request.Effect, Id = RangeIdOf(request.Range), Start = request.Start, End = request.End, RecordIndex = request.Range, StyleIndex = record.StyleIndex, Primary = primary, Label = record.Label });
             }
             if (m_Active.Count > 0 || had)
             {
@@ -341,10 +341,10 @@ namespace FirstSymbol.Lettera
             public Color32 Color;
         }
 
-        readonly List<CoverQuad> m_CoverQuads = new List<CoverQuad>();
-        readonly Dictionary<int, float> m_CoverValue = new Dictionary<int, float>();
-        readonly Dictionary<int, bool> m_CoverTarget = new Dictionary<int, bool>();
-        readonly List<int> m_CoverKeys = new List<int>();
+        List<CoverQuad> m_CoverQuads = Rare<CoverQuad>.List;
+        Dictionary<int, float> m_CoverValue = Rare<int, float>.Map;
+        Dictionary<int, bool> m_CoverTarget = Rare<int, bool>.Map;
+        List<int> m_CoverKeys = Rare<int>.List;
         bool m_CoverFading;
 
         bool HasSpoilers
@@ -406,8 +406,8 @@ namespace FirstSymbol.Lettera
         /// <summary>Starts a spoiler's fade toward covered or uncovered.</summary>
         public void SetUncovered(int id, bool uncovered, float seconds)
         {
-            m_CoverTarget[id] = uncovered;
-            if (LetteraAccessibility.ReducedMotion || seconds <= 0) m_CoverValue[id] = uncovered ? 0 : 1;
+            Own(ref m_CoverTarget)[id] = uncovered;
+            if (LetteraAccessibility.ReducedMotion || seconds <= 0) Own(ref m_CoverValue)[id] = uncovered ? 0 : 1;
             m_CoverFading = true;
             m_CoverSeconds = Mathf.Max(seconds, 0.0001f);
             UpdateHubMembership();
@@ -428,12 +428,12 @@ namespace FirstSymbol.Lettera
             if (!m_CoverFading) return false;
             bool any = false;
             m_CoverKeys.Clear();
-            foreach (KeyValuePair<int, bool> pair in m_CoverTarget) m_CoverKeys.Add(pair.Key);
+            foreach (KeyValuePair<int, bool> pair in m_CoverTarget) Own(ref m_CoverKeys).Add(pair.Key);
             foreach (int id in m_CoverKeys)
             {
                 float target = m_CoverTarget[id] ? 0 : 1, value = CoverOf(id);
                 if (value == target) continue;
-                m_CoverValue[id] = Mathf.MoveTowards(value, target, unscaled / m_CoverSeconds);
+                Own(ref m_CoverValue)[id] = Mathf.MoveTowards(value, target, unscaled / m_CoverSeconds);
                 any = true;
             }
             if (!any)
@@ -463,7 +463,7 @@ namespace FirstSymbol.Lettera
                     int quad = VertexCount / 4;
                     Color32 color = spoiler.CoverColor;
                     AddSolid(rect.xMin, rect.yMin, rect.xMax, rect.yMax, color, s_NoPaint, default, 0, 0);
-                    m_CoverQuads.Add(new CoverQuad { Quad = quad, Id = range.Id, Color = color });
+                    Own(ref m_CoverQuads).Add(new CoverQuad { Quad = quad, Id = range.Id, Color = color });
                 }
             }
         }
