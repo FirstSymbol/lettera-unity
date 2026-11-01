@@ -94,6 +94,7 @@ namespace FirstSymbol.Lettera
 
         protected override void OnDestroy()
         {
+            ClearParts();
             if (m_Engine != null)
             {
                 LetteraRangeRouter.Forget(m_Engine);
@@ -106,6 +107,7 @@ namespace FirstSymbol.Lettera
         protected override void OnEnable()
         {
             base.OnEnable();
+            if (m_Parts.Count == 0) ForgetOldParts();
             GlyphAtlasRegistration.EnsureRegistered();
             Engine.SetDirty(DirtyLevel.Parse);
             m_LastRectSize = rectTransform.rect.size;
@@ -185,12 +187,29 @@ namespace FirstSymbol.Lettera
             if (m_HasAnimator) Engine.SyncSerializedFields();
             if (Engine.Dirty == DirtyLevel.None && m_Mesh != null)
             {
-                if (Engine.PoseStreams != 0) UploadPose();
+                if (Engine.PoseStreams != 0)
+                {
+                    if (Engine.VertexCount > MaxPartVertices)
+                    {
+                        Engine.ClearPoseStreams();
+                        UploadParts();
+                    }
+                    else
+                    {
+                        UploadPose();
+                    }
+                }
                 return;
             }
             if (Engine.Dirty == DirtyLevel.None) Engine.SetDirty(DirtyLevel.Mesh);
             if (!Engine.Rebuild()) return;
-            UploadMesh();
+            bool parts = Engine.VertexCount > MaxPartVertices;
+            if (parts) UploadParts();
+            else
+            {
+                ClearParts();
+                UploadMesh();
+            }
             Engine.ClearPoseStreams();
             ApplyMarqueeClip();
             if (MaterialsChanged())
@@ -198,8 +217,191 @@ namespace FirstSymbol.Lettera
                 EnableCanvasChannels();
                 UpdateMaterial();
             }
+            else if (parts)
+            {
+                PartMaterials();
+            }
             canvasRenderer.SetMesh(m_Mesh);
             RaiseRebuilt(Engine.LastChanges);
+        }
+
+        // ------------------------------------------------------------- parts of a long text
+
+        // A canvas renderer holds 16-bit indices: past this, Unity's canvas batching eats memory without end. So a long text draws through several.
+        internal const int MaxPartVertices = 65000;
+        const int QuadsPerPart = MaxPartVertices / 4;
+        const string PartName = "Lettera Text Part";
+
+        readonly System.Collections.Generic.List<(GameObject go, CanvasRenderer renderer, Mesh mesh)> m_Parts = new System.Collections.Generic.List<(GameObject, CanvasRenderer, Mesh)>();
+        static readonly System.Collections.Generic.List<Vector3> s_PartVertices = new System.Collections.Generic.List<Vector3>();
+        static readonly System.Collections.Generic.List<Color32> s_PartColors = new System.Collections.Generic.List<Color32>();
+        static readonly System.Collections.Generic.List<Vector4> s_PartUv = new System.Collections.Generic.List<Vector4>();
+        static readonly System.Collections.Generic.List<int> s_PartIndices = new System.Collections.Generic.List<int>();
+
+        internal int PartCount => m_Parts.Count;
+
+        void FillPart(Mesh mesh, int firstQuad, int quads)
+        {
+            TextEngine e = Engine;
+            int v = firstQuad * 4, count = quads * 4;
+            mesh.Clear(false);
+            mesh.indexFormat = UnityEngine.Rendering.IndexFormat.UInt16;
+            mesh.SetVertices(e.Vertices, v, count);
+            mesh.SetColors(e.Colors, v, count);
+            mesh.SetUVs(0, e.Uv0, v, count);
+            mesh.SetUVs(1, e.Uv1, v, count);
+            if (e.Styled)
+            {
+                mesh.SetUVs(2, e.Uv2, v, count);
+                mesh.SetUVs(3, e.Uv3, v, count);
+            }
+            // Every quad's six indices stand in the order of its vertices, so a part's are a run of them, moved down. A stretch of another material is its own submesh here.
+            int start = firstQuad * 6, end = start + quads * 6;
+            int submesh = 0;
+            mesh.subMeshCount = Mathf.Max(SegmentsIn(start, end), 1);
+            if (e.Segments.Count == 0)
+            {
+                WriteIndices(mesh, start, end, v, 0);
+            }
+            else
+            {
+                for (int i = 0; i < e.Segments.Count; i++)
+                {
+                    int a = Mathf.Max(e.Segments[i].IndexStart, start), b = Mathf.Min(e.Segments[i].IndexStart + e.Segments[i].IndexCount, end);
+                    if (a < b) WriteIndices(mesh, a, b, v, submesh++);
+                }
+            }
+            mesh.bounds = e.MeshBounds;
+        }
+
+        int SegmentsIn(int start, int end)
+        {
+            int count = 0;
+            TextEngine e = Engine;
+            for (int i = 0; i < e.Segments.Count; i++)
+                if (Mathf.Max(e.Segments[i].IndexStart, start) < Mathf.Min(e.Segments[i].IndexStart + e.Segments[i].IndexCount, end))
+                    count++;
+            return count;
+        }
+
+        void WriteIndices(Mesh mesh, int from, int to, int down, int submesh)
+        {
+            int[] source = Engine.Indices;
+            s_PartIndices.Clear();
+            for (int i = from; i < to; i++) s_PartIndices.Add(source[i] - down);
+            mesh.SetIndices(s_PartIndices, MeshTopology.Triangles, submesh, false);
+        }
+
+        void UploadParts()
+        {
+            if (m_Mesh == null) m_Mesh = new Mesh { name = "Lettera Text", hideFlags = HideFlags.HideAndDontSave };
+            TextEngine e = Engine;
+            int quads = e.VertexCount / 4;
+            int needed = Mathf.CeilToInt((float)quads / QuadsPerPart) - 1;
+            FillPart(m_Mesh, 0, Mathf.Min(quads, QuadsPerPart));
+            canvasRenderer.SetMesh(m_Mesh);
+            while (m_Parts.Count > needed)
+            {
+                DestroyPart(m_Parts[m_Parts.Count - 1]);
+                m_Parts.RemoveAt(m_Parts.Count - 1);
+            }
+            Vector2 pivot = rectTransform.pivot;
+            for (int p = 0; p < needed; p++)
+            {
+                if (p >= m_Parts.Count)
+                {
+                    var go = new GameObject(PartName, typeof(RectTransform), typeof(CanvasRenderer)) { hideFlags = HideFlags.HideAndDontSave };
+                    go.transform.SetParent(transform, false);
+                    m_Parts.Add((go, go.GetComponent<CanvasRenderer>(), new Mesh { name = PartName, hideFlags = HideFlags.HideAndDontSave }));
+                }
+                (GameObject part, CanvasRenderer renderer, Mesh mesh) = m_Parts[p];
+                // Its origin stands where the text's does, since the vertices are measured from there.
+                var rect = (RectTransform)part.transform;
+                rect.anchorMin = rect.anchorMax = pivot;
+                rect.pivot = pivot;
+                rect.anchoredPosition = Vector2.zero;
+                rect.sizeDelta = Vector2.zero;
+                FillPart(mesh, (p + 1) * QuadsPerPart, Mathf.Min(quads - (p + 1) * QuadsPerPart, QuadsPerPart));
+                renderer.SetMesh(mesh);
+                renderer.SetAlpha(canvasRenderer.GetAlpha());
+            }
+            PartMaterials();
+            if (m_MarqueeClipOn || m_ParentClipValid) PartClip();
+        }
+
+        // The materials of the stretches each part holds, and of the first part too, so that each submesh draws as it should.
+        void PartMaterials()
+        {
+            if (Engine.VertexCount <= MaxPartVertices) return;
+            TextEngine e = Engine;
+            int quads = e.VertexCount / 4;
+            Material source = m_Material != null ? m_Material : LetteraMaterials.Ui;
+            for (int part = 0; part <= m_Parts.Count; part++)
+            {
+                CanvasRenderer renderer = part == 0 ? canvasRenderer : m_Parts[part - 1].renderer;
+                int start = part * QuadsPerPart * 6, end = Mathf.Min(quads, (part + 1) * QuadsPerPart) * 6;
+                int count = Mathf.Max(SegmentsIn(start, end), 1);
+                renderer.materialCount = count;
+                int slot = 0;
+                for (int i = 0; i < e.Segments.Count; i++)
+                {
+                    MeshSegment segment = e.Segments[i];
+                    if (Mathf.Max(segment.IndexStart, start) >= Mathf.Min(segment.IndexStart + segment.IndexCount, end)) continue;
+                    Material material = segment.Custom != null ? segment.Custom : LetteraMaterials.Variant(source, e.Styled, segment.Blend, segment.Texture);
+                    if (maskable && m_StencilValue > 0)
+                    {
+                        int bits = (1 << m_StencilValue) - 1;
+                        material = StencilMaterial.Add(material, bits, UnityEngine.Rendering.StencilOp.Keep, UnityEngine.Rendering.CompareFunction.Equal, UnityEngine.Rendering.ColorWriteMask.All, bits, 0);
+                        m_SegmentMasks.Add(material);
+                    }
+                    renderer.SetMaterial(material, slot++);
+                }
+                if (slot == 0) renderer.SetMaterial(source, 0);
+            }
+        }
+
+        void PartClip()
+        {
+            foreach ((GameObject _, CanvasRenderer renderer, Mesh _) in m_Parts)
+            {
+                if (canvasRenderer.hasRectClipping) renderer.EnableRectClipping(canvasRenderer.GetClippingRect());
+                else if (m_ParentClipValid) renderer.EnableRectClipping(m_ParentClip);
+                else renderer.DisableRectClipping();
+                renderer.clippingSoftness = canvasRenderer.clippingSoftness;
+            }
+        }
+
+        void DestroyPart((GameObject go, CanvasRenderer renderer, Mesh mesh) part)
+        {
+            if (Application.isPlaying)
+            {
+                Destroy(part.mesh);
+                Destroy(part.go);
+            }
+            else
+            {
+                DestroyImmediate(part.mesh);
+                DestroyImmediate(part.go);
+            }
+        }
+
+        void ClearParts()
+        {
+            if (m_Parts.Count == 0) return;
+            foreach ((GameObject go, CanvasRenderer renderer, Mesh mesh) part in m_Parts) DestroyPart(part);
+            m_Parts.Clear();
+        }
+
+        // After a domain reload the list is gone, and what it held is still there, never saved.
+        void ForgetOldParts()
+        {
+            for (int i = transform.childCount - 1; i >= 0; i--)
+            {
+                Transform child = transform.GetChild(i);
+                if (child.name != PartName) continue;
+                if (Application.isPlaying) Destroy(child.gameObject);
+                else DestroyImmediate(child.gameObject);
+            }
         }
 
         // A pose frame changes vertex data and nothing else: no index write, no material, no layout.
@@ -262,6 +464,7 @@ namespace FirstSymbol.Lettera
             m_ParentClipValid = validRect;
             if (m_MarqueeClipOn) ApplyMarqueeClip();
             else base.SetClipRect(clipRect, validRect);
+            if (m_Parts.Count > 0) PartClip();
         }
 
         void UploadMesh()
@@ -269,7 +472,6 @@ namespace FirstSymbol.Lettera
             if (m_Mesh == null) m_Mesh = new Mesh { name = "Lettera Text", hideFlags = HideFlags.HideAndDontSave };
             TextEngine e = Engine;
             m_Mesh.Clear(false);
-            m_Mesh.indexFormat = e.VertexCount > 65000 ? UnityEngine.Rendering.IndexFormat.UInt32 : UnityEngine.Rendering.IndexFormat.UInt16;
             m_Mesh.SetVertices(e.Vertices, 0, e.VertexCount);
             m_Mesh.SetColors(e.Colors, 0, e.VertexCount);
             m_Mesh.SetUVs(0, e.Uv0, 0, e.VertexCount);
@@ -319,6 +521,11 @@ namespace FirstSymbol.Lettera
             TextEngine e = Engine;
             foreach (Material mask in m_SegmentMasks) StencilMaterial.Remove(mask);
             m_SegmentMasks.Clear();
+            if (e.VertexCount > MaxPartVertices)
+            {
+                PartMaterials();
+                return;
+            }
             int count = e.Segments.Count;
             if (count == 0 || (count == 1 && e.Segments[0].IsDefault)) return;
 
@@ -388,6 +595,7 @@ namespace FirstSymbol.Lettera
             if (m_Hidden) return;
             m_Hidden = true;
             canvasRenderer.cull = true;
+            foreach ((GameObject _, CanvasRenderer renderer, Mesh _) in m_Parts) renderer.cull = true;
         }
 
         /// <summary>Draws again without a rebuild, unless something changed meanwhile.</summary>
@@ -396,6 +604,7 @@ namespace FirstSymbol.Lettera
             if (!m_Hidden) return;
             m_Hidden = false;
             canvasRenderer.cull = false;
+            foreach ((GameObject _, CanvasRenderer renderer, Mesh _) in m_Parts) renderer.cull = false;
             // A mask may have wanted it culled meanwhile.
             RecalculateClipping();
         }

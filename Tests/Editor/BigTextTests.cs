@@ -32,6 +32,41 @@ namespace FirstSymbol.Lettera.Editor.Tests
         }
 
         [Test]
+        public void ALongCanvasTextDrawsThroughSeveralRenderersAndGivesThemBack()
+        {
+            var canvas = new GameObject("Canvas", typeof(Canvas));
+            var go = new GameObject("Text", typeof(RectTransform));
+            go.transform.SetParent(canvas.transform, false);
+            ((RectTransform)go.transform).sizeDelta = new Vector2(800, 100000);
+            var text = go.AddComponent<LetteraText>();
+            text.Font = Latin;
+            text.FontSize = 14;
+            text.Text = Page(100 * 1024);
+            Canvas.ForceUpdateCanvases();
+            text.ForceRebuild();
+            int vertices = text.Engine.VertexCount;
+            Assert.Greater(vertices, LetteraText.MaxPartVertices);
+            Assert.AreEqual(vertices / 4 / (LetteraText.MaxPartVertices / 4), text.PartCount, "whole parts beyond the first");
+            int drawn = text.canvasRenderer.GetMesh()?.vertexCount ?? 0;
+            Assert.LessOrEqual(drawn, LetteraText.MaxPartVertices);
+            text.Text = "short";
+            text.ForceRebuild();
+            Canvas.ForceUpdateCanvases();
+            Assert.AreEqual(0, text.PartCount);
+            Assert.AreEqual(0, CountParts(go.transform));
+            UnityEngine.Object.DestroyImmediate(canvas);
+        }
+
+        static int CountParts(Transform t)
+        {
+            int count = 0;
+            foreach (Transform child in t)
+                if (child.name == "Lettera Text Part")
+                    count++;
+            return count;
+        }
+
+        [Test]
         public void MemoryGrowsWithLengthAndNoFaster()
         {
             // A runaway here takes the whole machine with it, so a thread ends this process before that.
