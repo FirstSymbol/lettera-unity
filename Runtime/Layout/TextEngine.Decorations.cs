@@ -172,7 +172,7 @@ namespace FirstSymbol.Lettera
         void EmitLine(float left, float right, float y, float thickness, LetteraLineStyle style, float grow, float soft, float dx, float dy, float origin, Color32 color, in ResolvedPaint paint, in Rect rect)
         {
             if (right <= left) return;
-            if (m_Host.SolidsOnly)
+            if (m_SolidsOnly)
             {
                 // A line on a solid text is a box with the text's depth. Its style stays flat paper's.
                 float bar = thickness * 0.5f + grow;
@@ -221,7 +221,7 @@ namespace FirstSymbol.Lettera
 
         void DrawHighlights(List<LayerGroup> groups, bool above)
         {
-            if (m_Host.SolidsOnly) return;
+            if (m_SolidsOnly) return;
             foreach (LayerGroup group in groups)
             {
                 if (group.Layer != LayerKind.Highlight) continue;

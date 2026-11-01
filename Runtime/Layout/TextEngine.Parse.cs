@@ -22,7 +22,7 @@ namespace FirstSymbol.Lettera
             if (Literal) return;
             LetteraTextData data = m_Host.Data;
             int hostStyles = 0;
-            if (m_Host.HostStyles != null)
+            if (m_SolidsOnly && m_Host.HostStyles != null)
             {
                 foreach (LetteraStyle style in m_Host.HostStyles) m_EffectiveStyles.Add(style);
                 hostStyles = m_EffectiveStyles.Count;
@@ -92,8 +92,11 @@ namespace FirstSymbol.Lettera
                 if (style != null && style.Enabled && style.Matcher != null) m_MatcherOrder.Add(i);
             }
             SortMatchers();
+            // Only a formula's matchers ask, and only where there is something to escape.
             context.HasEscapes = false;
-            foreach (int index in m_MatcherOrder) context.HasEscapes |= m_EffectiveStyles[index].Matcher is EscapeMatcher;
+            if (context.LessThanPositions.Count > 0 || source.IndexOf('\\') >= 0)
+                for (int m = 0; m < m_MatcherOrder.Count && !context.HasEscapes; m++)
+                    context.HasEscapes = m_EffectiveStyles[m_MatcherOrder[m]].Matcher is EscapeMatcher;
             foreach (int index in m_MatcherOrder)
             {
                 context.CurrentStyle = index;

@@ -52,6 +52,12 @@ namespace FirstSymbol.Lettera
                         Size = em * part.Scale, Unit = em * part.Scale / instance.Face.Metrics.Upem, Angle = at.Angle, Pen = at.X, Marker = true,
                     };
                     bool colored = part.Color > 0 && part.Color <= item.Math.Colors.Length;
+                    // A glyph holds this in the room a plain text already pays for. Past it, a part draws plain.
+                    if (m_MathSpecials.Count >= ushort.MaxValue)
+                    {
+                        if (part.Kind != MathItemKind.Rule) m_VirtualGlyphs.Add(placed);
+                        continue;
+                    }
                     if (part.Kind == MathItemKind.Rule)
                     {
                         // Thin rules read as missing, so one under a pixel draws at a pixel, around the same middle. Nothing moves in the layout.
@@ -67,13 +73,13 @@ namespace FirstSymbol.Lettera
                         placed.Special = SpecialRule;
                         placed.Size = em;
                         placed.Unit = em / 1000;
-                        placed.SpecialIndex = m_MathSpecials.Count;
+                        placed.SpecialIndex = (ushort)m_MathSpecials.Count;
                         m_MathSpecials.Add(new MathSpecial { Length = part.Length * 1000, Thickness = part.Thickness * 1000, Vertical = part.Vertical, HasColor = colored, Color = colored ? item.Math.Colors[part.Color - 1] : default });
                     }
                     else if (part.Cropped || colored)
                     {
                         placed.Special = part.Cropped ? SpecialCrop : SpecialColor;
-                        placed.SpecialIndex = m_MathSpecials.Count;
+                        placed.SpecialIndex = (ushort)m_MathSpecials.Count;
                         m_MathSpecials.Add(new MathSpecial { Low = part.CropLow, High = part.CropHigh, Vertical = part.Vertical, HasColor = colored, Color = colored ? item.Math.Colors[part.Color - 1] : default });
                     }
                     m_VirtualGlyphs.Add(placed);

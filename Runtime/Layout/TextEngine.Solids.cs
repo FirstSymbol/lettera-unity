@@ -9,6 +9,8 @@ namespace FirstSymbol.Lettera
     {
         internal const byte SpecialRuleForSolids = SpecialRule;
 
+        bool m_SolidsOnly;
+
         /// <summary>The glyphs of the text as placed, then the virtual ones a formula adds.</summary>
         internal ReadOnlySpan<PlacedGlyph> PlacedSpan => new ReadOnlySpan<PlacedGlyph>(m_Placed, 0, m_PlacedCount);
 

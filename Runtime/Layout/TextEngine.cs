@@ -69,6 +69,7 @@ namespace FirstSymbol.Lettera
 
         public TextEngine(ITextHost host)
         {
+            m_SolidsOnly = host.SolidsOnly;
             m_Host = host;
             m_OnRevealTouched = OnRevealTouched;
         }
