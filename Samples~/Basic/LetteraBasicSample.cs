@@ -23,7 +23,10 @@ namespace FirstSymbol.Lettera.Samples
             scaler.referenceResolution = new Vector2(1280, 720);
             Transform parent = canvasObject.transform;
 
-            Add(parent, 40, 60, "Hello, мир, مرحبا, שלום, 你好, こんにちは, 안녕, नमस्ते 👨‍👩‍👧‍👦👍🏽");
+            // A browser exposes no fonts. On the web a text with no font has Latin, Cyrillic and Greek, and other scripts need a font assigned.
+            Add(parent, 40, 60, Application.platform == RuntimePlatform.WebGLPlayer
+                ? "Hello, мир, Γειά σου 👨‍👩‍👧‍👦👍🏽"
+                : "Hello, мир, مرحبا, שלום, 你好, こんにちは, 안녕, नमस्ते 👨‍👩‍👧‍👦👍🏽");
             Add(parent, 110, 60, "<b>Bold</b> <i>Italic</i> <size=150%>Big</size> <color=#F66>Color</color> <u>Underline</u> <s>Strike</s>");
             Add(parent, 180, 70, "<outline=#D33,0.08>Outline</outline>  <shadow=#000C,0.08,-0.08,0.2>Shadow</shadow>");
 

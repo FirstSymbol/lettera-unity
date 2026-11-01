@@ -11,6 +11,16 @@ namespace FirstSymbol.Lettera.Samples
     public class LetteraMotionSample : MonoBehaviour
     {
         RectTransform m_Column;
+        LetteraText m_Typed;
+        RevealEffect m_Reveal;
+
+        void Update()
+        {
+            // A bare number counts units: twelve a second, then a pause, then again. A sequencer or a Timeline clip can drive this as well.
+            float reach = Mathf.Repeat(Time.time * 12, 60);
+            m_Reveal.Reach = reach.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture);
+            m_Typed.MarkEffectsDirty(DirtyLevel.Pose);
+        }
 
         void Start()
         {
@@ -40,9 +50,10 @@ namespace FirstSymbol.Lettera.Samples
             Row("<glitch>glitch</glitch>  <scramble>scramble</scramble>  <roll>1234</roll>");
 
             // A typewriter: reach says how much has appeared.
-            LetteraText typed = Row("");
-            typed.Styles.Add(LetteraStyle.ForWholeText(new RevealEffect { Reach = "100%" }));
-            typed.Text = "This line arrives one letter at a time.";
+            m_Typed = Row("");
+            m_Reveal = new RevealEffect { Reach = "0" };
+            m_Typed.Styles.Add(LetteraStyle.ForWholeText(m_Reveal));
+            m_Typed.Text = "This line arrives one letter at a time.";
 
             // A ticker, which runs only when the text does not fit.
             LetteraText ticker = Row("");

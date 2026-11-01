@@ -6,6 +6,35 @@ using UnityEngine;
 namespace FirstSymbol.Lettera.Editor.Tests
 {
     /// <summary>What stays across windows, reading a document whole, and bars.</summary>
+    public class DocumentFeatureCanvasTests
+    {
+        [Test]
+        public void AJumpBeforeTheFirstLayoutAsksTheCanvasForNothingFromInsideItsRebuild()
+        {
+            var canvasObject = new GameObject("Canvas", typeof(Canvas));
+            try
+            {
+                var go = new GameObject("Text", typeof(RectTransform));
+                go.transform.SetParent(canvasObject.transform, false);
+                ((RectTransform)go.transform).sizeDelta = new Vector2(600, 300);
+                var text = go.AddComponent<LetteraText>();
+                var body = new System.Text.StringBuilder();
+                for (int i = 0; i < 4000; i++) body.Append("Line ").Append(i).Append(" of a document.\n");
+                LetteraRope rope = LetteraRope.FromString(body.ToString());
+                text.OpenDocument(rope, takeOwnership: true);
+                text.View.ScrollToChar(rope.Length / 2, LetteraRevealAlign.Center);
+                // A log of an error here fails the test by itself.
+                Canvas.ForceUpdateCanvases();
+                Assert.Greater(text.Engine.VertexCount, 0);
+                text.CloseDocument();
+            }
+            finally
+            {
+                Object.DestroyImmediate(canvasObject);
+            }
+        }
+    }
+
     public class DocumentFeatureTests : EditingFixture
     {
         static string Lines(int count)

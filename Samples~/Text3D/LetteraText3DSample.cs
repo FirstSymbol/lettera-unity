@@ -5,7 +5,7 @@ using UnityEngine.UI;
 namespace FirstSymbol.Lettera.Samples
 {
     /// <summary>
-    /// A rotating camera over a lit ground: a line per edge shape, each look, a bidirectional line, a wave, a counter with warm digits, a formula, 500 shared labels with a live count, and solid text in a Canvas through a render texture.
+    /// A camera sweeping over a lit ground: a line per edge shape, each look, a bidirectional line, a wave, a counter with warm digits, a formula, 500 shared labels with a live count, and solid text in a Canvas through a render texture.
     /// Add this to an empty object in an empty scene, assign a material with the Lettera/Solid Lit shader, and press Play.
     /// </summary>
     public class LetteraText3DSample : MonoBehaviour
@@ -30,6 +30,7 @@ namespace FirstSymbol.Lettera.Samples
             m_Camera.clearFlags = CameraClearFlags.SolidColor;
             m_Camera.backgroundColor = new Color(0.15f, 0.16f, 0.19f);
             m_Camera.farClipPlane = 500;
+            Update();
 
             var sun = new GameObject("Sun", typeof(Light)).GetComponent<Light>();
             sun.type = LightType.Directional;
@@ -142,7 +143,7 @@ namespace FirstSymbol.Lettera.Samples
             var target = m_Target = new RenderTexture(512, 128, 24);
             var far = new Vector3(0, 1000, 0);
             var inner = new GameObject("Canvas Camera", typeof(Camera)).GetComponent<Camera>();
-            inner.transform.position = far + new Vector3(0, 0, -14);
+            inner.transform.position = far + new Vector3(0, 0, -6);
             inner.clearFlags = CameraClearFlags.SolidColor;
             inner.backgroundColor = new Color(0.05f, 0.05f, 0.06f, 1);
             inner.targetTexture = target;
@@ -177,10 +178,10 @@ namespace FirstSymbol.Lettera.Samples
 
         void Update()
         {
-            m_Spin += Time.deltaTime * 12;
-            float angle = m_Spin * Mathf.Deg2Rad;
-            m_Camera.transform.position = new Vector3(Mathf.Sin(angle) * 80, 16, -Mathf.Cos(angle) * 80);
-            m_Camera.transform.LookAt(new Vector3(0, 4, 0));
+            m_Spin += Time.deltaTime * 0.5f;
+            float angle = Mathf.Sin(m_Spin) * 22 * Mathf.Deg2Rad;
+            m_Camera.transform.position = new Vector3(Mathf.Sin(angle) * 62, 14, -Mathf.Cos(angle) * 62);
+            m_Camera.transform.LookAt(new Vector3(0, 5, 0));
             if (m_Counter != null && Time.frameCount % 6 == 0) m_Counter.SetText((++m_Count).ToString());
             if (m_Stats != null && Time.frameCount % 30 == 0) m_Stats.SetText($"{Time.smoothDeltaTime * 1000:0.0} ms a frame, {SharedLabels} labels on one mesh");
         }

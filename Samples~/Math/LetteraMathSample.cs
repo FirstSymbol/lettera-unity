@@ -42,7 +42,7 @@ namespace FirstSymbol.Lettera.Samples
             var scrollRect = (RectTransform)scroll.transform;
             scrollRect.SetParent(canvasObject.transform, false);
             scrollRect.anchorMin = Vector2.zero;
-            scrollRect.anchorMax = Vector2.one;
+            scrollRect.anchorMax = new Vector2(0.72f, 1);
             scrollRect.offsetMin = scrollRect.offsetMax = Vector2.zero;
             scroll.GetComponent<Image>().color = new Color(0.1f, 0.11f, 0.13f);
 
@@ -83,14 +83,19 @@ namespace FirstSymbol.Lettera.Samples
             Row("<color=#ff6677><math>\\frac{a}{\\sqrt{b}}</math></color>  <size=48><math>\\frac{a}{b}</math></size>  <stroke=#3399ff,0.06><math>\\frac{a}{b}</math></stroke>");
             Row("<spin><math>\\frac{a}{b}</math></spin>  moves whole, and  <wave><math>x^2</math> words</wave>");
 
+            // Beside the page, a formula in world space with no Canvas.
+            Camera seeing = Camera.main != null ? Camera.main : FindAnyObjectByType<Camera>();
+            if (seeing == null) seeing = new GameObject("Camera", typeof(Camera)).GetComponent<Camera>();
             var world = new GameObject("World Text", typeof(RectTransform));
-            world.transform.position = new Vector3(0, 0, 6);
-            ((RectTransform)world.transform).sizeDelta = new Vector2(10, 4);
+            world.transform.position = seeing.ViewportToWorldPoint(new Vector3(0.86f, 0.5f, 10));
+            world.transform.rotation = seeing.transform.rotation;
+            ((RectTransform)world.transform).sizeDelta = new Vector2(5, 3);
             LetteraWorldText flat = world.AddComponent<LetteraWorldText>();
-            flat.FontSize = 1;
+            flat.FontSize = 0.45f;
+            flat.HorizontalAlignment = LetteraHorizontalAlignment.Center;
+            flat.VerticalAlignment = LetteraVerticalAlignment.Middle;
             Use(flat.Styles);
             flat.Text = "<math=display>\\sum_{i=0}^n i = \\frac{n(n+1)}{2}</math>";
-            if (FindAnyObjectByType<Camera>() == null) new GameObject("Camera", typeof(Camera)).transform.position = new Vector3(0, 0, -4);
         }
 
         // The font goes on this sample's own formula style, which comes first, so that nothing changes in the project.
