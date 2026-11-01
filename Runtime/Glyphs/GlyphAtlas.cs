@@ -1096,6 +1096,7 @@ namespace FirstSymbol.Lettera
             s_EmojiPending.Clear();
             s_Glyphs.Clear();
             s_Unions.Clear();
+            s_Rules.Clear();
             ResetSet(s_Sdf);
             bool hadColor = s_Color.Pixels.Count > 0;
             FreePages(s_Color);
