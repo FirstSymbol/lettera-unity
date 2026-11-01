@@ -4,6 +4,21 @@ All notable changes to this package are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.7.3] - 2026-11-01
+
+### Fixed
+- **A long text on a Canvas could run the whole machine out of memory.** Past about 21 KB of Latin, a text gave one canvas renderer more than 65 000 vertices, and Unity's canvas batching then grew without end: past 10 GB within seconds at 100 KB, with other programs on the machine failing too. Present since 0.1.0. A long text now draws through several renderers. 100 KB and 1 MB both hold about 2 GB for the whole player, and 1 MB sets in 1.7 s on the development machine.
+
+### Added
+These are early parts of 1.0, carried along with the fix.
+- **The text inspector is one page of cards,** with a row to jump between them and a filter for settings, in place of tabs. B, I, U and S wrap a selection, and with none turn a style on or off for the whole text.
+- **Tools > Lettera > Commands** (Ctrl+Alt+L): everything Lettera makes or opens, by typing, in either keyboard layout.
+- **Tools > Lettera:** Glyphs, Ranges, Atlases, Clipboard, Font Tools, and an overlay of glyph boxes and baselines in the Scene view (Ctrl+Shift+I).
+- **Tools > Lettera > Migrate From TextMesh Pro.** Tested on written cases only, not yet on a real project. Input fields and dropdowns stay on TextMesh Pro for now, with their texts.
+
+### Known
+- With many parts, a text's alpha through `CrossFadeAlpha` reaches the first part only until its next rebuild. A part's motion rewrites its whole mesh.
+
 ## [0.7.2] - 2026-11-01
 
 ### Fixed
