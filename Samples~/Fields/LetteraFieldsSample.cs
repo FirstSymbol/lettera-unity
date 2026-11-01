@@ -35,7 +35,7 @@ namespace FirstSymbol.Lettera.Samples
             column.SetParent(canvas.transform, false);
             column.anchorMin = column.anchorMax = column.pivot = new Vector2(0.5f, 1);
             column.anchoredPosition = new Vector2(0, -20);
-            column.sizeDelta = new Vector2(420, 520);
+            column.sizeDelta = new Vector2(420, 620);
             var layout = column.GetComponent<VerticalLayoutGroup>();
             layout.spacing = 12;
             layout.childControlWidth = true;

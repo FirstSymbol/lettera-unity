@@ -46,7 +46,11 @@ namespace FirstSymbol.Lettera
         static RectTransform MakeViewport(Transform parent)
         {
             var viewport = new GameObject("Viewport", typeof(RectTransform), typeof(RectMask2D));
-            return Stretch(viewport, parent, 8);
+            // A one-line field is 40 high, and a line of its size wants about 26: less inset than this and the line scrolls inside its box.
+            RectTransform rect = Stretch(viewport, parent, 8);
+            rect.offsetMin = new Vector2(8, 4);
+            rect.offsetMax = new Vector2(-8, -4);
+            return rect;
         }
 
         static LetteraEditable MakeField(RectTransform viewport, bool wrap, string hint, out LetteraText hintText)
@@ -159,13 +163,14 @@ namespace FirstSymbol.Lettera
             caption.rectTransform.offsetMax = new Vector2(-30, 0);
             caption.VerticalAlignment = LetteraVerticalAlignment.Middle;
             caption.raycastTarget = false;
-            LetteraText arrow = MakeText("Arrow", root.transform, s_Text, false);
-            arrow.rectTransform.anchorMin = new Vector2(1, 0);
-            arrow.rectTransform.pivot = new Vector2(1, 0.5f);
-            arrow.rectTransform.sizeDelta = new Vector2(26, 0);
-            arrow.rectTransform.anchoredPosition = Vector2.zero;
-            arrow.Text = "▾";
-            arrow.VerticalAlignment = LetteraVerticalAlignment.Middle;
+            var arrowObject = new GameObject("Arrow", typeof(RectTransform));
+            RectTransform arrowRect = Stretch(arrowObject, root.transform);
+            arrowRect.anchorMin = new Vector2(1, 0);
+            arrowRect.pivot = new Vector2(1, 0.5f);
+            arrowRect.sizeDelta = new Vector2(26, 0);
+            arrowRect.anchoredPosition = Vector2.zero;
+            var arrow = arrowObject.AddComponent<LetteraDropdownArrow>();
+            arrow.color = s_Text;
             arrow.raycastTarget = false;
 
             var template = new GameObject("Template", typeof(RectTransform), typeof(Image), typeof(ScrollRect));
