@@ -1286,10 +1286,12 @@ namespace FirstSymbol.Lettera
                         Node other = nodes[walk];
                         float2 p = ring[other.Vertex];
                         budget--;
-                        if (!Same(p, a) && !Same(p, b) && !Same(p, c) && StrictlyIn(a, b, c, p, margin))
+                        // A point on the cut would pinch what is left, so it blocks too, until nothing else can go.
+                        if (!Same(p, a) && !Same(p, b) && !Same(p, c) && (stuck ? StrictlyIn(a, b, c, p, margin) : InTriangle(a, b, c, p)))
                         {
                             float2 before = ring[nodes[other.Previous].Vertex], after = ring[nodes[other.Next].Vertex];
-                            if (Cross(before, p, after) < 0 || stuck == false)
+                            float turn = Cross(before, p, after);
+                            if (stuck ? turn < 0 : turn <= 0)
                             {
                                 ear = false;
                                 break;
