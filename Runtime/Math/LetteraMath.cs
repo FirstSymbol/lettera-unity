@@ -52,6 +52,7 @@ namespace FirstSymbol.Lettera
         public long CacheBytes = 4 * 1024 * 1024;
     }
 
+#if !LETTERA_NO_MATH
     /// <summary>Formulas from code: measuring, checking and hearing of failures.</summary>
     public static class LetteraMath
     {
@@ -444,4 +445,75 @@ namespace FirstSymbol.Lettera
 
         static readonly string[] SystemFontNames = { "Cambria Math", "STIX Two Math", "Noto Sans Math", "DejaVu Math TeX Gyre", "Latin Modern Math" };
     }
+#else
+    /// <summary>Compiled out by LETTERA_NO_MATH: nothing reads a formula, and each says so.</summary>
+    public static class LetteraMath
+    {
+        public static event Action<string, int, string> Failed { add { } remove { } }
+
+        public static void Register(ILetteraMathExtension extension) { }
+        public static void Unregister(ILetteraMathExtension extension) { }
+
+        public static bool Validate(string source, out string message, out int position)
+        {
+            message = "Formulas are compiled out of this project by LETTERA_NO_MATH.";
+            position = 0;
+            return false;
+        }
+
+        public static Vector3 Measure(string source, bool display, LetteraFontAsset font, float size) => default;
+    }
+
+    /// <summary>Adds commands the parser does not know. Nothing asks while formulas are compiled out.</summary>
+    public interface ILetteraMathExtension
+    {
+        bool TryParse(string command, out string replacementSource);
+    }
+
+    /// <summary>With formulas compiled out, a tag goes and what it held stays, as the words it was written in.</summary>
+    [Serializable, UnityEngine.Scripting.Preserve]
+    public class LetteraMathTagMatcher : LetteraMatcher
+    {
+        public override int Priority => int.MaxValue - 1;
+
+        public override void Find(LetteraMatchContext context)
+        {
+            string text = context.Text;
+            int at = 0;
+            while ((at = text.IndexOf("<math", at, StringComparison.OrdinalIgnoreCase)) >= 0)
+            {
+                int open = text.IndexOf('>', at);
+                if (open < 0) return;
+                int close = text.IndexOf("</math>", open, StringComparison.OrdinalIgnoreCase);
+                if (close < 0) return;
+                if (context.IsFree(at, open + 1 - at) && context.IsFree(close, 7))
+                {
+                    context.Replace(at, open + 1 - at);
+                    context.Replace(close, 7);
+                }
+                at = close + 7;
+            }
+        }
+    }
+
+    /// <summary>Compiled out by LETTERA_NO_MATH. It stays so that a saved style still loads.</summary>
+    [Serializable, UnityEngine.Scripting.Preserve]
+    public class LetteraMathSpanMatcher : LetteraMatcher
+    {
+        public override void Find(LetteraMatchContext context) { }
+    }
+
+    /// <summary>Compiled out by LETTERA_NO_MATH. It stays so that a saved style still loads.</summary>
+    [Serializable, UnityEngine.Scripting.Preserve]
+    public class LetteraMathEffect : LetteraEffect
+    {
+        [SerializeField] LetteraFontAsset m_Font;
+        [SerializeField] float m_Scale = 1;
+
+        public override void Apply(LetteraAttributes attributes, int start, int end, in LetteraSlots slots) { }
+
+        public LetteraFontAsset Font { get => m_Font; set => m_Font = value; }
+        public float Scale { get => m_Scale; set => m_Scale = value; }
+    }
+#endif
 }

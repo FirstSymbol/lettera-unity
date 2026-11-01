@@ -1,3 +1,4 @@
+#if !LETTERA_NO_MATH
 using System.IO;
 using System.Text;
 using NUnit.Framework;
@@ -69,3 +70,4 @@ namespace FirstSymbol.Lettera.Editor.Tests
         }
     }
 }
+#endif

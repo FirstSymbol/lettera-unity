@@ -1,3 +1,4 @@
+#if !LETTERA_NO_MATH
 using System.Collections.Generic;
 using System.IO;
 using UnityEditor;
@@ -88,3 +89,4 @@ namespace FirstSymbol.Lettera.Editor
         }
     }
 }
+#endif

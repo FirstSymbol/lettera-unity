@@ -35,6 +35,7 @@ namespace FirstSymbol.Lettera
         public long Bytes => 128 + (Items?.Length ?? 0) * 48 + (Source?.Length ?? 0) * 2;
     }
 
+#if !LETTERA_NO_MATH
     /// <summary>Computes boxes bottom-up. Every width is worked out once, so time is linear in what a formula draws.</summary>
     internal sealed class LetteraMathBuilder
     {
@@ -1598,4 +1599,5 @@ namespace FirstSymbol.Lettera
             return cp >= 'a' ? 0x1D434 + 26 + (cp - 'a') : 0x1D434 + (cp - 'A');
         }
     }
+#endif
 }

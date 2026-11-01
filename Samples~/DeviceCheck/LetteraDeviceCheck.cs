@@ -43,9 +43,89 @@ namespace FirstSymbol.Lettera.Samples
             new Step("menu", "Menu and loupe", "Hold on a word. Does the system's menu show clear of the selection, and do Cut, Copy, Paste and Select All work? A text app on Android, Look Up on iOS. Hold and drag: does the loupe follow and show what is under it?", "system menu", "text apps", "loupe"),
             new Step("fonts", "Fonts", "Close the app and open it again. Does text show at once? The figures below should say mapped, not memory.", "font mapping"),
             new Step("color", "Color glyphs", "Are the color glyphs below drawn with gradients? In Safari: do many emoji appear in one go?", "colrv1", "web emoji batching"),
+            new Step("math", "Formulas", "Below are fractions, roots, tall brackets, a matrix and accents. Are they sharp, joined and in place? Is the tall bracket one smooth shape at half alpha?", "math layout", "native v3", "bundled font"),
+            new Step("math-system", "System math font", "This line asks the system for a math font, and says which it found. Does the formula look right, or does it say none?", "system math font"),
+            new Step("math-select", "Formula as one unit", "Tap beside a formula. Hold to select it. Copy and paste to Notes: you should see the source. On a Windows machine: paste into Word and Chrome.", "selection", "copy", "clipboard HTML"),
+            new Step("solid", "3D text", "These letters are solid and lit, and turn slowly. Do they look closed and smooth? Do shadows fall on the ground? Do they fade by dots, and does the frame rate below stay smooth?", "solid shader", "budgets"),
+            new Step("solid-many", "Many solids", "500 labels. Note the frame time.", "instancing", "batching", "budgets"),
             new Step("motion", "Motion and scrolling", "Does the moving text run smoothly? Is a long document smooth to scroll?", "os preferences", "motion", "documents"),
             new Step("touch", "Handles", "Do selection handles, the loupe and the context menu look right, and sit where they should?", "handles"),
         };
+
+#if !LETTERA_NO_3D
+        readonly List<GameObject> m_Solids = new List<GameObject>();
+        Material m_SolidMaterial;
+
+        // Solids draw in the scene behind the page, under a light of their own, and go when the page does.
+        void SolidPage(int count)
+        {
+            ClearSolids();
+            if (m_SolidMaterial == null) m_SolidMaterial = Resources.Load<Material>("LetteraSolidTest");
+            if (m_SolidMaterial == null)
+            {
+                Shader shader = Shader.Find("Lettera/Solid Lit");
+                if (shader != null) m_SolidMaterial = new Material(shader);
+            }
+            if (m_SolidMaterial == null)
+            {
+                Label("The solid shader is not in this build.", 28, new Vector2(0, 0.45f), new Vector2(1, 0.6f));
+                return;
+            }
+            Camera camera = Camera.main;
+            if (camera == null)
+            {
+                camera = new GameObject("Kit Camera", typeof(Camera)).GetComponent<Camera>();
+                camera.tag = "MainCamera";
+                m_Solids.Add(camera.gameObject);
+            }
+            camera.transform.SetPositionAndRotation(new Vector3(0, 2, -24), Quaternion.Euler(4, 0, 0));
+            var light = new GameObject("Kit Light", typeof(Light)).GetComponent<Light>();
+            light.type = LightType.Directional;
+            light.shadows = LightShadows.Soft;
+            light.transform.rotation = Quaternion.Euler(50, -30, 0);
+            m_Solids.Add(light.gameObject);
+            var ground = GameObject.CreatePrimitive(PrimitiveType.Plane);
+            ground.transform.position = new Vector3(0, -4, 0);
+            ground.GetComponent<MeshRenderer>().sharedMaterial = m_SolidMaterial;
+            m_Solids.Add(ground);
+            for (int i = 0; i < count; i++)
+            {
+                var go = new GameObject("Solid", typeof(RectTransform));
+                ((RectTransform)go.transform).sizeDelta = new Vector2(30, 6);
+                LetteraText3D solid = go.AddComponent<LetteraText3D>();
+                solid.FaceMaterial = m_SolidMaterial;
+                solid.WordWrap = false;
+                solid.HorizontalAlignment = LetteraHorizontalAlignment.Center;
+                if (count == 1)
+                {
+                    solid.FontSize = 5;
+                    solid.Depth = 0.25f;
+                    solid.Text = "Solid <wave>Text</wave>";
+                    go.AddComponent<KitTurn>();
+                }
+                else
+                {
+                    solid.FontSize = 0.8f;
+                    go.transform.position = new Vector3(-12 + i % 25, -3 + i / 25 * 0.8f, 0);
+                    solid.Text = "Label";
+                }
+                m_Solids.Add(go);
+            }
+        }
+
+        void ClearSolids()
+        {
+            foreach (GameObject go in m_Solids)
+                if (go != null)
+                    Destroy(go);
+            m_Solids.Clear();
+        }
+
+        sealed class KitTurn : MonoBehaviour
+        {
+            void Update() => transform.rotation = Quaternion.Euler(0, Mathf.Sin(Time.time) * 35, 0);
+        }
+#endif
 
         readonly List<string> m_Results = new List<string>();
         RectTransform m_Root;
@@ -136,6 +216,9 @@ namespace FirstSymbol.Lettera.Samples
         void ShowStep()
         {
             Clear();
+#if !LETTERA_NO_3D
+            ClearSolids();
+#endif
             if (m_Index >= Steps.Length)
             {
                 ShowResult();
@@ -190,6 +273,30 @@ namespace FirstSymbol.Lettera.Samples
                     field.AddRule(new ReplicaFieldRule());
                     field.AddRule(new MaxLengthRule { Limit = 10 });
                     break;
+                case "math":
+                    Label("<math=display>\\frac{a}{\\sqrt{b+1}} + \\sum_{i=0}^n \\hat{x}_i^2</math>", 40, new Vector2(0, 0.55f), new Vector2(1, 0.75f));
+                    Label("<alpha=#80><math=display>\\left(\\begin{pmatrix}1&0\\\\0&1\\end{pmatrix} \\left\\{\\frac{a}{\\frac{b}{\\frac{c}{d}}}\\right.\\right)</math></alpha>", 34, new Vector2(0, 0.3f), new Vector2(1, 0.55f));
+                    break;
+                case "math-system":
+                    Label("<math>\\int_0^1 \\frac{dx}{\\sqrt{x}}</math>", 40, new Vector2(0, 0.45f), new Vector2(1, 0.65f));
+                    break;
+                case "math-select":
+                    GameObject mathField = Field(new Vector2(0, 0.42f), new Vector2(1, 0.6f));
+                    mathField.GetComponentInChildren<LetteraEditable>().Source = "a <math>x^2</math> b";
+                    break;
+#if !LETTERA_NO_3D
+                case "solid":
+                    SolidPage(1);
+                    break;
+                case "solid-many":
+                    SolidPage(500);
+                    break;
+#else
+                case "solid":
+                case "solid-many":
+                    Label("The 3D module is compiled out of this build.", 28, new Vector2(0, 0.45f), new Vector2(1, 0.6f));
+                    break;
+#endif
                 case "motion":
                     Label("<wave>This text should move smoothly.</wave>", 32, new Vector2(0, 0.4f), new Vector2(1, 0.6f));
                     break;

@@ -1,8 +1,8 @@
 {
   "name": "com.firstsymbol.lettera",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "displayName": "Lettera Text Engine",
-  "description": "Text engine for Unity UI and world space: full OpenType shaping (HarfBuzz), bidirectional text, Unicode line breaking, system fonts and fallback, color emoji, a shared SDF atlas, and styles driven by extensible markup.",
+  "description": "Text engine for Unity UI and world space: full OpenType shaping (HarfBuzz), bidirectional text, Unicode line breaking, system fonts and fallback, color emoji, a shared SDF atlas, and styles driven by extensible markup, formulas in the text's flow, and solid lit 3D text.",
   "unity": "6000.0",
   "author": {
     "name": "FirstSymbol",
@@ -24,7 +24,11 @@
     "shaping",
     "emoji",
     "sdf",
-    "ui"
+    "ui",
+    "math",
+    "formula",
+    "3d",
+    "extrude"
   ],
   "dependencies": {
     "com.unity.modules.unitywebrequest": "1.0.0",
@@ -62,6 +66,16 @@
       "displayName": "Documents",
       "description": "Built from code: a very long document in a scrolling view, searched and jumped through.",
       "path": "Samples~/Documents"
+    },
+    {
+      "displayName": "Math",
+      "description": "Formulas in a sentence and by themselves, every construct with its source, a field that shows what is typed.",
+      "path": "Samples~/Math"
+    },
+    {
+      "displayName": "3D Text",
+      "description": "A line per edge shape, each look, a counter, a formula, 500 shared labels, and solid text in a Canvas by a render texture.",
+      "path": "Samples~/Text3D"
     }
   ]
 }

@@ -3,6 +3,7 @@ using System.Text;
 
 namespace FirstSymbol.Lettera
 {
+#if !LETTERA_NO_MATH
     /// <summary>A formula as MathML, for a browser or an application that reads it, with Lettera's spacing written out so that what is compared is layout.</summary>
     public static class LetteraMathMarkup
     {
@@ -357,4 +358,12 @@ namespace FirstSymbol.Lettera
             }
         }
     }
+#else
+    /// <summary>Compiled out by LETTERA_NO_MATH.</summary>
+    public static class LetteraMathMarkup
+    {
+        public static string ToMathML(string source, bool display) => null;
+        internal static string ToClipboardMathML(string source, bool display) => null;
+    }
+#endif
 }
