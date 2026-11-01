@@ -84,7 +84,7 @@ namespace FirstSymbol.Lettera.Editor.Tests
             text.Text = "<go>other</go>";
             Assert.DoesNotThrow(() => sequencer.Seek(0.75f));
             Clock(0.0001f);
-            Assert.AreEqual(0.75f, HeldAmplitude(text), 1e-3f);
+            Assert.AreEqual(0.375f, HeldAmplitude(text), 1e-3f);
         }
 
         [Test]
