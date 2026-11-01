@@ -139,6 +139,19 @@ namespace FirstSymbol.Lettera.Editor.Tests
         }
 
         [Test]
+        public void ASystemMathFontAnswersWhereThereIsOne()
+        {
+            if (LetteraNative.Version < 3) Assert.Inconclusive("Needs the library that reads MATH.");
+            FontFace face = LetteraMathEffect.ResolveFace(null, Latin.LoadFace());
+            if (face == Latin.LoadFace() || !NativeMathData.Available(face)) Assert.Inconclusive("No system math font on this machine.");
+            LetteraMathFont math = LetteraMathFont.For(face);
+            Assert.Greater(math.C(MathConstant.ScriptPercentScaleDown), 0);
+            LetteraMathLayout tall = LetteraMathCache.Get("\\left(\\frac{\\frac{a}{b}}{\\frac{c}{d}}\\right)", true, face, face);
+            Assert.IsFalse(tall.Failed);
+            Assert.Greater(tall.Ascent + tall.Descent, 2);
+        }
+
+        [Test]
         public void TheBuildCheckWarnsOnlyWhereItMatters()
         {
             string folder = Path.Combine(Path.GetTempPath(), "LetteraMathCheck");
