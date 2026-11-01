@@ -62,6 +62,12 @@ namespace FirstSymbol.Lettera
         internal bool Hidden => m_Hidden;
         internal Vector2 LastRectSize;
 
+        /// <summary>The same as <see cref="Color"/>, under the name a Canvas text has, so that code can treat the two alike.</summary>
+        public Color color { get => Color; set => Color = value; }
+
+        /// <summary>This object's rect, under the name a Canvas text has.</summary>
+        public RectTransform rectTransform => transform as RectTransform;
+
         public Color Color
         {
             get => m_Color;

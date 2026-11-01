@@ -134,6 +134,9 @@ namespace FirstSymbol.Lettera.Editor.Migration
             { "font", "Font" },
             { "enableWordWrapping", "WordWrap" },
             { "overflowMode", "Overflow" },
+            { "ForceMeshUpdate", "ForceRebuild" },
+            { "bounds", "InkBounds" },
+            { "textBounds", "InkBounds" },
         };
 
         static readonly Dictionary<string, string> Reported = new Dictionary<string, string>
@@ -141,7 +144,6 @@ namespace FirstSymbol.Lettera.Editor.Migration
             { "preferredWidth", "Use GetMaxContentWidth()." },
             { "preferredHeight", "Use GetHeightForWidth(width)." },
             { "GetPreferredValues", "Use MeasureText(...)." },
-            { "ForceMeshUpdate", "Use ForceRebuild()." },
             { "textInfo", "Use Lines and GetGlyph." },
             { "maxVisibleCharacters", "Use a RevealEffect." },
             { "fontStyle", "Use a whole-text style, or tags." },
