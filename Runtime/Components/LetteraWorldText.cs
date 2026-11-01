@@ -168,6 +168,7 @@ namespace FirstSymbol.Lettera
                 Rect.sizeDelta = new Vector2(20, 5);
                 m_Data.FontSize = 2f;
             }
+            LetteraSettings.SeedFromDefault?.Invoke(this);
         }
 #endif
 

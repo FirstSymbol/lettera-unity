@@ -415,6 +415,7 @@ namespace FirstSymbol.Lettera
                 m_Data.FontSize = 2f;
             }
             if (m_FaceMaterial == null) m_FaceMaterial = LetteraSolidDefaults.EditorDefault();
+            LetteraSettings.SeedFromDefault?.Invoke(this);
         }
 #endif
     }

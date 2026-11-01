@@ -460,22 +460,22 @@ namespace FirstSymbol.Lettera.Editor
         }
 
         [MenuItem("GameObject/Lettera/Selectable Text", false, 12)]
-        static void Selectable(MenuCommand c) => FromSlot(c, LetteraSettings.Instance.Editing.SelectablePrefab, p => LetteraFieldFactory.CreateSelectableText(p));
+        internal static void Selectable(MenuCommand c) => FromSlot(c, LetteraSettings.Instance.Editing.SelectablePrefab, p => LetteraFieldFactory.CreateSelectableText(p));
 
         [MenuItem("GameObject/Lettera/Editable Text", false, 13)]
-        static void Editable(MenuCommand c) => FromSlot(c, LetteraSettings.Instance.Editing.EditablePrefab, p => LetteraFieldFactory.CreateEditableText(p));
+        internal static void Editable(MenuCommand c) => FromSlot(c, LetteraSettings.Instance.Editing.EditablePrefab, p => LetteraFieldFactory.CreateEditableText(p));
 
         [MenuItem("GameObject/Lettera/Input Field", false, 14)]
-        static void Input(MenuCommand c) => FromSlot(c, LetteraSettings.Instance.Editing.InputFieldPrefab, p => LetteraFieldFactory.CreateInputField(p));
+        internal static void Input(MenuCommand c) => FromSlot(c, LetteraSettings.Instance.Editing.InputFieldPrefab, p => LetteraFieldFactory.CreateInputField(p));
 
         [MenuItem("GameObject/Lettera/Text Area", false, 15)]
-        static void Area(MenuCommand c) => FromSlot(c, LetteraSettings.Instance.Editing.TextAreaPrefab, p => LetteraFieldFactory.CreateTextArea(p));
+        internal static void Area(MenuCommand c) => FromSlot(c, LetteraSettings.Instance.Editing.TextAreaPrefab, p => LetteraFieldFactory.CreateTextArea(p));
 
         [MenuItem("GameObject/Lettera/Password Field", false, 16)]
-        static void Password(MenuCommand c) => FromSlot(c, LetteraSettings.Instance.Editing.PasswordFieldPrefab, p => LetteraFieldFactory.CreatePasswordField(p));
+        internal static void Password(MenuCommand c) => FromSlot(c, LetteraSettings.Instance.Editing.PasswordFieldPrefab, p => LetteraFieldFactory.CreatePasswordField(p));
 
         [MenuItem("GameObject/Lettera/Dropdown", false, 17)]
-        static void Dropdown(MenuCommand c) => FromSlot(c, LetteraSettings.Instance.Editing.DropdownPrefab, p => LetteraFieldFactory.CreateDropdown(p));
+        internal static void Dropdown(MenuCommand c) => FromSlot(c, LetteraSettings.Instance.Editing.DropdownPrefab, p => LetteraFieldFactory.CreateDropdown(p));
 
         [MenuItem("GameObject/Lettera/World Selectable Text", false, 18)]
         static void WorldSelectable(MenuCommand command)
@@ -510,9 +510,10 @@ namespace FirstSymbol.Lettera.Editor
                 row.Add(Chip("Selectable", typeof(LetteraSelectable)));
                 row.Add(Chip("Editable", typeof(LetteraEditable)));
                 row.Add(Chip("Sequencer", typeof(LetteraSequencer)));
-                row.Add(Chip("Range Navigator", typeof(LetteraRangeNavigator)));
+                row.Add(Chip("Navigator", typeof(LetteraRangeNavigator)));
+                row.Add(Chip("Scroller", typeof(LetteraDocumentScroller)));
                 var first = targets.Length > 0 ? targets[0] as Component : null;
-                IEnumerable<LetteraStyle> styles = first is LetteraText canvas ? canvas.Styles : first is LetteraWorldText world ? world.Styles : null;
+                IEnumerable<LetteraStyle> styles = (first as ITextHost)?.Data.Styles;
                 if (styles == null) return;
                 LetteraMotionScan.Counts counts = LetteraMotionScan.Of(styles);
                 void Count(string title, int value)
@@ -524,7 +525,7 @@ namespace FirstSymbol.Lettera.Editor
                 Count("Motion", counts.Motion);
                 Count("Inline", counts.Inline);
                 Count("Semantics", counts.Semantics);
-                row.Add(LtUI.Clickable(previewing ? "■ Stop Preview" : "▶ Preview Motion", "lt-chip", "Runs motion in edit mode. Nothing is written, and it ends with this inspector.", () =>
+                row.Add(LtUI.Clickable(previewing ? "■ Stop Preview" : "▶ Preview Motion", "lt-chip lt-chip--click", "Runs motion in edit mode. Nothing is written, and it ends with this inspector.", () =>
                 {
                     previewing = !previewing;
                     if (previewing) LetteraMotionPreview.Begin();
@@ -533,31 +534,47 @@ namespace FirstSymbol.Lettera.Editor
                 }));
                 foreach (string warning in LetteraMotionScan.Warnings(first, styles)) row.Add(LtUI.Text(warning, "lt-chip lt-chip--orange"));
             }
+            // Off: adds it. On: a click goes to it, and its small cross takes it away.
             VisualElement Chip(string title, Type type)
             {
                 bool has = targets.All(t => t != null && ((Component)t).GetComponent(type) != null);
-                return LtUI.Clickable((has ? "✓ " : "+ ") + title, has ? "lt-chip" : "lt-chip lt-chip--orange", has ? "Remove " + title : "Add " + title, () =>
+                if (!has)
+                {
+                    return LtUI.Clickable("+ " + title, "lt-chip lt-chip--click", "Adds " + title + " to this object.", () =>
+                    {
+                        foreach (UnityEngine.Object t in targets)
+                        {
+                            var component = (Component)t;
+                            if (component.GetComponent(type) == null) Undo.AddComponent(component.gameObject, type);
+                        }
+                        Refresh();
+                    });
+                }
+                Label go = LtUI.Clickable(title, "lt-chip__part", "Goes to " + title + " on this object.", () =>
+                {
+                    var component = (Component)targets[0];
+                    Component existing = component.GetComponent(type);
+                    if (existing == null) return;
+                    UnityEditorInternal.InternalEditorUtility.SetIsInspectorExpanded(existing, true);
+                    EditorGUIUtility.PingObject(existing);
+                    ActiveEditorTracker.sharedTracker.ForceRebuild();
+                });
+                Label remove = LtUI.Clickable("×", "lt-chip__part lt-chip__remove", "Removes " + title + " from this object.", () =>
                 {
                     foreach (UnityEngine.Object t in targets)
                     {
                         var component = (Component)t;
+                        if (type == typeof(LetteraSelectable))
+                        {
+                            Component editable = component.GetComponent<LetteraEditable>();
+                            if (editable != null) Undo.DestroyObjectImmediate(editable);
+                        }
                         Component existing = component.GetComponent(type);
-                        if (has)
-                        {
-                            if (type == typeof(LetteraSelectable))
-                            {
-                                Component editable = component.GetComponent<LetteraEditable>();
-                                if (editable != null) Undo.DestroyObjectImmediate(editable);
-                            }
-                            if (existing != null) Undo.DestroyObjectImmediate(existing);
-                        }
-                        else if (existing == null)
-                        {
-                            Undo.AddComponent(component.gameObject, type);
-                        }
+                        if (existing != null) Undo.DestroyObjectImmediate(existing);
                     }
                     Refresh();
                 });
+                return LtUI.El("lt-chip lt-chip--accent lt-chip--pair", go, remove);
             }
             Refresh();
             return LtUI.Card("", row);

@@ -107,8 +107,11 @@ namespace FirstSymbol.Lettera.Editor
                 string name = LetteraStyleList.Pretty(type.Name, "Effect");
                 string tag = name.ToLowerInvariant();
                 if (effectType == typeof(ListEffect) || effectType == typeof(RubyEffect) || effectType == typeof(DividerEffect)) continue;
-                all.Add(new LetteraStyleTemplate { Driven = WholeText, Kind = Custom, Name = name, Matcher = () => new WholeTextMatcher(), Effect = () => (LetteraEffect)Activator.CreateInstance(effectType) });
-                all.Add(new LetteraStyleTemplate { Driven = Tags, Kind = Custom, Name = name, Keywords = "<" + tag + ">", Matcher = () => new TagMatcher(tag), Effect = () => (LetteraEffect)Activator.CreateInstance(effectType) });
+                var home = (LetteraPickerAttribute)Attribute.GetCustomAttribute(effectType, typeof(LetteraPickerAttribute));
+                string customKind = home != null && !string.IsNullOrEmpty(home.Group) ? home.Group : Custom;
+                string words = home?.Words;
+                all.Add(new LetteraStyleTemplate { Driven = WholeText, Kind = customKind, Name = name, Keywords = words, Matcher = () => new WholeTextMatcher(), Effect = () => (LetteraEffect)Activator.CreateInstance(effectType) });
+                all.Add(new LetteraStyleTemplate { Driven = Tags, Kind = customKind, Name = name, Keywords = "<" + tag + "> " + words, Matcher = () => new TagMatcher(tag), Effect = () => (LetteraEffect)Activator.CreateInstance(effectType) });
             }
 
             void Add(string driven, string kind, string name, string keywords, Func<LetteraMatcher> matcher, Func<LetteraEffect> effect) =>
@@ -170,72 +173,423 @@ namespace FirstSymbol.Lettera.Editor
             return all;
         }
 
-        /// <summary>The templates whose name, group or keywords contain a search, in order.</summary>
+        /// <summary>The templates a search fits, in their order: by name, group, keywords or what they do, in either keyboard layout.</summary>
         public static List<LetteraStyleTemplate> Find(string search)
         {
             if (string.IsNullOrWhiteSpace(search)) return All.ToList();
-            return All.Where(t => Matches(t.Name, search) || Matches(t.Kind, search) || Matches(t.Driven, search) || Matches(t.Keywords, search)).ToList();
+            return All.Where(t => Fits(search, t)).ToList();
         }
 
-        static bool Matches(string text, string search) => text != null && text.IndexOf(search.Trim(), StringComparison.OrdinalIgnoreCase) >= 0;
+        static bool Fits(string search, LetteraStyleTemplate t) =>
+            LtSearchText.Score(search, t.Name) > 0
+            || Contained(search, t.Kind) || Contained(search, t.Driven) || Contained(search, t.Keywords) || Contained(search, WordOf(t.Name));
+
+        // In the longer texts, letters scattered about prove nothing: a word has to be there.
+        static bool Contained(string search, string text) => !string.IsNullOrEmpty(text) && LtSearchText.Score(search, text) >= 30;
+
+        // A line in words for each name. Tags and whole text share it: the example says how each is written.
+        static readonly Dictionary<string, string> s_Words = new Dictionary<string, string>
+        {
+            { "Color", "Paints letters in one colour." },
+            { "Size", "Changes the size against the text around it." },
+            { "Bold", "Heavier letters, from the family or drawn thicker." },
+            { "Italic", "Slanted letters, from the family or leaned over." },
+            { "Alpha", "Makes letters more transparent." },
+            { "Font", "Another family for this part." },
+            { "Uppercase", "Shows capitals without changing what is written." },
+            { "Lowercase", "Shows small letters without changing what is written." },
+            { "Small Caps", "Small capitals in place of small letters." },
+            { "Superscript", "Raised and smaller, as in x squared." },
+            { "Subscript", "Lowered and smaller, as in H2O." },
+            { "OpenType Features", "Turns a font's own features on or off, such as ligatures." },
+            { "Variable Axes", "Sets a variable font's weight, width and other axes." },
+            { "Language", "Tells shaping which language this part is in." },
+            { "Resolution Boost", "A sharper atlas for large or zoomed text." },
+            { "Size Match", "Evens out sizes between fonts by their x-height." },
+            { "Tracking", "Space between letters." },
+            { "Word Spacing", "Space between words." },
+            { "Cell Width", "Every letter in a cell of the same width, as in a table of numbers." },
+            { "Line Height", "The height of the lines in this part." },
+            { "Paragraph Spacing", "Space before and after a paragraph." },
+            { "Line Gap", "Space added between lines." },
+            { "No Break", "Keeps this part on one line." },
+            { "Fill", "Paints letters with a colour, gradient or texture." },
+            { "Gradient Fill", "A gradient across this part." },
+            { "Stroke", "A line around each letter, centred on its edge." },
+            { "Outline", "A line outside each letter." },
+            { "Shadow", "A soft copy behind the text." },
+            { "Glow", "A soft light around the letters." },
+            { "Inner Shadow", "A shadow inside the letters." },
+            { "Extrude", "Fake depth, by copies drawn behind." },
+            { "Color Filter", "Grayscale, sepia and other filters over the letters." },
+            { "Union", "Merges overlapping layers of letters into one." },
+            { "Warp", "Bends the letters by a wave." },
+            { "Underline", "A line under the text." },
+            { "Strikethrough", "A line through the text." },
+            { "Highlight", "A marker behind the text." },
+            { "Custom Material", "Draws this part with your own material." },
+            { "Paint Order", "Which layer of the text goes on top." },
+            { "Align", "Aligns this paragraph apart from the rest." },
+            { "Indent", "Moves lines in from the edge." },
+            { "Curve", "Lays the text along an arc." },
+            { "Text Box Trim", "Cuts the space above the first line and below the last." },
+            { "Ellipsis", "Marks where text may be cut with three dots." },
+            { "Truncate", "Marks where text may be cut." },
+            { "Direction", "Left to right or right to left for this part." },
+            { "Link", "Makes this part a link." },
+            { "Link With Look", "A link in a link's colour, underlined." },
+            { "Composite", "Several effects under one tag." },
+            { "Effect Preset", "Effects kept in an asset, shared by many." },
+            { "No Effect", "Finds the text and changes nothing: for scripts to read." },
+            { "Wave", "Letters rise and fall in a wave." },
+            { "Wobble", "Letters shake softly, like jelly." },
+            { "Shake", "Letters tremble." },
+            { "Bounce", "Letters hop." },
+            { "Float", "Letters drift up and down." },
+            { "Spin", "Letters turn round." },
+            { "Pulse", "Letters grow and shrink." },
+            { "Pendulum", "Letters swing." },
+            { "Deform", "Bends the letters over time." },
+            { "Glitch", "Colour channels split and jump." },
+            { "Scramble", "Random letters settle into the text." },
+            { "Roll", "Letters roll into place like a counter." },
+            { "Reveal", "Letters appear one by one, as a typewriter." },
+            { "Marquee", "The text scrolls along, as a ticker." },
+            { "Action", "A click on this part calls your code." },
+            { "Spoiler", "Hidden under a cover until clicked." },
+            { "Range Tint", "Changes colour under the pointer." },
+            { "Semantic", "Tells screen readers what this part is." },
+            { "Sprite", "An image inside the text." },
+            { "Object", "A prefab inside the text." },
+            { "Divider", "A line across the text." },
+            { "List Item", "A list row with its marker." },
+            { "Ruby", "Small reading notes over the text." },
+            { "Void Tag", "A tag that stands alone, for scripts to find." },
+            { "Line Break", "A new line within a paragraph." },
+            { "List", "Lines that start with - or 1. become a list." },
+            { "Code Span", "What is between backticks stays as written." },
+            { "Bare URL", "Web addresses become links by themselves." },
+            { "Mention", "Words after @ become clickable." },
+            { "Hashtag", "Words after # become clickable." },
+            { "Literal Strings", "Words you list get this style wherever they are." },
+            { "No Parse", "What is inside is shown as written." },
+            { "Escape", "A backslash shows the next sign as written." },
+        };
+
+        static string WordOf(string name) => s_Words.TryGetValue(name, out string words) ? words : null;
+
+        /// <summary>The line an entry shows: what it does, and how it is written.</summary>
+        public static string WordsOf(LetteraStyleTemplate t, bool applied)
+        {
+            string words = WordOf(t.Name) ?? "Your own effect.";
+            if (applied) return words + " On now: a click takes it away.";
+            if (t.Driven == WholeText) return words + " For all of this text.";
+            return words;
+        }
+
+        static readonly Dictionary<string, Color> s_KindColors = new Dictionary<string, Color>
+        {
+            { Basics, new Color32(120, 170, 255, 255) },
+            { Type, new Color32(90, 200, 150, 255) },
+            { Lines, new Color32(80, 195, 205, 255) },
+            { Look, new Color32(165, 125, 255, 255) },
+            { Layout, new Color32(235, 180, 80, 255) },
+            { Links, new Color32(95, 175, 240, 255) },
+            { Utility, new Color32(150, 150, 160, 255) },
+            { Custom, new Color32(150, 150, 160, 255) },
+            { Animation, new Color32(240, 120, 175, 255) },
+            { Interactive, new Color32(245, 150, 90, 255) },
+            { Inline, new Color32(190, 170, 120, 255) },
+            { Semantic, new Color32(140, 200, 110, 255) },
+        };
+
+        public static Color ColorOf(LetteraStyleTemplate t) => s_KindColors.TryGetValue(t.Kind, out Color color) ? color : s_KindColors[Utility];
+
+        static Dictionary<System.Type, Color> s_EffectColors;
+
+        /// <summary>A small mark of what family an effect is of.</summary>
+        public static Color ColorOfEffect(System.Type effect)
+        {
+            if (s_EffectColors == null)
+            {
+                s_EffectColors = new Dictionary<System.Type, Color>();
+                foreach (LetteraStyleTemplate t in All)
+                {
+                    if (t.Effect == null) continue;
+                    System.Type type = t.Effect().GetType();
+                    if (!s_EffectColors.ContainsKey(type)) s_EffectColors[type] = ColorOf(t);
+                }
+            }
+            return s_EffectColors.TryGetValue(effect, out Color color) ? color : s_KindColors[Utility];
+        }
     }
 
-    /// <summary>A small searchable window of style templates.</summary>
-    internal sealed class LetteraStylePicker : EditorWindow
+    /// <summary>What a picker asks of whoever opened it. All optional.</summary>
+    internal sealed class LetteraPickerHooks
     {
-        Action<LetteraStyleTemplate> m_Chosen;
-        ScrollView m_List;
+        public Func<LetteraStyleTemplate, bool> Applied;
+        public Action<LetteraStyleTemplate> Remove;
+        public Action<LetteraStyleTemplate> Hover;
+        public Action HoverEnd;
+        public Action Closed;
+    }
 
-        public static void Open(Rect anchor, Action<LetteraStyleTemplate> chosen)
-        {
-            var window = CreateInstance<LetteraStylePicker>();
-            window.m_Chosen = chosen;
-            window.ShowAsDropDown(GUIUtility.GUIToScreenRect(anchor), new Vector2(Mathf.Max(anchor.width, 300), 420));
-        }
+    /// <summary>The picker's page: groups by how a style is driven, each entry with its colour, a line in words and an example. Keys: arrows, Enter, Esc, Tab.</summary>
+    internal sealed class LetteraStylePickerView : VisualElement
+    {
+        const string RecentKey = "Lettera.Picker.Recent";
+        const int MostRecent = 6;
 
-        void CreateGUI()
+        readonly Action<LetteraStyleTemplate> m_Chosen;
+        readonly LetteraPickerHooks m_Hooks;
+        readonly ScrollView m_List = new ScrollView();
+        readonly List<(LetteraStyleTemplate template, VisualElement row)> m_Rows = new List<(LetteraStyleTemplate, VisualElement)>();
+        readonly HashSet<string> m_OpenGroups = new HashSet<string>();
+        readonly Dictionary<string, VisualElement> m_GroupHeads = new Dictionary<string, VisualElement>();
+        readonly IVisualElementScheduledItem m_HoverTimer;
+        LetteraStyleTemplate m_Hovered;
+        int m_At = -1;
+        string m_Query = "";
+
+        public LtSearch Search { get; }
+        internal IEnumerable<LetteraStyleTemplate> Shown => m_Rows.Select(r => r.template);
+        internal LetteraStyleTemplate Current => m_At >= 0 && m_At < m_Rows.Count ? m_Rows[m_At].template : null;
+        internal bool IsGroupOpen(string group) => m_OpenGroups.Contains(group);
+
+        public LetteraStylePickerView(Action<LetteraStyleTemplate> chosen, LetteraPickerHooks hooks = null)
         {
-            VisualElement root = LtUI.Root();
-            root.AddToClassList("lt-picker");
-            root.style.flexGrow = 1;
-            var search = new TextField { value = "" };
-            search.AddToClassList("lt-picker__search");
-            m_List = new ScrollView();
+            m_Chosen = chosen;
+            m_Hooks = hooks ?? new LetteraPickerHooks();
+            AddToClassList("lt-picker");
+            style.flexGrow = 1;
+            Search = new LtSearch("What should it do? Any layout");
+            Search.Changed += q =>
+            {
+                m_Query = q ?? "";
+                Fill();
+            };
+            Add(Search);
             m_List.style.flexGrow = 1;
-            root.Add(search);
-            root.Add(m_List);
-            rootVisualElement.Add(root);
-            search.RegisterValueChangedCallback(e => Fill(e.newValue));
-            Fill("");
-            search.schedule.Execute(() => search.Focus());
+            Add(m_List);
+            RegisterCallback<KeyDownEvent>(OnKey, TrickleDown.TrickleDown);
+            m_HoverTimer = schedule.Execute(() =>
+            {
+                if (m_Hovered != null) m_Hooks.Hover?.Invoke(m_Hovered);
+            });
+            m_HoverTimer.Pause();
+            m_OpenGroups.Add(LetteraStyleTemplates.All[0].Driven);
+            Fill();
+            Search.Field.schedule.Execute(() => Search.Field.Focus());
         }
 
-        void Fill(string text)
+        internal void OnKeyCode(KeyCode key, bool shift)
+        {
+            switch (key)
+            {
+                case KeyCode.UpArrow:
+                    Move(-1);
+                    break;
+                case KeyCode.DownArrow:
+                    Move(1);
+                    break;
+                case KeyCode.Return:
+                case KeyCode.KeypadEnter:
+                    if (Current != null) Pick(Current);
+                    break;
+                case KeyCode.Tab:
+                    NextGroup(shift ? -1 : 1);
+                    break;
+            }
+        }
+
+        void OnKey(KeyDownEvent e)
+        {
+            if (e.keyCode != KeyCode.UpArrow && e.keyCode != KeyCode.DownArrow && e.keyCode != KeyCode.Return && e.keyCode != KeyCode.KeypadEnter && e.keyCode != KeyCode.Tab) return;
+            OnKeyCode(e.keyCode, e.shiftKey);
+            e.StopPropagation();
+            focusController?.IgnoreEvent(e);
+        }
+
+        void Move(int delta)
+        {
+            if (m_Rows.Count == 0) return;
+            m_At = Mathf.Clamp(m_At + delta, 0, m_Rows.Count - 1);
+            Paint();
+        }
+
+        // Tab goes into the next group: it opens, and the first of it is taken.
+        void NextGroup(int delta)
+        {
+            List<string> groups = LetteraStyleTemplates.All.Select(t => t.Driven).Distinct().ToList();
+            string at = Current != null ? Current.Driven : groups[0];
+            int index = (groups.IndexOf(at) + delta + groups.Count) % groups.Count;
+            m_OpenGroups.Add(groups[index]);
+            Fill();
+            m_At = m_Rows.FindIndex(r => r.template.Driven == groups[index]);
+            Paint();
+        }
+
+        void Paint()
+        {
+            for (int i = 0; i < m_Rows.Count; i++) m_Rows[i].row.EnableInClassList("lt-picker__item--on", i == m_At);
+            if (m_At >= 0 && m_At < m_Rows.Count) m_List.ScrollTo(m_Rows[m_At].row);
+        }
+
+        void Fill()
         {
             m_List.Clear();
+            m_Rows.Clear();
+            m_GroupHeads.Clear();
+            bool searching = !string.IsNullOrWhiteSpace(m_Query);
+            List<LetteraStyleTemplate> found = LetteraStyleTemplates.Find(m_Query);
+
+            if (!searching)
+            {
+                List<LetteraStyleTemplate> recent = Recent();
+                if (recent.Count > 0)
+                {
+                    m_List.Add(LtUI.Text("RECENT", "lt-picker__group lt-picker__group--flat"));
+                    foreach (LetteraStyleTemplate template in recent) AddEntry(template);
+                }
+            }
+
             string driven = null, kind = null;
-            foreach (LetteraStyleTemplate template in LetteraStyleTemplates.Find(text))
+            foreach (LetteraStyleTemplate template in found)
             {
                 if (template.Driven != driven)
                 {
                     driven = template.Driven;
                     kind = null;
-                    m_List.Add(LtUI.Text(driven.ToUpperInvariant(), "lt-picker__group"));
+                    AddGroup(driven, searching);
                 }
+                if (!searching && !m_OpenGroups.Contains(driven)) continue;
                 if (template.Kind != kind)
                 {
                     kind = template.Kind;
                     m_List.Add(LtUI.Text(kind, "lt-picker__kind"));
                 }
-                LetteraStyleTemplate chosen = template;
-                VisualElement item = LtUI.El("lt-picker__item", LtUI.Text(template.Name, "lt-picker__name"), LtUI.Text(template.Keywords ?? "", "lt-picker__keys"));
-                item.RegisterCallback<ClickEvent>(_ =>
-                {
-                    m_Chosen?.Invoke(chosen);
-                    Close();
-                });
-                m_List.Add(item);
+                AddEntry(template);
             }
+            if (found.Count == 0) m_List.Add(LtUI.Text("Nothing by that name. Try a word for what it does.", "lt-hint"));
+            m_At = m_Rows.Count > 0 ? (searching ? 0 : Mathf.Clamp(m_At, 0, m_Rows.Count - 1)) : -1;
+            Paint();
         }
+
+        void AddGroup(string group, bool searching)
+        {
+            bool open = searching || m_OpenGroups.Contains(group);
+            VisualElement chevron = new LtIcon(LtIcon.Kind.Chevron);
+            chevron.AddToClassList("lt-picker__chevron");
+            chevron.EnableInClassList("lt-picker__chevron--closed", !open);
+            VisualElement head = LtUI.El("lt-picker__head", chevron, LtUI.Text(group.ToUpperInvariant(), "lt-picker__group"));
+            head.RegisterCallback<ClickEvent>(_ =>
+            {
+                if (!m_OpenGroups.Remove(group)) m_OpenGroups.Add(group);
+                Fill();
+            });
+            m_GroupHeads[group] = head;
+            m_List.Add(head);
+        }
+
+        void AddEntry(LetteraStyleTemplate template)
+        {
+            bool applied = m_Hooks.Applied != null && m_Hooks.Applied(template);
+            VisualElement dot = LtUI.El("lt-style__dot");
+            dot.style.backgroundColor = LetteraStyleTemplates.ColorOf(template);
+            VisualElement title = LtUI.El("lt-picker__title", dot, LtUI.Text(template.Name, "lt-picker__name"), LtUI.El("lt-style__space"), LtUI.Text(template.Keywords ?? "", "lt-picker__keys"));
+            if (applied) title.Add(LtUI.Text("on", "lt-chip lt-chip--accent"));
+            VisualElement item = LtUI.El("lt-picker__item", title, LtUI.Text(LetteraStyleTemplates.WordsOf(template, applied), "lt-picker__words"));
+            item.tooltip = applied ? "On this text: a click takes it away." : null;
+            item.RegisterCallback<ClickEvent>(_ => Pick(template));
+            item.RegisterCallback<PointerEnterEvent>(_ =>
+            {
+                m_Hovered = template;
+                m_HoverTimer.ExecuteLater(150);
+            });
+            item.RegisterCallback<PointerLeaveEvent>(_ =>
+            {
+                m_Hovered = null;
+                m_HoverTimer.Pause();
+                m_Hooks.HoverEnd?.Invoke();
+            });
+            m_Rows.Add((template, item));
+            m_List.Add(item);
+        }
+
+        internal void Pick(LetteraStyleTemplate template)
+        {
+            m_Hooks.HoverEnd?.Invoke();
+            if (m_Hooks.Applied != null && m_Hooks.Applied(template))
+            {
+                m_Hooks.Remove?.Invoke(template);
+            }
+            else
+            {
+                Remember(template);
+                m_Chosen?.Invoke(template);
+            }
+            Done?.Invoke();
+        }
+
+        public event Action Done;
+
+        static string KeyOf(LetteraStyleTemplate t) => t.Driven + "|" + t.Name + "|" + t.Keywords;
+
+        static List<LetteraStyleTemplate> Recent()
+        {
+            var list = new List<LetteraStyleTemplate>();
+            foreach (string key in EditorPrefs.GetString(RecentKey, "").Split('\n'))
+            {
+                LetteraStyleTemplate found = LetteraStyleTemplates.All.FirstOrDefault(t => KeyOf(t) == key);
+                if (found != null) list.Add(found);
+            }
+            return list;
+        }
+
+        internal static void Remember(LetteraStyleTemplate template)
+        {
+            var keys = EditorPrefs.GetString(RecentKey, "").Split(new[] { '\n' }, StringSplitOptions.RemoveEmptyEntries).ToList();
+            keys.Remove(KeyOf(template));
+            keys.Insert(0, KeyOf(template));
+            if (keys.Count > MostRecent) keys.RemoveRange(MostRecent, keys.Count - MostRecent);
+            EditorPrefs.SetString(RecentKey, string.Join("\n", keys));
+        }
+
+        internal static void ForgetRecent() => EditorPrefs.DeleteKey(RecentKey);
+    }
+
+    /// <summary>The window that holds the picker: of one size, on the side with room, gone with Esc or a click elsewhere.</summary>
+    internal sealed class LetteraStylePicker : EditorWindow
+    {
+        static readonly Vector2 s_Size = new Vector2(340, 460);
+        Action<LetteraStyleTemplate> m_Chosen;
+        LetteraPickerHooks m_Hooks;
+
+        public static void Open(Rect anchor, Action<LetteraStyleTemplate> chosen, LetteraPickerHooks hooks = null)
+        {
+            var window = CreateInstance<LetteraStylePicker>();
+            window.m_Chosen = chosen;
+            window.m_Hooks = hooks;
+            window.ShowAsDropDown(GUIUtility.GUIToScreenRect(anchor), s_Size);
+        }
+
+        void CreateGUI()
+        {
+            VisualElement root = LtUI.Root();
+            root.AddToClassList("lt-popup");
+            root.style.flexGrow = 1;
+            var view = new LetteraStylePickerView(m_Chosen, m_Hooks);
+            view.Done += Close;
+            root.Add(view);
+            root.RegisterCallback<KeyDownEvent>(e =>
+            {
+                if (e.keyCode != KeyCode.Escape) return;
+                Close();
+                e.StopPropagation();
+            }, TrickleDown.TrickleDown);
+            rootVisualElement.Add(root);
+        }
+
+        void OnDestroy() => m_Hooks?.Closed?.Invoke();
     }
 }

@@ -47,13 +47,26 @@ namespace FirstSymbol.Lettera.Editor
             { typeof(CompositeEffect), new[] { "m_Children" } },
         };
 
+        /// <summary>The essentials of an effect: the table's, or for a custom effect the fields marked [LetteraEssential].</summary>
+        internal static string[] EssentialOf(Type effect)
+        {
+            if (s_Essential.TryGetValue(effect, out string[] named)) return named;
+            var marked = new List<string>();
+            for (Type at = effect; at != null && at != typeof(object); at = at.BaseType)
+                foreach (FieldInfo field in at.GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly))
+                    if (field.IsDefined(typeof(LetteraEssentialAttribute), false))
+                        marked.Add(field.Name);
+            return marked.Count > 0 ? marked.ToArray() : null;
+        }
+
         static LetteraStyle s_Clipboard;
 
         readonly SerializedObject m_Object;
         readonly string m_Path;
-        readonly VisualElement m_Cards = new VisualElement();
         readonly Dictionary<int, HashSet<string>> m_Added = new Dictionary<int, HashSet<string>>();
         readonly HashSet<int> m_Open = new HashSet<int>();
+        LtList m_List;
+        VisualElement m_Problems;
 
         public LetteraStyleList(SerializedObject serialized, string propertyPath)
         {
@@ -63,18 +76,67 @@ namespace FirstSymbol.Lettera.Editor
 
         SerializedProperty Styles => m_Object.FindProperty(m_Path);
 
+        public LtList List => m_List;
+
         public VisualElement Build()
         {
             var root = new VisualElement();
-            root.Add(m_Cards);
-            VisualElement buttons = LtUI.El("lt-add-row");
-            Label add = LtUI.Clickable("+ Add Style", "lt-add", "Add a style from the list", null);
-            add.RegisterCallback<ClickEvent>(_ => LetteraStylePicker.Open(add.worldBound, chosen => Add(chosen)), TrickleDown.NoTrickleDown);
-            buttons.Add(add);
-            buttons.Add(LtUI.Clickable("Paste", "lt-add lt-add--small", "Paste a copied style", Paste));
-            root.Add(buttons);
-            Rebuild();
+            m_List = new LtList("Styles", Styles, BuildCard, "No styles here yet. Add one, or rely on the shared styles.", OpenPicker, "+ Add Style");
+            m_List.HeaderTools.Add(LtUI.Clickable("Paste", "lt-add lt-add--small lt-add--quiet", "Paste a copied style", Paste));
+            m_List.RowToText = RowText;
+            m_List.PasteText = PasteFrom;
+            m_List.Changed += () =>
+            {
+                m_Added.Clear();
+                m_Open.Clear();
+                RefreshProblems();
+            };
+            m_List.RowMenuExtra = (menu, index) =>
+            {
+                menu.AddItem(new GUIContent("Copy Style"), false, () => Copy(Styles.GetArrayElementAtIndex(index)));
+                if (index > 0) menu.AddItem(new GUIContent("Move Up"), false, () => Move(index, index - 1));
+                if (index < Styles.arraySize - 1) menu.AddItem(new GUIContent("Move Down"), false, () => Move(index, index + 1));
+            };
+            root.Add(m_List);
+            m_Problems = LtUI.El("lt-problems");
+            root.Add(m_Problems);
+            RefreshProblems();
             return root;
+        }
+
+        void OpenPicker(LtList list)
+        {
+            var preview = new LetteraStylePreview(m_Object.targetObject);
+            LetteraStylePicker.Open(list.worldBound, chosen => Add(chosen), new LetteraPickerHooks
+            {
+                Applied = IsApplied,
+                Remove = RemoveApplied,
+                Hover = template => preview.Show(template),
+                HoverEnd = () => preview.Clear(),
+                Closed = () => preview.End(),
+            });
+        }
+
+        /// <summary>A picker's entry for a whole-text style is marked when the text has it, and a click takes it away.</summary>
+        internal bool IsApplied(LetteraStyleTemplate template) => FindApplied(template) >= 0;
+
+        int FindApplied(LetteraStyleTemplate template)
+        {
+            if (template.Driven != LetteraStyleTemplates.WholeText || template.Effect == null) return -1;
+            Type effect = template.Effect().GetType();
+            SerializedProperty styles = Styles;
+            for (int i = 0; i < styles.arraySize; i++)
+            {
+                SerializedProperty style = styles.GetArrayElementAtIndex(i);
+                if (style.FindPropertyRelative("m_Matcher").managedReferenceValue is WholeTextMatcher && style.FindPropertyRelative("m_Effect").managedReferenceValue?.GetType() == effect) return i;
+            }
+            return -1;
+        }
+
+        internal void RemoveApplied(LetteraStyleTemplate template)
+        {
+            int found = FindApplied(template);
+            if (found >= 0) Remove(found);
         }
 
         public void Add(LetteraStyleTemplate template)
@@ -90,13 +152,39 @@ namespace FirstSymbol.Lettera.Editor
             m_Object.ApplyModifiedProperties();
             Undo.SetCurrentGroupName("Add Lettera Style");
             m_Open.Add(styles.arraySize - 1);
+            m_List?.OpenEnclosing();
             Rebuild();
         }
 
         void Paste()
         {
-            if (s_Clipboard == null) return;
-            LetteraStyle copy = s_Clipboard.Clone();
+            if (s_Clipboard != null) Write(s_Clipboard.Clone());
+            else PasteFrom(EditorGUIUtility.systemCopyBuffer);
+        }
+
+        // A row travels as text, so that it can go through an email and come back whole.
+        internal static string RowText(SerializedProperty style) => JsonUtility.ToJson(Read(style));
+
+        internal void PasteFrom(string text)
+        {
+            if (string.IsNullOrWhiteSpace(text)) return;
+            foreach (string line in text.Split('\n'))
+            {
+                if (string.IsNullOrWhiteSpace(line)) continue;
+                try
+                {
+                    var style = JsonUtility.FromJson<LetteraStyle>(line);
+                    if (style != null && (style.Matcher != null || style.Effect != null)) Write(style);
+                }
+                catch (ArgumentException)
+                {
+                    // Whatever else was on the clipboard is not a style.
+                }
+            }
+        }
+
+        void Write(LetteraStyle copy)
+        {
             m_Object.Update();
             SerializedProperty styles = Styles;
             styles.InsertArrayElementAtIndex(styles.arraySize);
@@ -109,28 +197,81 @@ namespace FirstSymbol.Lettera.Editor
             Rebuild();
         }
 
-        void Copy(SerializedProperty style)
+        static LetteraStyle Read(SerializedProperty style) => new LetteraStyle
         {
-            s_Clipboard = new LetteraStyle
-            {
-                Matcher = style.FindPropertyRelative("m_Matcher").managedReferenceValue as LetteraMatcher,
-                Effect = style.FindPropertyRelative("m_Effect").managedReferenceValue as LetteraEffect,
-                Enabled = style.FindPropertyRelative("m_Enabled").boolValue,
-                DefaultParameter = style.FindPropertyRelative("m_DefaultParameter").stringValue,
-            }.Clone();
-        }
+            Matcher = style.FindPropertyRelative("m_Matcher").managedReferenceValue as LetteraMatcher,
+            Effect = style.FindPropertyRelative("m_Effect").managedReferenceValue as LetteraEffect,
+            Enabled = style.FindPropertyRelative("m_Enabled").boolValue,
+            DefaultParameter = style.FindPropertyRelative("m_DefaultParameter").stringValue,
+        };
+
+        void Copy(SerializedProperty style) => s_Clipboard = Read(style).Clone();
 
         public void Rebuild()
         {
-            m_Cards.Clear();
-            m_Object.Update();
-            SerializedProperty styles = Styles;
-            if (styles.arraySize == 0)
-                m_Cards.Add(LtUI.Text("No styles here yet. Add one, or rely on the shared styles.", "lt-hint"));
-            for (int i = 0; i < styles.arraySize; i++) m_Cards.Add(BuildCard(i, styles.GetArrayElementAtIndex(i)));
+            m_List?.Rebuild();
+            RefreshProblems();
         }
 
-        VisualElement BuildCard(int index, SerializedProperty style)
+        /// <summary>Opens a row's parameters and brings it into view, for a tool's Alt+click.</summary>
+        internal void OpenRow(int index)
+        {
+            m_Open.Add(index);
+            m_List?.OpenEnclosing();
+            Rebuild();
+            if (m_List != null)
+            {
+                m_List.Selection.Click(index);
+                m_List.Rebuild();
+                VisualElement row = m_List.Query(className: "lt-list__row").AtIndex(index);
+                if (row != null) row.schedule.Execute(() => row.GetFirstAncestorOfType<ScrollView>()?.ScrollTo(row));
+            }
+        }
+
+        // Things in this list that will not do what they seem to, with the way out of each.
+        internal IEnumerable<(string path, string message, string fix, Action run)> Problems()
+        {
+            SerializedProperty styles = Styles;
+            var tags = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            for (int i = 0; i < styles.arraySize; i++)
+            {
+                SerializedProperty style = styles.GetArrayElementAtIndex(i);
+                int index = i;
+                object matcher = style.FindPropertyRelative("m_Matcher").managedReferenceValue;
+                object effect = style.FindPropertyRelative("m_Effect").managedReferenceValue;
+                string path = "Styles " + (i + 1) + ": ";
+                if (matcher == null)
+                {
+                    yield return (path + "no matcher", "This style matches nothing, so it does nothing.", "Remove", () => Remove(index));
+                    continue;
+                }
+                if (matcher is TagMatcher tag && string.IsNullOrEmpty(tag.Name))
+                    yield return (path + "tag", "This tag has no name, so nothing can write it.", "Open", () => OpenRow(index));
+                if (matcher is TagMatcher named && !string.IsNullOrEmpty(named.Name))
+                {
+                    if (tags.TryGetValue(named.Name, out int first))
+                        yield return (path + "<" + named.Name + ">", "<" + named.Name + "> is bound twice, here and at row " + (first + 1) + ": this one wins.", "Remove", () => Remove(index));
+                    else tags[named.Name] = i;
+                }
+                if (effect == null && !(matcher is EscapeMatcher) && !(matcher is NoParseMatcher) && !(matcher is LineBreakMatcher))
+                    yield return (path + MatcherLabel(style.FindPropertyRelative("m_Matcher")), "This style has no effect, so it finds its text and changes nothing.", "Open", () => OpenRow(index));
+            }
+        }
+
+        void RefreshProblems()
+        {
+            if (m_Problems == null) return;
+            m_Problems.Clear();
+            m_Object.UpdateIfRequiredOrScript();
+            foreach ((string path, string message, string fix, Action run) in Problems())
+                m_Problems.Add(new LtFix(path + ". " + message, null, fix, () =>
+                {
+                    run();
+                    RefreshProblems();
+                }));
+        }
+
+        VisualElement BuildCard(SerializedProperty style, int index)
         {
             SerializedProperty matcher = style.FindPropertyRelative("m_Matcher");
             SerializedProperty effect = style.FindPropertyRelative("m_Effect");
@@ -145,26 +286,44 @@ namespace FirstSymbol.Lettera.Editor
             card.TrackPropertyValue(enabled, RefreshEnabled);
 
             VisualElement header = LtUI.El("lt-style__header");
-            VisualElement enableSwitch = LtUI.Switch(enabled);
-            enableSwitch.RegisterCallback<ClickEvent>(e => e.StopPropagation());
-            header.Add(enableSwitch);
-            header.Add(LtUI.Text(MatcherLabel(matcher), "lt-style__tag"));
-            header.Add(LtUI.Text(effect.managedReferenceValue == null ? "No effect" : Pretty(effect.managedReferenceValue.GetType().Name, "Effect"), "lt-style__type"));
-            SerializedProperty copyOf = style.Copy();
-            header.Add(LtUI.Clickable("Copy", "lt-icon-btn lt-icon-btn--text", "Copy this style", () => Copy(copyOf)));
-            header.Add(LtUI.Clickable("▲", "lt-icon-btn", "Move up", () => Move(index, index - 1)));
-            header.Add(LtUI.Clickable("▼", "lt-icon-btn", "Move down", () => Move(index, index + 1)));
-            header.Add(LtUI.Clickable("×", "lt-icon-btn lt-icon-btn--danger", "Remove", () => Remove(index)));
-            header.RegisterCallback<ClickEvent>(_ =>
+            VisualElement chevron = LtUI.El("lt-icon-btn lt-style__chevron", new LtIcon(LtIcon.Kind.Chevron));
+            chevron.tooltip = "Shows this style's parameters. A double click on the row does the same.";
+            void Paint() => chevron.EnableInClassList("lt-style__chevron--open", body.style.display == DisplayStyle.Flex);
+            void Toggle()
             {
-                bool open = body.resolvedStyle.display == DisplayStyle.None;
+                bool open = body.style.display == DisplayStyle.None;
                 body.style.display = open ? DisplayStyle.Flex : DisplayStyle.None;
                 if (open) m_Open.Add(index);
                 else m_Open.Remove(index);
+                Paint();
+            }
+            chevron.RegisterCallback<ClickEvent>(e =>
+            {
+                e.StopPropagation();
+                Toggle();
+            });
+            Paint();
+            header.Add(chevron);
+            header.Add(LtUI.Switch(enabled));
+            object matcherValue = matcher.managedReferenceValue;
+            object effectValue = effect.managedReferenceValue;
+            header.Add(LtUI.Text(MatcherLabel(matcher), "lt-style__tag"));
+            header.Add(LtUI.Text(effectValue == null ? "No effect" : Pretty(effectValue.GetType().Name, "Effect"), "lt-style__type"));
+            string words = Summary(effectValue);
+            if (words.Length > 0) header.Add(LtUI.Text(words, "lt-style__what"));
+            header.Add(LtUI.El("lt-style__space"));
+            header.Add(LtUI.Text(DrivenBy(matcherValue), "lt-chip lt-style__driven"));
+            VisualElement dot = LtUI.El("lt-style__dot");
+            if (effectValue != null) dot.style.backgroundColor = LetteraStyleTemplates.ColorOfEffect(effectValue.GetType());
+            header.Add(dot);
+            header.Add(LtUI.Clickable("×", "lt-icon-btn lt-icon-btn--danger", "Remove", () => Remove(index)));
+            header.RegisterCallback<ClickEvent>(e =>
+            {
+                if (e.clickCount == 2) Toggle();
             });
             card.Add(header);
 
-            bool tagBound = matcher.managedReferenceValue is TagMatcher || matcher.managedReferenceValue is VoidTagMatcher;
+            bool tagBound = matcherValue is TagMatcher || matcherValue is VoidTagMatcher;
             body.Add(TypePicker("Matcher", matcher, typeof(LetteraMatcher), "Matcher"));
             AddAllChildren(body, matcher);
             body.Add(TypePicker("Effect", effect, typeof(LetteraEffect), "Effect"));
@@ -172,6 +331,30 @@ namespace FirstSymbol.Lettera.Editor
             body.Add(LtUI.Field("Defaults", style.FindPropertyRelative("m_DefaultParameter"), "Parameters used when a tag gives none, in the tag's syntax."));
             card.Add(body);
             return card;
+        }
+
+        internal static string DrivenBy(object matcher)
+        {
+            switch (matcher)
+            {
+                case null: return "none";
+                case WholeTextMatcher _: return "whole text";
+                case TagMatcher _: case VoidTagMatcher _: return "tag";
+                case MarkdownMarkerMatcher _: case MarkdownListMatcher _: case MarkdownLinkMatcher _: return "markdown";
+                case BareUrlMatcher _: case TriggerWordMatcher _: case LiteralMatcher _: return "auto";
+                default: return "rule";
+            }
+        }
+
+        // The few effects whose main value says more than their name.
+        internal static string Summary(object effect)
+        {
+            switch (effect)
+            {
+                case ColorEffect color: return "#" + ColorUtility.ToHtmlStringRGB(color.Color);
+                case SizeEffect size: return size.Size;
+                default: return "";
+            }
         }
 
         // Essential parameters when the effect is not driven by tags, anything changed from its default, and what was picked from the menu.
@@ -182,7 +365,7 @@ namespace FirstSymbol.Lettera.Editor
             object defaults = null;
             try { defaults = Activator.CreateInstance(value.GetType()); }
             catch (MissingMethodException) { }
-            s_Essential.TryGetValue(value.GetType(), out string[] essential);
+            string[] essential = EssentialOf(value.GetType());
             m_Added.TryGetValue(index, out HashSet<string> added);
 
             var hidden = new List<SerializedProperty>();
@@ -304,6 +487,8 @@ namespace FirstSymbol.Lettera.Editor
             m_Object.Update();
             styles.MoveArrayElement(from, to);
             m_Object.ApplyModifiedProperties();
+            m_Added.Clear();
+            m_Open.Clear();
             Rebuild();
         }
 
@@ -333,9 +518,16 @@ namespace FirstSymbol.Lettera.Editor
                 case nameof(LetteraPaint): return Paint(property);
                 case nameof(LetteraGradient): return Gradient(property);
             }
-            if (property.propertyType == SerializedPropertyType.Boolean) return LtUI.Row(property.displayName, LtUI.Switch(property.Copy()));
-            if (property.propertyType == SerializedPropertyType.ManagedReference) return ManagedReference(property);
+            if (IsLength(property, owner)) return new LtUnit(property.displayName, property.Copy(), property.tooltip);
             return LtUI.Field(property.displayName, property.Copy(), property.tooltip);
+        }
+
+        // A string that holds a length gets a number and a unit. What holds "auto" until set says so by its type.
+        static bool IsLength(SerializedProperty property, object owner)
+        {
+            if (property.propertyType != SerializedPropertyType.String) return false;
+            if (owner is CellWidthEffect && property.name == "m_Width") return true;
+            return LetteraLength.TryParse(property.stringValue, out LetteraLength length) && length.Kind != LetteraLength.Unit.Bare;
         }
 
         // A nested polymorphic field, such as a color filter: a type menu and its fields.
@@ -362,7 +554,7 @@ namespace FirstSymbol.Lettera.Editor
                     Refresh();
                 });
                 holder.Add(LtUI.Row(bound.displayName, popup));
-                foreach (SerializedProperty child in LetteraStyleList.Children(bound)) holder.Add(LtUI.Field(child.displayName, child.Copy()));
+                foreach (SerializedProperty child in LetteraStyleList.Children(bound)) holder.Add(For(child, bound.managedReferenceValue));
             }
             Refresh();
             return holder;
