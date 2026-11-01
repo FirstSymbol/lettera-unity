@@ -708,7 +708,7 @@ namespace FirstSymbol.Lettera.Editor
             {
                 case LetteraParamKind.Float:
                 case LetteraParamKind.Int:
-                    return $"{name}  {cue.From.Number:0.##} to {cue.To.Number:0.##}";
+                    return FormattableString.Invariant($"{name}  {cue.From.Number:0.##} to {cue.To.Number:0.##}");
                 default:
                     return name;
             }
@@ -843,7 +843,7 @@ namespace FirstSymbol.Lettera.Editor
             m_LastHead = x;
             m_Head.style.left = x;
             m_RulerHead.style.left = x;
-            m_Time.text = $"{head:0.00} / {Mathf.Max(m_LastLength, 0):0.00} s";
+            m_Time.text = FormattableString.Invariant($"{head:0.00} / {Mathf.Max(m_LastLength, 0):0.00} s");
         }
 
         void RefreshProblems()
@@ -865,7 +865,7 @@ namespace FirstSymbol.Lettera.Editor
         void RefreshStatus()
         {
             int cues = m_Sequencer.Cues.Count, selected = m_Model.Selected.Count;
-            m_Status.text = (cues == 1 ? "1 cue" : cues + " cues") + (selected > 0 ? $", {selected} selected" : "") + $". {m_Model.View.PixelsPerSecond:0} px a second.";
+            m_Status.text = (cues == 1 ? "1 cue" : cues + " cues") + (selected > 0 ? $", {selected} selected" : "") + FormattableString.Invariant($". {m_Model.View.PixelsPerSecond:0} px a second.");
         }
 
         // ------------------------------------------------------------- detail
