@@ -175,7 +175,7 @@ namespace FirstSymbol.Lettera.Timeline.Editor.Tests
                 At(director, 2);
                 Assert.AreEqual(0.5f, sequencer.Progress, 1e-3f);
                 Assert.AreEqual(0.5f, Held(text), 1e-3f);
-                director.Stop();
+                Leave(director);
             }
             finally
             {
@@ -198,7 +198,7 @@ namespace FirstSymbol.Lettera.Timeline.Editor.Tests
             Shot(track, 0, 1, 0, 4);
             director.RebuildGraph();
             At(director, 2);
-            director.Stop();
+            Leave(director);
             Assert.AreEqual(0.25f, ReadField(sequencer, "m_Progress"), 1e-4f);
             Assert.AreEqual(0, text.Engine.HoldCount);
         }
@@ -219,7 +219,7 @@ namespace FirstSymbol.Lettera.Timeline.Editor.Tests
             director.RebuildGraph();
             At(director, 1);
             Assert.AreEqual(4, Held(text), 1e-3f);
-            director.Stop();
+            Leave(director);
             Assert.AreEqual(0.75f, link.Value, 1e-3f);
             Assert.AreEqual(0.75f, Held(text), 1e-3f);
         }

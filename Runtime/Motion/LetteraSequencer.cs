@@ -206,9 +206,8 @@ namespace FirstSymbol.Lettera
         void Show(float progress)
         {
             m_Shown = progress;
-            if (!Application.isPlaying) return;
-            m_Progress = progress;
-            m_AppliedProgress = progress;
+            if (Application.isPlaying) m_Progress = progress;
+            m_AppliedProgress = m_Progress;
         }
 
         bool Mirrored(int pass) => (m_Repeat == LetteraRepeat.Retrace || m_Repeat == LetteraRepeat.Return) && (pass & 1) == 1;

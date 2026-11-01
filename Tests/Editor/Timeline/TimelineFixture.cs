@@ -102,6 +102,14 @@ namespace FirstSymbol.Lettera.Timeline.Editor.Tests
             director.Evaluate();
         }
 
+        /// <summary>The graph comes down, as it does when Timeline's window leaves its preview.</summary>
+        protected static void Leave(PlayableDirector director)
+        {
+            director.Stop();
+            typeof(PlayableDirector).GetMethod("ProcessPendingGraphChanges", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)?.Invoke(director, null);
+            if (director.playableGraph.IsValid()) director.playableGraph.Destroy();
+        }
+
         /// <summary>A saved scene holding these, so that isDirty means something.</summary>
         protected static void NewScene() => EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
 
