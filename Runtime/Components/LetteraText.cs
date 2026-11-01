@@ -364,7 +364,7 @@ namespace FirstSymbol.Lettera
         {
             foreach ((GameObject _, CanvasRenderer renderer, Mesh _) in m_Parts)
             {
-                if (canvasRenderer.hasRectClipping) renderer.EnableRectClipping(canvasRenderer.GetClippingRect());
+                if (m_MarqueeClipOn) renderer.EnableRectClipping(m_MarqueeClip);
                 else if (m_ParentClipValid) renderer.EnableRectClipping(m_ParentClip);
                 else renderer.DisableRectClipping();
                 renderer.clippingSoftness = canvasRenderer.clippingSoftness;
@@ -420,7 +420,7 @@ namespace FirstSymbol.Lettera
 
         // ------------------------------------------------------------- marquee clip
 
-        Rect m_ParentClip;
+        Rect m_ParentClip, m_MarqueeClip;
         bool m_ParentClipValid, m_MarqueeClipOn;
 
         // The clip keeps the sides only, so overflow upward and downward stays visible. A mask around the text still counts.
@@ -454,6 +454,7 @@ namespace FirstSymbol.Lettera
             {
                 clip = Rect.MinMaxRect(Mathf.Max(clip.xMin, m_ParentClip.xMin), Mathf.Max(clip.yMin, m_ParentClip.yMin), Mathf.Min(clip.xMax, m_ParentClip.xMax), Mathf.Min(clip.yMax, m_ParentClip.yMax));
             }
+            m_MarqueeClip = clip;
             canvasRenderer.EnableRectClipping(clip);
             canvasRenderer.clippingSoftness = e.ClipsViewport ? Vector2.zero : new Vector2(e.MarqueeFadeUnits, 0);
         }
