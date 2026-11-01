@@ -19,6 +19,26 @@ public static class LetteraCompareBuild
             AssetDatabase.ImportPackage(Path.Combine(package, "Package Resources", "TMP Essential Resources.unitypackage"), false);
             AssetDatabase.Refresh();
         }
+        // A material per set of keywords the effects sheet uses, or a player has the shader without them.
+        Directory.CreateDirectory("Assets/Compare/Resources");
+        Shader sdf = Shader.Find("TextMeshPro/Distance Field");
+        if (sdf != null)
+        {
+            foreach ((string name, string[] keywords) in new[]
+            {
+                ("Outline", new[] { "OUTLINE_ON" }),
+                ("Underlay", new[] { "UNDERLAY_ON" }),
+                ("Glow", new[] { "GLOW_ON" }),
+                ("Inner", new[] { "UNDERLAY_INNER" }),
+                ("All", new[] { "OUTLINE_ON", "UNDERLAY_ON", "GLOW_ON" }),
+            })
+            {
+                string asset = "Assets/Compare/Resources/Tmp_" + name + ".mat";
+                if (File.Exists(asset)) continue;
+                AssetDatabase.CreateAsset(new Material(sdf) { shaderKeywords = keywords }, asset);
+            }
+            AssetDatabase.SaveAssets();
+        }
         const string path = "Assets/Compare.unity";
         EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
         EditorSceneManager.SaveScene(UnityEngine.SceneManagement.SceneManager.GetActiveScene(), path);
