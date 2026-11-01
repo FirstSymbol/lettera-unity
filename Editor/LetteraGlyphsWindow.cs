@@ -156,6 +156,7 @@ namespace FirstSymbol.Lettera.Editor
                 painter.Stroke();
                 painter.strokeColor = new Color(0.6f, 0.45f, 1);
                 painter.lineWidth = 1.5f;
+                painter.lineJoin = LineJoin.Round;
                 painter.BeginPath();
                 int i = 0;
                 while (i < count)
