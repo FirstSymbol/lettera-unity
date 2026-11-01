@@ -88,23 +88,27 @@ namespace FirstSymbol.Lettera
             context.Begin(source);
             if (m_ProtectLength > 0 && m_ProtectStart + m_ProtectLength <= source.Length) context.Protect(m_ProtectStart, m_ProtectLength);
 
-            // Higher priority first; the sort is stable so earlier styles win ties.
-            m_MatcherOrder.Clear();
-            for (int i = 0; i < m_EffectiveStyles.Count; i++)
-            {
-                LetteraStyle style = m_EffectiveStyles[i];
-                if (style != null && style.Enabled && style.Matcher != null) m_MatcherOrder.Add(i);
-            }
-            SortMatchers();
-            // Only a formula's matchers ask, and only where there is something to escape.
             context.HasEscapes = false;
-            if (context.LessThanPositions.Count > 0 || source.IndexOf('\\') >= 0)
-                for (int m = 0; m < m_MatcherOrder.Count && !context.HasEscapes; m++)
-                    context.HasEscapes = m_EffectiveStyles[m_MatcherOrder[m]].Matcher is EscapeMatcher;
-            foreach (int index in m_MatcherOrder)
+            bool markup = context.LessThanPositions.Count > 0 || source.IndexOf('\\') >= 0;
+            if (markup || !OnlyTheDefaultVocabulary())
             {
-                context.CurrentStyle = index;
-                m_EffectiveStyles[index].Matcher.Find(context);
+                // Higher priority first; the sort is stable so earlier styles win ties.
+                m_MatcherOrder.Clear();
+                for (int i = 0; i < m_EffectiveStyles.Count; i++)
+                {
+                    LetteraStyle style = m_EffectiveStyles[i];
+                    if (style != null && style.Enabled && style.Matcher != null) m_MatcherOrder.Add(i);
+                }
+                SortMatchers();
+                // Only a formula's matchers ask, and only where there is something to escape.
+                if (markup)
+                    for (int m = 0; m < m_MatcherOrder.Count && !context.HasEscapes; m++)
+                        context.HasEscapes = m_EffectiveStyles[m_MatcherOrder[m]].Matcher is EscapeMatcher;
+                foreach (int index in m_MatcherOrder)
+                {
+                    context.CurrentStyle = index;
+                    m_EffectiveStyles[index].Matcher.Find(context);
+                }
             }
 
             if (RevealSource >= 0) RevealRangesAt(context, RevealSource);
@@ -115,6 +119,26 @@ namespace FirstSymbol.Lettera
             foreach (IHoldSource hold in m_Holds) hold.Refresh();
             ApplyEffects(context);
             m_RangesApplied = true;
+        }
+
+        static int s_DefaultCount = -1;
+        static bool s_DefaultsReadTags;
+
+        // Every built-in matcher starts at a tag or a backslash, so text with neither need not ask 78 of them. A list someone added to is asked as usual.
+        bool OnlyTheDefaultVocabulary()
+        {
+            if (m_OwnCopies || ClipStyle != null || (m_SolidsOnly && m_Host.HostStyles != null)) return false;
+            LetteraTextData data = m_Host.Data;
+            if (data.Styles.Count != 0 || data.StylePresets.Count != 0 || !data.UseGlobalStylePreset || LetteraSettings.Instance.GlobalStylePreset != null) return false;
+            List<LetteraStyle> defaults = LetteraDefaultStyles.Styles;
+            if (defaults.Count != s_DefaultCount)
+            {
+                s_DefaultCount = defaults.Count;
+                s_DefaultsReadTags = true;
+                foreach (LetteraStyle style in defaults)
+                    s_DefaultsReadTags &= style != null && (style.Matcher == null || style.Matcher.StartsAtMarkup);
+            }
+            return s_DefaultsReadTags;
         }
 
         void ResolveRangeEnds(LetteraMatchContext context)
@@ -298,6 +322,7 @@ namespace FirstSymbol.Lettera
             LetteraAttributes attributes = m_Attributes;
             attributes.Reset(m_TextLength);
             List<LetteraMatchContext.RangeRecord> ranges = context.Ranges;
+            attributes.Touched = ranges.Count > 0 || m_Host.Data.Overflow != LetteraOverflow.Visible;
             ClearStageHooks();
 
             // Outer ranges first, so inner ones refine them: innermost wins.

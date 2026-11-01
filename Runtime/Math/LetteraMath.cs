@@ -198,6 +198,8 @@ namespace FirstSymbol.Lettera
     [Serializable, UnityEngine.Scripting.Preserve]
     public class LetteraMathTagMatcher : LetteraMatcher
     {
+        internal override bool StartsAtMarkup => true;
+
         [SerializeField] string m_Name = "math";
 
         public LetteraMathTagMatcher() { }
@@ -474,6 +476,8 @@ namespace FirstSymbol.Lettera
     [Serializable, UnityEngine.Scripting.Preserve]
     public class LetteraMathTagMatcher : LetteraMatcher
     {
+        internal override bool StartsAtMarkup => true;
+
         [SerializeField] string m_Name = "math";
 
         public LetteraMathTagMatcher() { }
