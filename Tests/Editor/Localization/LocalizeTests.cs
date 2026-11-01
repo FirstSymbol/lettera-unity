@@ -19,13 +19,19 @@ namespace FirstSymbol.Lettera.Localization.Editor.Tests
         [SetUp]
         public void SetUp()
         {
+            // A project with no localization settings: Unity's own components say so in the log.
+            UnityEngine.TestTools.LogAssert.ignoreFailingMessages = true;
             m_Object = new GameObject("Localized", typeof(RectTransform));
             m_Text = m_Object.AddComponent<LetteraText>();
             m_Text.Text = "Saved words";
         }
 
         [TearDown]
-        public void TearDown() => Object.DestroyImmediate(m_Object);
+        public void TearDown()
+        {
+            Object.DestroyImmediate(m_Object);
+            UnityEngine.TestTools.LogAssert.ignoreFailingMessages = false;
+        }
 
         [Test]
         public void LocalizeWiresTheEventToSetTextAndLeavesTheSavedText()
