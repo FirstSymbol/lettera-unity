@@ -332,6 +332,7 @@
 }
 
 .lt-switch--on { background-color: var(--lt-accent); border-color: var(--lt-accent); }
+.lt-switch.lt-row__field { flex-grow: 0; }
 .lt-switch--on .lt-switch__knob { left: 15px; background-color: #ffffff; }
 
 .lt-size-row { flex-direction: row; align-items: center; flex-grow: 1; }

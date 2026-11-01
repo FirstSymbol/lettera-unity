@@ -8,6 +8,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 - **Lettera from the command line.** With `com.unity.pipeline` installed, `unity command lettera ...` creates, edits, checks and renders text, and answers in JSON. `export_png` draws a text to a picture for an agent to look at, on Canvas, world and 3D text, and leaves the scene as it was. Without that package none of it compiles. The guide for agents is `Documentation~/AgentGuide.md`.
+- **A line of a cut scene can come from a clip.** With Timeline installed, `LetteraTextTrack` makes a text say what the clip under the playhead says, by the resolver's route, with its own field untouched, and gives it back in a gap and on leaving. A clip can type its line over its length. Scrubbing inside a clip does no rebuild.
+- **Tracks are in Timeline's Add Track menu, under Lettera,** each with its colour and icon. A clip's label says what it does, as `Types: Run!` or `25% to 75%`, and clips and tracks have inspectors of our own. A track's inspector lists only objects that fit, and one with a text but no sequencer says that binding adds one.
+- **Tools > Lettera > Sequencer,** also a button on the sequencer's inspector: cues on rows. They drag and resize, with snapping to other cues, the playhead and ticks, and Ctrl to go free. Zoom and pan as in other views, a ruler that scrubs, marquee, split at the playhead, duplicate, copy, paste, mute, delete, each one undo step. Several selected share a card of fields, and a double click opens a cue's full editor in the window. Space plays.
+- **A Timeline sample.**
+
+### Fixed
+- **A saved timeline lost Lettera's tracks and clips.** They lived in one file, and Unity finds a saved object's script by a file of its name, so they came back as missing scripts. Each now has its own file. In memory they had worked, which is why nothing showed it. Present since 0.4.0.
+- **Previewing a sequencer wrote its serialized `Progress`, and took it to 0 on the way out.** A preview now moves only what it shows, so a save during one keeps the field, and leaving returns to it. The same for a sequencer's clock under a track, and a linked parameter goes back to its value when a preview ends.
+- **A cue removed while its hold was live, by an edit or an undo, kept holding** the value on the text until the object was disabled.
+- A switch in a row of an inspector stretched across the row with its knob at the far left.
 
 ## [0.7.3] - 2026-11-01
 
