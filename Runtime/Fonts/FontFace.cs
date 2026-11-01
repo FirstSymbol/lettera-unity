@@ -44,6 +44,40 @@ namespace FirstSymbol.Lettera
         public IntPtr Face { get; private set; }
         public FontInstance Regular { get; private set; }
         public FaceMetrics Metrics { get; private set; }
+
+        /// <summary>What the file says, whatever an asset wrote over it.</summary>
+        public FaceMetrics NaturalMetrics { get; private set; }
+
+        /// <summary>Vertical lines by hand; a null keeps the file's.</summary>
+        public void OverrideMetrics(int? ascender, int? descender, int? lineGap)
+        {
+            FaceMetrics metrics = NaturalMetrics;
+            if (ascender.HasValue) metrics.Ascender = ascender.Value;
+            if (descender.HasValue) metrics.Descender = descender.Value;
+            if (lineGap.HasValue) metrics.LineGap = lineGap.Value;
+            Metrics = metrics;
+        }
+
+        internal struct AxisInfo
+        {
+            public string Tag;
+            public float Min, Default, Max;
+        }
+
+        /// <summary>The design axes this face has, for an inspector.</summary>
+        public AxisInfo[] Axes
+        {
+            get
+            {
+                var axes = new AxisInfo[m_AxisTags.Length];
+                for (int i = 0; i < axes.Length; i++)
+                {
+                    uint tag = m_AxisTags[i];
+                    axes[i] = new AxisInfo { Tag = new string(new[] { (char)(tag >> 24), (char)((tag >> 16) & 255), (char)((tag >> 8) & 255), (char)(tag & 255) }).TrimEnd(), Min = m_AxisRanges[i * 3], Default = m_AxisRanges[i * 3 + 1], Max = m_AxisRanges[i * 3 + 2] };
+                }
+                return axes;
+            }
+        }
         public string Family { get; private set; } = "";
         public string StyleName { get; private set; } = "";
         public int Weight { get; private set; } = 400;

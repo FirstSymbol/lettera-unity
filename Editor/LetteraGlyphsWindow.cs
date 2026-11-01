@@ -17,6 +17,15 @@ namespace FirstSymbol.Lettera.Editor
         [MenuItem("Tools/Lettera/Glyphs", false, 20)]
         static void Open() => GetWindow<LetteraGlyphsWindow>("Lettera Glyphs").minSize = new Vector2(320, 300);
 
+        /// <summary>Opens on a font and some letters of it, as a font's own glyph grid asks.</summary>
+        internal static void OpenFor(LetteraFontAsset font, string text)
+        {
+            var window = GetWindow<LetteraGlyphsWindow>("Lettera Glyphs");
+            window.minSize = new Vector2(320, 300);
+            window.m_Font.value = font;
+            window.m_Text.value = text;
+        }
+
         protected override string Title => "Glyphs";
         protected override string Subtitle => "What shaping made of a text";
 

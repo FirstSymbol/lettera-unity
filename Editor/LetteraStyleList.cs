@@ -515,8 +515,9 @@ namespace FirstSymbol.Lettera.Editor
         {
             switch (property.type)
             {
-                case nameof(LetteraPaintChoice): return Choice(property, owner as LetteraLayerEffect);
-                case nameof(LetteraPaint): return Paint(property);
+                case nameof(LetteraPaintChoice):
+                case nameof(LetteraPaint):
+                    return new LtPaint(property.displayName, property, owner, property.tooltip);
                 case nameof(LetteraGradient): return Gradient(property);
             }
             if (IsLength(property, owner)) return new LtUnit(property.displayName, property.Copy(), property.tooltip);
@@ -541,20 +542,16 @@ namespace FirstSymbol.Lettera.Editor
                 holder.Clear();
                 Type baseType = ManagedBaseType(bound);
                 Type[] types = baseType == null ? new Type[0] : TypeCache.GetTypesDerivedFrom(baseType).Where(t => !t.IsAbstract && t.GetConstructor(Type.EmptyTypes) != null).OrderBy(t => t.Name).ToArray();
-                var names = new List<string> { "None" };
-                names.AddRange(types.Select(t => t.Name));
+                var names = new List<(string, string, object)> { ("None", null, null) };
+                names.AddRange(types.Select(t => (LtFrame.Words(t), (string)null, (object)t)));
                 object value = bound.managedReferenceValue;
-                int current = value == null ? 0 : Array.IndexOf(types, value.GetType()) + 1;
-                var popup = new PopupField<string>(names, Mathf.Max(current, 0));
-                popup.RegisterValueChangedCallback(e =>
+                holder.Add(new LtPick(bound.displayName, () => value == null ? "None" : LtFrame.Words(value.GetType()), () => names, chosen =>
                 {
-                    int chosen = names.IndexOf(e.newValue);
                     bound.serializedObject.Update();
-                    bound.managedReferenceValue = chosen <= 0 ? null : Activator.CreateInstance(types[chosen - 1]);
+                    bound.managedReferenceValue = chosen == null ? null : Activator.CreateInstance((Type)chosen);
                     bound.serializedObject.ApplyModifiedProperties();
                     Refresh();
-                });
-                holder.Add(LtUI.Row(bound.displayName, popup));
+                }));
                 foreach (SerializedProperty child in LetteraStyleList.Children(bound)) holder.Add(For(child, bound.managedReferenceValue));
             }
             Refresh();
@@ -567,7 +564,7 @@ namespace FirstSymbol.Lettera.Editor
             return parts.Length == 2 ? Type.GetType(parts[1] + ", " + parts[0]) : null;
         }
 
-        static VisualElement Choice(SerializedProperty choice, LetteraLayerEffect effect)
+        internal static VisualElement Choice(SerializedProperty choice, LetteraLayerEffect effect)
         {
             SerializedProperty kind = choice.FindPropertyRelative("Kind").Copy();
             SerializedProperty inline = choice.FindPropertyRelative("Inline").Copy();
@@ -599,30 +596,32 @@ namespace FirstSymbol.Lettera.Editor
 
         static VisualElement NamedSwatch(SerializedProperty swatch, LetteraLayerEffect effect)
         {
-            var names = new List<string>();
-            List<LetteraSwatch> list = null;
+            List<LetteraSwatch> list = SwatchesOf(effect);
+            if (list == null || !list.Any(s => s != null && !string.IsNullOrEmpty(s.Name))) return LtUI.Field("Swatch", swatch, "A name in the paint library this effect reads.");
+            return new LtSwatchList(list, swatch);
+        }
+
+        /// <summary>The swatches a layer effect reads its names from; for no effect, the project's.</summary>
+        internal static List<LetteraSwatch> SwatchesOf(LetteraLayerEffect effect)
+        {
             if (effect != null)
             {
-                switch (effect.Catalog)
-                {
-                    case LetteraPaintCatalog.Own: list = effect.OwnSwatches; break;
-                    case LetteraPaintCatalog.Library: list = effect.Library != null ? effect.Library.Swatches : null; break;
-                    default: list = LetteraSettings.Instance.Paints != null ? LetteraSettings.Instance.Paints.Swatches : null; break;
-                }
+                if (effect.Catalog == LetteraPaintCatalog.Own) return effect.OwnSwatches;
+                if (effect.Catalog == LetteraPaintCatalog.Library) return effect.Library != null ? effect.Library.Swatches : null;
             }
-            if (list != null) names.AddRange(list.Where(s => s != null && !string.IsNullOrEmpty(s.Name)).Select(s => s.Name));
-            if (names.Count == 0) return LtUI.Field("Swatch", swatch, "A name in the paint library this effect reads.");
-            string current = swatch.stringValue;
-            if (!names.Contains(current)) names.Insert(0, current);
-            var popup = new PopupField<string>(names, names.IndexOf(current));
-            SerializedProperty bound = swatch.Copy();
-            popup.RegisterValueChangedCallback(e =>
+            return LetteraSettings.Instance.Paints != null ? LetteraSettings.Instance.Paints.Swatches : null;
+        }
+
+        internal static LetteraGradient ReadGradient(SerializedProperty gradient)
+        {
+            SerializedProperty stops = gradient.FindPropertyRelative("Stops");
+            var value = new LetteraGradient { Mode = (LetteraGradientMode)gradient.FindPropertyRelative("Mode").enumValueIndex };
+            for (int i = 0; i < stops.arraySize; i++)
             {
-                bound.serializedObject.Update();
-                bound.stringValue = e.newValue;
-                bound.serializedObject.ApplyModifiedProperties();
-            });
-            return LtUI.Row("Swatch", popup);
+                SerializedProperty stop = stops.GetArrayElementAtIndex(i);
+                value.Stops.Add(new LetteraGradientStop(stop.FindPropertyRelative("Position").floatValue, stop.FindPropertyRelative("Color").colorValue));
+            }
+            return value;
         }
 
         public static VisualElement Paint(SerializedProperty paint)
@@ -721,12 +720,7 @@ namespace FirstSymbol.Lettera.Editor
             void RefreshPreview()
             {
                 if (preview.panel == null && image != null) return;
-                var value = new LetteraGradient { Mode = (LetteraGradientMode)mode.enumValueIndex };
-                for (int i = 0; i < stops.arraySize; i++)
-                {
-                    SerializedProperty stop = stops.GetArrayElementAtIndex(i);
-                    value.Stops.Add(new LetteraGradientStop(stop.FindPropertyRelative("Position").floatValue, stop.FindPropertyRelative("Color").colorValue));
-                }
+                LetteraGradient value = ReadGradient(gradient);
                 if (value.Stops.Count == 0) return;
                 value.Stops.Sort((a, b) => a.Position.CompareTo(b.Position));
                 if (image == null) image = new Texture2D(s_Preview.Length, 1, TextureFormat.RGBA32, false) { hideFlags = HideFlags.HideAndDontSave, wrapMode = TextureWrapMode.Clamp };
@@ -744,8 +738,7 @@ namespace FirstSymbol.Lettera.Editor
                     int index = i;
                     SerializedProperty stop = stops.GetArrayElementAtIndex(i);
                     VisualElement row = LtUI.El("lt-gradient__stop");
-                    var color = new PropertyField(stop.FindPropertyRelative("Color").Copy(), "");
-                    color.BindProperty(stop.FindPropertyRelative("Color").Copy());
+                    var color = new LtColor("", stop.FindPropertyRelative("Color"));
                     color.style.flexGrow = 1;
                     var position = new Slider(0, 1);
                     position.BindProperty(stop.FindPropertyRelative("Position").Copy());

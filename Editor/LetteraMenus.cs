@@ -439,23 +439,18 @@ namespace FirstSymbol.Lettera.Editor
         static SettingsProvider Create() => new SettingsProvider("Project/Lettera", SettingsScope.Project)
         {
             activateHandler = (_, root) => root.Add(Build()),
-            keywords = new HashSet<string>(new[] { "Lettera", "Text", "Font", "Emoji", "Fallback", "Caret", "Selection", "Undo", "Clipboard", "Commands" }),
+            keywords = new HashSet<string>(new[] { "Lettera", "Text", "Font", "Emoji", "Fallback", "Caret", "Selection", "Undo", "Clipboard", "Commands", "Prefab", "Atlas", "Build", "Shader", "Dictionary", "Math", "Formula", "3D", "Solid", "Outline", "Visibility", "Palette", "Document", "Motion", "Paint" }),
         };
 
         // A scripting define on all targets. Turning one over recompiles everything, so it asks first.
         static VisualElement DefineRow(string label, string define, string tip)
         {
-            var toggle = new UnityEngine.UIElements.Toggle { value = HasDefine(define) };
-            toggle.RegisterValueChangedCallback(e =>
+            VisualElement toggle = LtUI.Toggle(() => HasDefine(define), on =>
             {
-                if (!EditorUtility.DisplayDialog(label, (e.newValue ? "Sets " : "Clears ") + define + " on every build target, which recompiles all scripts.", "Do It", "Cancel"))
-                {
-                    toggle.SetValueWithoutNotify(e.previousValue);
-                    return;
-                }
-                SetDefine(define, e.newValue);
+                if (EditorUtility.DisplayDialog(label, (on ? "Sets " : "Clears ") + define + " on every build target, which recompiles all scripts.", "Do It", "Cancel"))
+                    SetDefine(define, on);
             });
-            return LtUI.Row(label, toggle, tip);
+            return LtUI.Row(label, LtUI.El("lt-switch-holder", toggle), tip);
         }
 
         static readonly UnityEditor.Build.NamedBuildTarget[] s_Targets =
@@ -478,10 +473,10 @@ namespace FirstSymbol.Lettera.Editor
 
         internal static VisualElement Build()
         {
+            var settings = Resources.Load<LetteraSettings>(LetteraSettings.ResourceName);
+            if (settings != null) return LetteraSettingsPage.Build(settings, DefineRow);
             VisualElement root = LtUI.Root();
             VisualElement page = LtFrame.Header(root, "Lettera", "Project-wide defaults");
-            var settings = Resources.Load<LetteraSettings>(LetteraSettings.ResourceName);
-            if (settings == null)
             {
                 page.Add(LtUI.Card("", LtUI.Text("This project uses Lettera's defaults.", "lt-subtitle"), LtUI.Clickable("Create Settings Asset", "lt-tool", "Create it in Assets/Resources", () =>
                 {
@@ -492,86 +487,7 @@ namespace FirstSymbol.Lettera.Editor
                     root.RemoveFromHierarchy();
                     parent?.Add(Build());
                 })));
-                return root;
             }
-            var serialized = new SerializedObject(settings);
-            page.Add(LtFrame.AllFields(serialized, "Text", "m_Math", "m_Solid3D", "m_Editing", "m_Motion", "m_Documents", "m_Platform", "m_FontMemory"));
-            SerializedProperty editing = serialized.FindProperty("m_Editing");
-            var rows = new List<VisualElement>();
-            SerializedProperty child = editing.Copy();
-            SerializedProperty end = editing.GetEndProperty();
-            bool enter = true;
-            while (child.NextVisible(enter) && !SerializedProperty.EqualContents(child, end))
-            {
-                enter = false;
-                if (child.name == "Commands") continue;
-                rows.Add(LtFrame.Row(child.Copy()));
-            }
-            page.Add(LtUI.Card("Selection & Editing", rows.ToArray()));
-            var motionRows = new List<VisualElement>();
-            SerializedProperty motion = serialized.FindProperty("m_Motion");
-            SerializedProperty motionChild = motion.Copy();
-            SerializedProperty motionEnd = motion.GetEndProperty();
-            bool motionEnter = true;
-            while (motionChild.NextVisible(motionEnter) && !SerializedProperty.EqualContents(motionChild, motionEnd))
-            {
-                motionEnter = false;
-                motionRows.Add(LtFrame.Row(motionChild.Copy()));
-            }
-            page.Add(LtUI.Card("Animation & Interaction", motionRows.ToArray()));
-            var documentRows = new List<VisualElement>();
-            SerializedProperty documents = serialized.FindProperty("m_Documents");
-            SerializedProperty documentChild = documents.Copy();
-            SerializedProperty documentEnd = documents.GetEndProperty();
-            bool documentEnter = true;
-            while (documentChild.NextVisible(documentEnter) && !SerializedProperty.EqualContents(documentChild, documentEnd))
-            {
-                documentEnter = false;
-                documentRows.Add(LtFrame.Row(documentChild.Copy()));
-            }
-            page.Add(LtUI.Card("Documents", documentRows.ToArray()));
-            var platformRows = new List<VisualElement>();
-            SerializedProperty platform = serialized.FindProperty("m_Platform");
-            SerializedProperty platformChild = platform.Copy();
-            SerializedProperty platformEnd = platform.GetEndProperty();
-            bool platformEnter = true;
-            while (platformChild.NextVisible(platformEnter) && !SerializedProperty.EqualContents(platformChild, platformEnd))
-            {
-                platformEnter = false;
-                platformRows.Add(LtFrame.Row(platformChild.Copy()));
-            }
-            // What each gate means where this project is built right now. Words like "has not been seen to work" are there on purpose.
-            foreach (LetteraNativeFeature feature in System.Enum.GetValues(typeof(LetteraNativeFeature)))
-                platformRows.Add(LtUI.Row(feature + " Here", LtUI.Text(LetteraPlatform.Why(feature), "lt-row__value")));
-            page.Add(LtUI.Card("Native Platform", platformRows.ToArray()));
-            var fontRows = new List<VisualElement>();
-            SerializedProperty fontMemory = serialized.FindProperty("m_FontMemory");
-            SerializedProperty fontChild = fontMemory.Copy();
-            SerializedProperty fontEnd = fontMemory.GetEndProperty();
-            bool fontEnter = true;
-            while (fontChild.NextVisible(fontEnter) && !SerializedProperty.EqualContents(fontChild, fontEnd))
-            {
-                fontEnter = false;
-                fontRows.Add(LtFrame.Row(fontChild.Copy()));
-            }
-            page.Add(LtUI.Card("Font Memory", fontRows.ToArray()));
-            SerializedProperty math = serialized.FindProperty("m_Math");
-            page.Add(LtUI.Card("Math",
-                LtUI.Field("Font", math.FindPropertyRelative("Font"), "The font of formulas. It costs its size in every build once set here: 343 KB for the bundled one. Empty uses the text's font if it holds a math table, then a system math font, then fallback layout."),
-                LtUI.Field("Scale", math.FindPropertyRelative("Scale"), "A formula against the text around it."),
-                LtUI.Field("Errors", math.FindPropertyRelative("Errors"), "What a formula that cannot be read shows."),
-                LtUI.Field("Delimiter Coverage", math.FindPropertyRelative("DelimiterFactor"), "How much a stretched delimiter covers of what it wraps."),
-                LtUI.Field("Least Rule Width", math.FindPropertyRelative("MinRulePixels"), "The least a fraction bar draws, in device pixels. 0 turns this off."),
-                LtUI.Field("Cache", math.FindPropertyRelative("CacheBytes"), "The most laid-out formulas kept, in bytes."),
-                DefineRow("Compile Out Formulas", "LETTERA_NO_MATH", "Removes formula code from builds. <math> then shows its source as text.")));
-            SerializedProperty solid = serialized.FindProperty("m_Solid3D");
-            page.Add(LtUI.Card("3D",
-                LtUI.Field("Default Material", solid.FindPropertyRelative("DefaultMaterial"), "For a Text 3D made by a script with no material. Set, it puts the solid shader in every build."),
-                LtUI.Field("Solid Cache", solid.FindPropertyRelative("CacheBytes"), "The most glyph solids kept, in bytes."),
-                LtUI.Field("Most Vertices", solid.FindPropertyRelative("MaxVertices"), "The most vertices one text draws."),
-                LtUI.Text("Render pipeline: " + (UnityEngine.Rendering.GraphicsSettings.currentRenderPipeline != null ? UnityEngine.Rendering.GraphicsSettings.currentRenderPipeline.GetType().Name : "Built-in"), "lt-subtitle"),
-                DefineRow("Compile Out 3D Text", "LETTERA_NO_3D", "Removes the 3D module's assemblies from this project.")));
-            page.Add(LtUI.Card("Commands", new LetteraReferenceList(editing.FindPropertyRelative("Commands"), () => LetteraRuleCatalog.Commands)));
             return root;
         }
     }

@@ -161,7 +161,30 @@ namespace FirstSymbol.Lettera.Editor
                     return LetteraPaintField.ManagedReference(bound);
                 case SerializedPropertyType.Generic:
                     if (bound.isArray) return DefaultList(label, bound, tooltip);
+                    if (bound.type == nameof(LetteraPaint) || bound.type == nameof(LetteraPaintChoice)) return new LtPaint(label, bound, null, tooltip);
+                    if (bound.type == nameof(LetteraGradient)) return LetteraPaintField.Gradient(bound);
+                    if (bound.type == nameof(LetteraRangeRule)) return LetteraRuleBuilder.Build(bound);
+                    FieldOf(bound, out Type held);
+                    if (held != null && typeof(UnityEngine.Events.UnityEventBase).IsAssignableFrom(held)) return Event(label, bound, tooltip);
                     return Group(label, bound, tooltip);
+                case SerializedPropertyType.Vector2:
+                    return Vector(label, bound, tooltip, "x", "y");
+                case SerializedPropertyType.Vector3:
+                    return Vector(label, bound, tooltip, "x", "y", "z");
+                case SerializedPropertyType.Vector4:
+                    return Vector(label, bound, tooltip, "x", "y", "z", "w");
+                case SerializedPropertyType.AnimationCurve:
+                {
+                    var curve = new CurveField();
+                    curve.BindProperty(bound);
+                    return Row(label, curve, tooltip, bound);
+                }
+                case SerializedPropertyType.LayerMask:
+                {
+                    var layers = new LayerMaskField();
+                    layers.BindProperty(bound);
+                    return Row(label, layers, tooltip, bound);
+                }
                 default:
                 {
                     var field = new PropertyField(bound, "");
@@ -169,6 +192,29 @@ namespace FirstSymbol.Lettera.Editor
                     return Row(label, field, tooltip);
                 }
             }
+        }
+
+        // A few numbers on one row, each scrubbing by its own letter.
+        static VisualElement Vector(string label, SerializedProperty vector, string tooltip, params string[] axes)
+        {
+            VisualElement line = El("lt-vector");
+            foreach (string axis in axes)
+            {
+                var number = new LtNumber(axis.ToUpperInvariant(), vector.FindPropertyRelative(axis));
+                number.AddToClassList("lt-vector__axis");
+                line.Add(number);
+            }
+            return Row(label, line, tooltip, vector);
+        }
+
+        // Unity's own drawer: who is called, with what, has a whole world of pickers behind it. Marked, so that the walk over the tree knows this is the one place it may show.
+        static VisualElement Event(string label, SerializedProperty property, string tooltip)
+        {
+            var field = new PropertyField(property, label);
+            field.BindProperty(property);
+            VisualElement holder = El("lt-event", field);
+            holder.tooltip = tooltip;
+            return holder;
         }
 
         static VisualElement DefaultList(string label, SerializedProperty array, string tooltip)

@@ -249,6 +249,59 @@ namespace FirstSymbol.Lettera.Editor
         }
     }
 
+    /// <summary>A filter across a page of sections: rows that do not fit hide by a class, and a section with none left closes.</summary>
+    internal static class LtFilter
+    {
+        public static void Apply(IEnumerable<LtSection> sections, string query)
+        {
+            bool filtering = !string.IsNullOrWhiteSpace(query);
+            foreach (LtSection section in sections)
+            {
+                bool titleFits = filtering && LtSearchText.Score(query, section.Title) > 0;
+                bool any = false;
+                foreach (VisualElement row in section.Content.Query(className: "lt-row").ToList())
+                {
+                    bool fits = !filtering || titleFits || RowFits(row, query);
+                    row.EnableInClassList("lt-filtered", !fits);
+                    any |= fits;
+                }
+                foreach (VisualElement row in section.Content.Query(className: "lt-list__row").ToList())
+                {
+                    bool fits = !filtering || titleFits || WordsFit(row, query);
+                    row.EnableInClassList("lt-filtered", !fits);
+                    any |= fits;
+                }
+                foreach (VisualElement tool in section.Content.Query(className: "lt-tool").ToList())
+                {
+                    bool fits = !filtering || titleFits || (tool is Label label && LtSearchText.Score(query, label.text) >= 30) || (!string.IsNullOrEmpty(tool.tooltip) && LtSearchText.Score(query, tool.tooltip) >= 60);
+                    tool.EnableInClassList("lt-filtered", !fits);
+                    any |= fits;
+                }
+                foreach (VisualElement source in section.Content.Query(className: "lt-source-box").ToList())
+                    source.EnableInClassList("lt-filtered", filtering && !titleFits);
+                section.EnableInClassList("lt-filtered", filtering && !any && !titleFits);
+                section.ForceOpen(filtering && (any || titleFits));
+            }
+        }
+
+        static bool RowFits(VisualElement row, string query)
+        {
+            if (!string.IsNullOrEmpty(row.tooltip) && LtSearchText.Score(query, row.tooltip) >= 60) return true;
+            foreach (Label label in row.Query<Label>().ToList())
+                if ((label.ClassListContains("lt-row__label") || label.ClassListContains("lt-inline__label")) && LtSearchText.Score(query, label.text) > 0)
+                    return true;
+            return false;
+        }
+
+        static bool WordsFit(VisualElement row, string query)
+        {
+            foreach (Label label in row.Query<Label>().ToList())
+                if ((label.ClassListContains("lt-style__tag") || label.ClassListContains("lt-style__type") || label.ClassListContains("lt-row__label") || label.ClassListContains("lt-object__name")) && LtSearchText.Score(query, label.text) > 0)
+                    return true;
+            return false;
+        }
+    }
+
     /// <summary>A card with a header that collapses, which says in a word what it holds while closed. Open or closed is kept per user.</summary>
     public sealed class LtSection : VisualElement
     {
@@ -268,7 +321,7 @@ namespace FirstSymbol.Lettera.Editor
             {
                 Content.style.display = value ? DisplayStyle.Flex : DisplayStyle.None;
                 m_Chevron.text = value ? "▾" : "▸";
-                EditorPrefs.SetBool(Prefix + m_Key, value);
+                LtPrefs.SetBool(Prefix + m_Key, value);
                 RefreshSummary();
             }
         }
@@ -305,14 +358,14 @@ namespace FirstSymbol.Lettera.Editor
                         if (nested != this)
                             nested.Open = next;
             });
-            Open = EditorPrefs.GetBool(Prefix + key, openByDefault);
+            Open = LtPrefs.GetBool(Prefix + key, openByDefault);
         }
 
         /// <summary>Shows it for a filter's sake, without changing what is kept for the user.</summary>
         public void ForceOpen(bool force)
         {
             if (force) Content.style.display = DisplayStyle.Flex;
-            else Content.style.display = EditorPrefs.GetBool(Prefix + m_Key, true) ? DisplayStyle.Flex : DisplayStyle.None;
+            else Content.style.display = LtPrefs.GetBool(Prefix + m_Key, true) ? DisplayStyle.Flex : DisplayStyle.None;
             m_Chevron.text = Content.style.display == DisplayStyle.Flex ? "▾" : "▸";
         }
 
@@ -624,14 +677,17 @@ namespace FirstSymbol.Lettera.Editor
         readonly List<(string name, string hint, object value)> m_Shown = new List<(string, string, object)>();
         readonly Action<object> m_Chosen;
         readonly ScrollView m_List = new ScrollView();
+        readonly Func<object, string> m_GroupOf;
+        readonly List<VisualElement> m_Rows = new List<VisualElement>();
         int m_At;
 
         public LtSearch Search { get; }
         public IReadOnlyList<(string name, string hint, object value)> Shown => m_Shown;
 
-        public LtChoiceList(List<(string name, string hint, object value)> items, Action<object> chosen, int current = -1, bool searchable = true)
+        public LtChoiceList(List<(string name, string hint, object value)> items, Action<object> chosen, int current = -1, bool searchable = true, Func<object, string> groupOf = null)
         {
             m_All = items;
+            m_GroupOf = groupOf;
             m_Chosen = chosen;
             AddToClassList("lt-choices");
             style.flexGrow = 1;
@@ -679,15 +735,23 @@ namespace FirstSymbol.Lettera.Editor
         {
             m_Shown.Clear();
             m_List.Clear();
+            m_Rows.Clear();
             foreach ((string name, string hint, object value) item in m_All)
                 if (LtSearchText.Score(query, item.name) > 0 || (!string.IsNullOrEmpty(item.hint) && LtSearchText.Score(query, item.hint) >= 30))
                     m_Shown.Add(item);
+            string group = null;
             foreach ((string name, string hint, object value) item in m_Shown)
             {
                 object chosen = item.value;
+                if (m_GroupOf != null && chosen != null && m_GroupOf(chosen) != group)
+                {
+                    group = m_GroupOf(chosen);
+                    m_List.Add(LtUI.Text(group, "lt-choices__group"));
+                }
                 VisualElement row = LtUI.El("lt-palette__row", LtUI.Text(item.name, "lt-palette__name"), LtUI.Text(item.hint ?? "", "lt-palette__group"));
                 row.RegisterCallback<ClickEvent>(_ => m_Chosen(chosen));
                 m_List.Add(row);
+                m_Rows.Add(row);
             }
             if (m_Shown.Count == 0) m_List.Add(LtUI.Text("Nothing by that name.", "lt-hint"));
             m_At = 0;
@@ -696,8 +760,94 @@ namespace FirstSymbol.Lettera.Editor
 
         void Paint()
         {
-            for (int i = 0; i < m_Shown.Count; i++) m_List[i].EnableInClassList("lt-palette__row--on", i == m_At);
-            if (m_List.panel != null && m_At >= 0 && m_At < m_Shown.Count) m_List.ScrollTo(m_List[m_At]);
+            for (int i = 0; i < m_Rows.Count; i++) m_Rows[i].EnableInClassList("lt-palette__row--on", i == m_At);
+            if (m_List.panel != null && m_At >= 0 && m_At < m_Rows.Count) m_List.ScrollTo(m_Rows[m_At]);
+        }
+    }
+
+    /// <summary>A row that shows a value in words and chooses it from a list with a search. For what is no enum: a type, an effect's parameter, a family.</summary>
+    public sealed class LtPick : VisualElement
+    {
+        readonly Func<string> m_Shown;
+        readonly Func<List<(string name, string hint, object value)>> m_Items;
+        readonly Action<object> m_Chosen;
+        readonly Func<object, string> m_GroupOf;
+        readonly Label m_Value;
+
+        public LtPick(string label, Func<string> shown, Func<List<(string name, string hint, object value)>> items, Action<object> chosen, string tooltip = null, Func<object, string> groupOf = null)
+        {
+            m_Shown = shown;
+            m_Items = items;
+            m_Chosen = chosen;
+            m_GroupOf = groupOf;
+            AddToClassList("lt-row");
+            AddToClassList("lt-pick");
+            this.tooltip = tooltip;
+            if (!string.IsNullOrEmpty(label)) Add(LtUI.Text(label, "lt-row__label"));
+            m_Value = LtUI.Clickable("", "lt-row__field lt-enum__value", "Choose", Open);
+            Add(m_Value);
+            Refresh();
+        }
+
+        public string Shown => m_Value.text;
+
+        public void Refresh() => m_Value.text = m_Shown() ?? "";
+
+        /// <summary>What a choice does.</summary>
+        public void Choose(object value)
+        {
+            m_Chosen(value);
+            Refresh();
+        }
+
+        void Open()
+        {
+            List<(string name, string hint, object value)> items = m_Items();
+            LtPopup.Show(m_Value, new Vector2(Mathf.Max(m_Value.worldBound.width, 300), Mathf.Min(70 + 24 * items.Count, 360)), () =>
+                new LtChoiceList(items, chosen =>
+                {
+                    Choose(chosen);
+                    LtPopup.CloseCurrent();
+                }, -1, items.Count > 8, m_GroupOf));
+        }
+    }
+
+    /// <summary>A row that opens to show more, built on first opening, so that a long list stays short and quick.</summary>
+    public sealed class LtFold : VisualElement
+    {
+        readonly Func<VisualElement> m_Build;
+        readonly VisualElement m_Body;
+        readonly Label m_Chevron;
+        bool m_Built;
+
+        public LtFold(string title, Func<VisualElement> build, bool open = false, string tooltip = null)
+        {
+            m_Build = build;
+            AddToClassList("lt-fold");
+            this.tooltip = tooltip;
+            m_Chevron = LtUI.Text(open ? "▾" : "▸", "lt-section__chevron");
+            VisualElement head = LtUI.El("lt-fold__head", m_Chevron, LtUI.Text(title, "lt-row__label lt-fold__title"));
+            head.RegisterCallback<ClickEvent>(e => Open = !Open);
+            Add(head);
+            m_Body = LtUI.El("lt-fold__body");
+            Add(m_Body);
+            m_Body.style.display = DisplayStyle.None;
+            if (open) Open = true;
+        }
+
+        public bool Open
+        {
+            get => m_Body.style.display != DisplayStyle.None;
+            set
+            {
+                if (value && !m_Built)
+                {
+                    m_Built = true;
+                    m_Body.Add(m_Build());
+                }
+                m_Body.style.display = value ? DisplayStyle.Flex : DisplayStyle.None;
+                m_Chevron.text = value ? "▾" : "▸";
+            }
         }
     }
 
@@ -1001,6 +1151,13 @@ namespace FirstSymbol.Lettera.Editor
             return this;
         }
 
+        /// <summary>Refresh, for a chain.</summary>
+        public LtStatus RefreshNow()
+        {
+            Refresh();
+            return this;
+        }
+
         public void Refresh()
         {
             foreach ((Label value, VisualElement dot, Func<string> text, Func<State> state) in m_Lines)
@@ -1211,10 +1368,10 @@ namespace FirstSymbol.Lettera.Editor
         /// <summary>Grip, remove and the like hidden on every list, kept per user. Alt+R.</summary>
         public static bool ControlsHidden
         {
-            get => EditorPrefs.GetBool(HiddenKey, false);
+            get => LtPrefs.GetBool(HiddenKey, false);
             set
             {
-                EditorPrefs.SetBool(HiddenKey, value);
+                LtPrefs.SetBool(HiddenKey, value);
                 s_HiddenChanged?.Invoke();
             }
         }
