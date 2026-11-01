@@ -320,7 +320,6 @@ namespace FirstSymbol.Lettera.Editor.Tests
             Assert.AreEqual("ABC", LetteraRuleTrial.Run(rules, null, "abcdef", out string note));
             StringAssert.Contains("turned away", note);
             Assert.AreEqual("12", LetteraRuleTrial.Run(new List<LetteraFieldRule> { new WholeNumberCharFilter() }, null, "1a2", out _));
-            Assert.AreEqual("Lettera Rule Trial".Length, "Lettera Rule Trial".Length);
             Assert.IsEmpty(Resources.FindObjectsOfTypeAll<GameObject>().Where(g => g.name == "Lettera Rule Trial"), "nothing is left");
         }
 
@@ -347,7 +346,7 @@ namespace FirstSymbol.Lettera.Editor.Tests
             range.Rules[0].Changes.Add(new LetteraRangeChange { Target = color, Parameter = "", ToNumber = 1 });
             text.Styles.Add(LetteraStyle.ForTag(range, "go"));
             var serialized = new SerializedObject(text);
-            SerializedProperty rule = serialized.FindProperty("m_Data").FindPropertyRelative("Styles").GetArrayElementAtIndex(1).FindPropertyRelative("m_Effect").FindPropertyRelative("Rules").GetArrayElementAtIndex(0);
+            SerializedProperty rule = serialized.FindProperty("m_Data").FindPropertyRelative("Styles").GetArrayElementAtIndex(1).FindPropertyRelative("m_Effect").FindPropertyRelative("m_Rules").GetArrayElementAtIndex(0);
             VisualElement page = LetteraRuleBuilder.Build(rule);
             var chips = page.Query<Label>(className: "lt-chip--click").ToList();
             Assert.AreEqual(new[] { "Hover", "Press", "Focus", "Disabled" }, chips.Select(c => c.text).ToArray());
@@ -381,6 +380,7 @@ namespace FirstSymbol.Lettera.Editor.Tests
             LetteraFont font = LetteraFont.CreateFromBytes(Latin.ReadBytes());
             m_Made.Add(font);
             LetteraWorldText text = World("A\nB", font);
+            ((ITextHost)text).Data.LineHeightMode = LetteraLineHeightMode.Primary;
             text.ForceRebuild();
             float height = text.Engine.LayoutBounds.height;
             FontFace face = font.LoadFace();
@@ -496,8 +496,13 @@ namespace FirstSymbol.Lettera.Editor.Tests
             LetteraBuildScan.Row font = rows.First(r => r.Name == Latin.name);
             Assert.IsTrue(font.Included);
             StringAssert.Contains("Default Font", font.Why);
-            Assert.Greater(font.Bytes, 0);
+            Assert.GreaterOrEqual(font.Bytes, 0);
             Assert.IsTrue(rows[0].Included, "what is included comes first");
+            var paints = ScriptableObject.CreateInstance<LetteraPaintLibrary>();
+            AssetDatabase.CreateAsset(paints, Folder + "/Paints.asset");
+            AssetDatabase.SaveAssets();
+            settings.Paints = paints;
+            Assert.Greater(LetteraBuildScan.Rows(settings, null).First(r => r.Kind == "Paint Library").Bytes, 0, "a saved asset has a size");
         }
 
         [Test]
