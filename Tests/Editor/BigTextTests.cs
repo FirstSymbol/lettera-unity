@@ -44,7 +44,7 @@ namespace FirstSymbol.Lettera.Editor.Tests
             text.Text = Page(100 * 1024);
             Canvas.ForceUpdateCanvases();
             text.ForceRebuild();
-            int vertices = text.Engine.VertexCount;
+            int vertices = ((ITextComponent)text).SharedEngine.VertexCount;
             Assert.Greater(vertices, LetteraText.MaxPartVertices);
             Assert.AreEqual(vertices / 4 / (LetteraText.MaxPartVertices / 4), text.PartCount, "whole parts beyond the first");
             int drawn = text.canvasRenderer.GetMesh()?.vertexCount ?? 0;
