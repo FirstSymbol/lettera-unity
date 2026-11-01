@@ -206,6 +206,27 @@ namespace FirstSymbol.Lettera.Timeline.Editor.Tests
         }
 
         [Test]
+        public void ALineChangingUnderASequenceTrackIsFine()
+        {
+            LetteraSequencer sequencer = Sequenced(out LetteraWorldText text);
+            TimelineAsset timeline = Timeline();
+            var lines = timeline.CreateTrack<LetteraTextTrack>(null, "Lines");
+            Line(lines, "<go>one</go>", 0, 1);
+            Line(lines, "<go>two</go>", 1, 1);
+            var motion = timeline.CreateTrack<LetteraSequenceTrack>(null, "Motion");
+            motion.CreateClip<LetteraSequenceShot>().duration = 2;
+            PlayableDirector director = Director(timeline);
+            director.SetGenericBinding(lines, text.gameObject);
+            director.SetGenericBinding(motion, sequencer);
+            director.RebuildGraph();
+            At(director, 0.5);
+            At(director, 1.5);
+            Assert.AreEqual(1f, Held(text), 0.26f);
+            text.ForceRebuild();
+            Assert.AreEqual("<go>two</go>", text.Engine.RenderedSourceText);
+        }
+
+        [Test]
         public void ATextGoneBeforeTheGraphBreaksNothing()
         {
             LetteraWorldText text = Make("own");

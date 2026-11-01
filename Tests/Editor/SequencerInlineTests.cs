@@ -77,6 +77,17 @@ namespace FirstSymbol.Lettera.Editor.Tests
         }
 
         [Test]
+        public void ATextChangedUnderALiveCueIsNoEndlessParse()
+        {
+            LetteraSequencer sequencer = Sequenced("<go>a</go>", out LetteraWorldText text, out _, Cue(0, 1));
+            sequencer.Seek(0.5f);
+            text.Text = "<go>other</go>";
+            Assert.DoesNotThrow(() => sequencer.Seek(0.75f));
+            Clock(0.0001f);
+            Assert.AreEqual(0.75f, HeldAmplitude(text), 1e-3f);
+        }
+
+        [Test]
         public void TheSameProgressGivesTheSameVertices()
         {
             LetteraSequencer sequencer = Sequenced("<go>wave</go>", out LetteraWorldText text, out WaveMotion wave, Cue(0, 1, 2));

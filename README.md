@@ -161,7 +161,7 @@ field.Submitted += value => Debug.Log(value);
 ```
 
 - **Motion** runs on a pose pass: no rebuild and nothing allocated per frame. `RevealEffect` is a typewriter, `MarqueeEffect` a ticker.
-- **`LetteraSequencer`** ramps any effect parameter over a timeline, and a curve can drive its `Progress`. `LetteraParamLink` gives one parameter an animatable field. Timeline tracks appear when that package is installed.
+- **`LetteraSequencer`** ramps any effect parameter over a timeline, and a curve can drive its `Progress`. **Tools > Lettera > Sequencer** shows its cues on rows, to drag, split and copy. `LetteraParamLink` gives one parameter an animatable field. Timeline tracks appear when that package is installed.
 - **Ranges** answer a pointer and a keyboard: `LetteraRangeRouter.Of(text).All.Activated += e => Debug.Log(e.Primary);`. Links open through an allow-list of schemes, in `LetteraSettings.Motion.LinkSchemes`.
 - **`LetteraRangeRule`** changes parameters on hover, press or focus. **Inline items** come from `InlineEffect` or a `LetteraInlineLibrary`. **`LetteraSemanticTree`** describes ranges for an assistive bridge. Effects can join any stage of a rebuild through `Stages`.
 - `LetteraAccessibility.ReducedMotion` is honored everywhere, and on the web it follows the browser.

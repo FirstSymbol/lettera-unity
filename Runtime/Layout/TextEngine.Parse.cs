@@ -171,6 +171,8 @@ namespace FirstSymbol.Lettera
         public void EnsureParsed()
         {
             if (m_Dirty < DirtyLevel.Parse) return;
+            // A hold refreshes during the parse and asks again: by then this one must already count as done.
+            m_Dirty = DirtyLevel.Shape;
             Parse();
             m_EarlyChanges |= LetteraChanges.Text;
             m_Dirty = DirtyLevel.Shape;
