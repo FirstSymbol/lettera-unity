@@ -111,7 +111,7 @@ namespace FirstSymbol.Lettera.Samples
             layout.preferredHeight = 52;
             LetteraText shown = Row("");
             LetteraEditable editable = field.GetComponentInChildren<LetteraEditable>();
-            editable.Text = "\\frac{1}{x^2}";
+            editable.Source = "\\frac{1}{x^2}";
             editable.ValueChanged += value => shown.Text = "<math>" + value + "</math>";
             shown.Text = "<math>" + editable.Source + "</math>";
         }
