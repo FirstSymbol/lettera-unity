@@ -23,6 +23,21 @@ namespace FirstSymbol.Lettera.Editor.Tests
         public void MarkupConverts(string source, string expected) => Assert.AreEqual(expected, LetteraTmpMarkup.Convert(source, new List<string>()));
 
         [Test]
+        public void AScriptInTheirNamespaceGetsOurUsing()
+        {
+            string done = LetteraTmpScript.Rewrite("using UnityEngine;\nnamespace TMPro.Examples\n{\n    class A : MonoBehaviour { TextMeshPro m_T; }\n}\n", new System.Collections.Generic.List<LetteraTmpNote>());
+            StringAssert.Contains("using FirstSymbol.Lettera;\nusing UnityEngine;", done);
+            StringAssert.Contains("LetteraWorldText m_T", done);
+        }
+
+        [Test]
+        public void AScriptThatUsesNothingOfTheirsStaysAsItIs()
+        {
+            const string source = "using UnityEngine;\nclass A : MonoBehaviour { }\n";
+            Assert.AreEqual(source, LetteraTmpScript.Rewrite(source, new System.Collections.Generic.List<LetteraTmpNote>()));
+        }
+
+        [Test]
         public void MarkupSaysWhatItCouldNotCarry()
         {
             var notes = new List<string>();

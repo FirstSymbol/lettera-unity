@@ -419,6 +419,7 @@ namespace FirstSymbol.Lettera.Editor.Migration
             }
 
             // using TMPro; becomes ours, and stays too while something of it remains.
+            bool hadUsing = false;
             for (int w = 0; w + 1 < words.Count; w++)
             {
                 if (Word(w) != "using" || Word(w + 1) != "TMPro") continue;
@@ -426,8 +427,22 @@ namespace FirstSymbol.Lettera.Editor.Migration
                 int semi = source.IndexOf(';', words[w + 1].End);
                 if (semi > 0) edits.Add((words[w].Start, semi + 1, replacement));
                 anyTmp = true;
+                hadUsing = true;
             }
             if (!anyTmp && edits.Count == 0) return source;
+
+            // A script inside TextMesh Pro's own namespace needs no using of it, and needs ours all the same.
+            if (!hadUsing && edits.Count > 0)
+            {
+                int place = 0;
+                for (int w = 0; w < words.Count; w++)
+                {
+                    if (Word(w) != "using") continue;
+                    place = words[w].Start;
+                    break;
+                }
+                edits.Add((place, place, "using FirstSymbol.Lettera;\n"));
+            }
 
             edits.Sort((a, b) => a.start.CompareTo(b.start));
             var result = new StringBuilder(source.Length + 64);

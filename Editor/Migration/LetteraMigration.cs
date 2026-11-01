@@ -39,6 +39,7 @@ namespace FirstSymbol.Lettera.Editor.Migration
         static IEnumerable<string> Files(string root)
         {
             var pending = new Stack<string>();
+            var essentials = new List<string>();
             pending.Push(root);
             while (pending.Count > 0)
             {
@@ -48,11 +49,19 @@ namespace FirstSymbol.Lettera.Editor.Migration
                     string name = Path.GetFileName(sub);
                     if (name.StartsWith(".") || name.EndsWith("~") || name == "Library" || name == "Temp" || name == "Logs" || name == "obj") continue;
                     if (name == "Lettera" && folder.Replace('\\', '/').EndsWith("Plugins")) continue;
-                    if (name == "TextMesh Pro" && File.Exists(Path.Combine(sub, "Resources", "TMP Settings.asset"))) continue;
+                    // Its own folder stays as it is, yet the fonts in it are what most texts use.
+                    if (name == "TextMesh Pro" && File.Exists(Path.Combine(sub, "Resources", "TMP Settings.asset")))
+                    {
+                        essentials.Add(sub);
+                        continue;
+                    }
                     pending.Push(sub);
                 }
                 foreach (string file in Directory.GetFiles(folder)) yield return file.Replace('\\', '/');
             }
+            foreach (string folder in essentials)
+                foreach (string file in Directory.GetFiles(folder, "*.asset", SearchOption.AllDirectories))
+                    yield return file.Replace('\\', '/');
         }
 
         static int Count(string text, string what)
