@@ -1,0 +1,31 @@
+{
+    "name": "FirstSymbol.Lettera.Localization.Editor",
+    "rootNamespace": "FirstSymbol.Lettera.Localization.Editor",
+    "references": [
+        "FirstSymbol.Lettera",
+        "FirstSymbol.Lettera.Editor",
+        "FirstSymbol.Lettera.Localization",
+        "Unity.Localization",
+        "Unity.ResourceManager",
+        "Unity.Addressables"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [
+        "LETTERA_LOCALIZATION"
+    ],
+    "versionDefines": [
+        {
+            "name": "com.unity.localization",
+            "expression": "1.0.0",
+            "define": "LETTERA_LOCALIZATION"
+        }
+    ],
+    "noEngineReferences": false
+}
