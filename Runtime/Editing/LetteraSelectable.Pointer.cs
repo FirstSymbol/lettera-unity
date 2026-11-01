@@ -69,7 +69,7 @@ namespace FirstSymbol.Lettera
                 return;
             }
             LetteraPointerKind kind = Classify(data);
-            m_PointerCamera = data.pressEventCamera != null ? data.pressEventCamera : data.enterEventCamera;
+            m_PointerCamera = PointerCamera != null ? PointerCamera : data.pressEventCamera != null ? data.pressEventCamera : data.enterEventCamera;
             m_PointerId = data.pointerId;
             m_PressPosition = m_PointerPosition = data.position;
             m_PressTime = LetteraEditClock.Now;
@@ -118,7 +118,7 @@ namespace FirstSymbol.Lettera
         /// <summary>True while a range holds this press: selection stays as it is, and no selection event goes out.</summary>
         public bool Claimed => m_Claimed;
 
-        LetteraRangeRouter RangeRouter => Engine.ActiveRanges.Count > 0 ? LetteraRangeRouter.Of(Host) : null;
+        LetteraRangeRouter RangeRouter => !Authoring && Engine.ActiveRanges.Count > 0 ? LetteraRangeRouter.Of(Host) : null;
 
         /// <summary>Control, or Command on Apple systems: what makes a range in a field answer.</summary>
         internal static bool IsLinkModifierHeld => s_LinkModifierOverride ?? (LetteraKeyTable.Family == LetteraPlatformFamily.Apple ? LegacyKey(KeyCode.LeftCommand) || LegacyKey(KeyCode.RightCommand) : IsControlHeld());

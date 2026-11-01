@@ -672,16 +672,14 @@ namespace FirstSymbol.Lettera.Editor.Cli
             return new Dictionary<string, object> { ["selected"] = LetteraCliScene.Path(go) };
         });
 
-        const string EditMenu = "Tools/Lettera/Edit Text In Scene";
-
         internal static object EditInScene(string target) => Run(() =>
         {
             MonoBehaviour text = Text(Require(target));
             Selection.activeGameObject = text.gameObject;
-            // Asked for by its menu, so that this stays right if the session's code moves. A missing menu would log an error.
-            bool exists = TypeCache.GetMethodsWithAttribute<MenuItem>().Any(m => m.GetCustomAttributes<MenuItem>().Any(a => a.menuItem == EditMenu));
-            if (!exists) return new Dictionary<string, object> { ["selected"] = LetteraCliScene.Path(text.gameObject), ["started"] = false, ["why"] = "This version has no in-scene editing yet. The text is selected." };
-            return new Dictionary<string, object> { ["selected"] = LetteraCliScene.Path(text.gameObject), ["started"] = EditorApplication.ExecuteMenuItem(EditMenu) };
+            bool started = LetteraSceneEditView.Begin(text, out string why);
+            var answer = new Dictionary<string, object> { ["selected"] = LetteraCliScene.Path(text.gameObject), ["started"] = started };
+            if (!started) answer["why"] = why;
+            return answer;
         });
 
         // -----------------------------------------------------------------------------------------------------

@@ -766,7 +766,7 @@ namespace FirstSymbol.Lettera
 
         internal IReadOnlyList<LetteraMenuEntry> MenuEntries => m_MenuEntries;
 
-        void BuildMenuEntries()
+        internal void BuildMenuEntries()
         {
             m_MenuCommands.Clear();
             m_MenuEntries.Clear();
@@ -804,7 +804,7 @@ namespace FirstSymbol.Lettera
             m_Menu.Show(placement, m_MenuEntries, RunMenuEntry);
         }
 
-        void RunMenuEntry(int index)
+        internal void RunMenuEntry(int index)
         {
             if (index < 0 || index >= m_MenuEntries.Count) return;
             LetteraMenuEntry entry = m_MenuEntries[index];
