@@ -63,18 +63,16 @@ namespace FirstSymbol.Lettera.Editor
                 Changed("Texture");
                 m_Material.SetTexture("_BaseMap", e.newValue as Texture);
             });
-            var space = new UnityEngine.UIElements.Toggle { value = m_Material.GetFloat("_TextureSpace") > 0.5f };
-            space.RegisterValueChangedCallback(e =>
+            VisualElement space = LtUI.El("lt-switch-holder", LtUI.Toggle(() => m_Material.GetFloat("_TextureSpace") > 0.5f, on =>
             {
                 Changed("Texture Space");
-                m_Material.SetFloat("_TextureSpace", e.newValue ? 1 : 0);
-            });
-            var instancing = new UnityEngine.UIElements.Toggle { value = m_Material.enableInstancing };
-            instancing.RegisterValueChangedCallback(e =>
+                m_Material.SetFloat("_TextureSpace", on ? 1 : 0);
+            }));
+            VisualElement instancing = LtUI.El("lt-switch-holder", LtUI.Toggle(() => m_Material.enableInstancing, on =>
             {
                 Changed("GPU Instancing");
-                m_Material.enableInstancing = e.newValue;
-            });
+                m_Material.enableInstancing = on;
+            }));
             page.Add(LtUI.Card("Color", ColorRow("Tint", "_BaseColor", false), LtUI.Row("Texture", texture), LtUI.Row("Across The Text", space, "Off: each surface maps on its own. On: one mapping across the whole text.")));
             page.Add(LtUI.Card("Surface", Slider("Metallic", "_Metallic", null), Slider("Smoothness", "_Smoothness", null), ColorRow("Emission", "_EmissionColor", true), Slider("Light Influence", "_LightInfluence", "0 is unlit, 1 is fully lit.")));
             page.Add(LtUI.Card("Drawing", LtUI.Row("GPU Instancing", instancing, "Identical texts sharing one mesh draw as one batch.")));

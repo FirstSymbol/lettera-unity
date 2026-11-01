@@ -44,6 +44,9 @@ namespace FirstSymbol.Lettera.Editor
             foreach (LetteraWordDictionary dictionary in settings.Dictionaries)
                 if (dictionary != null)
                     rows.Add(new Row { Kind = "Dictionary", Name = dictionary.name, Included = true, Bytes = dictionary.Data != null ? SizeOf(dictionary.Data) : 0, Why = "Listed in these settings" });
+            foreach (string shader in new[] { "LetteraUI", "LetteraWorld", "LetteraWorldLit" })
+                rows.Add(new Row { Kind = "Shader", Name = shader, Included = true, Bytes = 0, Why = "Always: it lives in the package's Resources" });
+            rows.Add(new Row { Kind = "Font", Name = "LetteraWebFont", Included = true, Bytes = 0, Why = "Always: it lives in the package's Resources, for the web" });
             bool math = !HasDefine("LETTERA_NO_MATH"), solid = !HasDefine("LETTERA_NO_3D");
             rows.Add(new Row { Kind = "Module", Name = "Formulas", Included = math, Why = math ? "On unless LETTERA_NO_MATH is set" : "LETTERA_NO_MATH is set" });
             rows.Add(new Row { Kind = "Module", Name = "3D text", Included = solid, Why = solid ? "On unless LETTERA_NO_3D is set" : "LETTERA_NO_3D is set" });

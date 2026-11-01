@@ -105,37 +105,61 @@ namespace FirstSymbol.Lettera.Editor
             // A mitred join at a contour's closing corner throws a long spike.
             painter.lineJoin = LineJoin.Round;
             painter.lineCap = LineCap.Round;
+            Trace(painter, c, c.Length, P);
+        }
+
+        /// <summary>Strokes a glyph's outline, a contour at a time. A segment of no length gives the painter no direction and it throws a spike to the corner of the element, so such segments are left out; a contour already back at its start needs no closing.</summary>
+        internal static void Trace(Painter2D painter, float[] c, int length, Func<float, float, Vector2> at)
+        {
             bool open = false;
-            for (int i = 0; i < c.Length;)
+            Vector2 start = default, last = default;
+            void Line(Vector2 to)
+            {
+                if ((to - last).sqrMagnitude < 0.0001f) return;
+                painter.LineTo(to);
+                last = to;
+            }
+            for (int i = 0; i < length;)
             {
                 int command = (int)c[i];
-                if (command == 0 && i + 2 < c.Length)
+                if (command == 0 && i + 2 < length)
                 {
-                    // Each contour is its own path: the painter joins a later one to the corner of the element otherwise.
                     if (open) painter.Stroke();
                     painter.BeginPath();
                     open = true;
-                    painter.MoveTo(P(c[i + 1], c[i + 2]));
+                    start = last = at(c[i + 1], c[i + 2]);
+                    painter.MoveTo(start);
                     i += 3;
                 }
-                else if (command == 1 && i + 2 < c.Length)
+                else if (command == 1 && i + 2 < length)
                 {
-                    painter.LineTo(P(c[i + 1], c[i + 2]));
+                    Line(at(c[i + 1], c[i + 2]));
                     i += 3;
                 }
-                else if (command == 2 && i + 4 < c.Length)
+                else if (command == 2 && i + 4 < length)
                 {
-                    painter.QuadraticCurveTo(P(c[i + 1], c[i + 2]), P(c[i + 3], c[i + 4]));
+                    Vector2 end = at(c[i + 3], c[i + 4]);
+                    if ((end - last).sqrMagnitude >= 0.0001f)
+                    {
+                        painter.QuadraticCurveTo(at(c[i + 1], c[i + 2]), end);
+                        last = end;
+                    }
                     i += 5;
                 }
-                else if (command == 3 && i + 6 < c.Length)
+                else if (command == 3 && i + 6 < length)
                 {
-                    painter.BezierCurveTo(P(c[i + 1], c[i + 2]), P(c[i + 3], c[i + 4]), P(c[i + 5], c[i + 6]));
+                    Vector2 end = at(c[i + 5], c[i + 6]);
+                    if ((end - last).sqrMagnitude >= 0.0001f)
+                    {
+                        painter.BezierCurveTo(at(c[i + 1], c[i + 2]), at(c[i + 3], c[i + 4]), end);
+                        last = end;
+                    }
                     i += 7;
                 }
                 else if (command == 4)
                 {
-                    painter.ClosePath();
+                    if ((last - start).sqrMagnitude >= 0.0001f) painter.ClosePath();
+                    last = start;
                     i++;
                 }
                 else

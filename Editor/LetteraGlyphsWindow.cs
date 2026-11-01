@@ -22,7 +22,8 @@ namespace FirstSymbol.Lettera.Editor
         {
             var window = GetWindow<LetteraGlyphsWindow>("Lettera Glyphs");
             window.minSize = new Vector2(320, 300);
-            window.m_Font.value = font;
+            window.m_FontValue = font;
+            window.m_Font?.Refresh();
             window.m_Text.value = text;
         }
 
@@ -31,20 +32,24 @@ namespace FirstSymbol.Lettera.Editor
 
         VisualElement m_Table, m_Outline;
         Label m_Target;
-        ObjectField m_Font;
+        LetteraFontAsset m_FontValue;
+        LtPick m_Font;
         TextField m_Text;
         GameObject m_Free;
 
         protected override void Build()
         {
             m_Target = LtUI.Text("", "lt-hint");
-            m_Font = new ObjectField { objectType = typeof(LetteraFontAsset), allowSceneObjects = false };
+            m_Font = new LtPick("Font", () => m_FontValue != null ? m_FontValue.name : "None: the system's", () => LtObject.Candidates(typeof(LetteraFontAsset)), chosen =>
+            {
+                m_FontValue = chosen as LetteraFontAsset;
+                ShowFree();
+            }, "Empty uses the system's.");
             m_Text = new TextField { value = "Hello مرحبا" };
             m_Text.AddToClassList("lt-source");
             m_Text.RegisterValueChangedCallback(_ => ShowFree());
-            m_Font.RegisterValueChangedCallback(_ => ShowFree());
             Page.Add(LtUI.Card("From A Text", PinToggle(), m_Target, LtUI.Clickable("Use Selected Text", "lt-add lt-add--small", "Shows what the selected text is drawing.", ShowSelected)));
-            Page.Add(LtUI.Card("Free", LtUI.Row("Font", m_Font, "Empty uses the system's."), LtUI.Row("Text", m_Text)));
+            Page.Add(LtUI.Card("Free", m_Font, LtUI.Row("Text", m_Text)));
             m_Outline = LtUI.El("lt-glyph");
             m_Outline.style.height = 200;
             Page.Add(LtUI.Card("One Glyph", m_Outline));
@@ -81,7 +86,7 @@ namespace FirstSymbol.Lettera.Editor
                 text.Hide();
             }
             LetteraWorldText bench = m_Free.GetComponent<LetteraWorldText>();
-            bench.Font = m_Font.value as LetteraFontAsset;
+            bench.Font = m_FontValue;
             bench.Text = m_Text.value ?? "";
             bench.ForceRebuild();
             Show(bench.Engine);
@@ -157,42 +162,7 @@ namespace FirstSymbol.Lettera.Editor
                 painter.strokeColor = new Color(0.6f, 0.45f, 1);
                 painter.lineWidth = 1.5f;
                 painter.lineJoin = LineJoin.Round;
-                painter.BeginPath();
-                int i = 0;
-                while (i < count)
-                {
-                    int command = (int)commands[i];
-                    if (command == 0 && i + 2 < count)
-                    {
-                        painter.MoveTo(P(commands[i + 1], commands[i + 2]));
-                        i += 3;
-                    }
-                    else if (command == 1 && i + 2 < count)
-                    {
-                        painter.LineTo(P(commands[i + 1], commands[i + 2]));
-                        i += 3;
-                    }
-                    else if (command == 2 && i + 4 < count)
-                    {
-                        painter.QuadraticCurveTo(P(commands[i + 1], commands[i + 2]), P(commands[i + 3], commands[i + 4]));
-                        i += 5;
-                    }
-                    else if (command == 3 && i + 6 < count)
-                    {
-                        painter.BezierCurveTo(P(commands[i + 1], commands[i + 2]), P(commands[i + 3], commands[i + 4]), P(commands[i + 5], commands[i + 6]));
-                        i += 7;
-                    }
-                    else if (command == 4)
-                    {
-                        painter.ClosePath();
-                        i += 1;
-                    }
-                    else
-                    {
-                        break;
-                    }
-                }
-                painter.Stroke();
+                LtGlyphCell.Trace(painter, commands, Math.Min(count, commands.Length), P);
             };
             m_Outline.Add(view);
         }

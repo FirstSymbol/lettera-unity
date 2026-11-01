@@ -967,21 +967,15 @@ namespace FirstSymbol.Lettera.Editor
         VisualElement SharedChoice<T>(string label, Func<LetteraCue, T> read, Action<LetteraCue, T> write) where T : struct, Enum
         {
             T[] values = (T[])Enum.GetValues(typeof(T));
-            var names = values.Select(v => ObjectNames.NicifyVariableName(v.ToString())).ToList();
-            var field = new DropdownField(names, 0);
-            LetteraCue[] cues = SelectedCues();
-            bool same = cues.All(c => read(c).Equals(read(cues[0])));
-            field.SetValueWithoutNotify(same ? names[Array.IndexOf(values, read(cues[0]))] : "—");
-            field.RegisterValueChangedCallback(e =>
+            var names = values.Select(v => (ObjectNames.NicifyVariableName(v.ToString()), (string)null, (object)v)).ToList();
+            return new LtPick(label, () =>
             {
-                int at = names.IndexOf(e.newValue);
-                if (at < 0) return;
-                Edit("Change " + label, () =>
-                {
-                    foreach (LetteraCue cue in SelectedCues()) write(cue, values[at]);
-                });
-            });
-            return LtUI.Row(label, field);
+                LetteraCue[] cues = SelectedCues();
+                return cues.All(c => read(c).Equals(read(cues[0]))) ? ObjectNames.NicifyVariableName(read(cues[0]).ToString()) : "—";
+            }, () => names, chosen => Edit("Change " + label, () =>
+            {
+                foreach (LetteraCue cue in SelectedCues()) write(cue, (T)chosen);
+            }));
         }
 
         VisualElement SharedSwitch(string label, Func<LetteraCue, bool> read, Action<LetteraCue, bool> write)

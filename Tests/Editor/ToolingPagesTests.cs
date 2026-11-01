@@ -174,6 +174,8 @@ namespace FirstSymbol.Lettera.Editor.Tests
                 if (e is PropertyField) problems.Add("a PropertyField of " + ((PropertyField)e).bindingPath);
                 if (e.ClassListContains("unity-list-view")) problems.Add("a Unity list");
                 if (e is Foldout) problems.Add("a Unity foldout");
+                if (e is PopupField<string> || e is DropdownField) problems.Add("a Unity popup");
+                if (e is ObjectField) problems.Add("a Unity object field");
             }
             return problems;
         }
