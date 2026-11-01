@@ -124,29 +124,6 @@ namespace FirstSymbol.Lettera
         }
     }
 
-    /// <summary>A reusable effect, usually a composite, as an asset. Each user runs its own copy; editing the asset reaches all of them.</summary>
-    [CreateAssetMenu(menuName = "Lettera/Effect Preset", fileName = "Lettera Effect Preset")]
-    public class LetteraEffectPreset : ScriptableObject
-    {
-        /// <summary>Raised when a preset changes, so texts using it rebuild.</summary>
-        public static event Action<LetteraEffectPreset> PresetChanged;
-
-        [SerializeReference] LetteraEffect m_Root;
-
-        internal int Version { get; private set; }
-
-        public LetteraEffect Root { get => m_Root; set { m_Root = value; NotifyChanged(); } }
-
-        /// <summary>Call after editing the root from a script.</summary>
-        public void NotifyChanged()
-        {
-            Version++;
-            PresetChanged?.Invoke(this);
-        }
-
-        void OnValidate() => NotifyChanged();
-    }
-
     /// <summary>Applies a preset asset. With no preset it does nothing and warns once. Its parameters go to the preset's root.</summary>
     [Serializable]
     public class PresetEffect : LetteraEffect

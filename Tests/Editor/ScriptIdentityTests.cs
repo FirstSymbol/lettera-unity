@@ -2,10 +2,12 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Text.RegularExpressions;
 using NUnit.Framework;
 using UnityEditor;
 using UnityEngine;
+using UnityEngine.TestTools;
 
 namespace FirstSymbol.Lettera.Tests
 {
@@ -16,79 +18,140 @@ namespace FirstSymbol.Lettera.Tests
 
         static IEnumerable<Type> SavedTypes()
         {
-            foreach (System.Reflection.Assembly assembly in AppDomain.CurrentDomain.GetAssemblies())
+            foreach (Assembly assembly in AppDomain.CurrentDomain.GetAssemblies())
             {
                 string name = assembly.GetName().Name;
                 if (!name.StartsWith("FirstSymbol.Lettera", StringComparison.Ordinal) || name.Contains("Tests")) continue;
                 foreach (Type type in assembly.GetTypes())
                 {
-                    if (type.IsAbstract || type.ContainsGenericParameters) continue;
+                    if (type.IsAbstract || type.ContainsGenericParameters || typeof(UnityEditor.Editor).IsAssignableFrom(type)) continue;
                     if (typeof(MonoBehaviour).IsAssignableFrom(type) || typeof(ScriptableObject).IsAssignableFrom(type)) yield return type;
                 }
             }
         }
 
+        [SetUp]
+        public void SetUp()
+        {
+            if (AssetDatabase.IsValidFolder(Folder)) AssetDatabase.DeleteAsset(Folder);
+            AssetDatabase.CreateFolder("Assets", "LetteraScriptIdentityTemp");
+            LogAssert.ignoreFailingMessages = true;
+        }
+
+        [TearDown]
+        public void TearDown()
+        {
+            AssetDatabase.DeleteAsset(Folder);
+            LogAssert.ignoreFailingMessages = false;
+        }
+
+        static string FileOf(string guid) => Path.GetFileNameWithoutExtension(AssetDatabase.GUIDToAssetPath(guid));
+
+        [Test]
+        public void TheListHoldsWhatItShould()
+        {
+            var names = SavedTypes().Select(t => t.Name).ToList();
+            CollectionAssert.IsSupersetOf(names, new[] { "LetteraText", "LetteraPaintLibrary", "LetteraContextMenu", "LetteraGlyphsWindow" });
+            Assert.Greater(names.Count, 40);
+        }
+
+        [Test]
+        public void EveryClassHasAScriptOfItsOwnName()
+        {
+            var lost = new List<string>();
+            foreach (Type type in SavedTypes())
+            {
+                MonoScript script = null;
+                if (typeof(MonoBehaviour).IsAssignableFrom(type))
+                {
+                    var go = new GameObject("x", typeof(RectTransform));
+                    var added = (MonoBehaviour)go.AddComponent(type);
+                    if (added != null) script = MonoScript.FromMonoBehaviour(added);
+                    UnityEngine.Object.DestroyImmediate(go);
+                }
+                else
+                {
+                    ScriptableObject made = ScriptableObject.CreateInstance(type);
+                    script = MonoScript.FromScriptableObject(made);
+                    UnityEngine.Object.DestroyImmediate(made);
+                }
+                // A component in a shared file gets a script object with no file behind it, so a null check is not enough.
+                string path = script != null ? AssetDatabase.GetAssetPath(script) : null;
+                if (string.IsNullOrEmpty(path) || Path.GetFileNameWithoutExtension(path) != type.Name) lost.Add(type.FullName + " -> " + path);
+            }
+            Assert.IsEmpty(lost, string.Join("\n", lost));
+        }
+
+        [Test]
+        public void EveryClassComesBackFromDisk()
+        {
+            var lost = new List<string>();
+            foreach (Type type in SavedTypes())
+            {
+                if (typeof(EditorWindow).IsAssignableFrom(type)) continue;
+                string path;
+                if (typeof(MonoBehaviour).IsAssignableFrom(type))
+                {
+                    var go = new GameObject("x", typeof(RectTransform));
+                    go.AddComponent(type);
+                    path = Folder + "/" + type.Name + ".prefab";
+                    PrefabUtility.SaveAsPrefabAsset(go, path);
+                    UnityEngine.Object.DestroyImmediate(go);
+                }
+                else
+                {
+                    path = Folder + "/" + type.Name + ".asset";
+                    AssetDatabase.CreateAsset(ScriptableObject.CreateInstance(type), path);
+                    AssetDatabase.SaveAssets();
+                }
+                AssetDatabase.ImportAsset(path, ImportAssetOptions.ForceUpdate);
+                EditorUtility.UnloadUnusedAssetsImmediate(true);
+                var guids = Regex.Matches(File.ReadAllText(path), @"m_Script: \{([^}]*)\}").Cast<Match>().Select(m => m.Groups[1].Value).ToList();
+                if (guids.Any(g => g.Contains("fileID: 0"))) lost.Add(type.Name + " saved no script");
+                bool found = guids.Any(g =>
+                {
+                    Match guid = Regex.Match(g, @"guid: (\w+)");
+                    return guid.Success && FileOf(guid.Groups[1].Value) == type.Name;
+                });
+                if (!found) lost.Add(type.Name + " saved under another file");
+
+                UnityEngine.Object back = AssetDatabase.LoadMainAssetAtPath(path);
+                bool holds = back is GameObject prefab ? prefab.GetComponent(type) != null : type.IsInstanceOfType(back);
+                if (!holds) lost.Add(type.Name + " did not load");
+            }
+            Assert.IsEmpty(lost, string.Join("\n", lost));
+        }
+
+        // A range topic has always been saved through this guid, when it was the first class of LetteraRanges.cs.
+        [Test]
+        public void ATopicSavedBeforeTheMoveStillLoads()
+        {
+            Assert.AreEqual("LetteraRangeTopic", FileOf("c5d15b056d3d1984f951aacd31ebbf43"));
+            string path = Folder + "/Old Topic.asset";
+            File.WriteAllText(path, Yaml("{fileID: 11500000, guid: c5d15b056d3d1984f951aacd31ebbf43, type: 3}", "Old Topic", "LetteraRangeTopic", ""));
+            AssetDatabase.ImportAsset(path, ImportAssetOptions.ForceUpdate);
+            Assert.IsInstanceOf<LetteraRangeTopic>(AssetDatabase.LoadMainAssetAtPath(path));
+        }
+
+        static string Yaml(string script, string name, string type, string fields) =>
+            "%YAML 1.1\n%TAG !u! tag:unity3d.com,2011:\n--- !u!114 &11400000\nMonoBehaviour:\n  m_ObjectHideFlags: 0\n  m_CorrespondingSourceObject: {fileID: 0}\n  m_PrefabInstance: {fileID: 0}\n  m_PrefabAsset: {fileID: 0}\n  m_GameObject: {fileID: 0}\n  m_Enabled: 1\n  m_EditorHideFlags: 0\n  m_Script: " + script + "\n  m_Name: " + name + "\n  m_EditorClassIdentifier: FirstSymbol.Lettera:FirstSymbol.Lettera:" + type + "\n" + fields;
+
+        // Measures what an older asset does today.
         [Test]
         public void Diag()
         {
-            AssetDatabase.CreateFolder("Assets", "LetteraScriptIdentityTemp");
-            var lines = new List<string>();
-            try
+            string path = Folder + "/Old Paints.asset";
+            File.WriteAllText(path, Yaml("{fileID: 0}", "Old Paints", "LetteraPaintLibrary", "  m_Swatches: []\n"));
+            AssetDatabase.ImportAsset(path, ImportAssetOptions.ForceUpdate);
+            EditorUtility.UnloadUnusedAssetsImmediate(true);
+            UnityEngine.Object back = AssetDatabase.LoadMainAssetAtPath(path);
+            var serialized = back != null ? new SerializedObject(back) : null;
+            File.WriteAllLines(@"D:\UnityBuilds\LetteraClean_Out\script_diag2.txt", new[]
             {
-                foreach (Type type in SavedTypes().OrderBy(t => t.FullName))
-                {
-                    if (typeof(UnityEditor.Editor).IsAssignableFrom(type)) continue;
-                    string line = type.FullName + (type.IsPublic ? " public " : " internal ") + type.BaseType.Name;
-                    try
-                    {
-                        MonoScript script = null;
-                        string path = null;
-                        if (typeof(MonoBehaviour).IsAssignableFrom(type))
-                        {
-                            var go = new GameObject("x", typeof(RectTransform));
-                            var c = (MonoBehaviour)go.AddComponent(type);
-                            script = c != null ? MonoScript.FromMonoBehaviour(c) : null;
-                            path = Folder + "/" + type.Name + ".prefab";
-                            PrefabUtility.SaveAsPrefabAsset(go, path);
-                            UnityEngine.Object.DestroyImmediate(go);
-                        }
-                        else if (!typeof(EditorWindow).IsAssignableFrom(type))
-                        {
-                            ScriptableObject so = ScriptableObject.CreateInstance(type);
-                            script = MonoScript.FromScriptableObject(so);
-                            path = Folder + "/" + type.Name + ".asset";
-                            AssetDatabase.CreateAsset(so, path);
-                            AssetDatabase.SaveAssets();
-                        }
-                        else
-                        {
-                            ScriptableObject so = ScriptableObject.CreateInstance(type);
-                            script = MonoScript.FromScriptableObject(so);
-                            UnityEngine.Object.DestroyImmediate(so);
-                        }
-                        line += " | script " + (script == null ? "NONE" : script.name + " at " + AssetDatabase.GetAssetPath(script));
-                        if (path != null)
-                        {
-                            AssetDatabase.ImportAsset(path, ImportAssetOptions.ForceUpdate);
-                            string yaml = File.ReadAllText(path);
-                            string found = string.Join(" ", Regex.Matches(yaml, @"m_Script: \{[^}]*\}").Cast<Match>().Select(m => m.Value));
-                            line += " | " + found + " | reload " + AssetDatabase.LoadMainAssetAtPath(path)?.GetType().Name;
-                        }
-                    }
-                    catch (Exception e) { line += " | threw " + e.GetType().Name + " " + e.Message; }
-                    lines.Add(line);
-                }
-                foreach (string shared in new[] { "Editing/LetteraCommands", "Editing/LetteraDropdown", "Styling/CompositeEffects", "Motion/LetteraReveal", "Editing/LetteraFieldRule", "Interaction/LetteraInline", "Editing/LetteraSelectionVisuals", "Editing/LetteraTouch", "Styling/LetteraPaint", "Motion/LetteraSequencer", "Editing/LetteraFieldFactory", "Interaction/LetteraRanges", "Interaction/LetteraLinks" })
-                {
-                    var script = AssetDatabase.LoadAssetAtPath<MonoScript>("Packages/com.firstsymbol.lettera/Runtime/" + shared + ".cs");
-                    lines.Add("FILE " + shared + " -> " + (script == null ? "null" : script.GetClass()?.FullName ?? "no class"));
-                }
-            }
-            finally
-            {
-                AssetDatabase.DeleteAsset(Folder);
-                File.WriteAllLines(@"D:\UnityBuilds\LetteraClean_Out\script_diag.txt", lines);
-            }
+                "type " + back?.GetType().FullName,
+                "script " + serialized?.FindProperty("m_Script")?.objectReferenceValue,
+                "yaml " + Regex.Match(File.ReadAllText(path), @"m_Script: \{[^}]*\}").Value,
+            });
         }
     }
 }
