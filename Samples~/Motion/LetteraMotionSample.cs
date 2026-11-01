@@ -6,7 +6,7 @@ namespace FirstSymbol.Lettera.Samples
 {
     /// <summary>
     /// Every motion, a typewriter, a ticker, a link, a spoiler, a hover rule and an inline sprite, built from code.
-    /// Add this to an empty object in an empty scene and press Play. It needs an EventSystem with an input module for links to answer.
+    /// Add this to an empty object in an empty scene and press Play.
     /// </summary>
     public class LetteraMotionSample : MonoBehaviour
     {
@@ -16,7 +16,13 @@ namespace FirstSymbol.Lettera.Samples
         {
             var canvasObject = new GameObject("Canvas", typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster));
             canvasObject.GetComponent<Canvas>().renderMode = RenderMode.ScreenSpaceOverlay;
-            if (FindAnyObjectByType<EventSystem>() == null) Debug.LogWarning("Add an EventSystem with an input module to click links and spoilers.");
+            if (FindAnyObjectByType<EventSystem>() == null)
+            {
+                var events = new GameObject("EventSystem", typeof(EventSystem));
+                System.Type module = System.Type.GetType("UnityEngine.InputSystem.UI.InputSystemUIInputModule, Unity.InputSystem");
+                if (module != null) events.AddComponent(module);
+                else events.AddComponent<StandaloneInputModule>();
+            }
 
             m_Column = new GameObject("Column", typeof(RectTransform), typeof(VerticalLayoutGroup)).GetComponent<RectTransform>();
             m_Column.SetParent(canvasObject.transform, false);

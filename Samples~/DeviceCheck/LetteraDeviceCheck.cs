@@ -48,8 +48,10 @@ namespace FirstSymbol.Lettera.Samples
             new Step("math-select", "Formula as one unit", "Tap beside a formula. Hold to select it. Copy and paste to Notes: you should see the source. On a Windows machine: paste into Word and Chrome.", "selection", "copy", "clipboard HTML"),
             new Step("solid", "3D text", "These letters are solid and lit, and turn slowly. Do they look closed and smooth? Do shadows fall on the ground? Do they fade by dots, and does the frame rate below stay smooth?", "solid shader", "budgets"),
             new Step("solid-many", "Many solids", "500 labels. Note the frame time.", "instancing", "batching", "budgets"),
-            new Step("motion", "Motion and scrolling", "Does the moving text run smoothly? Is a long document smooth to scroll?", "os preferences", "motion", "documents"),
+            new Step("motion", "Motion", "Does the moving text run smoothly?", "os preferences", "motion"),
+            new Step("scroll", "Scrolling", "Swipe this long text up and down, fast and slow. Does it follow the finger, coast, and stop at the ends? Note the frame time below.", "documents", "swipe", "frame rate", "memory"),
             new Step("touch", "Handles", "Do selection handles, the loupe and the context menu look right, and sit where they should?", "handles"),
+            new Step("compare", "Comparison build", "If you were also given the comparison build, run it now: press Start, leave the device alone until it is done, and send its block too. If not, Skip.", "comparison"),
         };
 
 #if !LETTERA_NO_3D
@@ -133,6 +135,7 @@ namespace FirstSymbol.Lettera.Samples
         int m_Index;
         string m_Note = "";
         LetteraEditable m_NoteField;
+        LetteraText m_Frame;
 
         void Start()
         {
@@ -300,7 +303,41 @@ namespace FirstSymbol.Lettera.Samples
                 case "motion":
                     Label("<wave>This text should move smoothly.</wave>", 32, new Vector2(0, 0.4f), new Vector2(1, 0.6f));
                     break;
+                case "scroll":
+                    ScrollPage();
+                    break;
             }
+        }
+
+        void ScrollPage()
+        {
+            var view = new GameObject("View", typeof(RectTransform), typeof(Image));
+            view.transform.SetParent(m_Root, false);
+            view.GetComponent<Image>().color = new Color(1, 1, 1, 0.05f);
+            var viewRect = (RectTransform)view.transform;
+            viewRect.anchorMin = new Vector2(0, 0.33f);
+            viewRect.anchorMax = new Vector2(1, 0.62f);
+            viewRect.offsetMin = new Vector2(24, 0);
+            viewRect.offsetMax = new Vector2(-24, 0);
+            var go = new GameObject("Text", typeof(RectTransform));
+            go.transform.SetParent(view.transform, false);
+            var rect = (RectTransform)go.transform;
+            rect.anchorMin = Vector2.zero;
+            rect.anchorMax = Vector2.one;
+            rect.sizeDelta = Vector2.zero;
+            var text = go.AddComponent<LetteraText>();
+            text.FontSize = 24;
+            var body = new StringBuilder();
+            for (int i = 0; i < 20000; i++) body.Append("Line ").Append(i).Append(": a long document scrolls with only what is near the view laid out.\n");
+            text.OpenDocument(LetteraRope.FromString(body.ToString()), takeOwnership: true);
+            view.AddComponent<LetteraDocumentScroller>().Text = text;
+            m_Frame = Label("", 24, new Vector2(0, 0.27f), new Vector2(1, 0.33f));
+        }
+
+        void Update()
+        {
+            if (m_Frame == null || Time.frameCount % 15 != 0) return;
+            m_Frame.SetText($"{Time.smoothDeltaTime * 1000:0.0} ms a frame");
         }
 
         GameObject Field(Vector2 anchorMin, Vector2 anchorMax)
@@ -356,11 +393,40 @@ namespace FirstSymbol.Lettera.Samples
             text.Append("Device: ").Append(SystemInfo.deviceModel).Append('\n');
             text.Append("Unity: ").Append(Application.unityVersion).Append(", graphics ").Append(SystemInfo.graphicsDeviceType).Append('\n');
             text.Append("Frame: ").Append((Time.smoothDeltaTime * 1000).ToString("0.0")).Append(" ms\n");
+            text.Append("Memory: ").Append(SystemInfo.systemMemorySize).Append(" MB in the device, ").Append(GC.GetTotalMemory(false) / (1024 * 1024)).Append(" MB managed now\n");
             foreach (LetteraNativeFeature feature in Enum.GetValues(typeof(LetteraNativeFeature)))
                 text.Append(feature).Append(": ").Append(LetteraPlatform.IsActive(feature) ? "on" : "off").Append(" - ").Append(LetteraPlatform.Why(feature)).Append('\n');
             foreach (string report in LetteraPlatform.Reports) text.Append("Report: ").Append(report).Append('\n');
             foreach (string result in m_Results) text.Append(result).Append('\n');
             return text.ToString();
+        }
+
+        // With no camera and no second device: the phone's own way of sending text, or a mail with it in the body.
+        static void Share(string result)
+        {
+#if UNITY_ANDROID && !UNITY_EDITOR
+            using (var intentClass = new AndroidJavaClass("android.content.Intent"))
+            using (var intent = new AndroidJavaObject("android.content.Intent"))
+            using (var player = new AndroidJavaClass("com.unity3d.player.UnityPlayer"))
+            using (AndroidJavaObject activity = player.GetStatic<AndroidJavaObject>("currentActivity"))
+            {
+                intent.Call<AndroidJavaObject>("setAction", intentClass.GetStatic<string>("ACTION_SEND")).Dispose();
+                intent.Call<AndroidJavaObject>("setType", "text/plain").Dispose();
+                intent.Call<AndroidJavaObject>("putExtra", intentClass.GetStatic<string>("EXTRA_TEXT"), result).Dispose();
+                using (AndroidJavaObject chooser = intentClass.CallStatic<AndroidJavaObject>("createChooser", intent, "Send the result"))
+                    activity.Call("startActivity", chooser);
+            }
+#else
+            Application.OpenURL(MailAddress(result));
+#endif
+        }
+
+        /// <summary>A mail with the result in it. Mail programs cut long addresses, so a long result says to use Copy.</summary>
+        public static string MailAddress(string result)
+        {
+            const int Longest = 1800;
+            string body = result.Length > Longest ? result.Substring(0, Longest) + "\n[Cut here. Copy has all of it.]" : result;
+            return "mailto:?subject=" + Uri.EscapeDataString("Lettera device check") + "&body=" + Uri.EscapeDataString(body);
         }
 
         void ShowResult()
@@ -377,12 +443,13 @@ namespace FirstSymbol.Lettera.Samples
             shown.TypedMarkup = LetteraTypedMarkup.AsText;
             shown.InsertText(result, "code.set");
             shown.GetComponent<LetteraText>().FontSize = 16;
-            Button("Copy", new Vector2(0, 0), new Vector2(1, 0.18f), new Color(0.2f, 0.4f, 0.8f), () =>
+            Button("Copy", new Vector2(0, 0), new Vector2(0.5f, 0.18f), new Color(0.2f, 0.4f, 0.8f), () =>
             {
                 shown.Selectable.Activate();
                 shown.Selectable.SelectAll();
                 shown.Selectable.Copy();
             });
+            Button("Share", new Vector2(0.5f, 0), new Vector2(1, 0.18f), new Color(0.15f, 0.55f, 0.3f), () => Share(result));
 #if UNITY_ANDROID || UNITY_IOS
             try
             {

@@ -81,6 +81,31 @@
       "displayName": "Timeline",
       "description": "Needs the Timeline package. A cut scene built from code: a line typed by a clip, a sequencer and a linked parameter played by tracks.",
       "path": "Samples~/Timeline"
+    },
+    {
+      "displayName": "Emoji",
+      "description": "Flags, joined sequences, skin tones, keycaps, alpha and color on emoji, and a small color font of its own.",
+      "path": "Samples~/Emoji"
+    },
+    {
+      "displayName": "Layout",
+      "description": "One box of text with a live control for alignment, wrap, overflow, auto size, line height, trim, curve and padding.",
+      "path": "Samples~/Layout"
+    },
+    {
+      "displayName": "Fonts",
+      "description": "System fonts, a stack, a variable axis, OpenType features, a pixel font and an icon font, made from code.",
+      "path": "Samples~/Fonts"
+    },
+    {
+      "displayName": "Styles",
+      "description": "A gallery beside its markup: every layer, gradients, filters, presets, a tag of your own and an effect with its own shader.",
+      "path": "Samples~/Styles"
+    },
+    {
+      "displayName": "Rich Editor",
+      "description": "A word processor's page: a toolbar that follows the caret, the keys you expect, and paste that keeps formatting.",
+      "path": "Samples~/RichEditor"
     }
   ]
 }
