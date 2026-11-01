@@ -789,6 +789,7 @@ namespace FirstSymbol.Lettera
         internal void OpenMenu(LetteraMenuPlacement placement)
         {
             bool handled = false;
+            m_MenuPlacement = placement;
             MenuRequested?.Invoke(placement, ref handled);
             if (handled) return;
             BuildMenuEntries();
@@ -799,7 +800,6 @@ namespace FirstSymbol.Lettera
                 HideMenu();
                 return;
             }
-            m_MenuPlacement = placement;
             m_Menu = ResolvePresenter();
             m_Menu.Show(placement, m_MenuEntries, RunMenuEntry);
         }

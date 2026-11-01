@@ -39,8 +39,8 @@ namespace FirstSymbol.Lettera.Editor.Tests
             LetteraSceneEditInput.CompositionOverride = null;
             TextEngine.FontsGone = false;
             Selection.activeObject = null;
-            if (m_Target != null) Object.DestroyImmediate(m_Target);
             if (m_Camera != null) Object.DestroyImmediate(m_Camera.gameObject);
+            if (m_Target != null) Object.DestroyImmediate(m_Target);
             if (StageUtility.GetCurrentStage() is PrefabStage) StageUtility.GoToMainStage();
             EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
             AssetDatabase.DeleteAsset(Folder);
