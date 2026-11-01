@@ -435,7 +435,7 @@ namespace FirstSymbol.Lettera.Text3D.Tests
                 if (problem != null)
                 {
                     open++;
-                    if (problems.Count < 12) problems.Add("U+" + codes[i].ToString("X4") + ": " + problem);
+                    if (problems.Count < 12) problems.Add("U+" + codes[i].ToString("X4") + ": why " + LetteraSolidCache.LastCapFailure + ", " + problem);
                 }
             }
             Debug.Log($"{file}: {glyphs} glyphs, {vertices / Mathf.Max(glyphs, 1)} vertices each, {watch.Elapsed.TotalMilliseconds / Mathf.Max(glyphs, 1):0.00} ms each, clamped {LetteraSolidCache.BevelsClamped}, caps dropped {LetteraSolidCache.CapsDropped}");

@@ -112,6 +112,8 @@ namespace FirstSymbol.Lettera
         internal static int Failures { get; private set; }
         internal static int BevelsClamped { get; private set; }
         internal static int CapsDropped { get; private set; }
+        /// <summary>Why a cap last failed: 1 a bridge, 2 no ear left, 3 the area did not add up.</summary>
+        internal static int LastCapFailure { get; private set; }
         internal static int Count => s_Entries.Count;
         internal static long Bytes => s_Bytes;
 
@@ -188,7 +190,7 @@ namespace FirstSymbol.Lettera
             var vertices = new NativeList<LetteraSolidVertex>(1024, Allocator.TempJob);
             var indices = new NativeList<int>(4096, Allocator.TempJob);
             var starts = new NativeArray<int>(6, Allocator.TempJob);
-            var report = new NativeArray<int>(4, Allocator.TempJob);
+            var report = new NativeArray<int>(5, Allocator.TempJob);
             var job = new LetteraSolidBuildJob
             {
                 Commands = input,
@@ -226,6 +228,7 @@ namespace FirstSymbol.Lettera
                 entry.BackHeight = job.Params.BackHeight;
                 BevelsClamped += report[1];
                 CapsDropped += report[2];
+                LastCapFailure = report[4];
             }
             input.Dispose();
             front.Dispose();
