@@ -695,12 +695,17 @@ namespace FirstSymbol.Lettera.Editor
         {
             if (!m_HasSelection)
                 RememberSelection();
-            if (!m_HasSelection)
+            Format(effect, parameter, m_SelectionA, m_SelectionB);
+            m_HasSelection = false;
+        }
+
+        internal void Format(Type effect, string parameter, int from, int to)
+        {
+            if (from == to)
             {
                 ToggleWholeText(effect);
                 return;
             }
-            m_HasSelection = false;
             string tag = BoundTag(effect);
             if (tag == null)
             {
@@ -710,7 +715,7 @@ namespace FirstSymbol.Lettera.Editor
                 return;
             }
             m_NoTag.style.display = DisplayStyle.None;
-            WrapRange(m_SelectionA, m_SelectionB, "<" + tag + parameter + ">", "</" + tag + ">");
+            WrapRange(from, to, "<" + tag + parameter + ">", "</" + tag + ">");
         }
 
         string BoundTag(Type effect)
@@ -718,6 +723,17 @@ namespace FirstSymbol.Lettera.Editor
             TextEngine engine = Engine;
             if (engine == null) return null;
             engine.EnsureParsed();
+            // This text's own word first, then its presets', then what every text has.
+            if (m_Object.targetObject is ITextHost host)
+            {
+                string own = LetteraVocabulary.TagFor(effect, host.Data.Styles);
+                if (own != null) return own;
+                foreach (LetteraStylePreset preset in host.Data.StylePresets)
+                {
+                    string shared = preset != null ? LetteraVocabulary.TagFor(effect, preset.Styles) : null;
+                    if (shared != null) return shared;
+                }
+            }
             return LetteraVocabulary.TagFor(effect, engine.EffectiveStyles);
         }
 

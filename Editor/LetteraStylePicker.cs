@@ -432,7 +432,7 @@ namespace FirstSymbol.Lettera.Editor
         void Paint()
         {
             for (int i = 0; i < m_Rows.Count; i++) m_Rows[i].row.EnableInClassList("lt-picker__item--on", i == m_At);
-            if (m_At >= 0 && m_At < m_Rows.Count) m_List.ScrollTo(m_Rows[m_At].row);
+            if (m_List.panel != null && m_At >= 0 && m_At < m_Rows.Count) m_List.ScrollTo(m_Rows[m_At].row);
         }
 
         void Fill()

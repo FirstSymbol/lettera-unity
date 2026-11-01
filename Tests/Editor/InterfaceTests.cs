@@ -72,7 +72,6 @@ namespace FirstSymbol.Lettera.Editor.Tests
             Assert.IsNull(LetteraSourceColor.Rich("a</noparse>b", Known, true));
             Assert.IsNull(LetteraSourceColor.Rich(new string('a', LetteraSourceColor.MostCharacters + 1), Known, true));
             Assert.IsNull(LetteraSourceColor.Rich("", Known, true));
-            StringAssert.Contains("<noparse><b</noparse>", "<noparse><b</noparse>");
             string rich = LetteraSourceColor.Rich("<b>x", Known, true);
             StringAssert.Contains("<noparse>x</noparse>", rich);
             StringAssert.Contains("<noparse>b</noparse>", rich);
@@ -167,8 +166,6 @@ namespace FirstSymbol.Lettera.Editor.Tests
             Label tool = root.Query<Label>(className: "lt-tool").ToList().First(l => l.text == "Shadow");
             Assert.IsFalse(tool.ClassListContains("lt-filtered"));
             Assert.IsTrue(root.Query<Label>(className: "lt-tool").ToList().First(l => l.text == "B").ClassListContains("lt-filtered"));
-            inspector.Filter("ыефсл");
-            Assert.IsTrue(root.Query<LtSection>().ToList()[3].ClassListContains("lt-filtered") == false || true);
             inspector.Filter("");
             Assert.IsFalse(rows[1].ClassListContains("lt-filtered"));
         }
@@ -181,17 +178,17 @@ namespace FirstSymbol.Lettera.Editor.Tests
             text.ForceRebuild();
             LetteraTextInspector inspector = Page(text, out VisualElement _);
             inspector.SourceField.SetValueWithoutNotify("abc def");
-            inspector.SourceField.SelectRange(0, 3);
-            if (inspector.SourceField.cursorIndex == inspector.SourceField.selectIndex) Assert.Inconclusive("a field outside a panel keeps no selection");
-            inspector.Format(typeof(BoldEffect), "");
+            inspector.Format(typeof(BoldEffect), "", 0, 3);
             Assert.AreEqual("<heavy>abc</heavy> def", inspector.SourceField.value);
+            inspector.SourceField.SetValueWithoutNotify("abc def");
+            inspector.Format(typeof(ColorEffect), "=#FFCC00", 4, 7);
+            Assert.AreEqual("abc <color=#FFCC00>def</color>", inspector.SourceField.value);
 
             int before = text.Styles.Count;
-            inspector.SourceField.SelectRange(0, 0);
-            inspector.Format(typeof(UnderlineEffect), "");
+            inspector.Format(typeof(UnderlineEffect), "", 0, 0);
             Assert.AreEqual(before + 1, text.Styles.Count);
             Assert.IsInstanceOf<WholeTextMatcher>(text.Styles[before].Matcher);
-            inspector.Format(typeof(UnderlineEffect), "");
+            inspector.Format(typeof(UnderlineEffect), "", 0, 0);
             Assert.AreEqual(before, text.Styles.Count);
         }
 
@@ -694,7 +691,6 @@ namespace FirstSymbol.Lettera.Editor.Tests
                 Assert.IsTrue(styles.Open, "adding to a closed list opens it");
                 styles.Open = was;
 
-                var list = inspector.StyleList.List;
                 LtList.ControlsHidden = false;
                 Assert.IsFalse(LtList.ControlsHidden);
                 LtList.ControlsHidden = true;
@@ -776,11 +772,12 @@ namespace FirstSymbol.Lettera.Editor.Tests
         [Test]
         public void OnlyShiftAndARightPressOpensThePalette()
         {
-            Assert.IsTrue(LetteraPaletteHooks.IsTrigger(new Event { type = EventType.MouseDown, button = 1, shift = true }));
-            Assert.IsFalse(LetteraPaletteHooks.IsTrigger(new Event { type = EventType.MouseDown, button = 1 }));
-            Assert.IsFalse(LetteraPaletteHooks.IsTrigger(new Event { type = EventType.MouseDown, button = 0, shift = true }));
-            Assert.IsFalse(LetteraPaletteHooks.IsTrigger(new Event { type = EventType.MouseUp, button = 1, shift = true }));
-            Assert.IsFalse(LetteraPaletteHooks.IsTrigger(new Event { type = EventType.MouseDown, button = 1, shift = true, alt = true }));
+            Assert.IsTrue(LetteraPaletteHooks.IsTrigger(EventType.MouseDown, 1, EventModifiers.Shift));
+            Assert.IsTrue(LetteraPaletteHooks.IsTrigger(EventType.MouseDown, 1, EventModifiers.Shift | EventModifiers.CapsLock));
+            Assert.IsFalse(LetteraPaletteHooks.IsTrigger(EventType.MouseDown, 1, EventModifiers.None));
+            Assert.IsFalse(LetteraPaletteHooks.IsTrigger(EventType.MouseDown, 0, EventModifiers.Shift));
+            Assert.IsFalse(LetteraPaletteHooks.IsTrigger(EventType.MouseUp, 1, EventModifiers.Shift));
+            Assert.IsFalse(LetteraPaletteHooks.IsTrigger(EventType.MouseDown, 1, EventModifiers.Shift | EventModifiers.Alt));
         }
 
         // ------------------------------------------------------------- what makes things
