@@ -26,6 +26,15 @@ namespace FirstSymbol.Lettera
 
         internal bool HasFlatForSolids => VertexCount > 0;
 
+        internal string ShownTextForTests()
+        {
+            var text = new System.Text.StringBuilder();
+            foreach (int cp in ShownCodepoints) text.Append(char.ConvertFromUtf32(cp));
+            return text.ToString();
+        }
+
+        internal bool HasLayersForChip => m_Attributes.Layers.Count > 0;
+
         internal void RuleOfForSolids(int special, out float length, out float thickness, out bool vertical)
         {
             MathSpecial rule = m_MathSpecials[special];

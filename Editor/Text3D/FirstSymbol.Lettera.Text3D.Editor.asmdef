@@ -1,0 +1,21 @@
+{
+    "name": "FirstSymbol.Lettera.Text3D.Editor",
+    "rootNamespace": "FirstSymbol.Lettera.Editor",
+    "references": [
+        "FirstSymbol.Lettera",
+        "FirstSymbol.Lettera.Editor",
+        "FirstSymbol.Lettera.Text3D",
+        "FirstSymbol.Lettera.Unicode",
+        "Unity.Collections",
+        "Unity.Mathematics"
+    ],
+    "includePlatforms": ["Editor"],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": ["!LETTERA_NO_3D"],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

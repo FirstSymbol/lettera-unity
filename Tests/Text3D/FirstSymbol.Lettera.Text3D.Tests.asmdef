@@ -8,6 +8,7 @@
         "FirstSymbol.Lettera.Editor",
         "FirstSymbol.Lettera.Editor.Tests",
         "FirstSymbol.Lettera.Text3D",
+        "FirstSymbol.Lettera.Text3D.Editor",
         "FirstSymbol.Lettera.Unicode",
         "Unity.Collections",
         "Unity.Mathematics",

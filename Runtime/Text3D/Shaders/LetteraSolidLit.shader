@@ -335,4 +335,5 @@ Shader "Lettera/Solid Lit"
     }
 
     FallBack Off
+    CustomEditor "FirstSymbol.Lettera.Editor.LetteraSolidMaterialGui"
 }

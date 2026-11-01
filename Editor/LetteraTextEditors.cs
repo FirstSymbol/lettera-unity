@@ -409,6 +409,7 @@ namespace FirstSymbol.Lettera.Editor
                 () => LetteraTextEditor.OverrideOf(text.TextOverrideReason),
                 page =>
                 {
+                    page.Add(LetteraMathInspector.Card(text.Engine.CollectFormulas));
                     page.Add(LtUI.Card("Appearance", LtUI.Field("Color", P("m_Color"))));
                     page.Add(LtUI.Card("Sorting",
                         LtUI.Field("Sorting Layer ID", P("m_SortingLayerID")),
