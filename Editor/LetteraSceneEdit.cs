@@ -126,7 +126,7 @@ namespace FirstSymbol.Lettera.Editor
         {
             m_Text = text;
             m_Host = (ITextComponent)text;
-            Selection.activeGameObject = text.gameObject;
+            Selection.objects = new UnityEngine.Object[] { text.gameObject };
             m_Original = m_Expected = m_Host.SourceText ?? "";
             m_ToolsHidden = Tools.hidden;
             Tools.hidden = true;
