@@ -101,7 +101,7 @@ namespace FirstSymbol.Lettera.Editor.Tests
                 new object[] { "c3 D", new[] { 3, 4 } },
                 new object[] { "c3 U", new[] { 2, 3 } },
                 new object[] { "c3 D D", new[] { 3, 4, 5 } },
-                new object[] { "c3 D U", new[] { 3, 4 } },
+                new object[] { "c3 D U", new[] { 3 } },
                 new object[] { "c3 U U", new[] { 1, 2, 3 } },
                 new object[] { "c9 D", new[] { 9 } },
                 new object[] { "c0 U", new[] { 0 } },
@@ -114,8 +114,8 @@ namespace FirstSymbol.Lettera.Editor.Tests
                 new object[] { "c5 s5 s5", new[] { 5 } },
                 new object[] { "c5 s0 s9", new[] { 5, 6, 7, 8, 9 } },
                 new object[] { "k9 k0", new[] { 0, 9 } },
-                new object[] { "k9 k0 d", new[] { 9 } },
-                new object[] { "k9 k0 u", new[] { 8 } },
+                new object[] { "k9 k0 d", new[] { 1 } },
+                new object[] { "k9 k0 u", new[] { 0 } },
                 new object[] { "c2 c2 c2", new[] { 2 } },
             };
             foreach (object[] row in table) yield return new TestCaseData(row[0], row[1]).SetName("Selection " + row[0]);
