@@ -6,8 +6,10 @@ namespace FirstSymbol.Lettera
 {
     /// <summary>Named entrances to share between texts.</summary>
     [CreateAssetMenu(fileName = "Entrance Library", menuName = "Lettera/Entrance Library", order = 93)]
-    public class LetteraEntranceLibrary : ScriptableObject
+    public partial class LetteraEntranceLibrary : ScriptableObject
     {
+        [SerializeField, HideInInspector] internal int LetteraSerializedVersion;
+
         [SerializeField] List<LetteraEntranceEntry> m_Entries = new List<LetteraEntranceEntry>();
         public List<LetteraEntranceEntry> Entries => m_Entries;
 

@@ -6,8 +6,10 @@ namespace FirstSymbol.Lettera
 {
     /// <summary>A set of inline items to share between texts.</summary>
     [CreateAssetMenu(fileName = "Inline Library", menuName = "Lettera/Inline Library", order = 95)]
-    public class LetteraInlineLibrary : ScriptableObject, ILetteraInlineSource
+    public partial class LetteraInlineLibrary : ScriptableObject, ILetteraInlineSource
     {
+        [SerializeField, HideInInspector] internal int LetteraSerializedVersion;
+
         [SerializeField] List<LetteraInlineEntry> m_Entries = new List<LetteraInlineEntry>();
 
         public List<LetteraInlineEntry> Entries => m_Entries;

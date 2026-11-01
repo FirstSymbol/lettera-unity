@@ -7,5 +7,8 @@ namespace FirstSymbol.Lettera
 {
     /// <summary>A name for a group of ranges to listen to together.</summary>
     [CreateAssetMenu(fileName = "Range Topic", menuName = "Lettera/Range Topic", order = 94)]
-    public class LetteraRangeTopic : ScriptableObject { }
+    public partial class LetteraRangeTopic : ScriptableObject
+    {
+        [SerializeField, HideInInspector] internal int LetteraSerializedVersion;
+    }
 }

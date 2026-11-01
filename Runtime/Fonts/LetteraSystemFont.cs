@@ -4,7 +4,7 @@ namespace FirstSymbol.Lettera
 {
     /// <summary>Names an OS font per platform. Nothing is loaded until a text uses it.</summary>
     [CreateAssetMenu(menuName = "Lettera/System Font Asset", fileName = "New Lettera System Font", order = 101)]
-    public class LetteraSystemFont : LetteraFontAsset
+    public partial class LetteraSystemFont : LetteraFontAsset
     {
         [Tooltip("Family or file names tried on every platform, after the platform's own list.")]
         [SerializeField] string[] m_Common = new string[0];

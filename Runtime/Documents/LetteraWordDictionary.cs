@@ -9,8 +9,10 @@ namespace FirstSymbol.Lettera
 
     /// <summary>A word list for a script written without spaces, which is where its lines then break. It takes effect only once listed in the settings or registered.</summary>
     [CreateAssetMenu(fileName = "Word Dictionary", menuName = "Lettera/Word Dictionary", order = 96)]
-    public class LetteraWordDictionary : ScriptableObject
+    public partial class LetteraWordDictionary : ScriptableObject
     {
+        [SerializeField, HideInInspector] internal int LetteraSerializedVersion;
+
         [SerializeField] LetteraDictionaryScript m_WritingSystem;
         [Tooltip("The built automaton.")]
         [SerializeField] TextAsset m_Data;

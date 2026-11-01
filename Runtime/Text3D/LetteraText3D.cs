@@ -37,6 +37,8 @@ namespace FirstSymbol.Lettera
     [ExecuteAlways]
     public partial class LetteraText3D : MonoBehaviour, ITextHost
     {
+        [SerializeField, HideInInspector] internal int LetteraSerializedVersion;
+
         internal const int MaxVerticesHard = 1000000;
 
         [SerializeField] LetteraTextData m_Data = new LetteraTextData();

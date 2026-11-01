@@ -6,8 +6,10 @@ namespace FirstSymbol.Lettera
 {
     /// <summary>A reusable effect, usually a composite, as an asset. Each user runs its own copy; editing the asset reaches all of them.</summary>
     [CreateAssetMenu(menuName = "Lettera/Effect Preset", fileName = "Lettera Effect Preset")]
-    public class LetteraEffectPreset : ScriptableObject
+    public partial class LetteraEffectPreset : ScriptableObject
     {
+        [SerializeField, HideInInspector] internal int LetteraSerializedVersion;
+
         /// <summary>Raised when a preset changes, so texts using it rebuild.</summary>
         public static event Action<LetteraEffectPreset> PresetChanged;
 

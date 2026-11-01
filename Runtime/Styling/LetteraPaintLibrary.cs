@@ -6,8 +6,10 @@ namespace FirstSymbol.Lettera
 {
     /// <summary>A shared list of named paints.</summary>
     [CreateAssetMenu(menuName = "Lettera/Paint Library", fileName = "Lettera Paint Library")]
-    public class LetteraPaintLibrary : ScriptableObject
+    public partial class LetteraPaintLibrary : ScriptableObject
     {
+        [SerializeField, HideInInspector] internal int LetteraSerializedVersion;
+
         [SerializeField] List<LetteraSwatch> m_Swatches = new List<LetteraSwatch>();
 
         public List<LetteraSwatch> Swatches => m_Swatches;

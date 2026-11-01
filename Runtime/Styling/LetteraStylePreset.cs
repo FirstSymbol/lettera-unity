@@ -6,8 +6,10 @@ namespace FirstSymbol.Lettera
 {
     /// <summary>A reusable list of styles shared between texts.</summary>
     [CreateAssetMenu(menuName = "Lettera/Style Preset", fileName = "New Lettera Style Preset", order = 110)]
-    public class LetteraStylePreset : ScriptableObject
+    public partial class LetteraStylePreset : ScriptableObject
     {
+        [SerializeField, HideInInspector] internal int LetteraSerializedVersion;
+
         /// <summary>Raised when a preset is edited; texts using it parse again.</summary>
         public static event Action<LetteraStylePreset> PresetChanged;
 

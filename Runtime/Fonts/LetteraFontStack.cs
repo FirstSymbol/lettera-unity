@@ -24,8 +24,10 @@ namespace FirstSymbol.Lettera
 
     /// <summary>Ordered font families and an optional chained stack; codepoints fall through them in order.</summary>
     [CreateAssetMenu(menuName = "Lettera/Font Stack", fileName = "New Lettera Font Stack", order = 103)]
-    public class LetteraFontStack : ScriptableObject
+    public partial class LetteraFontStack : ScriptableObject
     {
+        [SerializeField, HideInInspector] internal int LetteraSerializedVersion;
+
         public static event Action<LetteraFontStack> StackChanged;
 
         [SerializeField] List<LetteraFontFamily> m_Families = new List<LetteraFontFamily>();

@@ -4,8 +4,10 @@ namespace FirstSymbol.Lettera
 {
     /// <summary>A depth, edges and materials to give a solid text at once.</summary>
     [CreateAssetMenu(menuName = "Lettera/Solid Look", fileName = "New Solid Look")]
-    public class LetteraSolidLook : ScriptableObject
+    public partial class LetteraSolidLook : ScriptableObject
     {
+        [SerializeField, HideInInspector] internal int LetteraSerializedVersion;
+
         [SerializeField, Tooltip("How deep the text is, in em.")] float m_Depth = 0.15f;
         [SerializeField] LetteraBevel m_FrontBevel = LetteraBevel.Default;
         [SerializeField] LetteraBevel m_BackBevel = LetteraBevel.Default;

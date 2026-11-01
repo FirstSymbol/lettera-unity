@@ -98,6 +98,7 @@ namespace FirstSymbol.Lettera
         void ISerializationCallbackReceiver.OnBeforeSerialize()
         {
 #if UNITY_EDITOR
+            LetteraStamps.Save(this, ref LetteraSerializedVersion);
             if (!UnityEditor.BuildPipeline.isBuildingPlayer)
             {
                 m_Compressed = null;
@@ -113,6 +114,7 @@ namespace FirstSymbol.Lettera
         void ISerializationCallbackReceiver.OnAfterDeserialize()
         {
 #if UNITY_EDITOR
+            LetteraStamps.Load(this, LetteraSerializedVersion);
             // A font stored before there were two fields.
             if ((m_EditorBytes == null || m_EditorBytes.Length == 0) && m_Compressed != null && m_Compressed.Length > 0) m_EditorBytes = m_Compressed;
             m_Compressed = null;
