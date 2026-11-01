@@ -18,7 +18,7 @@
 #define LT_API extern "C" __attribute__((visibility("default")))
 #endif
 
-#define LT_VERSION 2
+#define LT_VERSION 3
 
 struct LtGlyph
 {
@@ -334,6 +334,78 @@ LT_API int lt_shape_flagged(hb_font_t* font, const uint32_t* text, int textLengt
                             const LtFeature* features, int featureCount, LtGlyph* output, int capacity)
 {
     return shape_with_flags(font, text, textLength, start, length, direction, script, language, features, featureCount, output, capacity, HB_BUFFER_FLAG_PRODUCE_UNSAFE_TO_CONCAT);
+}
+
+// ---------------------------------------------------------------- MATH
+
+struct LtMathPart
+{
+    uint32_t glyph;
+    int32_t startConnector;
+    int32_t endConnector;
+    int32_t fullAdvance;
+    uint32_t flags;
+};
+
+static hb_direction_t math_direction(int vertical) { return vertical ? HB_DIRECTION_BTT : HB_DIRECTION_LTR; }
+
+LT_API int lt_math_has_data(hb_face_t* face) { return hb_ot_math_has_data(face) ? 1 : 0; }
+
+// In font units, since a font's scale is its upem. Percent constants stay percents. The order is hb_ot_math_constant_t's.
+LT_API void lt_math_constants(hb_font_t* font, int32_t* out56)
+{
+    for (int i = 0; i < 56; i++) out56[i] = hb_ot_math_get_constant(font, (hb_ot_math_constant_t)i);
+}
+
+LT_API void lt_math_glyph_info(hb_font_t* font, uint32_t glyph, int32_t* out3)
+{
+    out3[0] = hb_ot_math_get_glyph_italics_correction(font, glyph);
+    out3[1] = hb_ot_math_get_glyph_top_accent_attachment(font, glyph);
+    out3[2] = hb_ot_math_is_glyph_extended_shape(hb_font_get_face(font), glyph) ? 1 : 0;
+}
+
+LT_API int lt_math_kern(hb_font_t* font, uint32_t glyph, int corner, int height)
+{
+    return hb_ot_math_get_glyph_kerning(font, glyph, (hb_ot_math_kern_t)corner, height);
+}
+
+// Returns how many there are, and writes at most capacity.
+LT_API int lt_math_variants(hb_font_t* font, uint32_t glyph, int vertical, uint32_t* glyphs, int32_t* advances, int capacity)
+{
+    if (capacity > 64) capacity = 64;
+    hb_ot_math_glyph_variant_t variants[64];
+    unsigned count = (unsigned)capacity;
+    unsigned total = hb_ot_math_get_glyph_variants(font, glyph, math_direction(vertical), 0, &count, variants);
+    for (unsigned i = 0; i < count; i++)
+    {
+        glyphs[i] = variants[i].glyph;
+        advances[i] = variants[i].advance;
+    }
+    return (int)total;
+}
+
+LT_API int lt_math_assembly(hb_font_t* font, uint32_t glyph, int vertical, LtMathPart* parts, int capacity, int32_t* italic)
+{
+    if (capacity > 32) capacity = 32;
+    hb_ot_math_glyph_part_t native[32];
+    unsigned count = (unsigned)capacity;
+    hb_position_t correction = 0;
+    unsigned total = hb_ot_math_get_glyph_assembly(font, glyph, math_direction(vertical), 0, &count, native, &correction);
+    if (italic) *italic = correction;
+    for (unsigned i = 0; i < count; i++)
+    {
+        parts[i].glyph = native[i].glyph;
+        parts[i].startConnector = native[i].start_connector_length;
+        parts[i].endConnector = native[i].end_connector_length;
+        parts[i].fullAdvance = native[i].full_advance;
+        parts[i].flags = native[i].flags;
+    }
+    return (int)total;
+}
+
+LT_API int lt_math_min_overlap(hb_font_t* font, int vertical)
+{
+    return hb_ot_math_get_min_connector_overlap(font, math_direction(vertical));
 }
 
 // ---------------------------------------------------------------- COLRv1
