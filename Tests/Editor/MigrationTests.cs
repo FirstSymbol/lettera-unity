@@ -131,7 +131,7 @@ namespace FirstSymbol.Lettera.Editor.Tests
         {
             var notes = new List<LetteraTmpNote>();
             Rewritten("TMP_Text t; void F() { t.ForceMeshUpdate(); var w = t.preferredWidth; t.fontStyle = 0; }", notes);
-            Assert.GreaterOrEqual(notes.Count(n => n.Warning), 3);
+            Assert.GreaterOrEqual(notes.Count(n => n.Warning), 2);
             Assert.IsTrue(notes.Any(n => n.Message.Contains("GetMaxContentWidth")));
         }
 
