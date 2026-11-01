@@ -11,7 +11,7 @@ namespace FirstSymbol.Lettera.Editor
         internal static VisualElement Card(Action<List<LetteraFormulaInfo>> collect)
         {
             VisualElement list = LtUI.El("");
-            VisualElement card = LtUI.Card("Math", list);
+            VisualElement card = LtUI.Card("", list);
             var formulas = new List<LetteraFormulaInfo>();
             string shown = null;
             void Refresh()

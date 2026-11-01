@@ -1225,5 +1225,15 @@
 .lt-fix__button:hover { background-color: var(--lt-accent-soft); }
 .lt-problems { margin-top: 2px; }
 
-.lt-vocab { max-height: 88px; overflow: hidden; margin-bottom: 3px; }
+.lt-vocab { margin-bottom: 3px; }
+
+.lt-editor > .lt-chip { align-self: flex-start; margin: 4px 8px; white-space: normal; }
+
+.lt-search .unity-base-text-field__input--placeholder,
+.lt-search .unity-base-text-field__input--placeholder .unity-text-element { color: var(--lt-faint); }
+
+.lt-root.lt--light { --lt-orange: #a86500; --lt-green: #0e8a55; --lt-red: #c7301e; }
 .lt-vocab__tag:hover { color: var(--lt-accent); background-color: var(--lt-accent-soft); }
+
+.lt-button { height: 24px; margin: 2px 0 6px 0; border-radius: 6px; border-width: 1px; border-color: var(--lt-accent-strong); background-color: var(--lt-accent-soft); color: var(--lt-accent); font-size: 11px; -unity-text-align: middle-center; cursor: link; }
+.lt-button:hover { background-color: var(--lt-accent-strong); }
