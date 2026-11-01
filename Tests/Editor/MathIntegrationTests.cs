@@ -139,6 +139,26 @@ namespace FirstSymbol.Lettera.Editor.Tests
         }
 
         [Test]
+        public void ARebuildAfterFontsAreGoneDoesNothing()
+        {
+            // As in a domain reload, when an inspector closing makes Unity rebuild a canvas after Lettera has released its fonts. Before this was guarded, it crashed the editor.
+            LetteraWorldText text = Built("before");
+            TextEngine.FontsGone = true;
+            try
+            {
+                text.Text = "after";
+                Assert.IsFalse(text.Engine.Rebuild());
+                Assert.AreNotEqual(DirtyLevel.None, text.Engine.Dirty, "the work waits for the fonts");
+            }
+            finally
+            {
+                TextEngine.FontsGone = false;
+            }
+            text.ForceRebuild();
+            Assert.Greater(text.GlyphCount, 0);
+        }
+
+        [Test]
         public void ASystemMathFontAnswersWhereThereIsOne()
         {
             if (LetteraNative.Version < 3) Assert.Inconclusive("Needs the library that reads MATH.");
