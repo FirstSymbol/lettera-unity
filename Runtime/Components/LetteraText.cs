@@ -269,6 +269,7 @@ namespace FirstSymbol.Lettera
             if (m_Mesh == null) m_Mesh = new Mesh { name = "Lettera Text", hideFlags = HideFlags.HideAndDontSave };
             TextEngine e = Engine;
             m_Mesh.Clear(false);
+            m_Mesh.indexFormat = e.VertexCount > 65000 ? UnityEngine.Rendering.IndexFormat.UInt32 : UnityEngine.Rendering.IndexFormat.UInt16;
             m_Mesh.SetVertices(e.Vertices, 0, e.VertexCount);
             m_Mesh.SetColors(e.Colors, 0, e.VertexCount);
             m_Mesh.SetUVs(0, e.Uv0, 0, e.VertexCount);
