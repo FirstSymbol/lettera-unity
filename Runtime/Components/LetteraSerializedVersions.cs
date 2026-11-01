@@ -27,7 +27,14 @@ namespace FirstSymbol.Lettera
     internal static class LetteraStamps
     {
         static readonly object s_Lock = new object();
-        static readonly HashSet<object> s_Older = new HashSet<object>();
+        // By reference: a Unity object still loading has no instance id to compare by.
+        sealed class Same : IEqualityComparer<object>
+        {
+            bool IEqualityComparer<object>.Equals(object a, object b) => ReferenceEquals(a, b);
+            int IEqualityComparer<object>.GetHashCode(object a) => System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(a);
+        }
+
+        static readonly HashSet<object> s_Older = new HashSet<object>(new Same());
         static readonly List<ILetteraStamped> s_Queue = new List<ILetteraStamped>();
         static volatile bool s_Queued;
 
