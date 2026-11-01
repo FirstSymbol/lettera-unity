@@ -85,7 +85,7 @@ namespace FirstSymbol.Lettera
 
         // A rule's tile is a short rule, whose middle column holds the whole field across it. Its two ends draw as they are,
         // and between them that one column stretches, which is exact and not an approximation. A rule shorter than the tile takes its two ends cut.
-        void AddRule(in MathSpecial special, in AtlasGlyph atlas, in PlacedGlyph plain, Color32 color, float mode, float threshold, float softness, float upper, in ResolvedPaint paint, in Rect paintRect, float paintDx, float paintDy, float extra)
+        void AddRule(in MathSpecial special, in AtlasGlyph atlas, in PlacedGlyph plain, Color32 color, float mode, float threshold, float softness, float upper, ResolvedPaint paint, Rect paintRect, float paintDx, float paintDy, Vector4 extra)
         {
             bool vertical = special.Vertical;
             float low = vertical ? atlas.Bottom : atlas.Left, high = vertical ? atlas.Top : atlas.Right;
