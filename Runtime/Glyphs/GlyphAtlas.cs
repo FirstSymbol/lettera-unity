@@ -102,6 +102,8 @@ namespace FirstSymbol.Lettera
         static bool s_Rebind;
         static bool s_ClearPending;
         static int s_Tick;
+        // Asked of the engine once per flush, and not once per glyph.
+        static int s_Frame;
         static Texture2DArray s_EmptyColor, s_EmptyMsdf;
 
         /// <summary>Raised when the atlas was cleared: every text must rebuild its mesh.</summary>
@@ -141,7 +143,7 @@ namespace FirstSymbol.Lettera
 
         public static AtlasGlyph Get(FontInstance instance, uint glyph, int pixelsPerEm, float reach = 0, bool multi = false)
         {
-            instance.Face.LastUsedFrame = Time.frameCount;
+            instance.Face.LastUsedFrame = s_Frame;
             int grid = instance.Face.PixelGrid;
             if (grid > 0)
             {
@@ -879,6 +881,7 @@ namespace FirstSymbol.Lettera
         public static void Flush()
         {
             s_Tick++;
+            s_Frame = Time.frameCount;
             EnsureBound();
             FlushEmoji();
             if (s_Uploads.Count > 0 || s_Tiles.Count > 0 || s_Sdf.NeedsFullUpload || s_Color.NeedsFullUpload || s_Msdf.NeedsFullUpload)

@@ -56,6 +56,8 @@ namespace FirstSymbol.Lettera
             m_PlacedCount = 0;
             m_SegmentsValid = false;
             m_VirtualGlyphs.Clear();
+            // Nearly always one placed glyph per shaped one, so a long text does not grow through every size on the way.
+            EnsureSize(ref m_Placed, m_ShapedCount);
 
             float top = m_Box.yMax;
             bool clips = m_Host.ClipsOverflow || m_MarqueeScrolling || ClipsViewport;
@@ -302,6 +304,8 @@ namespace FirstSymbol.Lettera
                     PlaceMarker(removal, ref x, baseline, lineIndex);
         }
 
+        // Called per fragment over indices the same pass sized; the tests run it with every check on.
+        [Unity.IL2CPP.CompilerServices.Il2CppSetOption(Unity.IL2CPP.CompilerServices.Option.ArrayBoundsChecks, false), Unity.IL2CPP.CompilerServices.Il2CppSetOption(Unity.IL2CPP.CompilerServices.Option.NullChecks, false)]
         float PlaceFragment(int runIndex, int low, int high, float x, float baseline, int lineIndex, float baseSize, in LineStretch stretch, in LetteraLine line)
         {
             Run run = m_Runs[runIndex];

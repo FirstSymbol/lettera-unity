@@ -64,6 +64,7 @@ namespace FirstSymbol.Lettera
             m_SegmentStart = 0;
             m_FilterRow = 0;
             m_SolidBoxes.Clear();
+            m_AllTakeBase = true;
             m_RecordOwners = HasPoseConsumers || m_RevealSpans.Count > 0 || (m_Marquee != null && m_MarqueeScrolling) || NeedsRestState;
             if (m_StageHooks.Count > 0) m_CoverQuads.Clear();
             m_CurrentOwner = -1;
@@ -364,6 +365,8 @@ namespace FirstSymbol.Lettera
             for (int i = 0; i < m_PlacedCount; i++) DrawFace(i);
         }
 
+        // Called per glyph, over indices the same pass has just sized; the tests run these with every check on.
+        [Unity.IL2CPP.CompilerServices.Il2CppSetOption(Unity.IL2CPP.CompilerServices.Option.ArrayBoundsChecks, false), Unity.IL2CPP.CompilerServices.Il2CppSetOption(Unity.IL2CPP.CompilerServices.Option.NullChecks, false)]
         void DrawFace(int i)
         {
             m_CurrentOwner = i;
@@ -746,6 +749,8 @@ namespace FirstSymbol.Lettera
             m_SegmentStart = IndexCount;
         }
 
+        // Called per glyph, over indices the same pass has just sized; the tests run these with every check on.
+        [Unity.IL2CPP.CompilerServices.Il2CppSetOption(Unity.IL2CPP.CompilerServices.Option.ArrayBoundsChecks, false), Unity.IL2CPP.CompilerServices.Il2CppSetOption(Unity.IL2CPP.CompilerServices.Option.NullChecks, false)]
         void AddQuad(in PlacedGlyph g, in AtlasGlyph atlas, Color32 color, float mode, float threshold, float softness, float upper, in ResolvedPaint paint, in Rect paintRect, float paintDx, float paintDy, Vector4 extra = default)
         {
                         if (g.Special != 0)
@@ -855,10 +860,13 @@ namespace FirstSymbol.Lettera
             }
         }
 
+        // Called per glyph, over indices the same pass has just sized; the tests run these with every check on.
+        [Unity.IL2CPP.CompilerServices.Il2CppSetOption(Unity.IL2CPP.CompilerServices.Option.ArrayBoundsChecks, false), Unity.IL2CPP.CompilerServices.Il2CppSetOption(Unity.IL2CPP.CompilerServices.Option.NullChecks, false)]
         void SetColor(int v, Color32 color)
         {
             Colors[v] = Colors[v + 1] = Colors[v + 2] = Colors[v + 3] = color;
             m_OwnAlpha[v] = m_OwnAlpha[v + 1] = m_OwnAlpha[v + 2] = m_OwnAlpha[v + 3] = color.a;
+            m_AllTakeBase &= m_QuadTakesBase;
             if (m_TrackBase)
             {
                 if (m_TakesBase.Length < Colors.Length) System.Array.Resize(ref m_TakesBase, Colors.Length);
@@ -876,6 +884,8 @@ namespace FirstSymbol.Lettera
             System.Array.Resize(ref m_OwnAlpha, capacity);
         }
 
+        // Called per glyph, over indices the same pass has just sized; the tests run these with every check on.
+        [Unity.IL2CPP.CompilerServices.Il2CppSetOption(Unity.IL2CPP.CompilerServices.Option.ArrayBoundsChecks, false), Unity.IL2CPP.CompilerServices.Il2CppSetOption(Unity.IL2CPP.CompilerServices.Option.NullChecks, false)]
         int Reserve()
         {
             int v = VertexCount;
@@ -903,6 +913,8 @@ namespace FirstSymbol.Lettera
             return v;
         }
 
+        // Called per glyph, over indices the same pass has just sized; the tests run these with every check on.
+        [Unity.IL2CPP.CompilerServices.Il2CppSetOption(Unity.IL2CPP.CompilerServices.Option.ArrayBoundsChecks, false), Unity.IL2CPP.CompilerServices.Il2CppSetOption(Unity.IL2CPP.CompilerServices.Option.NullChecks, false)]
         void ComputeBounds()
         {
             if (VertexCount == 0)
@@ -924,17 +936,19 @@ namespace FirstSymbol.Lettera
         }
 
         /// <summary>The fade path: rewrites vertex alpha only, without touching geometry.</summary>
+        // Called per glyph, over indices the same pass has just sized; the tests run these with every check on.
+        [Unity.IL2CPP.CompilerServices.Il2CppSetOption(Unity.IL2CPP.CompilerServices.Option.ArrayBoundsChecks, false), Unity.IL2CPP.CompilerServices.Il2CppSetOption(Unity.IL2CPP.CompilerServices.Option.NullChecks, false)]
         void ApplyBaseColor()
         {
             Color32 baseColor = m_Host.BaseColor;
             int alpha = baseColor.a;
             for (int i = 0; i < VertexCount; i++)
                 Colors[i].a = (byte)(m_OwnAlpha[i] * alpha / 255);
-            if (m_TrackBase && m_TakesBase.Length >= VertexCount)
+            if (m_AllTakeBase || (m_TrackBase && m_TakesBase.Length >= VertexCount))
             {
                 for (int i = 0; i < VertexCount; i++)
                 {
-                    if (!m_TakesBase[i]) continue;
+                    if (!m_AllTakeBase && !m_TakesBase[i]) continue;
                     Colors[i].r = baseColor.r;
                     Colors[i].g = baseColor.g;
                     Colors[i].b = baseColor.b;
@@ -945,7 +959,7 @@ namespace FirstSymbol.Lettera
             for (int i = 0; i < VertexCount; i++)
             {
                 m_RestColors[i].a = Colors[i].a;
-                if (m_TrackBase && m_TakesBase[i])
+                if (m_AllTakeBase || (m_TrackBase && m_TakesBase[i]))
                 {
                     m_RestColors[i].r = baseColor.r;
                     m_RestColors[i].g = baseColor.g;
@@ -957,6 +971,9 @@ namespace FirstSymbol.Lettera
         bool[] m_TakesBase = new bool[0];
         bool m_TrackBase, m_QuadTakesBase;
 
+        // Nearly always every quad takes the text's color, and then there is nothing to note per quad, so the first change needs no pass and no array either.
+        bool m_AllTakeBase;
+
         /// <summary>
         /// What a change of the text's color needs. The first change draws again, noting which glyphs take that color, so a text that never changes it pays nothing;
         /// later ones only rewrite those glyphs. Anything else that draws in the text's color, such as a line, needs the full pass.
@@ -965,7 +982,7 @@ namespace FirstSymbol.Lettera
         {
             bool others = m_Attributes.Decorations.Count > 0 || m_Attributes.Layers.Count > 0 || m_Attributes.Highlights.Count > 0 || m_MarqueeCopies > 1 || m_StageHooks.Count > 0;
             if (others) return DirtyLevel.Mesh;
-            if (m_TrackBase) return DirtyLevel.Tint;
+            if (m_TrackBase || (m_AllTakeBase && VertexCount > 0)) return DirtyLevel.Tint;
             m_TrackBase = true;
             return DirtyLevel.Mesh;
         }
