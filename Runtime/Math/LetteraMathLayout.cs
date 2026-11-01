@@ -472,7 +472,9 @@ namespace FirstSymbol.Lettera
         {
             float scale = ScaleOf(style);
             int mapped = LetteraMathAlphabets.Map(cp, alphabet);
-            GlyphRef glyph = FindGlyph(mapped, ScriptLevel(style));
+            // A prime is already a raised mark. Its script form would seat it lower than it reads.
+            bool prime = cp >= 0x2032 && cp <= 0x2037;
+            GlyphRef glyph = FindGlyph(mapped, prime ? 0 : ScriptLevel(style));
             if (glyph.Glyph == 0 && mapped != cp)
             {
                 // The block is missing: the plain letter, leaning or heavier by synthesis, as text does it.
@@ -772,7 +774,10 @@ namespace FirstSymbol.Lettera
             }
             float space = C(MathConstant.SpaceAfterScript, style);
             float width = body.Width;
-            float subX = body.Width, supX = body.Width + (hasSub ? 0 : 0) + body.Italic;
+            // An operator's advance holds its lean: the superscript clears the top at the advance, and the subscript tucks in under it.
+            // A letter's does not, so its superscript is what moves.
+            float subX = isOp ? body.Width - body.Italic : body.Width;
+            float supX = isOp ? body.Width : body.Width + body.Italic;
             if (body.SingleGlyph && m_Font.Data != null)
             {
                 if (hasSup) supX += KernAt(body, sup, 0, supShift, style);
