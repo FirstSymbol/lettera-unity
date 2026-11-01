@@ -70,6 +70,7 @@ namespace FirstSymbol.Lettera
         int m_SubmeshCount;
         LetteraSolidMeshBuilder m_Builder;
         readonly List<LetteraSolidEntry> m_Held = new List<LetteraSolidEntry>();
+        readonly List<LetteraSolidEntry> m_HeldBefore = new List<LetteraSolidEntry>();
         readonly List<LetteraSolidEntry> m_Warm = new List<LetteraSolidEntry>();
         readonly List<Material> m_Materials = new List<Material>();
 
@@ -309,11 +310,15 @@ namespace FirstSymbol.Lettera
             m_SolidsDirty = false;
             m_ColorsDirty = false;
             LetteraSolidRecipe recipe = Recipe;
-            var previous = new List<LetteraSolidEntry>(m_Held);
+            // Those held before go only after this pass has taken its own, so that nothing is dropped and built again.
+            List<LetteraSolidEntry> previous = m_HeldBefore;
+            previous.Clear();
+            previous.AddRange(m_Held);
             m_Held.Clear();
             if (m_Warm.Count == 0 && !string.IsNullOrEmpty(m_WarmCharacters)) Warm(m_WarmCharacters);
             m_Builder.Begin(Engine, recipe, m_Depth, m_Pivot, m_ColorGlyphs == LetteraSolidColorGlyphs.Flat, this, m_Held);
-            foreach (LetteraSolidEntry entry in previous) LetteraSolidCache.Release(entry);
+            for (int i = 0; i < previous.Count; i++) LetteraSolidCache.Release(previous[i]);
+            previous.Clear();
             ResolveMaterials();
             WriteMesh();
             LetteraSolidFlatChild.Update(this);
@@ -321,6 +326,7 @@ namespace FirstSymbol.Lettera
 
         readonly Material[] m_SurfaceSlots = new Material[5];
         readonly int[] m_SurfaceToSubmesh = new int[5];
+        Material[] m_Given;
 
         void ResolveMaterials()
         {
@@ -338,15 +344,13 @@ namespace FirstSymbol.Lettera
                 m_SurfaceToSubmesh[s] = index;
             }
             m_SubmeshCount = m_Materials.Count;
-            if (m_Renderer != null)
+            // A renderer hands out a new array each time it is asked, so what it was given is remembered here.
+            bool same = m_Given != null && m_Given.Length == m_Materials.Count;
+            for (int i = 0; same && i < m_Given.Length; i++) same = m_Given[i] == m_Materials[i];
+            if (!same && m_Renderer != null)
             {
-                bool same = m_Renderer.sharedMaterials.Length == m_Materials.Count;
-                if (same)
-                {
-                    Material[] current = m_Renderer.sharedMaterials;
-                    for (int i = 0; i < current.Length; i++) same &= current[i] == m_Materials[i];
-                }
-                if (!same) m_Renderer.sharedMaterials = m_Materials.ToArray();
+                m_Given = m_Materials.ToArray();
+                m_Renderer.sharedMaterials = m_Given;
             }
         }
 
@@ -509,7 +513,7 @@ namespace FirstSymbol.Lettera
     }
 
     /// <summary>Copies solids into one text's vertices. A cached rebuild allocates nothing managed.</summary>
-    internal sealed class LetteraSolidMeshBuilder : IDisposable
+    internal sealed unsafe class LetteraSolidMeshBuilder : IDisposable
     {
         internal struct Placement
         {
@@ -523,6 +527,8 @@ namespace FirstSymbol.Lettera
 
         readonly List<Placement> m_Placed = new List<Placement>();
         NativeArray<LetteraSolidMeshVertex> m_Rest, m_Posed;
+        NativeArray<CopyItem> m_Items;
+        NativeArray<IndexItem> m_IndexItems;
         int m_VertexCount, m_IndexCount;
         bool m_Over;
         internal bool HasMotion { get; private set; }
@@ -538,9 +544,9 @@ namespace FirstSymbol.Lettera
         {
             if (m_Rest.IsCreated) m_Rest.Dispose();
             if (m_Posed.IsCreated) m_Posed.Dispose();
+            if (m_Items.IsCreated) m_Items.Dispose();
+            if (m_IndexItems.IsCreated) m_IndexItems.Dispose();
         }
-
-        static LetteraSolidEntry s_Empty;
 
         internal void Begin(TextEngine engine, in LetteraSolidRecipe recipe, float depth, LetteraSolidPivot pivot, bool flatColor, LetteraText3D owner, List<LetteraSolidEntry> held)
         {
@@ -549,6 +555,7 @@ namespace FirstSymbol.Lettera
             HasMotion = engine.HasMotionForSolids;
             ReadOnlySpan<TextEngine.PlacedGlyph> glyphs = engine.PlacedSpan;
             int vertices = 0, limit = LetteraSettings.Instance.Solid3D.MaxVertices;
+            LetteraSolidCache.BuildAhead(engine, recipe);
             m_Over = false;
             for (int i = 0; i < glyphs.Length; i++)
             {
@@ -654,61 +661,79 @@ namespace FirstSymbol.Lettera
                 m_Posed = new NativeArray<LetteraSolidMeshVertex>(Mathf.Max(vertices, 16), Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
             }
 
-            float3 min = new float3(float.MaxValue), max = new float3(float.MinValue);
             int indices = 0;
+            if (!m_Items.IsCreated || m_Items.Length < m_Placed.Count)
+            {
+                if (m_Items.IsCreated) m_Items.Dispose();
+                m_Items = new NativeArray<CopyItem>(Mathf.Max(m_Placed.Count, 64), Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
+            }
             for (int p = 0; p < m_Placed.Count; p++)
             {
                 Placement place = m_Placed[p];
-                var job = new CopyJob
+                m_Items[p] = new CopyItem
                 {
-                    Source = place.Entry.Vertices,
-                    Target = m_Rest.GetSubArray(place.VertexStart, place.VertexCount),
+                    Source = (LetteraSolidVertex*)place.Entry.Vertices.GetUnsafeReadOnlyPtr(),
+                    Start = place.VertexStart, Count = place.VertexCount,
                     X = place.X, Y = place.Y, SizeX = place.SizeX, SizeY = place.SizeY, SizeZ = place.SizeZ,
                     Cos = place.Cos, Sin = place.Sin, Extra = place.Depth - place.BevelDepth, BevelDepth = place.BevelDepth, Depth = place.Depth, ZOffset = place.ZOffset,
                     Color = place.Color,
                 };
-                job.Run();
                 indices += place.Entry.Indices.Length;
-                // Bounds from what the glyph is: its corners cost less than its vertices, and a pose only ever takes them further by a known reach.
-                for (int v = 0; v < place.VertexCount; v++)
-                {
-                    float3 position = m_Rest[place.VertexStart + v].Position;
-                    min = math.min(min, position);
-                    max = math.max(max, position);
-                }
             }
+            var ends = new NativeArray<float3>(2, Allocator.TempJob);
+            new CopyJob { Items = m_Items, Count = m_Placed.Count, Target = m_Rest, Ends = ends }.Run();
+            float3 min = ends[0], max = ends[1];
+            ends.Dispose();
             m_IndexCount = indices;
             if (m_VertexCount > 0) m_Posed.GetSubArray(0, m_VertexCount).CopyFrom(m_Rest.GetSubArray(0, m_VertexCount));
             Bounds = m_VertexCount == 0 ? new Bounds(Vector3.zero, Vector3.zero) : new Bounds((min + max) * 0.5f, max - min);
         }
 
-        [BurstCompile]
-        struct CopyJob : IJob
+        unsafe struct CopyItem
         {
-            [ReadOnly] public NativeArray<LetteraSolidVertex> Source;
-            [WriteOnly] public NativeArray<LetteraSolidMeshVertex> Target;
+            [NativeDisableUnsafePtrRestriction] public LetteraSolidVertex* Source;
+            public int Start, Count;
             public float X, Y, SizeX, SizeY, SizeZ, Cos, Sin, Extra, BevelDepth, Depth, ZOffset;
             public Color32 Color;
+        }
+
+        [BurstCompile]
+        unsafe struct CopyJob : IJob
+        {
+            [ReadOnly] public NativeArray<CopyItem> Items;
+            public int Count;
+            [NativeDisableParallelForRestriction] public NativeArray<LetteraSolidMeshVertex> Target;
+            public NativeArray<float3> Ends;
 
             public void Execute()
             {
-                // Bevels deeper than the text fold flat rather than through each other.
-                float squeeze = BevelDepth > 0 && Depth < BevelDepth ? math.max(Depth, 0) / BevelDepth : 1;
-                float extra = math.max(Extra, 0);
-                for (int i = 0; i < Source.Length; i++)
+                float3 min = new float3(float.MaxValue), max = new float3(float.MinValue);
+                for (int p = 0; p < Count; p++)
                 {
-                    LetteraSolidVertex v = Source[i];
-                    float lx = v.Position.x * SizeX, ly = v.Position.y * SizeY;
-                    float3 normal = v.Normal;
-                    Target[i] = new LetteraSolidMeshVertex
+                    CopyItem item = Items[p];
+                    // Bevels deeper than the text fold flat rather than through each other.
+                    float squeeze = item.BevelDepth > 0 && item.Depth < item.BevelDepth ? math.max(item.Depth, 0) / item.BevelDepth : 1;
+                    float extra = math.max(item.Extra, 0);
+                    for (int i = 0; i < item.Count; i++)
                     {
-                        Position = new float3(X + lx * Cos - ly * Sin, Y + lx * Sin + ly * Cos, (v.Position.z * squeeze + v.Weight * extra) * SizeZ + ZOffset),
-                        Normal = new float3(normal.x * Cos - normal.y * Sin, normal.x * Sin + normal.y * Cos, normal.z),
-                        Color = Color,
-                        Uv0 = v.Uv,
-                        Uv1 = new float2(X + lx, Y + ly),
-                    };
+                        LetteraSolidVertex v = item.Source[i];
+                        float lx = v.Position.x * item.SizeX, ly = v.Position.y * item.SizeY;
+                        float3 normal = v.Normal;
+                        float3 position = new float3(item.X + lx * item.Cos - ly * item.Sin, item.Y + lx * item.Sin + ly * item.Cos, (v.Position.z * squeeze + v.Weight * extra) * item.SizeZ + item.ZOffset);
+                        min = math.min(min, position);
+                        max = math.max(max, position);
+                        Target[item.Start + i] = new LetteraSolidMeshVertex
+                        {
+                            Position = position,
+                            Normal = new float3(normal.x * item.Cos - normal.y * item.Sin, normal.x * item.Sin + normal.y * item.Cos, normal.z),
+                            Color = item.Color,
+                            Uv0 = v.Uv,
+                            Uv1 = new float2(item.X + lx, item.Y + ly),
+                        };
+                    }
                 }
+                Ends[0] = min;
+                Ends[1] = max;
             }
         }
 
@@ -754,33 +779,81 @@ namespace FirstSymbol.Lettera
             data.SetIndexBufferParams(m_IndexCount, small ? IndexFormat.UInt16 : IndexFormat.UInt32);
             if (m_VertexCount > 0) data.GetVertexData<LetteraSolidMeshVertex>().CopyFrom(m_Rest.GetSubArray(0, m_VertexCount));
 
-            int cursor = 0;
-            NativeArray<ushort> small16 = small ? data.GetIndexData<ushort>() : default;
-            NativeArray<int> large32 = small ? default : data.GetIndexData<int>();
-            data.subMeshCount = submeshes;
-            for (int submesh = 0; submesh < submeshes; submesh++)
+            if (!m_IndexItems.IsCreated || m_IndexItems.Length < m_Placed.Count)
             {
-                int start = cursor;
-                for (int p = 0; p < m_Placed.Count; p++)
+                if (m_IndexItems.IsCreated) m_IndexItems.Dispose();
+                m_IndexItems = new NativeArray<IndexItem>(Mathf.Max(m_Placed.Count, 64), Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
+            }
+            for (int p = 0; p < m_Placed.Count; p++)
+            {
+                Placement place = m_Placed[p];
+                int[] starts = place.Entry.SurfaceStarts;
+                m_IndexItems[p] = new IndexItem
                 {
-                    Placement place = m_Placed[p];
-                    int[] starts = place.Entry.SurfaceStarts;
-                    for (int s = 0; s < 5; s++)
+                    Source = (int*)place.Entry.Indices.GetUnsafeReadOnlyPtr(),
+                    VertexStart = place.VertexStart,
+                    S0 = starts[0], S1 = starts[1], S2 = starts[2], S3 = starts[3], S4 = starts[4], S5 = starts[5],
+                };
+            }
+            data.subMeshCount = submeshes;
+            var ranges = new NativeArray<int>(submeshes + 1, Allocator.TempJob);
+            var map = new NativeArray<int>(5, Allocator.TempJob);
+            for (int i = 0; i < 5; i++) map[i] = surfaceToSubmesh[i];
+            var job = new IndexJob { Items = m_IndexItems, Count = m_Placed.Count, Map = map, Submeshes = submeshes, Ranges = ranges, Small = small };
+            if (small) job.Target16 = data.GetIndexData<ushort>();
+            else job.Target32 = data.GetIndexData<int>();
+            job.Run();
+            for (int submesh = 0; submesh < submeshes; submesh++)
+                data.SetSubMesh(submesh, new SubMeshDescriptor(ranges[submesh], ranges[submesh + 1] - ranges[submesh]), MeshUpdateFlags.DontRecalculateBounds | MeshUpdateFlags.DontValidateIndices);
+            ranges.Dispose();
+            map.Dispose();
+            Mesh.ApplyAndDisposeWritableMeshData(array, mesh, MeshUpdateFlags.DontRecalculateBounds | MeshUpdateFlags.DontValidateIndices);
+            mesh.bounds = Bounds;
+        }
+
+        unsafe struct IndexItem
+        {
+            [NativeDisableUnsafePtrRestriction] public int* Source;
+            public int VertexStart, S0, S1, S2, S3, S4, S5;
+        }
+
+        [BurstCompile]
+        unsafe struct IndexJob : IJob
+        {
+            [ReadOnly] public NativeArray<IndexItem> Items;
+            public int Count, Submeshes;
+            public bool Small;
+            [ReadOnly] public NativeArray<int> Map;
+            public NativeArray<int> Ranges;
+            [NativeDisableContainerSafetyRestriction] public NativeArray<ushort> Target16;
+            [NativeDisableContainerSafetyRestriction] public NativeArray<int> Target32;
+
+            public void Execute()
+            {
+                int cursor = 0;
+                int* edges = stackalloc int[6];
+                for (int submesh = 0; submesh < Submeshes; submesh++)
+                {
+                    Ranges[submesh] = cursor;
+                    for (int p = 0; p < Count; p++)
                     {
-                        if (surfaceToSubmesh[s] != submesh) continue;
-                        for (int i = starts[s]; i < starts[s + 1]; i++)
+                        IndexItem item = Items[p];
+                        edges[0] = item.S0; edges[1] = item.S1; edges[2] = item.S2; edges[3] = item.S3; edges[4] = item.S4; edges[5] = item.S5;
+                        for (int s = 0; s < 5; s++)
                         {
-                            int index = place.Entry.Indices[i] + place.VertexStart;
-                            if (small) small16[cursor] = (ushort)index;
-                            else large32[cursor] = index;
-                            cursor++;
+                            if (Map[s] != submesh) continue;
+                            for (int i = edges[s]; i < edges[s + 1]; i++)
+                            {
+                                int index = item.Source[i] + item.VertexStart;
+                                if (Small) Target16[cursor] = (ushort)index;
+                                else Target32[cursor] = index;
+                                cursor++;
+                            }
                         }
                     }
                 }
-                data.SetSubMesh(submesh, new SubMeshDescriptor(start, cursor - start), MeshUpdateFlags.DontRecalculateBounds | MeshUpdateFlags.DontValidateIndices);
+                Ranges[Submeshes] = cursor;
             }
-            Mesh.ApplyAndDisposeWritableMeshData(array, mesh, MeshUpdateFlags.DontRecalculateBounds | MeshUpdateFlags.DontValidateIndices);
-            mesh.bounds = Bounds;
         }
 
         internal void ApplyPose(TextEngine engine, Mesh mesh)

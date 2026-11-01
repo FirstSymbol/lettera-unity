@@ -168,6 +168,62 @@ namespace FirstSymbol.Lettera.Text3D.Tests
         }
 
         [Test]
+        public void ThreadsGiveTheSameBytes()
+        {
+            const string text = "ABCDEFGHIJKLMNOPQRSTUVWXYZ abcdefghijklmnopqrstuvwxyz";
+            byte[] Bytes()
+            {
+                LetteraSolidCache.Clear();
+                LetteraText3D solid = Solid(text);
+                solid.ForceRebuild();
+                var all = new List<byte>();
+                foreach (LetteraSolidMeshBuilder.Placement place in solid.Builder.Placed)
+                {
+                    foreach (LetteraSolidVertex v in place.Entry.Vertices)
+                    {
+                        all.AddRange(System.BitConverter.GetBytes(v.Position.x));
+                        all.AddRange(System.BitConverter.GetBytes(v.Position.y));
+                        all.AddRange(System.BitConverter.GetBytes(v.Position.z));
+                        all.AddRange(System.BitConverter.GetBytes(v.Normal.x));
+                    }
+                    foreach (int i in place.Entry.Indices) all.AddRange(System.BitConverter.GetBytes(i));
+                }
+                return all.ToArray();
+            }
+            byte[] inline = Bytes();
+            LetteraSolidCache.ThreadsForTests = true;
+            try
+            {
+                CollectionAssert.AreEqual(inline, Bytes());
+            }
+            finally
+            {
+                LetteraSolidCache.ThreadsForTests = false;
+            }
+        }
+
+        [Test]
+        public void ACachedRebuildAllocatesNothing()
+        {
+            LetteraText3D text = Solid("0123456789");
+            text.ShareMesh = false;
+            text.WarmCharacters = "0123456789";
+            text.ForceRebuild();
+            text.Depth = 0.2f;
+            text.ForceRebuild();
+            var recorder = Unity.Profiling.ProfilerRecorder.StartNew(Unity.Profiling.ProfilerCategory.Memory, "GC.Alloc.In.Frame");
+            long before = System.GC.GetTotalMemory(false);
+            for (int i = 0; i < 5; i++)
+            {
+                text.Depth = 0.2f + i * 0.01f;
+                text.ForceRebuild();
+            }
+            long grown = System.GC.GetTotalMemory(false) - before;
+            recorder.Dispose();
+            Assert.Less(grown, 16 * 1024, "a pass of depth changes builds nothing, and keeps little");
+        }
+
+        [Test]
         public void ColorComesFromTheRangeAndTheText()
         {
             LetteraText3D text = Solid("<color=#FF0000>a</color>b");

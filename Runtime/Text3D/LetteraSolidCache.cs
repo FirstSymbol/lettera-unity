@@ -171,6 +171,142 @@ namespace FirstSymbol.Lettera
             return Build(key, s_Commands, count, 1f / Mathf.Max(instance.Face.Metrics.Upem, 1), recipe);
         }
 
+        static readonly List<PendingBuild> s_Pending = new List<PendingBuild>();
+        static readonly HashSet<LetteraSolidKey> s_Asked = new HashSet<LetteraSolidKey>();
+
+        // In a player, many first-time glyphs of one text build on the workers, and the text shows whole all the same. The web and the editor stay inline: the one has no threads, and the other wants the same order every time.
+        internal static unsafe void BuildAhead(TextEngine engine, in LetteraSolidRecipe recipe)
+        {
+#if UNITY_WEBGL || UNITY_EDITOR
+            if (!ThreadsForTests) return;
+#endif
+            if (!Unity.Jobs.LowLevel.Unsafe.JobsUtility.JobWorkerCount.Equals(0))
+            {
+                ReadOnlySpan<TextEngine.PlacedGlyph> glyphs = engine.PlacedSpan;
+                if (glyphs.Length <= ThreadsAbove) return;
+                int edges = recipe.HashOf();
+                s_Asked.Clear();
+                for (int i = 0; i < glyphs.Length; i++)
+                {
+                    ref readonly TextEngine.PlacedGlyph g = ref glyphs[i];
+                    if (g.Instance == null || g.Special == TextEngine.SpecialRuleForSolids) continue;
+                    var key = new LetteraSolidKey { Instance = g.Instance.Id, Glyph = g.Glyph, Edges = edges };
+                    if (s_Entries.ContainsKey(key) || !s_Asked.Add(key)) continue;
+                    int count;
+                    fixed (float* p = s_Commands) count = LetteraNative.lt_glyph_outline(g.Instance.Font, g.Glyph, p, s_Commands.Length);
+                    if (count > s_Commands.Length)
+                    {
+                        if (count > 16 * 1024 * 1024) continue;
+                        s_Commands = new float[count + 1024];
+                        fixed (float* p = s_Commands) count = LetteraNative.lt_glyph_outline(g.Instance.Font, g.Glyph, p, s_Commands.Length);
+                    }
+                    s_Pending.Add(new PendingBuild(key, s_Commands, count, 1f / Mathf.Max(g.Instance.Face.Metrics.Upem, 1), recipe));
+                }
+                if (s_Pending.Count <= ThreadsAbove)
+                {
+                    foreach (PendingBuild small in s_Pending) small.Abandon();
+                    s_Pending.Clear();
+                    return;
+                }
+                var handles = new NativeArray<JobHandle>(s_Pending.Count, Allocator.Temp);
+                for (int i = 0; i < s_Pending.Count; i++) handles[i] = s_Pending[i].Job.Schedule();
+                JobHandle.CompleteAll(handles);
+                foreach (PendingBuild done in s_Pending)
+                {
+                    LetteraSolidEntry entry = done.Finish();
+                    s_Entries[entry.Key] = entry;
+                    s_Bytes += entry.Bytes;
+                }
+                s_Pending.Clear();
+                Trim();
+            }
+        }
+
+        internal const int ThreadsAbove = 16;
+        internal static bool ThreadsForTests;
+
+        sealed class PendingBuild
+        {
+            public LetteraSolidBuildJob Job;
+            readonly LetteraSolidKey m_Key;
+            NativeArray<float> m_Input;
+            NativeList<float2> m_Front, m_Back;
+            NativeList<LetteraSolidVertex> m_Vertices;
+            NativeList<int> m_Indices;
+            NativeArray<int> m_Starts, m_Report;
+
+            public PendingBuild(in LetteraSolidKey key, float[] commands, int count, float scale, in LetteraSolidRecipe recipe)
+            {
+                m_Key = key;
+                Builds++;
+                m_Input = new NativeArray<float>(Mathf.Max(count, 1), Allocator.TempJob);
+                NativeArray<float>.Copy(commands, m_Input, count);
+                m_Front = new NativeList<float2>(16, Allocator.TempJob);
+                m_Back = new NativeList<float2>(16, Allocator.TempJob);
+                FillProfile(recipe.Front, ref m_Front);
+                FillProfile(recipe.Back, ref m_Back);
+                m_Vertices = new NativeList<LetteraSolidVertex>(1024, Allocator.TempJob);
+                m_Indices = new NativeList<int>(4096, Allocator.TempJob);
+                m_Starts = new NativeArray<int>(6, Allocator.TempJob);
+                m_Report = new NativeArray<int>(7, Allocator.TempJob);
+                Job = new LetteraSolidBuildJob
+                {
+                    Commands = m_Input,
+                    CommandCount = count,
+                    FrontProfile = m_Front.AsArray(),
+                    BackProfile = m_Back.AsArray(),
+                    Params = new LetteraSolidParams
+                    {
+                        Tolerance = recipe.Tolerance,
+                        FrontWidth = recipe.Front.IsNone ? 0 : recipe.Front.Width,
+                        FrontHeight = recipe.Front.IsNone ? 0 : recipe.Front.Height,
+                        BackWidth = recipe.Back.IsNone ? 0 : recipe.Back.Width,
+                        BackHeight = recipe.Back.IsNone ? 0 : recipe.Back.Height,
+                        SmoothingCos = recipe.SmoothingCos,
+                        Faces = recipe.Faces,
+                        Scale = scale,
+                    },
+                    Vertices = m_Vertices,
+                    Indices = m_Indices,
+                    SurfaceStarts = m_Starts,
+                    Report = m_Report,
+                };
+            }
+
+            public LetteraSolidEntry Finish()
+            {
+                var entry = new LetteraSolidEntry { Key = m_Key, Failed = m_Report[0] != 0 };
+                if (entry.Failed)
+                {
+                    Failures++;
+                }
+                else
+                {
+                    entry.Vertices = new NativeArray<LetteraSolidVertex>(m_Vertices.AsArray(), Allocator.Persistent);
+                    entry.Indices = new NativeArray<int>(m_Indices.AsArray(), Allocator.Persistent);
+                    for (int i = 0; i < 6; i++) entry.SurfaceStarts[i] = m_Starts[i];
+                    entry.FrontHeight = m_Report[5] / 1000000f;
+                    entry.BackHeight = m_Report[6] / 1000000f;
+                    BevelsClamped += m_Report[1];
+                    CapsDropped += m_Report[2];
+                    if (m_Report[2] != 0) LastCapFailure = m_Report[4];
+                }
+                Abandon();
+                return entry;
+            }
+
+            public void Abandon()
+            {
+                m_Input.Dispose();
+                m_Front.Dispose();
+                m_Back.Dispose();
+                m_Vertices.Dispose();
+                m_Indices.Dispose();
+                m_Starts.Dispose();
+                m_Report.Dispose();
+            }
+        }
+
         static LetteraSolidEntry BuildBox(in LetteraSolidKey key)
         {
             float[] square = { 0, 0, 0, 1, 1, 0, 1, 1, 1, 1, 0, 1, 4 };
@@ -180,64 +316,9 @@ namespace FirstSymbol.Lettera
         /// <summary>Builds from an outline in hand. Tests use this with outlines written by hand.</summary>
         internal static LetteraSolidEntry Build(in LetteraSolidKey key, float[] commands, int count, float scale, in LetteraSolidRecipe recipe)
         {
-            Builds++;
-            var input = new NativeArray<float>(Mathf.Max(count, 1), Allocator.TempJob);
-            NativeArray<float>.Copy(commands, input, count);
-            var front = new NativeList<float2>(16, Allocator.TempJob);
-            var back = new NativeList<float2>(16, Allocator.TempJob);
-            FillProfile(recipe.Front, ref front);
-            FillProfile(recipe.Back, ref back);
-            var vertices = new NativeList<LetteraSolidVertex>(1024, Allocator.TempJob);
-            var indices = new NativeList<int>(4096, Allocator.TempJob);
-            var starts = new NativeArray<int>(6, Allocator.TempJob);
-            var report = new NativeArray<int>(5, Allocator.TempJob);
-            var job = new LetteraSolidBuildJob
-            {
-                Commands = input,
-                CommandCount = count,
-                FrontProfile = front.AsArray(),
-                BackProfile = back.AsArray(),
-                Params = new LetteraSolidParams
-                {
-                    Tolerance = recipe.Tolerance,
-                    FrontWidth = recipe.Front.IsNone ? 0 : recipe.Front.Width,
-                    FrontHeight = recipe.Front.IsNone ? 0 : recipe.Front.Height,
-                    BackWidth = recipe.Back.IsNone ? 0 : recipe.Back.Width,
-                    BackHeight = recipe.Back.IsNone ? 0 : recipe.Back.Height,
-                    SmoothingCos = recipe.SmoothingCos,
-                    Faces = recipe.Faces,
-                    Scale = scale,
-                },
-                Vertices = vertices,
-                Indices = indices,
-                SurfaceStarts = starts,
-                Report = report,
-            };
-            job.Run();
-            var entry = new LetteraSolidEntry { Key = key, Failed = report[0] != 0 };
-            if (entry.Failed)
-            {
-                Failures++;
-            }
-            else
-            {
-                entry.Vertices = new NativeArray<LetteraSolidVertex>(vertices.AsArray(), Allocator.Persistent);
-                entry.Indices = new NativeArray<int>(indices.AsArray(), Allocator.Persistent);
-                for (int i = 0; i < 6; i++) entry.SurfaceStarts[i] = starts[i];
-                entry.FrontHeight = job.Params.FrontHeight;
-                entry.BackHeight = job.Params.BackHeight;
-                BevelsClamped += report[1];
-                CapsDropped += report[2];
-                LastCapFailure = report[4];
-            }
-            input.Dispose();
-            front.Dispose();
-            back.Dispose();
-            vertices.Dispose();
-            indices.Dispose();
-            starts.Dispose();
-            report.Dispose();
-            return entry;
+            var pending = new PendingBuild(key, commands, count, scale, recipe);
+            pending.Job.Run();
+            return pending.Finish();
         }
 
         static void FillProfile(in LetteraBevel bevel, ref NativeList<float2> output)
