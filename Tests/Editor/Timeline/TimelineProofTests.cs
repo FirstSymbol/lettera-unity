@@ -155,13 +155,14 @@ namespace FirstSymbol.Lettera.Timeline.Editor.Tests
         [Test]
         public void LeavingPreviewGivesBackTheSerializedValueAndTheSceneStaysClean()
         {
+            NewScene();
             LetteraSequencer sequencer = Sequenced(out LetteraWorldText text);
             WriteField(sequencer, "m_Progress", 0.25f);
             sequencer.Clock = LetteraClock.Unscaled;
             float restAmplitude = new WaveMotion().Amplitude;
             PlayableDirector director = Directed(sequencer, out LetteraSequenceTrack track);
             Shot(track, 0, 1, 0, 4);
-            Scene scene = CleanScene(text.gameObject, director.gameObject);
+            Scene scene = CleanScene();
 
             var driver = Own(ScriptableObject.CreateInstance<AnimationModeDriver>());
             AnimationMode.StartAnimationMode(driver);

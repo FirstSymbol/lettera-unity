@@ -1,51 +1,8 @@
-using System;
-using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Playables;
-using UnityEngine.Timeline;
 
 namespace FirstSymbol.Lettera.Timeline
 {
-    /// <summary>A span of a timeline that plays a sequencer from one progress to another.</summary>
-    [Serializable]
-    public class LetteraSequenceShot : PlayableAsset, ITimelineClipAsset
-    {
-        [Range(0, 1)] public float From;
-        [Range(0, 1)] public float To = 1;
-
-        public ClipCaps clipCaps => ClipCaps.Blending | ClipCaps.SpeedMultiplier | ClipCaps.ClipIn;
-
-        public override Playable CreatePlayable(PlayableGraph graph, GameObject owner)
-        {
-            ScriptPlayable<LetteraRampBehaviour> playable = ScriptPlayable<LetteraRampBehaviour>.Create(graph);
-            LetteraRampBehaviour behaviour = playable.GetBehaviour();
-            behaviour.From = From;
-            behaviour.To = To;
-            return playable;
-        }
-    }
-
-    /// <summary>A span of a timeline that takes a linked parameter from one value to another.</summary>
-    [Serializable]
-    public class LetteraParamShot : PlayableAsset, ITimelineClipAsset
-    {
-        public float From;
-        public float To = 1;
-        public AnimationCurve Curve = AnimationCurve.Linear(0, 0, 1, 1);
-
-        public ClipCaps clipCaps => ClipCaps.Blending | ClipCaps.SpeedMultiplier | ClipCaps.ClipIn;
-
-        public override Playable CreatePlayable(PlayableGraph graph, GameObject owner)
-        {
-            ScriptPlayable<LetteraRampBehaviour> playable = ScriptPlayable<LetteraRampBehaviour>.Create(graph);
-            LetteraRampBehaviour behaviour = playable.GetBehaviour();
-            behaviour.From = From;
-            behaviour.To = To;
-            behaviour.Curve = Curve;
-            return playable;
-        }
-    }
-
     /// <summary>One clip's value at the playhead.</summary>
     public class LetteraRampBehaviour : PlayableBehaviour
     {
@@ -81,11 +38,24 @@ namespace FirstSymbol.Lettera.Timeline
         }
     }
 
-    /// <summary>Drives a sequencer's progress. It runs on a manual clock while the graph plays, and gets its own back after.</summary>
+    // In edit mode nothing ticks the hub while a track scrubs, and scrubbing has to show.
+    internal static class TrackPreview
+    {
+        internal static void Show()
+        {
+            if (Application.isPlaying) return;
+            LetteraMotionHub.Tick(0, 0);
+            LetteraWorldBatcher.Update();
+#if UNITY_EDITOR
+            UnityEditor.EditorApplication.QueuePlayerLoopUpdate();
+#endif
+        }
+    }
+
+    /// <summary>Drives a sequencer's progress. Ticks leave it alone while the graph plays, and in edit mode leaving gives back everything.</summary>
     public class LetteraSequenceMixer : PlayableBehaviour
     {
         LetteraSequencer m_Bound;
-        LetteraClock m_Clock;
 
         public override void ProcessFrame(Playable playable, FrameData info, object playerData)
         {
@@ -93,67 +63,171 @@ namespace FirstSymbol.Lettera.Timeline
             if (sequencer == null) return;
             if (m_Bound != sequencer)
             {
-                Restore();
+                Leave();
                 m_Bound = sequencer;
-                m_Clock = sequencer.Clock;
-                sequencer.Clock = LetteraClock.Manual;
+                sequencer.Driven = true;
             }
-            if (RampMix.Weighted(playable, out float progress)) sequencer.Progress = progress;
+            if (!RampMix.Weighted(playable, out float progress)) return;
+            sequencer.Progress = progress;
+            TrackPreview.Show();
         }
 
-        void Restore()
+        void Leave()
         {
-            if (m_Bound != null) m_Bound.Clock = m_Clock;
+            if (m_Bound != null)
+            {
+                m_Bound.Driven = false;
+                if (!Application.isPlaying) m_Bound.EndPreview();
+            }
             m_Bound = null;
         }
 
-        public override void OnPlayableDestroy(Playable playable)
-        {
-            if (m_Bound != null && !Application.isPlaying) m_Bound.EndPreview();
-            Restore();
-        }
+        public override void OnPlayableDestroy(Playable playable) => Leave();
     }
 
-    /// <summary>Drives a parameter link's value.</summary>
+    /// <summary>Drives a parameter link's value. In edit mode leaving gives back the one it had.</summary>
     public class LetteraParamMixer : PlayableBehaviour
     {
+        LetteraParamLink m_Bound;
+        float m_Rest;
+
         public override void ProcessFrame(Playable playable, FrameData info, object playerData)
         {
             var link = playerData as LetteraParamLink;
             if (link == null) return;
-            if (RampMix.Weighted(playable, out float value)) link.Value = value;
+            if (m_Bound != link)
+            {
+                Leave();
+                m_Bound = link;
+                m_Rest = link.Value;
+            }
+            if (!RampMix.Weighted(playable, out float value)) return;
+            link.Value = value;
+            TrackPreview.Show();
         }
+
+        void Leave()
+        {
+            if (m_Bound != null && !Application.isPlaying) m_Bound.Value = m_Rest;
+            m_Bound = null;
+        }
+
+        public override void OnPlayableDestroy(Playable playable) => Leave();
     }
 
-    [TrackColor(0.36f, 0.58f, 0.95f)]
-    [TrackClipType(typeof(LetteraSequenceShot))]
-    [TrackBindingType(typeof(LetteraSequencer))]
-    public class LetteraSequenceTrack : TrackAsset
+    /// <summary>One line of a cut scene: what a text says while this clip plays. It answers as the text's resolver, so its own field is never touched.</summary>
+    public class LetteraTextBehaviour : PlayableBehaviour, ILetteraTextResolver
     {
-        public override Playable CreateTrackMixer(PlayableGraph graph, GameObject go, int inputCount) =>
-            ScriptPlayable<LetteraSequenceMixer>.Create(graph, inputCount);
+        public string Text = "";
+        public bool Typewriter;
+        public LetteraRevealUnit Unit;
 
-        public override void GatherProperties(PlayableDirector director, IPropertyCollector driver)
-        {
-            var sequencer = director.GetGenericBinding(this) as LetteraSequencer;
-            if (sequencer != null) driver.AddFromName<LetteraSequencer>(sequencer.gameObject, "m_Progress");
-            base.GatherProperties(director, driver);
-        }
+        string ILetteraTextResolver.Resolve(Component owner, string raw) => Text;
     }
 
-    [TrackColor(0.55f, 0.42f, 0.95f)]
-    [TrackClipType(typeof(LetteraParamShot))]
-    [TrackBindingType(typeof(LetteraParamLink))]
-    public class LetteraParamTrack : TrackAsset
+    /// <summary>Lends a text the line of the strongest clip under the playhead, and gives it back where there is none. A change of clip parses once; scrubbing within one moves only the frontier, a pose.</summary>
+    public class LetteraTextMixer : PlayableBehaviour
     {
-        public override Playable CreateTrackMixer(PlayableGraph graph, GameObject go, int inputCount) =>
-            ScriptPlayable<LetteraParamMixer>.Create(graph, inputCount);
+        static readonly string[] s_Reach = new string[1001];
 
-        public override void GatherProperties(PlayableDirector director, IPropertyCollector driver)
+        ITextComponent m_Text;
+        ILetteraTextResolver m_OwnResolver;
+        LetteraTextBehaviour m_Shown;
+        LetteraStyle m_Style;
+        RevealEffect m_Reveal;
+        int m_Reached = -1;
+
+        // A frontier moves a thousand steps at most, so each step's words are made once.
+        static string Reach(int thousandths)
         {
-            var link = director.GetGenericBinding(this) as LetteraParamLink;
-            if (link != null) driver.AddFromName<LetteraParamLink>(link.gameObject, "m_Value");
-            base.GatherProperties(director, driver);
+            string reach = s_Reach[thousandths];
+            if (reach != null) return reach;
+            return s_Reach[thousandths] = (thousandths * 0.1f).ToString("0.#", System.Globalization.CultureInfo.InvariantCulture) + "%";
         }
+
+        static ITextComponent Find(object binding)
+        {
+            if (binding is GameObject go) return go != null ? go.GetComponent<ITextComponent>() : null;
+            if (binding is Component component) return component != null ? component.GetComponent<ITextComponent>() : null;
+            return null;
+        }
+
+        public override void ProcessFrame(Playable playable, FrameData info, object playerData)
+        {
+            ITextComponent text = Find(playerData);
+            if (!ReferenceEquals(text, m_Text))
+            {
+                Leave();
+                m_Text = text;
+            }
+            if (text == null) return;
+
+            LetteraTextBehaviour strongest = null;
+            float share = 0, best = 0;
+            int inputs = playable.GetInputCount();
+            for (int i = 0; i < inputs; i++)
+            {
+                float weight = playable.GetInputWeight(i);
+                if (weight <= best) continue;
+                best = weight;
+                var input = (ScriptPlayable<LetteraTextBehaviour>)playable.GetInput(i);
+                strongest = input.GetBehaviour();
+                double duration = input.GetDuration();
+                share = duration > 0 ? Mathf.Clamp01((float)(input.GetTime() / duration)) : 1;
+            }
+            if (strongest == null)
+            {
+                Leave();
+                return;
+            }
+            if (strongest != m_Shown) Enter(strongest);
+            if (strongest.Typewriter)
+            {
+                int thousandths = Mathf.RoundToInt(share * 1000);
+                if (thousandths != m_Reached)
+                {
+                    m_Reached = thousandths;
+                    m_Reveal.Reach = Reach(thousandths);
+                }
+            }
+            TrackPreview.Show();
+        }
+
+        void Enter(LetteraTextBehaviour clip)
+        {
+            TextEngine engine = m_Text.SharedEngine;
+            if (m_Shown == null) m_OwnResolver = engine.Resolver;
+            m_Shown = clip;
+            engine.Resolver = clip;
+            if (clip.Typewriter)
+            {
+                if (m_Reveal == null)
+                {
+                    m_Reveal = new RevealEffect();
+                    m_Style = LetteraStyle.ForWholeText(m_Reveal);
+                }
+                m_Reveal.Unit = clip.Unit;
+                m_Reached = -1;
+                engine.ClipStyle = m_Style;
+            }
+            else engine.ClipStyle = null;
+            m_Text.Dirty(DirtyLevel.Parse);
+        }
+
+        void Leave()
+        {
+            if (m_Shown == null) return;
+            m_Shown = null;
+            // The text may have gone first, with the graph coming down after it.
+            if (m_Text is Object alive && alive == null) return;
+            TextEngine engine = m_Text.SharedEngine;
+            engine.Resolver = m_OwnResolver;
+            engine.ClipStyle = null;
+            m_OwnResolver = null;
+            m_Text.Dirty(DirtyLevel.Parse);
+            TrackPreview.Show();
+        }
+
+        public override void OnPlayableDestroy(Playable playable) => Leave();
     }
 }

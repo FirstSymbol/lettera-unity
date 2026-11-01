@@ -103,10 +103,11 @@ namespace FirstSymbol.Lettera.Timeline.Editor.Tests
         }
 
         /// <summary>A saved scene holding these, so that isDirty means something.</summary>
-        protected Scene CleanScene(params GameObject[] roots)
+        protected static void NewScene() => EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
+
+        protected static Scene CleanScene()
         {
-            Scene scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
-            foreach (GameObject root in roots) SceneManager.MoveGameObjectToScene(root, scene);
+            Scene scene = SceneManager.GetActiveScene();
             Assert.IsTrue(EditorSceneManager.SaveScene(scene, TempScene));
             Assert.IsFalse(scene.isDirty);
             return scene;
