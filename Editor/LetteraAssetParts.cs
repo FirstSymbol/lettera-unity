@@ -102,6 +102,9 @@ namespace FirstSymbol.Lettera.Editor
             Vector2 P(float x, float y) => origin + new Vector2(x * scale, -y * scale);
             painter.strokeColor = resolvedStyle.color;
             painter.lineWidth = 1f;
+            // A mitred join at a contour's closing corner throws a long spike.
+            painter.lineJoin = LineJoin.Round;
+            painter.lineCap = LineCap.Round;
             bool open = false;
             for (int i = 0; i < c.Length;)
             {
@@ -218,20 +221,28 @@ namespace FirstSymbol.Lettera.Editor
             string current = null;
             var run = new System.Text.StringBuilder();
             var cluster = new int[1];
-            foreach (int codepoint in LetteraGlyphGrid.Codepoints(text ?? ""))
+            for (int at = 0; at < (text ?? "").Length; at++)
             {
+                int codepoint = char.ConvertToUtf32(text, at);
+                if (char.IsHighSurrogate(text[at])) at++;
+                // A space goes with the run it stands in.
+                if (codepoint < 0x10000 && char.IsWhiteSpace((char)codepoint))
+                {
+                    if (run.Length > 0) run.Append((char)codepoint);
+                    continue;
+                }
                 cluster[0] = codepoint;
                 FontFace face = chain.Resolve(cluster, false, null, null, out FontChain.Family family);
                 string name = face != null && face.HasGlyph(codepoint) ? family?.Name ?? face.Family : "";
                 if (name != current)
                 {
-                    if (run.Length > 0) runs.Add((current, run.ToString()));
+                    if (run.Length > 0) runs.Add((current, run.ToString().TrimEnd()));
                     run.Clear();
                     current = name;
                 }
                 run.Append(char.ConvertFromUtf32(codepoint));
             }
-            if (run.Length > 0) runs.Add((current, run.ToString()));
+            if (run.Length > 0) runs.Add((current, run.ToString().TrimEnd()));
             return runs;
         }
 

@@ -1163,6 +1163,7 @@ namespace FirstSymbol.Lettera.Editor
             foreach ((Label value, VisualElement dot, Func<string> text, Func<State> state) in m_Lines)
             {
                 value.text = text() ?? "";
+                value.tooltip = value.text;
                 State now = state != null ? state() : State.None;
                 dot.EnableInClassList("lt-status__dot--good", now == State.Good);
                 dot.EnableInClassList("lt-status__dot--warn", now == State.Warn);
