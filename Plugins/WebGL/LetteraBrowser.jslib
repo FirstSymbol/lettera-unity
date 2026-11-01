@@ -60,6 +60,19 @@ mergeInto(LibraryManager.library, {
         return window.matchMedia && window.matchMedia("(pointer: coarse)").matches ? 1 : 0;
     },
 
+    // Focus going to the text box makes Unity forget a button still held, with no release. The page itself still knows.
+    LetteraInput_TrackMouse: function () {
+        if (Module.letteraMouseTracked) return;
+        Module.letteraMouseTracked = true;
+        Module.letteraMouseHeld = false;
+        document.addEventListener("mousedown", function (e) { if (e.button === 0) Module.letteraMouseHeld = true; }, true);
+        document.addEventListener("mouseup", function (e) { if (e.button === 0) Module.letteraMouseHeld = false; }, true);
+    },
+
+    LetteraInput_MouseHeld: function () {
+        return Module.letteraMouseHeld ? 1 : 0;
+    },
+
     LetteraInput_Arm: function () {
         var state = Module.letteraInput;
         if (!state) {

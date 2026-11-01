@@ -261,8 +261,25 @@ namespace FirstSymbol.Lettera
             }
         }
 
+#if UNITY_WEBGL && !UNITY_EDITOR
+        [System.Runtime.InteropServices.DllImport("__Internal")] static extern void LetteraInput_TrackMouse();
+        [System.Runtime.InteropServices.DllImport("__Internal")] static extern int LetteraInput_MouseHeld();
+
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
+        static void TrackMouse() => LetteraInput_TrackMouse();
+
+        // The press that opened a session moved the page's focus to the text box, and Unity then never sees that button's release: its event system would go on dragging for as long as the pointer moves.
+        void ReleaseIfForgotten()
+        {
+            if (m_Pressed && !m_Touch && LetteraInput_MouseHeld() == 0) OnPointerUp(new PointerEventData(EventSystem.current) { pointerId = m_PointerId, position = m_PointerPosition });
+        }
+#else
+        void ReleaseIfForgotten() { }
+#endif
+
         public void OnDrag(PointerEventData data)
         {
+            ReleaseIfForgotten();
             if (!m_Pressed || m_Cancelled || m_Passing) return;
             if (m_Claimed)
             {

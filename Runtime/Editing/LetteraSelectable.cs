@@ -602,6 +602,7 @@ namespace FirstSymbol.Lettera
         void IUpdateSelectedHandler.OnUpdateSelected(BaseEventData eventData)
         {
             if (!m_HasFocus) return;
+            ReleaseIfForgotten();
             m_Source?.Pump();
             eventData.Use();
         }
