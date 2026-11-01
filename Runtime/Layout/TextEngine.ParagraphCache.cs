@@ -127,7 +127,7 @@ namespace FirstSymbol.Lettera
 
         internal static long ParagraphBytes => s_ParagraphBytes;
 
-        long[] m_CpSignature = new long[64];
+        long[] m_CpSignature = Array.Empty<long>();
         bool m_SignaturesPlain;
 
         internal static void ClearParagraphCache()

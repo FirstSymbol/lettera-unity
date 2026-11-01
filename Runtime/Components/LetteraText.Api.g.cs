@@ -6,7 +6,7 @@ using UnityEngine;
 
 namespace FirstSymbol.Lettera
 {
-    public partial class LetteraText : ITextComponent
+    public partial class LetteraText : ITextComponent, ITextListener
     {
         partial void MarkDirty(DirtyLevel level);
 
@@ -250,57 +250,46 @@ namespace FirstSymbol.Lettera
         public bool TryGetEffect<T>(out T effect) where T : class => (effect = Engine.GetEffect<T>()) != null;
         public void GetEffects<T>(List<T> results) where T : class => Engine.GetEffects(results);
 
-        void OnFontAssetChanged(LetteraFontAsset asset)
+        void ITextListener.OnFontAssetChanged(LetteraFontAsset asset)
         {
             Engine.InvalidateFonts();
             MarkDirty(DirtyLevel.Shape);
         }
 
-        void OnStackChanged(LetteraFontStack stack)
+        void ITextListener.OnStackChanged(LetteraFontStack stack)
         {
             Engine.InvalidateFonts();
             MarkDirty(DirtyLevel.Shape);
         }
 
-        void OnEffectPresetChanged(LetteraEffectPreset preset)
+        void ITextListener.OnEffectPresetChanged(LetteraEffectPreset preset)
         {
             Engine.InvalidateStyleCopies();
             MarkDirty(DirtyLevel.Parse);
         }
 
-        void OnPresetChanged(LetteraStylePreset preset)
+        void ITextListener.OnPresetChanged(LetteraStylePreset preset)
         {
             Engine.InvalidateStyleCopies();
             MarkDirty(DirtyLevel.Parse);
         }
 
-        void OnSettingsChanged()
+        void ITextListener.OnSettingsChanged()
         {
             Engine.InvalidateFonts();
             Engine.InvalidateStyleCopies();
             MarkDirty(DirtyLevel.Parse);
         }
 
-        void OnAtlasCleared() => MarkDirty(DirtyLevel.Mesh);
+        void ITextListener.OnAtlasCleared() => MarkDirty(DirtyLevel.Mesh);
 
-        void AddListeners()
-        {
-            LetteraFontAsset.FontAssetChanged += OnFontAssetChanged;
-            LetteraFontStack.StackChanged += OnStackChanged;
-            LetteraStylePreset.PresetChanged += OnPresetChanged;
-            LetteraEffectPreset.PresetChanged += OnEffectPresetChanged;
-            LetteraSettings.Changed += OnSettingsChanged;
-            GlyphAtlas.Cleared += OnAtlasCleared;
-        }
+        // Kept out of what a domain reload carries over: the list it counts in is gone by then.
+        [NonSerialized] int m_ListenerSlot = -1;
 
-        void RemoveListeners()
-        {
-            LetteraFontAsset.FontAssetChanged -= OnFontAssetChanged;
-            LetteraFontStack.StackChanged -= OnStackChanged;
-            LetteraStylePreset.PresetChanged -= OnPresetChanged;
-            LetteraEffectPreset.PresetChanged -= OnEffectPresetChanged;
-            LetteraSettings.Changed -= OnSettingsChanged;
-            GlyphAtlas.Cleared -= OnAtlasCleared;
-        }
+        int ITextListener.ListenerSlot { get => m_ListenerSlot; set => m_ListenerSlot = value; }
+
+        void AddListeners() => LetteraTextListeners.Add(this);
+
+        void RemoveListeners() => LetteraTextListeners.Remove(this);
     }
 }

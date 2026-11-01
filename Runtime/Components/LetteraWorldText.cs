@@ -118,15 +118,22 @@ namespace FirstSymbol.Lettera
         void OnEnable()
         {
             GlyphAtlasRegistration.EnsureRegistered();
-            Engine.SetDirty(DirtyLevel.Parse);
-            LastRectSize = Rect.rect.size;
+            // Still listening means it left with its GameObject: whatever changed since has marked it. The batcher sees a size that differs.
+            if (((ITextListener)this).ListenerSlot >= 0)
+            {
+                Engine.SyncSerializedFields();
+            }
+            else
+            {
+                Engine.SetDirty(DirtyLevel.Parse);
+                LastRectSize = Rect.rect.size;
+                AddListeners();
+            }
             m_HasAnimator = GetComponentInParent<Animator>() != null;
             m_AnimatedColor = m_Color;
-            AddListeners();
             LetteraWorldBatcher.Register(this);
             m_Registered = true;
             Engine.SetEnabledForMotion(true);
-            LetteraInlineObjects.Attach(Engine, this);
         }
 
         Color m_AnimatedColor;
@@ -144,6 +151,7 @@ namespace FirstSymbol.Lettera
 
         void OnDestroy()
         {
+            RemoveListeners();
             if (m_Engine != null)
             {
                 LetteraRangeRouter.Forget(m_Engine);
@@ -154,7 +162,8 @@ namespace FirstSymbol.Lettera
 
         void OnDisable()
         {
-            RemoveListeners();
+            // A component that is on but whose GameObject is off left with its object, and comes back as it was.
+            if (!enabled || gameObject.activeInHierarchy) RemoveListeners();
             Engine.SetEnabledForMotion(false);
             LetteraRangeRouter.NotifyDisabled(Engine);
             if (m_Registered) LetteraWorldBatcher.Unregister(this);

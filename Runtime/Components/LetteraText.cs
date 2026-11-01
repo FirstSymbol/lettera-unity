@@ -101,6 +101,8 @@ namespace FirstSymbol.Lettera
         protected override void OnDestroy()
         {
             ClearParts();
+            RemoveListeners();
+            DestroyMesh();
             if (m_Engine != null)
             {
                 LetteraRangeRouter.Forget(m_Engine);
@@ -110,38 +112,63 @@ namespace FirstSymbol.Lettera
             base.OnDestroy();
         }
 
+        // The canvas renderer was cleared while the mesh stayed, so the next geometry update hands it back.
+        [System.NonSerialized] bool m_RendererEmpty;
+        float m_LastRasterScale;
+
         protected override void OnEnable()
         {
             base.OnEnable();
-            if (m_Parts.Count == 0) ForgetOldParts();
             GlyphAtlasRegistration.EnsureRegistered();
-            Engine.SetDirty(DirtyLevel.Parse);
-            m_LastRectSize = rectTransform.rect.size;
+            // Still listening means it left with its GameObject: whatever changed since has marked it, so only what it could not hear about is checked here.
+            bool kept = ((ITextListener)this).ListenerSlot >= 0;
+            if (kept)
+            {
+                Engine.SyncSerializedFields();
+                if (rectTransform.rect.size != m_LastRectSize) OnRectTransformDimensionsChange();
+                if (((ITextHost)this).RasterScale != m_LastRasterScale) Engine.SetDirty(DirtyLevel.Mesh);
+            }
+            else
+            {
+                if (m_Parts.Count == 0) ForgetOldParts();
+                Engine.SetDirty(DirtyLevel.Parse);
+                m_LastRectSize = rectTransform.rect.size;
+                AddListeners();
+            }
             m_HasAnimator = GetComponentInParent<Animator>() != null;
             m_AnimatedColor = color;
             RefreshClipping();
             EnableCanvasChannels();
-            AddListeners();
             Engine.SetEnabledForMotion(true);
-            LetteraInlineObjects.Attach(Engine, this);
             SetAllDirty();
         }
 
         protected override void OnDisable()
         {
-            RemoveListeners();
+            // A component that is on but whose GameObject is off left with its object, and comes back as it was.
+            bool keep = enabled && !gameObject.activeInHierarchy;
+            if (!keep) RemoveListeners();
             Engine.SetEnabledForMotion(false);
             LetteraRangeRouter.NotifyDisabled(Engine);
-            foreach (Material mask in m_SegmentMasks) StencilMaterial.Remove(mask);
-            m_SegmentMasks.Clear();
-            m_LastSegments.Clear();
-            base.OnDisable();
-            if (m_Mesh != null)
+            if (m_SegmentMasks.Count > 0)
             {
-                if (Application.isPlaying) Destroy(m_Mesh);
-                else DestroyImmediate(m_Mesh);
-                m_Mesh = null;
+                foreach (Material mask in m_SegmentMasks) StencilMaterial.Remove(mask);
+                m_SegmentMasks.Clear();
             }
+            base.OnDisable();
+            m_RendererEmpty = keep;
+            if (keep) return;
+            m_LastSegments.Clear();
+            ClearParts();
+            DestroyMesh();
+        }
+
+        void DestroyMesh()
+        {
+            if (m_Mesh == null) return;
+            if (Application.isPlaying) Destroy(m_Mesh);
+            else DestroyImmediate(m_Mesh);
+            m_Mesh = null;
         }
 
         protected override void OnCanvasHierarchyChanged()
@@ -205,10 +232,18 @@ namespace FirstSymbol.Lettera
                         UploadPose();
                     }
                 }
+                if (m_RendererEmpty)
+                {
+                    m_RendererEmpty = false;
+                    ApplyMarqueeClip();
+                    canvasRenderer.SetMesh(m_Mesh);
+                }
                 return;
             }
             if (Engine.Dirty == DirtyLevel.None) Engine.SetDirty(DirtyLevel.Mesh);
+            m_LastRasterScale = ((ITextHost)this).RasterScale;
             if (!Engine.Rebuild()) return;
+            m_RendererEmpty = false;
             bool parts = Engine.VertexCount > MaxPartVertices;
             if (parts) UploadParts();
             else
@@ -615,6 +650,8 @@ namespace FirstSymbol.Lettera
             foreach ((GameObject _, CanvasRenderer renderer, Mesh _) in m_Parts) renderer.cull = false;
             // A mask may have wanted it culled meanwhile.
             RecalculateClipping();
+            // Back while hidden, its rebuild found the renderer culled and gave up.
+            if (m_RendererEmpty && IsActive()) SetVerticesDirty();
         }
 
         // A mask decides about culling on its own, which must not bring a hidden text back.

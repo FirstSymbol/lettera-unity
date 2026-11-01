@@ -187,7 +187,6 @@ namespace FirstSymbol.Lettera
             AddListeners();
             Engine.SetDirty(DirtyLevel.Parse);
             Engine.SetEnabledForMotion(true);
-            LetteraInlineObjects.Attach(Engine, this);
 #if UNITY_EDITOR
             if (!Application.isPlaying) UnityEditor.EditorApplication.QueuePlayerLoopUpdate();
 #endif

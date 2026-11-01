@@ -21,11 +21,11 @@ namespace FirstSymbol.Lettera
             public bool Marker;     // An elision marker: drawn in the line, but no part of the text.
         }
 
-        PlacedGlyph[] m_Placed = new PlacedGlyph[64];
+        PlacedGlyph[] m_Placed = Array.Empty<PlacedGlyph>();
         int m_PlacedCount;  // Glyphs of the text, then virtual ones, which only the mesh sees.
         int m_RealCount;
-        byte[] m_LineLevels = new byte[64];
-        int[] m_VisualOrder = new int[64];
+        byte[] m_LineLevels = Array.Empty<byte>();
+        int[] m_VisualOrder = Array.Empty<int>();
 
         public IReadOnlyList<LetteraLine> Lines => m_Lines;
         public int GlyphCount => m_RealCount;

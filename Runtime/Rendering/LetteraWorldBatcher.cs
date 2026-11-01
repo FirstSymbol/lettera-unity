@@ -53,7 +53,7 @@ namespace FirstSymbol.Lettera
         sealed class Batch
         {
             public BatchKey Key;
-            public readonly List<LetteraWorldText> Texts = new List<LetteraWorldText>();
+            public readonly List<Entry> Texts = new List<Entry>();
             public readonly List<Shard> Shards = new List<Shard>();
             public bool Dirty = true;
         }
@@ -65,6 +65,7 @@ namespace FirstSymbol.Lettera
             public Matrix4x4 Matrix;
             public Shard Shard;
             public int BaseVertex;
+            public int EntrySlot, BatchSlot;
         }
 
         static readonly List<Entry> s_Posed = new List<Entry>();
@@ -105,20 +106,38 @@ namespace FirstSymbol.Lettera
             if (s_ByText.ContainsKey(text)) return;
             var entry = new Entry { Text = text, Matrix = text.transform.localToWorldMatrix };
             s_ByText[text] = entry;
+            entry.EntrySlot = s_Entries.Count;
             s_Entries.Add(entry);
             Assign(entry);
+        }
+
+        // Places in these lists mean nothing, and a batch sorts its own before it merges: taking one out is a swap, whatever the number of texts.
+        static void RemoveFromEntries(Entry entry)
+        {
+            int last = s_Entries.Count - 1;
+            Entry moved = s_Entries[last];
+            s_Entries[entry.EntrySlot] = moved;
+            moved.EntrySlot = entry.EntrySlot;
+            s_Entries.RemoveAt(last);
+        }
+
+        static void RemoveFromBatch(Entry entry)
+        {
+            List<Entry> texts = entry.Batch.Texts;
+            int last = texts.Count - 1;
+            Entry moved = texts[last];
+            texts[entry.BatchSlot] = moved;
+            moved.BatchSlot = entry.BatchSlot;
+            texts.RemoveAt(last);
+            entry.Batch.Dirty = true;
         }
 
         public static void Unregister(LetteraWorldText text)
         {
             if (!s_ByText.TryGetValue(text, out Entry entry)) return;
             s_ByText.Remove(text);
-            s_Entries.Remove(entry);
-            if (entry.Batch != null)
-            {
-                entry.Batch.Texts.Remove(text);
-                entry.Batch.Dirty = true;
-            }
+            RemoveFromEntries(entry);
+            if (entry.Batch != null) RemoveFromBatch(entry);
         }
 
         /// <summary>A pose pass wrote this text's vertices: only its part of its shard has to go up again.</summary>
@@ -138,15 +157,15 @@ namespace FirstSymbol.Lettera
             if (entry.Batch != null)
             {
                 if (entry.Batch.Key.Equals(key)) return;
-                entry.Batch.Texts.Remove(entry.Text);
-                entry.Batch.Dirty = true;
+                RemoveFromBatch(entry);
             }
             if (!s_Batches.TryGetValue(key, out Batch batch))
             {
                 batch = new Batch { Key = key };
                 s_Batches[key] = batch;
             }
-            batch.Texts.Add(entry.Text);
+            entry.BatchSlot = batch.Texts.Count;
+            batch.Texts.Add(entry);
             batch.Dirty = true;
             entry.Batch = batch;
         }
@@ -229,9 +248,12 @@ namespace FirstSymbol.Lettera
             s_Runs.Clear();
             s_ShardStyled = false;
             s_ShardPosed = false;
-            batch.Texts.Sort((a, b) => a.SortingOrder != b.SortingOrder ? a.SortingOrder.CompareTo(b.SortingOrder) : a.GetHashCode().CompareTo(b.GetHashCode()));
-            foreach (LetteraWorldText text in batch.Texts)
+            batch.Texts.Sort(s_BySortingOrder);
+            for (int t = 0; t < batch.Texts.Count; t++) batch.Texts[t].BatchSlot = t;
+            for (int t = 0; t < batch.Texts.Count; t++)
             {
+                Entry placed = batch.Texts[t];
+                LetteraWorldText text = placed.Text;
                 if (text == null || text.Hidden) continue;
                 TextEngine e = text.Engine;
                 if (e.VertexCount == 0) continue;
@@ -245,12 +267,9 @@ namespace FirstSymbol.Lettera
                 }
                 EnsureCapacity(vertexCount + e.VertexCount, indexCount + e.IndexCount);
                 Matrix4x4 m = text.transform.localToWorldMatrix;
-                if (s_ByText.TryGetValue(text, out Entry placed))
-                {
-                    placed.BaseVertex = vertexCount;
-                    placed.Shard = GetShard(batch, shardIndex);
-                    s_ShardPosed |= e.HasPoseConsumers;
-                }
+                placed.BaseVertex = vertexCount;
+                placed.Shard = GetShard(batch, shardIndex);
+                s_ShardPosed |= e.HasPoseConsumers;
                 // The face looks along -Z; a mirrored text still has its normal towards the viewer.
                 Vector3 normal = m.MultiplyVector(Vector3.back).normalized;
                 if (m.determinant < 0) normal = -normal;
@@ -276,6 +295,12 @@ namespace FirstSymbol.Lettera
                 if (batch.Shards[i].Mesh != null) batch.Shards[i].Mesh.Clear(false);
             }
         }
+
+        static readonly Comparison<Entry> s_BySortingOrder = (a, b) =>
+        {
+            int x = a.Text.SortingOrder, y = b.Text.SortingOrder;
+            return x != y ? x.CompareTo(y) : a.Text.GetHashCode().CompareTo(b.Text.GetHashCode());
+        };
 
         static void AddRun(int start, int count, bool styled, LetteraBlend blend, Texture2D texture, Material custom)
         {
@@ -412,8 +437,9 @@ namespace FirstSymbol.Lettera
             filter.sharedMesh = shard.Mesh;
 
             // The shard belongs to the text's scene, so preview and additive scene cameras see it.
-            foreach (LetteraWorldText text in batch.Texts)
+            for (int t = 0; t < batch.Texts.Count; t++)
             {
+                LetteraWorldText text = batch.Texts[t].Text;
                 if (text == null || !text.gameObject.scene.IsValid()) continue;
                 SceneManager.MoveGameObjectToScene(shard.Object, text.gameObject.scene);
                 break;

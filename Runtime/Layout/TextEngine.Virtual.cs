@@ -36,7 +36,7 @@ namespace FirstSymbol.Lettera
         readonly List<ShapedGlyph> m_InlineGlyphs = new List<ShapedGlyph>();
         readonly List<ListItem> m_ListItems = new List<ListItem>();
         readonly List<RubyItem> m_RubyItems = new List<RubyItem>();
-        float[] m_CpListIndent = new float[64];
+        float[] m_CpListIndent = Array.Empty<float>();
         const float MarkerGapEm = 0.4f;
 
         // Shapes a short string in the base's font, or in another font of the chain when that one lacks it.

@@ -392,6 +392,8 @@ namespace FirstSymbol.Lettera
         {
             if (m_InlineItems.Count == 0 && !m_InlinePlacedPending) return;
             m_InlinePlacedPending = false;
+            // Most texts never hold an inline object, so what looks after them comes with the first.
+            if (InlinePlaced == null && m_Host is Component) LetteraInlineObjects.Attach(this, m_Host.Owner);
             InlinePlaced?.Invoke();
         }
     }
