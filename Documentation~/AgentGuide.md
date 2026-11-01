@@ -58,7 +58,7 @@ Targets are hierarchy paths (`/Canvas/Title`), names or ids (`#1234`). On a fiel
 | `export_png --target <t> --output <file.png> [--scale <n>] [--background <colour>]` | **Renders a picture to look at** |
 | `atlas`, `atlas_reset`, `atlas_export --output <file.png> [--set sdf\|msdf\|color] [--page <n>]` | Shared glyph atlases |
 | `caches`, `memory` | Text caches; what loaded fonts cost |
-| `select --target <t>`, `edit_in_scene --target <t>` | For the person watching |
+| `select --target <t>`, `edit_in_scene --target <t>` | For the person watching. `edit_in_scene` answers `started`, and `why` when it could not: no Scene view, several selected, a document, a resolver. What is typed then belongs to the person. |
 | `migrate_scan [--root]`, `migrate_status`, `migrate_report --output <file>`, `migrate_fonts`, `migrate_components [--simple]`, `migrate_scripts [--preview]` | TextMesh Pro migration. Refuses on a dirty open scene rather than prompt |
 | `settings_get [--key math.scale]`, `settings_set --data {...} [--create]` | `LetteraSettings` |
 | `device_check_build --target android\|ios\|web\|windows\|mac` | Builds the device check sample. Refuses on a dirty open scene |

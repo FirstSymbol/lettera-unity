@@ -28,6 +28,10 @@ namespace FirstSymbol.Lettera.Editor
 
         internal static LetteraSceneEdit Current { get; private set; }
 
+        /// <summary>A session started or ended, or a try at one was refused.</summary>
+        internal static event Action StateChanged;
+        internal static void RaiseStateChanged() => StateChanged?.Invoke();
+
         /// <summary>Replaces how the right click's menu shows. Tests use this.</summary>
         internal static Action<IReadOnlyList<MenuLine>> MenuOverride;
 
@@ -113,7 +117,9 @@ namespace FirstSymbol.Lettera.Editor
             why = WhyNot(text);
             if (why != null) return null;
             Current?.End(LetteraSceneEditEnd.Done);
-            return Current = new LetteraSceneEdit(text);
+            Current = new LetteraSceneEdit(text);
+            RaiseStateChanged();
+            return Current;
         }
 
         LetteraSceneEdit(MonoBehaviour text)
@@ -441,6 +447,7 @@ namespace FirstSymbol.Lettera.Editor
                 Selectable.ForgetHost();
                 DestroyHelper();
                 Repaint();
+                RaiseStateChanged();
                 return;
             }
 
@@ -461,6 +468,7 @@ namespace FirstSymbol.Lettera.Editor
             if (reason != LetteraSceneEditEnd.ChangedElsewhere && final != m_Original) Commit(final);
             m_Host.Dirty(DirtyLevel.Parse);
             Repaint();
+            RaiseStateChanged();
         }
 
         void Commit(string final)
@@ -689,7 +697,7 @@ namespace FirstSymbol.Lettera.Editor
     {
         const string Menu = "Tools/Lettera/Edit Text In Scene";
         static readonly int s_Control = "LetteraSceneEdit".GetHashCode();
-        static bool s_Pressed;
+        static bool s_Pressed, s_BarIsOurs;
 
         /// <summary>What the last try at starting said, for the bar's chip.</summary>
         internal static string LastWhy { get; private set; }
@@ -706,6 +714,8 @@ namespace FirstSymbol.Lettera.Editor
             PrefabStage.prefabSaving += _ => LetteraSceneEdit.Current?.RecordOverride();
             PrefabStage.prefabStageClosing += _ => LetteraSceneEdit.Current?.End(LetteraSceneEditEnd.Done);
             EditorApplication.delayCall += () => LetteraSceneEdit.Sweep();
+            LetteraSceneEdit.StateChanged += PutBarAway;
+            Selection.selectionChanged += SelectionChanged;
         }
 
         internal static void BeforeReload() => LetteraSceneEdit.Current?.End(LetteraSceneEditEnd.DomainReload);
@@ -726,7 +736,23 @@ namespace FirstSymbol.Lettera.Editor
             LetteraSceneEdit session = LetteraSceneEdit.Current;
             if (session == null) return;
             session.Tick();
-            if (LetteraSceneEdit.Current == null) ShowBarState();
+        }
+
+        // A refusal's reason stands until the selection it was about is gone.
+        static void SelectionChanged()
+        {
+            if (LetteraSceneEdit.Current != null || LastWhy == null) return;
+            LastWhy = null;
+            LetteraSceneEdit.RaiseStateChanged();
+        }
+
+        // What a session opened goes when it ends. A bar someone opened from the overlay menu stays.
+        static void PutBarAway()
+        {
+            if (!s_BarIsOurs || LetteraSceneEdit.Current != null || LastWhy != null) return;
+            s_BarIsOurs = false;
+            SceneView view = SceneView.lastActiveSceneView;
+            if (view != null && view.TryGetOverlay(LetteraSceneEditBar.Id, out Overlay bar)) bar.displayed = false;
         }
 
         // ------------------------------------------------------------- ways in
@@ -767,25 +793,26 @@ namespace FirstSymbol.Lettera.Editor
             }
             LastWhy = null;
             view.Focus();
-            ShowBar(view, true);
+            ShowBar(view);
             return true;
         }
 
         static void Tell(string why)
         {
             LastWhy = why;
+            LetteraSceneEdit.RaiseStateChanged();
             SceneView view = SceneView.lastActiveSceneView;
             if (view == null) return;
-            ShowBar(view, true);
+            ShowBar(view);
             view.ShowNotification(new GUIContent(why));
         }
 
-        static void ShowBar(SceneView view, bool show)
+        static void ShowBar(SceneView view)
         {
-            if (view.TryGetOverlay(LetteraSceneEditBar.Id, out Overlay bar)) bar.displayed = show || bar.displayed;
+            if (!view.TryGetOverlay(LetteraSceneEditBar.Id, out Overlay bar) || bar.displayed) return;
+            bar.displayed = true;
+            s_BarIsOurs = true;
         }
-
-        static void ShowBarState() => SceneView.RepaintAll();
 
         /// <summary>The text under a point in the view's pixels, nearest first. A world text has no renderer of its own for the editor's picking to find.</summary>
         internal static MonoBehaviour TextAt(IEnumerable<MonoBehaviour> candidates, Vector2 screen, Camera camera)
@@ -916,7 +943,10 @@ namespace FirstSymbol.Lettera.Editor
             LetteraSceneEditVisual visual = session.Visual;
             Rect frame = rect.rect;
             Fill(frame, Color.clear, new Color(0.4f, 0.65f, 1f, 0.9f));
-            foreach (Rect selected in visual.Rects) Fill(selected, visual.SelectionColor, Color.clear);
+            // Over the glyphs, not under them as in a player, so the color has to leave them readable.
+            Color selection = visual.SelectionColor;
+            selection.a = Mathf.Min(selection.a, 0.4f);
+            foreach (Rect selected in visual.Rects) Fill(selected, selection, Color.clear);
             foreach (Rect line in visual.Underlines) Fill(line, visual.UnderlineColor, Color.clear);
             if (visual.CaretOn)
             {
@@ -999,8 +1029,15 @@ namespace FirstSymbol.Lettera.Editor
             m_Root.Add(m_Tags);
 
             m_Root.schedule.Execute(Refresh).Every(200);
+            LetteraSceneEdit.StateChanged += Refresh;
             Refresh();
             return m_Root;
+        }
+
+        public override void OnWillBeDestroyed()
+        {
+            LetteraSceneEdit.StateChanged -= Refresh;
+            base.OnWillBeDestroyed();
         }
 
         Label Format(string text, string classes, string name, Type effect)
