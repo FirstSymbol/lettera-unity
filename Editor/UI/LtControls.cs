@@ -1196,6 +1196,9 @@ namespace FirstSymbol.Lettera.Editor
     public sealed class LtPopup : PopupWindowContent
     {
         static LtPopup s_Current;
+
+        /// <summary>Takes what would open, for a run with no person to close a window.</summary>
+        internal static Action<VisualElement, Vector2, Func<VisualElement>> ShowOverride;
         readonly Func<VisualElement> m_Build;
         readonly Vector2 m_Size;
 
@@ -1215,6 +1218,11 @@ namespace FirstSymbol.Lettera.Editor
         /// <summary>Opens beside an element, built when it opens.</summary>
         public static void Show(VisualElement anchor, Vector2 size, Func<VisualElement> build)
         {
+            if (ShowOverride != null)
+            {
+                ShowOverride(anchor, size, build);
+                return;
+            }
             s_Current = new LtPopup(build, size);
             UnityEditor.PopupWindow.Show(anchor.worldBound, s_Current);
         }
