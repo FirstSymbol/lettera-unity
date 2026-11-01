@@ -378,7 +378,7 @@ namespace FirstSymbol.Lettera
         }
 
         /// <summary>What a screen reader gets for an inline object at a codepoint.</summary>
-        internal string InlineAltAt(int cp) => m_InlineByCp.TryGetValue(cp, out int item) ? m_InlineItems[item].Entry?.Alt : null;
+        internal string InlineAltAt(int cp) => m_InlineByCp.TryGetValue(cp, out int formula) && m_InlineItems[formula].Math != null ? (m_InlineItems[formula].MathDisplay ? "$$" + m_InlineItems[formula].MathSource + "$$" : "$" + m_InlineItems[formula].MathSource + "$") : m_InlineByCp.TryGetValue(cp, out int item) ? m_InlineItems[item].Entry?.Alt : null;
 
         /// <summary>The language a codepoint is tagged with, or null.</summary>
         public string LanguageAt(int cp)

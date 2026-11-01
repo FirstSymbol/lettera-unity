@@ -86,6 +86,8 @@ namespace FirstSymbol.Lettera
                 if (style != null && style.Enabled && style.Matcher != null) m_MatcherOrder.Add(i);
             }
             SortMatchers();
+            context.HasEscapes = false;
+            foreach (int index in m_MatcherOrder) context.HasEscapes |= m_EffectiveStyles[index].Matcher is EscapeMatcher;
             foreach (int index in m_MatcherOrder)
             {
                 context.CurrentStyle = index;

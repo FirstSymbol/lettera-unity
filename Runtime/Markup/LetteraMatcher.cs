@@ -76,6 +76,9 @@ namespace FirstSymbol.Lettera
         /// <summary>Positions of every '&lt;' in the source, in order.</summary>
         public IReadOnlyList<int> LessThanPositions => m_LessThan;
 
+        /// <summary>The text's styles read escapes, so a backslash before a tag means that tag is text.</summary>
+        public bool HasEscapes { get; internal set; }
+
         internal void Begin(ReadOnlySpan<char> source)
         {
             m_Source = null;
@@ -446,7 +449,7 @@ namespace FirstSymbol.Lettera
     [Serializable]
     public class EscapeMatcher : LetteraMatcher
     {
-        public override int Priority => int.MaxValue - 1;
+        public override int Priority => int.MaxValue - 2;
 
         public override string EscapeFor(string literal)
         {

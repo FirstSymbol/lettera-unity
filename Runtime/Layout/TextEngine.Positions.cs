@@ -16,6 +16,8 @@ namespace FirstSymbol.Lettera
             public float XScale;    // Added to 1: justification, a fit and connecting strokes widen or narrow a glyph.
             public float Angle;     // Radians around the origin, on curved text.
             public float Pen;       // Where the cluster's advance starts, without the glyph's own offset.
+            public byte Special;    // A formula's part: see AddSpecialQuad. 0 for everything else.
+            public int SpecialIndex;
             public bool Marker;     // An elision marker: drawn in the line, but no part of the text.
         }
 
@@ -91,6 +93,7 @@ namespace FirstSymbol.Lettera
             m_RealCount = m_PlacedCount;
             if (m_ListItems.Count > 0) PlaceListMarkers();
             if (m_RubyItems.Count > 0) PlaceRubies();
+            if (m_FormulaCount > 0) PlaceFormulas();
             foreach (PlacedGlyph glyph in m_VirtualGlyphs)
             {
                 EnsureSize(ref m_Placed, m_PlacedCount + 1);

@@ -193,6 +193,12 @@ namespace FirstSymbol.Lettera
                 int density = PixelsPerEm(g.Size, rasterScale);
                 byte boost = m_Attributes.Chars[g.Cluster].Boost;
                 if (boost > 0) density = GlyphAtlas.Boost(g.Instance, g.Glyph, density << boost);
+                if (g.Special == SpecialRule)
+                {
+                    MathSpecial rule = m_MathSpecials[g.SpecialIndex];
+                    m_PlacedAtlas[i] = GlyphAtlas.GetRule(rule.Thickness, rule.Vertical, density, m_PlacedReach[i], m_Host.Data.RenderMode == LetteraRenderMode.MSDF);
+                    continue;
+                }
                 m_PlacedAtlas[i] = GlyphAtlas.Get(g.Instance, g.Glyph, density, m_PlacedReach[i], m_Host.Data.RenderMode == LetteraRenderMode.MSDF);
             }
 
@@ -731,6 +737,11 @@ namespace FirstSymbol.Lettera
 
         void AddQuad(in PlacedGlyph g, in AtlasGlyph atlas, Color32 color, float mode, float threshold, float softness, float upper, in ResolvedPaint paint, in Rect paintRect, float paintDx, float paintDy, Vector4 extra = default)
         {
+                        if (g.Special != 0)
+            {
+                AddSpecialQuad(g, atlas, color, mode, threshold, softness, upper, paint, paintRect, paintDx, paintDy, extra);
+                return;
+            }
             float xUnit = g.Unit * (1 + g.XScale);
             float left = atlas.Left * xUnit, right = atlas.Right * xUnit;
             float bottom = atlas.Bottom * g.Unit, top = atlas.Top * g.Unit;

@@ -17,6 +17,154 @@ namespace FirstSymbol.Lettera
             public Vector2 Pivot, BoxSize;
             public Color32 Tint;
             public bool Tinted, InheritColor;
+            /// <summary>A formula's own box, shared by every text showing it.</summary>
+            public LetteraMathLayout Math;
+            public float MathScale;
+            public bool MathDisplay;
+            public string MathSource, Alt;
+        }
+
+        internal FontFace PrimaryFaceForMath => LetteraFontChains.Get(m_Host.Data.Font, m_Host.Data.FontStack).PrimaryFace;
+
+        // Each thing a formula draws is a glyph only the mesh sees, so color, layers, reveal and motion reach it with nothing further.
+        void PlaceFormulas()
+        {
+            m_MathSpecials.Clear();
+            for (int i = 0; i < m_InlineItems.Count; i++)
+            {
+                InlineItem item = m_InlineItems[i];
+                if (item.Math == null) continue;
+                int glyph = FirstGlyphOf(item.Cp);
+                if (glyph < 0) continue;
+                PlacedGlyph at = m_Placed[glyph];
+                float em = at.Size * item.MathScale;
+                float cos = at.Angle != 0 ? Mathf.Cos(at.Angle) : 1, sin = at.Angle != 0 ? Mathf.Sin(at.Angle) : 0;
+                LetteraMathItem[] items = item.Math.Items;
+                for (int k = 0; k < items.Length; k++)
+                {
+                    LetteraMathItem part = items[k];
+                    FontInstance instance = item.Math.Faces[part.Face];
+                    float px = part.X * em, py = part.Y * em;
+                    var placed = new PlacedGlyph
+                    {
+                        Glyph = part.Glyph, Instance = instance, Cluster = item.Cp, Line = at.Line,
+                        X = at.X + px * cos - py * sin, Y = at.Y + px * sin + py * cos,
+                        Size = em * part.Scale, Unit = em * part.Scale / instance.Face.Metrics.Upem, Angle = at.Angle, Pen = at.X, Marker = true,
+                    };
+                    bool colored = part.Color > 0 && part.Color <= item.Math.Colors.Length;
+                    if (part.Kind == MathItemKind.Rule)
+                    {
+                        placed.Special = SpecialRule;
+                        placed.Size = em;
+                        placed.Unit = em / 1000;
+                        placed.SpecialIndex = m_MathSpecials.Count;
+                        m_MathSpecials.Add(new MathSpecial { Length = part.Length * 1000, Thickness = part.Thickness * 1000, Vertical = part.Vertical, HasColor = colored, Color = colored ? item.Math.Colors[part.Color - 1] : default });
+                    }
+                    else if (part.Cropped || colored)
+                    {
+                        placed.Special = part.Cropped ? SpecialCrop : SpecialColor;
+                        placed.SpecialIndex = m_MathSpecials.Count;
+                        m_MathSpecials.Add(new MathSpecial { Low = part.CropLow, High = part.CropHigh, Vertical = part.Vertical, HasColor = colored, Color = colored ? item.Math.Colors[part.Color - 1] : default });
+                    }
+                    m_VirtualGlyphs.Add(placed);
+                }
+            }
+        }
+
+        const byte SpecialCrop = 1, SpecialRule = 2, SpecialColor = 3;
+
+        struct MathSpecial
+        {
+            public float Low, High, Length, Thickness;
+            public bool Vertical, HasColor;
+            public Color32 Color;
+        }
+
+        readonly List<MathSpecial> m_MathSpecials = new List<MathSpecial>();
+
+        int m_FormulaCount;
+
+        /// <summary>A rule's three quads, a part cut at its seam, or a glyph in a color of its own. Plain text never comes here.</summary>
+        void AddSpecialQuad(in PlacedGlyph g, in AtlasGlyph atlas, Color32 color, float mode, float threshold, float softness, float upper, in ResolvedPaint paint, in Rect paintRect, float paintDx, float paintDy, Vector4 extra)
+        {
+            MathSpecial special = m_MathSpecials[g.SpecialIndex];
+            if (special.HasColor)
+            {
+                byte alpha = color.a;
+                color = special.Color;
+                color.a = (byte)(color.a * alpha / 255);
+            }
+            PlacedGlyph plain = g;
+            plain.Special = 0;
+            AtlasGlyph piece = atlas;
+            switch (g.Special)
+            {
+                case SpecialCrop:
+                    if (special.Vertical)
+                    {
+                        float span = atlas.Top - atlas.Bottom;
+                        float low = Mathf.Max(special.Low, atlas.Bottom), high = Mathf.Min(special.High, atlas.Top);
+                        if (high <= low || span <= 0) return;
+                        piece.V0 = Mathf.Lerp(atlas.V0, atlas.V1, (low - atlas.Bottom) / span);
+                        piece.V1 = Mathf.Lerp(atlas.V0, atlas.V1, (high - atlas.Bottom) / span);
+                        piece.Bottom = low;
+                        piece.Top = high;
+                    }
+                    else
+                    {
+                        float span = atlas.Right - atlas.Left;
+                        float low = Mathf.Max(special.Low, atlas.Left), high = Mathf.Min(special.High, atlas.Right);
+                        if (high <= low || span <= 0) return;
+                        piece.U0 = Mathf.Lerp(atlas.U0, atlas.U1, (low - atlas.Left) / span);
+                        piece.U1 = Mathf.Lerp(atlas.U0, atlas.U1, (high - atlas.Left) / span);
+                        piece.Left = low;
+                        piece.Right = high;
+                    }
+                    AddQuad(plain, piece, color, mode, threshold, softness, upper, paint, paintRect, paintDx, paintDy, extra);
+                    return;
+                case SpecialRule:
+                    // A rule's tile has a tiny length, so one column of it holds the field across the rule: stretching that column is exact, not an approximation.
+                    if (special.Vertical)
+                    {
+                        float middle = (atlas.Bottom + atlas.Top) / 2, centreV = (atlas.V0 + atlas.V1) / 2;
+                        piece.Bottom = atlas.Bottom;
+                        piece.Top = middle;
+                        piece.V1 = centreV;
+                        AddQuad(plain, piece, color, mode, threshold, softness, upper, paint, paintRect, paintDx, paintDy, extra);
+                        piece = atlas;
+                        piece.Bottom = middle;
+                        piece.Top = middle + special.Length;
+                        piece.V0 = piece.V1 = centreV;
+                        AddQuad(plain, piece, color, mode, threshold, softness, upper, paint, paintRect, paintDx, paintDy, extra);
+                        piece = atlas;
+                        piece.Bottom = middle + special.Length;
+                        piece.Top = atlas.Top + special.Length;
+                        piece.V0 = centreV;
+                        AddQuad(plain, piece, color, mode, threshold, softness, upper, paint, paintRect, paintDx, paintDy, extra);
+                    }
+                    else
+                    {
+                        float middle = (atlas.Left + atlas.Right) / 2, centreU = (atlas.U0 + atlas.U1) / 2;
+                        piece.Left = atlas.Left;
+                        piece.Right = middle;
+                        piece.U1 = centreU;
+                        AddQuad(plain, piece, color, mode, threshold, softness, upper, paint, paintRect, paintDx, paintDy, extra);
+                        piece = atlas;
+                        piece.Left = middle;
+                        piece.Right = middle + special.Length;
+                        piece.U0 = piece.U1 = centreU;
+                        AddQuad(plain, piece, color, mode, threshold, softness, upper, paint, paintRect, paintDx, paintDy, extra);
+                        piece = atlas;
+                        piece.Left = middle + special.Length;
+                        piece.Right = atlas.Right + special.Length;
+                        piece.U0 = centreU;
+                        AddQuad(plain, piece, color, mode, threshold, softness, upper, paint, paintRect, paintDx, paintDy, extra);
+                    }
+                    return;
+                default:
+                    AddQuad(plain, piece, color, mode, threshold, softness, upper, paint, paintRect, paintDx, paintDy, extra);
+                    return;
+            }
         }
 
         readonly List<InlineItem> m_InlineItems = new List<InlineItem>();
@@ -45,12 +193,14 @@ namespace FirstSymbol.Lettera
             bool had = m_InlineItems.Count > 0;
             m_InlineItems.Clear();
             m_InlineByCp.Clear();
+            m_FormulaCount = 0;
             List<LetteraAttributes.InlineRequest> requests = m_Attributes.InlineRequests;
             for (int r = 0; r < requests.Count; r++)
             {
                 LetteraAttributes.InlineRequest request = requests[r];
                 if (request.Start >= m_TextLength || m_Text[request.Start] != 0xFFFC) continue;
-                InlineItem item = request.Effect.Resolve(request.Slots, request.Start);
+                InlineItem item = request.Effect.ResolveIn(this, request.Slots, request.Start);
+                if (item.Math != null) m_FormulaCount++;
                 m_InlineByCp[item.Cp] = m_InlineItems.Count;
                 m_InlineItems.Add(item);
             }

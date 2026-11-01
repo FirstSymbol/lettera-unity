@@ -16,6 +16,16 @@ namespace FirstSymbol.Lettera
     }
 
     [StructLayout(LayoutKind.Sequential)]
+    internal struct NativeMathPart
+    {
+        public uint Glyph;
+        public int StartConnector;
+        public int EndConnector;
+        public int FullAdvance;
+        public uint Flags;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
     internal struct NativeFeature
     {
         public uint Tag;
@@ -36,7 +46,7 @@ namespace FirstSymbol.Lettera
         public const int MinimumVersion = 1;
 
         /// <summary>The library this package ships.</summary>
-        public const int CurrentVersion = 2;
+        public const int CurrentVersion = 3;
 
         static int s_Version;
 
@@ -86,6 +96,15 @@ namespace FirstSymbol.Lettera
         [DllImport(Lib)] public static extern int lt_palette_colors(IntPtr face, int palette, uint* output, int capacity);
         [DllImport(Lib)] public static extern int lt_glyph_png(IntPtr font, uint glyph, byte* output, int capacity);
         [DllImport(Lib)] public static extern int lt_face_collect_unicodes(IntPtr face, uint* output, int capacity);
+
+        // Version 3.
+        [DllImport(Lib)] public static extern int lt_math_has_data(IntPtr face);
+        [DllImport(Lib)] public static extern void lt_math_constants(IntPtr font, int* out56);
+        [DllImport(Lib)] public static extern void lt_math_glyph_info(IntPtr font, uint glyph, int* out3);
+        [DllImport(Lib)] public static extern int lt_math_kern(IntPtr font, uint glyph, int corner, int height);
+        [DllImport(Lib)] public static extern int lt_math_variants(IntPtr font, uint glyph, int vertical, uint* glyphs, int* advances, int capacity);
+        [DllImport(Lib)] public static extern int lt_math_assembly(IntPtr font, uint glyph, int vertical, NativeMathPart* parts, int capacity, int* italic);
+        [DllImport(Lib)] public static extern int lt_math_min_overlap(IntPtr font, int vertical);
 
         // Version 2.
         [DllImport(Lib)] public static extern int lt_shape_flagged(IntPtr font, int* text, int textLength, int start, int length,
