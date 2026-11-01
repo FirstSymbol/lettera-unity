@@ -1,0 +1,40 @@
+// Builds the comparison's Windows player. Imports TextMesh Pro's essentials, so that its shaders are in the build.
+using System;
+using System.IO;
+using System.Linq;
+using UnityEditor;
+using UnityEditor.Build.Reporting;
+using UnityEditor.SceneManagement;
+using UnityEngine;
+
+public static class LetteraCompareBuild
+{
+    public static void Run()
+    {
+        string[] args = Environment.GetCommandLineArgs();
+        string output = args[Array.IndexOf(args, "-out") + 1];
+        if (!Directory.Exists("Assets/TextMesh Pro"))
+        {
+            string package = Directory.GetDirectories("Library/PackageCache", "com.unity.ugui*").First();
+            AssetDatabase.ImportPackage(Path.Combine(package, "Package Resources", "TMP Essential Resources.unitypackage"), false);
+            AssetDatabase.Refresh();
+        }
+        const string path = "Assets/Compare.unity";
+        EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
+        EditorSceneManager.SaveScene(UnityEngine.SceneManagement.SceneManager.GetActiveScene(), path);
+        PlayerSettings.SetScriptingBackend(UnityEditor.Build.NamedBuildTarget.Standalone, ScriptingImplementation.Mono2x);
+        PlayerSettings.fullScreenMode = FullScreenMode.Windowed;
+        PlayerSettings.defaultScreenWidth = 1200;
+        PlayerSettings.defaultScreenHeight = 700;
+        // A font made from a file at runtime asks for a dynamic atlas's shader by name.
+        var graphics = AssetDatabase.LoadAssetAtPath<UnityEngine.Object>("ProjectSettings/GraphicsSettings.asset");
+        BuildReport report = BuildPipeline.BuildPlayer(new BuildPlayerOptions
+        {
+            scenes = new[] { path },
+            target = BuildTarget.StandaloneWindows64,
+            locationPathName = output,
+            options = Environment.GetEnvironmentVariable("LETTERA_DEV") == "1" ? BuildOptions.Development : BuildOptions.None,
+        });
+        Debug.Log("LETTERA_COMPARE_BUILD " + report.summary.result + " errors=" + report.summary.totalErrors);
+    }
+}
