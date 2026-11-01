@@ -8,6 +8,7 @@
         "FirstSymbol.Lettera.Editor",
         "FirstSymbol.Lettera.Editor.Tests",
         "FirstSymbol.Lettera.Timeline",
+        "FirstSymbol.Lettera.Timeline.Editor",
         "Unity.Timeline",
         "Unity.Timeline.Editor"
     ],
