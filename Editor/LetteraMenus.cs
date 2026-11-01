@@ -156,6 +156,40 @@ namespace FirstSymbol.Lettera.Editor
             keywords = new HashSet<string>(new[] { "Lettera", "Text", "Font", "Emoji", "Fallback", "Caret", "Selection", "Undo", "Clipboard", "Commands" }),
         };
 
+        // A scripting define on all targets. Turning one over recompiles everything, so it asks first.
+        static VisualElement DefineRow(string label, string define, string tip)
+        {
+            var toggle = new UnityEngine.UIElements.Toggle { value = HasDefine(define) };
+            toggle.RegisterValueChangedCallback(e =>
+            {
+                if (!EditorUtility.DisplayDialog(label, (e.newValue ? "Sets " : "Clears ") + define + " on every build target, which recompiles all scripts.", "Do It", "Cancel"))
+                {
+                    toggle.SetValueWithoutNotify(e.previousValue);
+                    return;
+                }
+                SetDefine(define, e.newValue);
+            });
+            return LtUI.Row(label, toggle, tip);
+        }
+
+        static readonly UnityEditor.Build.NamedBuildTarget[] s_Targets =
+        {
+            UnityEditor.Build.NamedBuildTarget.Standalone, UnityEditor.Build.NamedBuildTarget.Android, UnityEditor.Build.NamedBuildTarget.iOS, UnityEditor.Build.NamedBuildTarget.WebGL,
+        };
+
+        static bool HasDefine(string define) => System.Array.IndexOf(PlayerSettings.GetScriptingDefineSymbols(s_Targets[0]).Split(';'), define) >= 0;
+
+        static void SetDefine(string define, bool on)
+        {
+            foreach (UnityEditor.Build.NamedBuildTarget target in s_Targets)
+            {
+                var symbols = new List<string>(PlayerSettings.GetScriptingDefineSymbols(target).Split(new[] { ';' }, System.StringSplitOptions.RemoveEmptyEntries));
+                symbols.Remove(define);
+                if (on) symbols.Add(define);
+                PlayerSettings.SetScriptingDefineSymbols(target, string.Join(";", symbols));
+            }
+        }
+
         internal static VisualElement Build()
         {
             VisualElement root = LtUI.Root();
@@ -175,7 +209,7 @@ namespace FirstSymbol.Lettera.Editor
                 return root;
             }
             var serialized = new SerializedObject(settings);
-            page.Add(LtFrame.AllFields(serialized, "Text", "m_Editing", "m_Motion", "m_Documents", "m_Platform", "m_FontMemory"));
+            page.Add(LtFrame.AllFields(serialized, "Text", "m_Math", "m_Solid3D", "m_Editing", "m_Motion", "m_Documents", "m_Platform", "m_FontMemory"));
             SerializedProperty editing = serialized.FindProperty("m_Editing");
             var rows = new List<VisualElement>();
             SerializedProperty child = editing.Copy();
@@ -235,6 +269,22 @@ namespace FirstSymbol.Lettera.Editor
                 fontRows.Add(LtFrame.Row(fontChild.Copy()));
             }
             page.Add(LtUI.Card("Font Memory", fontRows.ToArray()));
+            SerializedProperty math = serialized.FindProperty("m_Math");
+            page.Add(LtUI.Card("Math",
+                LtUI.Field("Font", math.FindPropertyRelative("Font"), "The font of formulas. It costs its size in every build once set here: 343 KB for the bundled one. Empty uses the text's font if it holds a math table, then a system math font, then fallback layout."),
+                LtUI.Field("Scale", math.FindPropertyRelative("Scale"), "A formula against the text around it."),
+                LtUI.Field("Errors", math.FindPropertyRelative("Errors"), "What a formula that cannot be read shows."),
+                LtUI.Field("Delimiter Coverage", math.FindPropertyRelative("DelimiterFactor"), "How much a stretched delimiter covers of what it wraps."),
+                LtUI.Field("Least Rule Width", math.FindPropertyRelative("MinRulePixels"), "The least a fraction bar draws, in device pixels. 0 turns this off."),
+                LtUI.Field("Cache", math.FindPropertyRelative("CacheBytes"), "The most laid-out formulas kept, in bytes."),
+                DefineRow("Compile Out Formulas", "LETTERA_NO_MATH", "Removes formula code from builds. <math> then shows its source as text.")));
+            SerializedProperty solid = serialized.FindProperty("m_Solid3D");
+            page.Add(LtUI.Card("3D",
+                LtUI.Field("Default Material", solid.FindPropertyRelative("DefaultMaterial"), "For a Text 3D made by a script with no material. Set, it puts the solid shader in every build."),
+                LtUI.Field("Solid Cache", solid.FindPropertyRelative("CacheBytes"), "The most glyph solids kept, in bytes."),
+                LtUI.Field("Most Vertices", solid.FindPropertyRelative("MaxVertices"), "The most vertices one text draws."),
+                LtUI.Text("Render pipeline: " + (UnityEngine.Rendering.GraphicsSettings.currentRenderPipeline != null ? UnityEngine.Rendering.GraphicsSettings.currentRenderPipeline.GetType().Name : "Built-in"), "lt-subtitle"),
+                DefineRow("Compile Out 3D Text", "LETTERA_NO_3D", "Removes the 3D module's assemblies from this project.")));
             page.Add(LtUI.Card("Commands", new LetteraReferenceList(editing.FindPropertyRelative("Commands"), () => LetteraRuleCatalog.Commands)));
             return root;
         }

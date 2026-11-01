@@ -1131,7 +1131,7 @@ namespace FirstSymbol.Lettera
             float area = 0;
             for (int t = start; t + 2 < triangles.Length; t += 3)
                 area += Cross(ring[triangles[t]], ring[triangles[t + 1]], ring[triangles[t + 2]]) * 0.5f;
-            if (math.abs(area - expected) > math.abs(expected) * 0.001f + 1e-6f)
+            if (math.abs(area - expected) > math.abs(expected) * 0.001f + 1e-5f)
             {
                 triangles.ResizeUninitialized(start);
                 return false;
@@ -1246,6 +1246,10 @@ namespace FirstSymbol.Lettera
         static bool InTriangle(float2 a, float2 b, float2 c, float2 p) =>
             Cross(a, b, p) >= -1e-9f && Cross(b, c, p) >= -1e-9f && Cross(c, a, p) >= -1e-9f;
 
+        // Strictly inside: a point on the triangle's edge touches it and blocks nothing, and every polygon edge is still used once.
+        static bool StrictlyIn(float2 a, float2 b, float2 c, float2 p, float margin) =>
+            Cross(a, b, p) > margin && Cross(b, c, p) > margin && Cross(c, a, p) > margin;
+
         static bool Clip(NativeArray<float2> ring, ref NativeList<Node> nodes, int first, ref NativeList<int> triangles)
         {
             int remaining = 0;
@@ -1268,7 +1272,10 @@ namespace FirstSymbol.Lettera
                 int previous = node.Previous, next = node.Next;
                 float2 a = ring[nodes[previous].Vertex], b = ring[node.Vertex], c = ring[next < 0 ? 0 : nodes[next].Vertex];
                 float area = Cross(a, b, c);
-                bool ear = area > 0 || (stalled > remaining && area >= -1e-9f);
+                bool stuck = stalled > remaining;
+                // A ring moved in by a clamped inset can fold by a hair. Past that point the area check at the end is what decides.
+                float margin = stuck ? 1e-6f : 0;
+                bool ear = area > 0 || (stuck && area >= -1e-6f);
                 if (ear)
                 {
                     int walk = nodes[next].Next;
@@ -1277,10 +1284,10 @@ namespace FirstSymbol.Lettera
                         Node other = nodes[walk];
                         float2 p = ring[other.Vertex];
                         budget--;
-                        if (!Same(p, a) && !Same(p, b) && !Same(p, c) && InTriangle(a, b, c, p))
+                        if (!Same(p, a) && !Same(p, b) && !Same(p, c) && StrictlyIn(a, b, c, p, margin))
                         {
                             float2 before = ring[nodes[other.Previous].Vertex], after = ring[nodes[other.Next].Vertex];
-                            if (Cross(before, p, after) <= 0)
+                            if (Cross(before, p, after) < 0 || stuck == false)
                             {
                                 ear = false;
                                 break;
@@ -1306,7 +1313,7 @@ namespace FirstSymbol.Lettera
                     continue;
                 }
                 current = next;
-                if (++stalled > remaining * 2 + 2) return false;
+                if (++stalled > remaining * 3 + 3) return false;
             }
             Node last = nodes[current];
             triangles.Add(nodes[last.Previous].Vertex);

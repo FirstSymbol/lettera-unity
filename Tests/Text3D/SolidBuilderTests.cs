@@ -311,7 +311,7 @@ namespace FirstSymbol.Lettera.Text3D.Tests
                 {
                     LetteraSolidVertex v = e.Vertices[e.Indices[t]];
                     // On the side x = 0 of the square: inset from the side, height toward the face.
-                    if (v.Position.y < 1 || v.Position.y > 3 || v.Position.x >= 0.5f) continue;
+                    if (v.Normal.x >= -1e-3f || math.abs(v.Normal.y) > 1e-3f) continue;
                     float inward = v.Position.x, z = v.Position.z;
                     // The circle's centre is at (0.5, 0.5): inset 0.5 in, and height 0.5 from the face.
                     float2 fromCentre = math.normalize(new float2(inward - 0.5f, z - 0.5f));

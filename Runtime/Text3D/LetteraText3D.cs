@@ -223,6 +223,15 @@ namespace FirstSymbol.Lettera
             if (engineDirty) RaiseRebuilt(Engine.LastChanges);
         }
 
+        /// <summary>The formulas this text draws, with where they stand and whether they could be read.</summary>
+        public void GetFormulas(List<LetteraFormulaInfo> output)
+        {
+            if (output == null) throw new ArgumentNullException(nameof(output));
+            output.Clear();
+            ForceRebuild();
+            Engine.CollectFormulas(output);
+        }
+
         bool m_Hidden;
 
         /// <summary>False while hidden with Hide().</summary>
