@@ -38,7 +38,15 @@ namespace FirstSymbol.Lettera.Editor.Tests
                     LetteraMathLayout layout = LetteraMathCache.Get(Sheet[i], display, face, face);
                     string mathml = LetteraMathMarkup.ToMathML(Sheet[i], display);
                     if (json.Length > 1) json.Append(',');
-                    json.Append("{\"id\":\"").Append(i).Append(display ? "d" : "t").Append("\",\"source\":").Append(Quote(Sheet[i])).Append(",\"mathml\":").Append(Quote(mathml)).Append(",\"width\":").Append(layout.Width.ToString(System.Globalization.CultureInfo.InvariantCulture)).Append(",\"ascent\":").Append(layout.InkAscent.ToString(System.Globalization.CultureInfo.InvariantCulture)).Append(",\"descent\":").Append(layout.InkDescent.ToString(System.Globalization.CultureInfo.InvariantCulture)).Append(",\"failed\":").Append(layout.Failed ? "true" : "false").Append('}');
+                    json.Append("{\"id\":\"").Append(i).Append(display ? "d" : "t").Append("\",\"source\":").Append(Quote(Sheet[i])).Append(",\"mathml\":").Append(Quote(mathml)).Append(",\"width\":").Append(layout.Width.ToString(System.Globalization.CultureInfo.InvariantCulture)).Append(",\"ascent\":").Append(layout.InkAscent.ToString(System.Globalization.CultureInfo.InvariantCulture)).Append(",\"descent\":").Append(layout.InkDescent.ToString(System.Globalization.CultureInfo.InvariantCulture)).Append(",\"failed\":").Append(layout.Failed ? "true" : "false").Append(",\"items\":[");
+                    var inv = System.Globalization.CultureInfo.InvariantCulture;
+                    for (int k = 0; k < (layout.Items?.Length ?? 0); k++)
+                    {
+                        LetteraMathItem it = layout.Items[k];
+                        if (k > 0) json.Append(',');
+                        json.Append("{\"rule\":").Append(it.Kind == MathItemKind.Rule ? "true" : "false").Append(",\"g\":").Append(it.Glyph).Append(",\"x\":").Append(it.X.ToString(inv)).Append(",\"y\":").Append(it.Y.ToString(inv)).Append(",\"scale\":").Append(it.Scale.ToString(inv)).Append(",\"len\":").Append(it.Length.ToString(inv)).Append(",\"t\":").Append(it.Thickness.ToString(inv)).Append(",\"crop\":").Append(it.Cropped ? "true" : "false").Append(",\"vert\":").Append(it.Vertical ? "true" : "false").Append(",\"lo\":").Append(it.CropLow.ToString(inv)).Append(",\"hi\":").Append(it.CropHigh.ToString(inv)).Append('}');
+                    }
+                    json.Append("]}");
                 }
             }
             json.Append(']');

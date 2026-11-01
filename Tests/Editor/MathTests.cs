@@ -381,7 +381,7 @@ namespace FirstSymbol.Lettera.Editor.Tests
             open.Styles.Add(LetteraStyle.ForMatcher(new LetteraMathSpanMatcher(), new LetteraMathEffect()));
             open.MarkStylesDirty();
             open.ForceRebuild();
-            Assert.AreEqual("a \\(x", Shown(open));
+            Assert.AreEqual("a (x", Shown(open), "the escape rule took the backslash; nothing was opened");
         }
 
         [Test]
