@@ -76,6 +76,11 @@
       "displayName": "3D Text",
       "description": "A line per edge shape, each look, a counter, a formula, 500 shared labels, and solid text in a Canvas by a render texture.",
       "path": "Samples~/Text3D"
+    },
+    {
+      "displayName": "Timeline",
+      "description": "Needs the Timeline package. A cut scene built from code: a line typed by a clip, a sequencer and a linked parameter played by tracks.",
+      "path": "Samples~/Timeline"
     }
   ]
 }
