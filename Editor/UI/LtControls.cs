@@ -308,6 +308,14 @@ namespace FirstSymbol.Lettera.Editor
             Open = EditorPrefs.GetBool(Prefix + key, openByDefault);
         }
 
+        /// <summary>Shows it for a filter's sake, without changing what is kept for the user.</summary>
+        public void ForceOpen(bool force)
+        {
+            if (force) Content.style.display = DisplayStyle.Flex;
+            else Content.style.display = EditorPrefs.GetBool(Prefix + m_Key, true) ? DisplayStyle.Flex : DisplayStyle.None;
+            m_Chevron.text = Content.style.display == DisplayStyle.Flex ? "▾" : "▸";
+        }
+
         public LtSection With(params VisualElement[] children)
         {
             foreach (VisualElement child in children) Content.Add(child);
@@ -601,7 +609,7 @@ namespace FirstSymbol.Lettera.Editor
                 }
                 return null;
             }
-            return new[] { Get("m_Left", "Left", "x"), Get("m_Top", "Top", "y"), Get("m_Right", "Right", "z"), Get("m_Bottom", "Bottom", "w") };
+            return new[] { Get("m_Left", "Left", "x"), Get("m_Top", "Top", "w"), Get("m_Right", "Right", "z"), Get("m_Bottom", "Bottom", "y") };
         }
 
         internal static string SummaryOf(float left, float top, float right, float bottom)

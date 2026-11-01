@@ -19,7 +19,7 @@ namespace FirstSymbol.Lettera.Editor.Tests
             LetteraWorldText text = Make("x");
             VisualElement root = Build(text, out UnityEditor.Editor editor);
             Assert.IsNotNull(root);
-            Assert.AreEqual(4, root.Query(className: "lt-tab").ToList().Count);
+            Assert.AreEqual(6, root.Query<LtSection>().ToList().Count, "one page of six cards");
             Assert.AreEqual(4, root.Query(className: "lt-page").ToList().Count);
             Assert.Greater(root.Query(className: "lt-seg").ToList().Count, 4);
             Assert.Greater(root.Query(className: "lt-switch").ToList().Count, 3);
@@ -32,7 +32,7 @@ namespace FirstSymbol.Lettera.Editor.Tests
             var go = new GameObject("Canvas Text", typeof(RectTransform));
             var text = go.AddComponent<LetteraText>();
             VisualElement root = Build(text, out UnityEditor.Editor editor);
-            Assert.AreEqual(4, root.Query(className: "lt-tab").ToList().Count);
+            Assert.AreEqual(6, root.Query<LtSection>().ToList().Count, "one page of six cards");
             Object.DestroyImmediate(editor);
             Object.DestroyImmediate(go);
         }

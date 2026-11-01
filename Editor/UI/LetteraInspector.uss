@@ -756,3 +756,24 @@
 .lt--light .lt-fix__text {
     color: rgb(130, 75, 10);
 }
+
+.lt-filtered {
+    display: none;
+}
+
+/* A card inside a section is a group: its title stays, its frame goes. */
+.lt-section__content .lt-card {
+    background-color: rgba(0, 0, 0, 0);
+    border-width: 0;
+    padding: 2px 0 2px 0;
+    margin: 0 0 4px 0;
+}
+
+.lt-tool--on {
+    background-color: rgba(155, 110, 255, 0.45);
+}
+
+.lt-text-input--tall .unity-text-field__input,
+.lt-text-input--tall #unity-text-input {
+    min-height: 220px;
+}

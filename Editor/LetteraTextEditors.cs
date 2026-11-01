@@ -11,8 +11,6 @@ namespace FirstSymbol.Lettera.Editor
     /// <summary>The custom inspector both text components share: header, text editor and tabbed settings.</summary>
     internal sealed class LetteraTextInspector
     {
-        static int s_LastTab;
-
         readonly SerializedObject m_Object;
         readonly SerializedProperty m_Data;
         readonly Func<string> m_Stats;
@@ -20,12 +18,9 @@ namespace FirstSymbol.Lettera.Editor
         readonly string m_Title;
         readonly Action<VisualElement> m_BuildRenderPage;
         readonly VisualElement m_Root = LtUI.Root();
-        readonly List<VisualElement> m_Pages = new List<VisualElement>();
-        readonly List<VisualElement> m_Tabs = new List<VisualElement>();
         Label m_Subtitle;
         VisualElement m_Chips;
         VisualElement m_StyleList;
-        Label m_StyleBadge;
         TextField m_TextField;
 
         public LetteraTextInspector(SerializedObject serialized, string title, Func<string> stats, Func<string> overrideReason, Action<VisualElement> buildRenderPage)
@@ -43,46 +38,90 @@ namespace FirstSymbol.Lettera.Editor
         public VisualElement Build()
         {
             m_Root.Add(BuildHeader());
-            m_Root.Add(BuildEditor());
+            m_Root.Add(BuildJump());
 
-            VisualElement tabs = LtUI.El("lt-tabs");
-            m_Root.Add(tabs);
-            AddTab(tabs, "Font", BuildFontPage());
-            AddTab(tabs, "Layout", BuildLayoutPage());
-            m_StyleBadge = LtUI.Text("0", "lt-tab__badge");
-            AddTab(tabs, "Styles", BuildStylesPage(), m_StyleBadge);
+            string prefix = m_Title.Replace(" ", "");
+            m_Sections.Add(new LtSection(prefix + ".text", "Text", () => FirstLine()).With(BuildEditor()));
+            m_Sections.Add(new LtSection(prefix + ".font", "Font", () => FontLabel() + ", " + (P("AutoSize").boolValue ? "auto" : P("FontSize").floatValue.ToString("0.##"))).With(BuildFontPage()));
+            m_Sections.Add(new LtSection(prefix + ".layout", "Layout", () => ((LetteraHorizontalAlignment)P("HorizontalAlignment").enumValueIndex) + (P("WordWrap").boolValue ? ", wraps" : ", one line")).With(BuildLayoutPage()));
+            m_Sections.Add(new LtSection(prefix + ".styles", "Styles", () => P("Styles").arraySize + (P("Styles").arraySize == 1 ? " style" : " styles")).With(BuildStylesPage()));
             VisualElement render = LtUI.El("lt-page");
             m_BuildRenderPage(render);
-            AddTab(tabs, "Render", render);
-            SelectTab(Mathf.Clamp(s_LastTab, 0, m_Pages.Count - 1));
-            m_Root.Add(LetteraEditingMenus.InteractionCard(m_Object.targetObjects));
+            m_Sections.Add(new LtSection(prefix + ".render", "Render").With(render));
+            m_Sections.Add(new LtSection(prefix + ".interaction", "Interaction").With(LetteraEditingMenus.InteractionCard(m_Object.targetObjects)));
+            foreach (LtSection section in m_Sections) m_Root.Add(section);
 
             m_Root.schedule.Execute(RefreshHeader).Every(400);
             RefreshHeader();
             return m_Root;
         }
 
-        void AddTab(VisualElement tabs, string name, VisualElement page, VisualElement badge = null)
+        readonly List<LtSection> m_Sections = new List<LtSection>();
+
+        string FirstLine()
         {
-            int index = m_Pages.Count;
-            VisualElement tab = LtUI.El("lt-tab", LtUI.Text(name, "lt-tab__label"));
-            if (badge != null) tab.Add(badge);
-            tab.RegisterCallback<ClickEvent>(_ => SelectTab(index));
-            tabs.Add(tab);
-            m_Tabs.Add(tab);
-            page.AddToClassList("lt-page");
-            m_Pages.Add(page);
-            m_Root.Add(page);
+            string text = P("Text").stringValue ?? "";
+            int line = text.IndexOf('\n');
+            if (line >= 0) text = text.Substring(0, line);
+            return text.Length > 40 ? text.Substring(0, 40) + "…" : text;
         }
 
-        void SelectTab(int index)
+        // Everything on one page: this row goes to a card, and the filter finds a setting wherever it is.
+        VisualElement BuildJump()
         {
-            s_LastTab = index;
-            for (int i = 0; i < m_Pages.Count; i++)
+            VisualElement holder = LtUI.El("lt-jump-holder");
+            VisualElement jump = LtUI.El("lt-jump");
+            foreach (string name in new[] { "Text", "Font", "Layout", "Styles", "Render", "Interaction" })
             {
-                m_Pages[i].style.display = i == index ? DisplayStyle.Flex : DisplayStyle.None;
-                m_Tabs[i].EnableInClassList("lt-tab--active", i == index);
+                int index = jump.childCount;
+                Label item = LtUI.Text(name, "lt-jump__item");
+                item.tooltip = "Goes to this card. Alt closes the others.";
+                item.RegisterCallback<ClickEvent>(e =>
+                {
+                    if (index >= m_Sections.Count) return;
+                    LtSection section = m_Sections[index];
+                    section.Open = true;
+                    if (e.altKey)
+                        foreach (LtSection other in m_Sections)
+                            if (other != section)
+                                other.Open = false;
+                    m_Root.GetFirstAncestorOfType<ScrollView>()?.ScrollTo(section);
+                });
+                jump.Add(item);
             }
+            holder.Add(jump);
+            var search = new LtSearch("Find a setting");
+            search.Changed += Filter;
+            holder.Add(search);
+            return holder;
+        }
+
+        // Hides what does not fit by a class, so that what a row shows by its own rule stays that row's own business.
+        internal void Filter(string query)
+        {
+            bool filtering = !string.IsNullOrWhiteSpace(query);
+            foreach (LtSection section in m_Sections)
+            {
+                bool titleFits = filtering && LtSearchText.Score(query, section.Title) > 0;
+                bool any = false;
+                foreach (VisualElement row in section.Content.Query(className: "lt-row").ToList())
+                {
+                    bool fits = !filtering || titleFits || RowFits(row, query);
+                    row.EnableInClassList("lt-filtered", !fits);
+                    any |= fits;
+                }
+                section.EnableInClassList("lt-filtered", filtering && !any && !titleFits);
+                section.ForceOpen(filtering && (any || titleFits));
+            }
+        }
+
+        static bool RowFits(VisualElement row, string query)
+        {
+            if (!string.IsNullOrEmpty(row.tooltip) && LtSearchText.Score(query, row.tooltip) >= 60) return true;
+            foreach (Label label in row.Query<Label>(className: "lt-row__label").ToList())
+                if (LtSearchText.Score(query, label.text) > 0)
+                    return true;
+            return false;
         }
 
         // ------------------------------------------------------------- header
@@ -108,7 +147,8 @@ namespace FirstSymbol.Lettera.Editor
             string reason = m_Override();
             if (!string.IsNullOrEmpty(reason)) m_Chips.Add(LtUI.Text(reason, "lt-chip lt-chip--orange"));
             foreach (string warning in Warnings()) m_Chips.Add(LtUI.Text(warning, "lt-chip lt-chip--orange"));
-            if (m_StyleBadge != null) m_StyleBadge.text = P("Styles").arraySize.ToString();
+            foreach (LtSection section in m_Sections) section.RefreshSummary();
+            RefreshTools();
         }
 
         // What a user would otherwise find out only by looking closely at the result.
@@ -145,20 +185,29 @@ namespace FirstSymbol.Lettera.Editor
 
         // ------------------------------------------------------------- text editor
 
+        readonly List<(Label tool, Type effect)> m_Toggles = new List<(Label, Type)>();
+        bool m_Tall;
+
         VisualElement BuildEditor()
         {
             VisualElement toolbar = LtUI.El("lt-toolbar");
-            toolbar.Add(LtUI.Clickable("B", "lt-tool lt-tool--bold", "Bold", () => Wrap("<b>", "</b>")));
-            toolbar.Add(LtUI.Clickable("I", "lt-tool lt-tool--italic", "Italic", () => Wrap("<i>", "</i>")));
-            toolbar.Add(LtUI.Clickable("U", "lt-tool", "Underline", () => Wrap("<u>", "</u>")));
-            toolbar.Add(LtUI.Clickable("S", "lt-tool", "Strikethrough", () => Wrap("<s>", "</s>")));
+            toolbar.Add(Toggle("B", "lt-tool lt-tool--bold", "Bold", typeof(BoldEffect), "b"));
+            toolbar.Add(Toggle("I", "lt-tool lt-tool--italic", "Italic", typeof(ItalicEffect), "i"));
+            toolbar.Add(Toggle("U", "lt-tool", "Underline", typeof(UnderlineEffect), "u"));
+            toolbar.Add(Toggle("S", "lt-tool", "Strikethrough", typeof(StrikethroughEffect), "s"));
             toolbar.Add(LtUI.El("lt-tool-gap"));
-            toolbar.Add(LtUI.Clickable("Color", "lt-tool", "Color", () => Wrap("<color=#FFCC00>", "</color>")));
-            toolbar.Add(LtUI.Clickable("Size", "lt-tool", "Relative size", () => Wrap("<size=150%>", "</size>")));
-            toolbar.Add(LtUI.Clickable("Outline", "lt-tool", "Outline", () => Wrap("<outline=#000000,0.08>", "</outline>")));
-            toolbar.Add(LtUI.Clickable("Shadow", "lt-tool", "Shadow", () => Wrap("<shadow>", "</shadow>")));
+            toolbar.Add(LtUI.Clickable("Color", "lt-tool", "Wraps the selection in <color>.", () => Wrap("<color=#FFCC00>", "</color>")));
+            toolbar.Add(LtUI.Clickable("Size", "lt-tool", "Wraps the selection in <size>.", () => Wrap("<size=150%>", "</size>")));
+            toolbar.Add(LtUI.Clickable("Outline", "lt-tool", "Wraps the selection in <outline>.", () => Wrap("<outline=#000000,0.08>", "</outline>")));
+            toolbar.Add(LtUI.Clickable("Shadow", "lt-tool", "Wraps the selection in <shadow>.", () => Wrap("<shadow>", "</shadow>")));
+            toolbar.Add(LtUI.Clickable("Link", "lt-tool", "Wraps the selection in <a>.", () => Wrap("<a=https://>", "</a>")));
             toolbar.Add(LtUI.El("lt-tool-gap"));
             toolbar.Add(LtUI.Clickable("↵", "lt-tool", "Line break inside the paragraph", () => Wrap("<br>", "")));
+            toolbar.Add(LtUI.Clickable("⤢", "lt-tool", "A taller text field", () =>
+            {
+                m_Tall = !m_Tall;
+                m_TextField.EnableInClassList("lt-text-input--tall", m_Tall);
+            }));
 
             m_TextField = new TextField { multiline = true };
             m_TextField.AddToClassList("lt-text-input");
@@ -166,6 +215,55 @@ namespace FirstSymbol.Lettera.Editor
             m_TextField.selectAllOnMouseUp = false;
             m_TextField.BindProperty(P("Text"));
             return LtUI.El("lt-editor", toolbar, m_TextField);
+        }
+
+        Label Toggle(string text, string classes, string name, Type effect, string tag)
+        {
+            Label tool = LtUI.Clickable(text, classes, name + ": wraps the selection in <" + tag + ">. With nothing selected, it turns " + name.ToLowerInvariant() + " on or off for the whole text.", () =>
+            {
+                if (m_TextField.cursorIndex != m_TextField.selectIndex) Wrap("<" + tag + ">", "</" + tag + ">");
+                else ToggleWholeText(effect);
+            });
+            m_Toggles.Add((tool, effect));
+            return tool;
+        }
+
+        int FindWholeText(Type effect)
+        {
+            SerializedProperty styles = P("Styles");
+            for (int i = 0; i < styles.arraySize; i++)
+            {
+                SerializedProperty style = styles.GetArrayElementAtIndex(i);
+                if (style.FindPropertyRelative("m_Matcher").managedReferenceValue is WholeTextMatcher && style.FindPropertyRelative("m_Effect").managedReferenceValue?.GetType() == effect) return i;
+            }
+            return -1;
+        }
+
+        internal void ToggleWholeText(Type effect)
+        {
+            m_Object.Update();
+            SerializedProperty styles = P("Styles");
+            int found = FindWholeText(effect);
+            if (found >= 0)
+            {
+                styles.DeleteArrayElementAtIndex(found);
+            }
+            else
+            {
+                styles.InsertArrayElementAtIndex(styles.arraySize);
+                SerializedProperty added = styles.GetArrayElementAtIndex(styles.arraySize - 1);
+                added.FindPropertyRelative("m_Matcher").managedReferenceValue = new WholeTextMatcher();
+                added.FindPropertyRelative("m_Effect").managedReferenceValue = Activator.CreateInstance(effect);
+                SerializedProperty parameter = added.FindPropertyRelative("m_DefaultParameter");
+                if (parameter != null) parameter.stringValue = "";
+            }
+            m_Object.ApplyModifiedProperties();
+            RefreshTools();
+        }
+
+        void RefreshTools()
+        {
+            foreach ((Label tool, Type effect) in m_Toggles) tool.EnableInClassList("lt-tool--on", FindWholeText(effect) >= 0);
         }
 
         // Surrounds the field's selection with markup.
@@ -291,7 +389,7 @@ namespace FirstSymbol.Lettera.Editor
                 value,
                 LtUI.Row("Extra Space", LtUI.Segments(P("LeadingDistribution"), "Half", "Above", "Below"))));
 
-            page.Add(LtUI.Card("Box", LtUI.Row("Padding", LtUI.Padding(P("Padding")))));
+            page.Add(LtUI.Card("Box", new LtBox("Padding", P("Padding"), "Room inside the box: left, top, right, bottom.")));
             return page;
         }
 
@@ -319,13 +417,13 @@ namespace FirstSymbol.Lettera.Editor
             return page;
         }
 
-        VisualElement PresetList()
+        VisualElement PresetList() => new LtList("Style Presets", P("StylePresets"), (element, index) =>
         {
-            var list = new PropertyField(P("StylePresets"), "Style Presets");
-            list.BindProperty(P("StylePresets"));
-            list.tooltip = "Style lists shared between texts.";
-            return list;
-        }
+            var slot = new UnityEditor.UIElements.ObjectField { objectType = typeof(LetteraStylePreset), allowSceneObjects = false };
+            slot.BindProperty(element);
+            slot.AddToClassList("lt-text-input");
+            return slot;
+        }, "No shared style lists on this text.");
 
         // A switch sits at the left of its row's field area.
         static VisualElement WithSpacer(VisualElement control)
