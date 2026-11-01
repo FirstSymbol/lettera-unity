@@ -1,0 +1,22 @@
+{
+    "name": "FirstSymbol.Lettera.Timeline.Tests",
+    "rootNamespace": "FirstSymbol.Lettera.Timeline.Tests",
+    "references": [
+        "UnityEngine.TestRunner",
+        "UnityEditor.TestRunner",
+        "FirstSymbol.Lettera",
+        "FirstSymbol.Lettera.Timeline",
+        "Unity.Timeline"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": true,
+    "precompiledReferences": ["nunit.framework.dll"],
+    "autoReferenced": false,
+    "defineConstraints": ["UNITY_INCLUDE_TESTS", "LETTERA_TIMELINE"],
+    "versionDefines": [
+        { "name": "com.unity.timeline", "expression": "1.0.0", "define": "LETTERA_TIMELINE" }
+    ],
+    "noEngineReferences": false
+}

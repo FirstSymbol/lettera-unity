@@ -16,7 +16,7 @@ namespace FirstSymbol.Lettera.Timeline
         public ClipCaps clipCaps => ClipCaps.Blending | ClipCaps.SpeedMultiplier | ClipCaps.ClipIn;
 
         /// <summary>What it does, in the few words a clip's label has room for.</summary>
-        public string Describe() => From == To ? $"Holds {From:0.##}" : $"{From:0.##} to {To:0.##}";
+        public string Describe() => From == To ? FormattableString.Invariant($"Holds {From:0.##}") : FormattableString.Invariant($"{From:0.##} to {To:0.##}");
 
         public override Playable CreatePlayable(PlayableGraph graph, GameObject owner)
         {

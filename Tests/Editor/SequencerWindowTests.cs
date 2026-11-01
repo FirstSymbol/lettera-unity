@@ -421,6 +421,8 @@ namespace FirstSymbol.Lettera.Editor.Tests
             m_Window = ScriptableObject.CreateInstance<LetteraSequencerWindow>();
             m_Window.Show();
             m_Window.SetTarget(sequencer);
+            // The first event through a panel lays it out, and a first layout fits the view to the cues.
+            if (m_Window.TracksElement.panel != null) Pointer<PointerMoveEvent>(m_Window.TracksElement, EventType.MouseMove, Vector2.zero);
             return m_Window;
         }
 
@@ -478,22 +480,6 @@ namespace FirstSymbol.Lettera.Editor.Tests
             m_Window.EnsureBuilt();
             AssertOurs(m_Window.RootElement);
             Assert.IsTrue(m_Window.RootElement.Query<Label>().ToList().Any(l => l.text.Contains("Select a text")));
-        }
-
-        [Test]
-        public void ZZProbe()
-        {
-            LetteraSequencer sequencer = Sequenced(out _, Cue(1, 2));
-            Open(sequencer);
-            VisualElement tracks = m_Window.TracksElement;
-            string L(string tag) => $"{tag} bound={tracks.worldBound} l2w(100,10)={tracks.LocalToWorld(new Vector2(100, 10))} w2l(100,10)={tracks.WorldToLocal(new Vector2(100, 10))} ppp={EditorGUIUtility.pixelsPerPoint} win={m_Window.position}";
-            TestContext.WriteLine("LETTERA_NUM " + L("start"));
-            tracks.RegisterCallback<PointerDownEvent>(e => TestContext.WriteLine($"LETTERA_NUM down pos={e.position} local={e.localPosition} " + L("in")), TrickleDown.TrickleDown);
-            tracks.RegisterCallback<PointerMoveEvent>(e => TestContext.WriteLine($"LETTERA_NUM move pos={e.position} local={e.localPosition} " + L("in")), TrickleDown.TrickleDown);
-            Down(tracks, new Vector2(100, 10));
-            TestContext.WriteLine("LETTERA_NUM " + L("afterdown"));
-            Move(tracks, new Vector2(100, 10));
-            Move(tracks, new Vector2(200, 10));
         }
 
         [Test]
