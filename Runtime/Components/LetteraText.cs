@@ -41,9 +41,8 @@ namespace FirstSymbol.Lettera
         // A document's first layout places its window inside the rebuild, whose upload then carries that pose. Asking again from there is an error of the canvas.
         void ITextHost.PoseChanged()
         {
-            SetVerticesDirty();
+            if (!CanvasUpdateRegistry.IsRebuildingGraphics()) SetVerticesDirty();
         }
-
         bool ITextHost.IsDrawn => !m_Hidden && IsActive() && !canvasRenderer.cull;
         bool ITextHost.SupportsMarquee => true;
 
