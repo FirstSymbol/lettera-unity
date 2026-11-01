@@ -4,6 +4,110 @@ All notable changes to this package are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.7.0] - 2026-11-01
+
+Formulas in the text's flow, and solid lit text with depth.
+
+Native library 3 reads OpenType MATH. An editor still holding an older library lays formulas out by fallback until it is restarted, and everything else works.
+
+### Added
+- **Formulas.** `<math>` and `<math=display>` hold a linear, bounded subset of TeX: fractions, binomials, roots, scripts, limits, large operators, `\left \right` and sized delimiters, accents, bars, braces, arrows, matrices, `cases`, `aligned`, `array`, `\text`, spacing, `\color`, alphabets, about 475 symbols. `LetteraMathSpanMatcher` reads `\(..\)`, `\[..\]` and, when turned on, dollars.
+- **Layout on OpenType MATH**, with all 56 constants, italic correction, top accents, glyph variants and assemblies. With no table, a text's own font lays formulas out with fallback spacing and Unicode's bracket pieces.
+- **One object in its line.** A formula is laid out once in em and cached, so a size change, a re-wrap or a color change runs no math. It takes color, alpha, gradient, stroke, shadow, glow and motion, and moves as one piece. A formula that cannot be read draws what was written, and the text around it stands.
+- **Rules that stay exact.** A bar is a distance field whose middle column stretches, so that it takes every layer, at any size. Assemblies' parts meet at the middle of their overlap, so nothing draws twice under alpha.
+- **Selection and copy.** A formula selects, copies and deletes whole. Plain text gets `$source$`, Markdown the same, HTML MathML with its source, and a Lettera field the tag. `LetteraSemanticRole.Math` carries its words.
+- `LetteraMath.Validate`, `Measure`, `Failed`, `Register`; `LetteraMathMarkup.ToMathML`; `GetFormulas` on each text component.
+- **Noto Sans Math** in the package, 343 KB, out of any build that does not reference it. **Lettera > Math > Use Bundled Font**, and a build check that warns on the web, Android and iOS when a scene holds a formula and no font is set. `LETTERA_NO_MATH` compiles formulas out, and `<math>x</math>` then shows `x`.
+- **3D text.** `LetteraText3D`, in its own assembly `FirstSymbol.Lettera.Text3D`, which core never names. Closed solids from glyph outlines, with overlapping contours cleaned by non-zero winding. Nine edge shapes and a curve of your own, narrowed where a stroke is thin so that they cannot cross. One solid serves every depth.
+- **Five surfaces** that fall back to one another, `Lettera/Solid Lit` for Built-in and URP, with shadows and a fade through a screen dither. Textures per surface or across the text.
+- **Everything text does.** Markup, fonts, bidi, shaping, wrapping and auto size are a world text's. Every motion moves the solids, with no vertex rebuilt but its own. Underline and strikethrough extrude, formulas extrude with their bars as boxes, and a color glyph draws flat on the front plane.
+- `<depth=2>` and `<bevel=chamfer,0.03,0.03>` on a range. `LetteraSolidLook`. Identical texts share a mesh, so that they instance. **Bake To Mesh Asset**, **Export OBJ**, **Convert To Text 3D**. `LETTERA_NO_3D` removes the module.
+- Inspectors for all of it, in the same custom UI: edge profiles drawn live, material fallbacks, vertex counts, chips for what a solid does not do, a Math card that appears when a text has a formula, Math and 3D cards in Project Settings. A solid material's inspector is one row that opens its card, since a `ShaderGUI` cannot build UI Toolkit.
+- Math and 3D samples, and five new steps in the Device Check.
+
+### Changed
+- **`<math>` is now a tag in the default vocabulary.** A text showing those characters literally needs `<noparse>` or `\<math>`.
+- `ITextHost` gained `SolidsOnly` and `HostStyles`, and `LetteraAttributes` a channel for what a module and its host agree on. Both are internal.
+- `EscapeMatcher` runs just before math, so that an escaped tag stays text.
+
+### Limits
+- **No macros, `\ce`, `\pu` or LaTeX text rules.** Equation numbers: `\tag` is read and draws nothing.
+- **An inline formula never breaks.** A long one overflows a narrow line. Right-to-left math is not done, so a formula always runs left to right.
+- **Selection inside a formula: no.** Whether `RevealActive` in a field shows its source has not been run.
+- **A paste of HTML with MathML gives its text**, not a formula. Rich copy works from Lettera outward, and from Lettera's own format back.
+- **Fallback layout** with no MATH table is readable and plain, and has no stretch beyond the pieces Unicode has.
+- **On solids:** `<surface=name>` is not done. A gradient paint does not reach a solid's vertices: a solid takes a color. Dashed, dotted and wavy lines extrude as plain boxes. A shear from `deform` moves the vertices by it, with normals by its rotation only.
+- **Bevels narrow, and do not ridge.** A wide edge on a thin stroke leaves a thin flat strip.
+- **HDRP** has no default material.
+- **Canvas:** no solid `Graphic`. See the README's recipe.
+- The kit's formula step has no reference picture beside it.
+
+### Differences from Chromium
+A browser is the judge for formulas, by MathML written from our own tree with our spacing written out. Where we differ on purpose or where it does:
+
+| Row | Which | Why |
+|---|---|---|
+| Stretchy operators, radicals | Chromium is wider | With this font, the same glyph measures 32.8 px with `stretchy="false"` and 72.2 px with it, and the font's advance says 32.8. Heights agree within 1 px. |
+| Superscript on a slanted letter | Ours sits further right, by its italic correction | TeX's rule. Chromium applies none to a letter. `x^2` differs by 0.05 em. |
+| Scripts on an integral | Subscript tucked in by its correction | MathML Core's rule, kept in text style too, where Chromium drops it. |
+| `\overline`, `\underline`, sized over and under braces | Ours covers the body | The MathML we write for these is an approximation. Ours were judged by eye. |
+| Braces | Ours takes the first size that covers, Chromium a smaller | Ours covers. |
+| Matrix rows | Ours keep a 1.2 em line | TeX's strut. Chromium has none. |
+| Primes | Ours use the plain form at script size | The font's script form sits low. |
+
+### Verified
+- **Solids over whole fonts.** A sample of about 400 code points each of Noto Sans, Noto Sans Arabic and Noto Sans Devanagari, with the default edge: every edge shared by exactly two triangles going opposite ways, with no cap dropped. Every edge shape on a ring: closed, positive volume, normals outward.
+- **Hand-written outlines.** Volume and area by the divergence theorem, overlapping squares as one outline, TrueType and CFF winding, a contour inside one of the same way, a bow tie, a stroke far thinner than its edge, the same bytes twice, and threads against inline byte for byte. 20 000 random command streams with NaN and infinities: no exception and no hang.
+- **Placement.** Latin, Arabic, Devanagari and Hebrew, and a wrapped, aligned text with a size change: every glyph at a world text's position.
+- **In a Windows player, looked at:** nine edge shapes under a shadowing light, scripts from the front and the side, a formula, an underline, a range's depth, a dithered fade, a wave.
+- **Compiled out.** A Windows build with both defines passes the self-test and holds neither the shader nor the font. A build with the module but no solid text holds neither shader nor font, by a byte search of its files.
+- **Formulas against Chromium 156**, in a Windows player, per pixel at 96 px, over the sheet's rows without stretched glyphs. See Figures. The contact sheet was looked at.
+- A text with a formula: its box, its failure, every clipboard format, well-formed MathML for the whole sheet, a spin moving it whole, the screen reader's words, the bundled font's size, place and licence, and the build check where it warns and where it stays quiet.
+
+### Figures
+Windows Mono player, against a 0.6.0 build made the same way, in turns, median of 5, in ms:
+
+| Row | 0.6.0 | 0.7.0 | Change |
+|---|---|---|---|
+| 64 labels a frame | 1.665 | 1.733 | +4.1% |
+| 500 labels, first build | 112.7 | 109.9 | -2.5% |
+| One level: parse, shape, layout, mesh | .0333, .0269, .0247, .0183 | .0339, .0272, .0247, .0183 | up to +1.8% |
+| 200 world texts, first build | 33.3 | 33.5 | +0.5% |
+| One world text changing | .0976 | .1031 | +5.6% |
+| 100 alpha, 100 color a frame | .690, .715 | .678, .721 | -1.8%, +0.9% |
+
+One world text changing is over this phase's 5% line in this run, and was +2.9% in the run before it, with the same engine but for two small savings. Nothing math or 3D runs in that path that was found. It is left as measured.
+
+Math and solids, same player:
+
+| Row | Target | Measured |
+|---|---|---|
+| `\\frac{a}{b}`, first time | 40 µs | 9 µs |
+| A formula of about 100 nodes | 400 µs | 192 µs |
+| 16 KB hostile formula, worst of four | 8 ms | 2.1 ms |
+| Cached formula | 1 µs | under the clock's 1 µs |
+| Text of 20 formulas: first build, next | | 17.8 ms, 0.51 ms |
+| Solid, 64 distinct glyphs, first build | 25 ms | **36 ms: missed** |
+| Same, cached rebuild | 1.5 ms | 0.77 ms |
+| Depth change | as cached | 0.76 ms |
+| Motion frame, 200 glyphs, 137 000 vertices | 3 ms | about 1 ms over an empty frame, by frame time |
+| Vertices per Latin glyph, default edge | 1 500 | 674 over 64 glyphs here, 927 over a font's sample |
+| 3D module's DLL, Mono, unused | recorded | 73 KB |
+| Formula code in core's DLL, Mono | recorded | 136 KB |
+| 1 000 identical texts, 500 under URP: batches | 5, 10 | **not counted:** the render counters were not valid in these players |
+
+
+Formulas against Chromium at 96 px, 82 rows with no stretched glyph, including the differences listed above: ink box within 2 px on 40, within 5 px on 55; overlap at least 0.90 on 37, at least 0.80 on 45, mean 0.82. Plain rows such as `x`, `x+y`, `f(x)` and `a,b` overlap at 0.98 or more. The targets of 1.5 px and 0.90 are not met across the sheet, and the rows under them are the differences above, thin strokes offset by a fraction of a pixel, or both: **judged by eye on the contact sheet, not proven row by row.** The spec's per-node geometry was not built: boxes were compared for whole formulas, and references are not stored in the package.
+
+`Lettera/Solid Lit` under URP 17.4 in a Windows player: lit, shadows cast and received, by a look at the pictures. Built-in the same. Web wasm at managed stripping High: 34.5 MB uncompressed with everything in; the build without either feature was not made for the web, so no web size delta is recorded.
+
+### Not yet seen
+- Phones, Safari on a real iPhone and a Mac: none has run a formula or a solid. **Lettera > Device Check** covers them.
+- Word and Chrome receiving the clipboard's HTML.
+- Selection and caret of a formula by real keys in a browser: run in EditMode through the input seams only. Bidi against Chromium's rects: not run.
+- Plain text mesh output identical to 0.6.0's by hash: not compared. Web and Android builds of the Math and 3D samples: compiled only as part of the package's check, run neither.
+- Cambria Math's `flac` and kerning: read as a system font by one test; its pixels were not compared.
+
 ## [0.6.0] - 2026-11-01
 
 The platform's own text controls, clipboards and menus, COLRv1 color fonts, and fonts that cost no memory until they are used.
