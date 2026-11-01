@@ -14,7 +14,7 @@ run_out = open(os.path.join(WORK, "run.out"), encoding="utf-8", errors="replace"
 
 
 def peak(engine):
-    values = [int(m) for m in re.findall(rf"{engine}_\d: peak (\d+) MB", run_out)]
+    values = [int(m) for m in re.findall(rf"{engine}_main_\d: peak (\d+) MB", run_out)]
     return statistics.median(values) if values else None
 
 
