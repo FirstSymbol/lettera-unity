@@ -355,7 +355,7 @@ namespace FirstSymbol.Lettera.Editor.Tests
             LetteraStylePickerView.Remember(glitch);
             var view = new LetteraStylePickerView(_ => { });
             Assert.AreEqual(glitch, view.Shown.First());
-            view.Search.Field.value = "shadow";
+            view.SetQuery("shadow");
             Assert.IsTrue(view.Shown.Any(t => t.Driven == LetteraStyleTemplates.Tags));
             LetteraStylePickerView.ForgetRecent();
         }

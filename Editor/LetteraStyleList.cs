@@ -434,6 +434,7 @@ namespace FirstSymbol.Lettera.Editor
             {
                 case TagMatcher tag: return "<" + tag.Name + ">";
                 case VoidTagMatcher tag: return "<" + tag.Name + ">";
+                case WholeTextMatcher _: return "All text";
                 case MarkdownMarkerMatcher marker: return marker.Marker;
                 case TriggerWordMatcher trigger: return trigger.Trigger;
                 case null: return "None";

@@ -363,11 +363,7 @@ namespace FirstSymbol.Lettera.Editor
             AddToClassList("lt-picker");
             style.flexGrow = 1;
             Search = new LtSearch("What should it do? Any layout");
-            Search.Changed += q =>
-            {
-                m_Query = q ?? "";
-                Fill();
-            };
+            Search.Changed += SetQuery;
             Add(Search);
             m_List.style.flexGrow = 1;
             Add(m_List);
@@ -380,6 +376,12 @@ namespace FirstSymbol.Lettera.Editor
             m_OpenGroups.Add(LetteraStyleTemplates.All[0].Driven);
             Fill();
             Search.Field.schedule.Execute(() => Search.Field.Focus());
+        }
+
+        internal void SetQuery(string query)
+        {
+            m_Query = query ?? "";
+            Fill();
         }
 
         internal void OnKeyCode(KeyCode key, bool shift)
@@ -453,22 +455,16 @@ namespace FirstSymbol.Lettera.Editor
                 }
             }
 
-            string driven = null, kind = null;
-            foreach (LetteraStyleTemplate template in found)
+            // The list alternates ways of driving a style, so a group is gathered, not read off in a row.
+            foreach (IGrouping<string, LetteraStyleTemplate> group in found.GroupBy(t => t.Driven))
             {
-                if (template.Driven != driven)
+                AddGroup(group.Key, searching);
+                if (!searching && !m_OpenGroups.Contains(group.Key)) continue;
+                foreach (IGrouping<string, LetteraStyleTemplate> kind in group.GroupBy(t => t.Kind))
                 {
-                    driven = template.Driven;
-                    kind = null;
-                    AddGroup(driven, searching);
+                    m_List.Add(LtUI.Text(kind.Key, "lt-picker__kind"));
+                    foreach (LetteraStyleTemplate template in kind) AddEntry(template);
                 }
-                if (!searching && !m_OpenGroups.Contains(driven)) continue;
-                if (template.Kind != kind)
-                {
-                    kind = template.Kind;
-                    m_List.Add(LtUI.Text(kind, "lt-picker__kind"));
-                }
-                AddEntry(template);
             }
             if (found.Count == 0) m_List.Add(LtUI.Text("Nothing by that name. Try a word for what it does.", "lt-hint"));
             m_At = m_Rows.Count > 0 ? (searching ? 0 : Mathf.Clamp(m_At, 0, m_Rows.Count - 1)) : -1;
@@ -496,7 +492,7 @@ namespace FirstSymbol.Lettera.Editor
             bool applied = m_Hooks.Applied != null && m_Hooks.Applied(template);
             VisualElement dot = LtUI.El("lt-style__dot");
             dot.style.backgroundColor = LetteraStyleTemplates.ColorOf(template);
-            VisualElement title = LtUI.El("lt-picker__title", dot, LtUI.Text(template.Name, "lt-picker__name"), LtUI.El("lt-style__space"), LtUI.Text(template.Keywords ?? "", "lt-picker__keys"));
+            VisualElement title = LtUI.El("lt-picker__title", dot, LtUI.Text(template.Name, "lt-picker__name"), LtUI.El("lt-style__space"), LtUI.Text(ExampleOf(template), "lt-picker__keys"));
             if (applied) title.Add(LtUI.Text("on", "lt-chip lt-chip--accent"));
             VisualElement item = LtUI.El("lt-picker__item", title, LtUI.Text(LetteraStyleTemplates.WordsOf(template, applied), "lt-picker__words"));
             item.tooltip = applied ? "On this text: a click takes it away." : null;
@@ -514,6 +510,16 @@ namespace FirstSymbol.Lettera.Editor
             });
             m_Rows.Add((template, item));
             m_List.Add(item);
+        }
+
+        // How it is written. Whole text is written no way at all, and what follows a tag is only there for the search.
+        internal static string ExampleOf(LetteraStyleTemplate template)
+        {
+            string words = template.Keywords;
+            if (string.IsNullOrEmpty(words) || template.Driven == LetteraStyleTemplates.WholeText) return "";
+            if (words[0] != '<') return words;
+            int end = words.IndexOf('>');
+            return end > 0 ? words.Substring(0, end + 1) : words;
         }
 
         internal void Pick(LetteraStyleTemplate template)

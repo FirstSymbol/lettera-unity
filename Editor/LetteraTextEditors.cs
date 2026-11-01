@@ -893,6 +893,8 @@ namespace FirstSymbol.Lettera.Editor
             return LtUI.Row("Language", LtUI.El("lt-language", field, open), "BCP 47 tag such as ar, ja or zh-Hans. Selects localized glyph forms and font preferences.", language);
         }
 
+        static string BudgetName(Type type) => ObjectNames.NicifyVariableName(type.Name.StartsWith("FitBy", StringComparison.Ordinal) ? type.Name.Substring(5) : type.Name);
+
         // Ways to save room before the font size drops, spent in this order.
         VisualElement BuildFitBudgets()
         {
@@ -909,7 +911,7 @@ namespace FirstSymbol.Lettera.Editor
                     if (budget.managedReferenceValue == null) continue;
                     VisualElement row = LtUI.El("lt-budget");
                     foreach (SerializedProperty child in LetteraStyleList.Children(budget))
-                        row.Add(LtUI.Field(LetteraStyleList.Pretty(budget.managedReferenceValue.GetType().Name, "") + " limit", child.Copy()));
+                        row.Add(LtUI.Field(BudgetName(budget.managedReferenceValue.GetType()) + " limit", child.Copy()));
                     row.Add(LtUI.Clickable("×", "lt-icon-btn lt-icon-btn--danger", "Remove", () =>
                     {
                         m_Object.Update();
@@ -925,7 +927,7 @@ namespace FirstSymbol.Lettera.Editor
                     foreach (Type type in new[] { typeof(FitByTracking), typeof(FitByGlyphWidth), typeof(FitByLineHeight) })
                     {
                         Type chosen = type;
-                        menu.AddItem(new GUIContent(type.Name), false, () =>
+                        menu.AddItem(new GUIContent(BudgetName(type)), false, () =>
                         {
                             m_Object.Update();
                             SerializedProperty list = P("FitBudgets");
