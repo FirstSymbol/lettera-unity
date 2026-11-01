@@ -20,7 +20,7 @@ namespace FirstSymbol.Lettera.Editor.Tests
             VisualElement root = Build(text, out UnityEditor.Editor editor);
             Assert.IsNotNull(root);
             Assert.AreEqual(6, root.Query<LtSection>().ToList().Count, "one page of six cards");
-            Assert.AreEqual(4, root.Query(className: "lt-page").ToList().Count);
+            Assert.AreEqual(1, root.Query(className: "lt-page").ToList().Count, "the render card holds what differs by component");
             Assert.Greater(root.Query(className: "lt-seg").ToList().Count, 4);
             Assert.Greater(root.Query(className: "lt-switch").ToList().Count, 3);
             Object.DestroyImmediate(editor);
