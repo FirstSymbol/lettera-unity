@@ -237,7 +237,7 @@ MonoBehaviour:
         [Test]
         public void EverySavedKindHoldsAStamp()
         {
-            var kinds = new List<Type> { typeof(LetteraText), typeof(LetteraWorldText), typeof(LetteraText3D), typeof(LetteraStyle) };
+            var kinds = new List<Type> { typeof(LetteraText), typeof(LetteraWorldText), typeof(LetteraStyle), Type.GetType("FirstSymbol.Lettera.LetteraText3D, FirstSymbol.Lettera.Text3D") };
             foreach (Assembly assembly in AppDomain.CurrentDomain.GetAssemblies())
             {
                 string name = assembly.GetName().Name;
