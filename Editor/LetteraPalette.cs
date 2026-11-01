@@ -306,6 +306,7 @@ namespace FirstSymbol.Lettera.Editor
                 Menu("Sequencer", "Window", "cues timeline rows drag split motion", "Tools/Lettera/Sequencer"),
                 Menu("Inspect Text In Scene", "Window", "overlay boxes baselines bounds debug probe", "Tools/Lettera/Inspect Text In Scene", keys: KeysOf("Lettera/Inspect Text In Scene")),
                 Menu("Edit Text In Scene", "Window", "type caret f2 write where it stands bar", "Tools/Lettera/Edit Text In Scene", keys: "F2"),
+                Menu("Repair Saved Objects", "Window", "missing script older version lost fix", "Tools/Lettera/Repair Saved Objects"),
                 Menu("Migrate From TextMesh Pro", "Window", "tmp upgrade convert", "Tools/Lettera/Migrate From TextMesh Pro"),
                 Menu("Use Bundled Math Font", "Math", "formula noto", "Lettera/Math/Use Bundled Font"),
                 Do("Project Settings", "Settings", "defaults preferences", () => SettingsService.OpenProjectSettings("Project/Lettera")),

@@ -8,7 +8,7 @@ using UnityEngine;
 namespace FirstSymbol.Lettera.Editor
 {
     /// <summary>
-    /// Before 1.0.0 sixteen of Lettera's classes shared a script file. A saved one lost its script: the file holds an empty script reference, and the object comes back as a missing script.
+    /// Before 1.0.0 fifteen of Lettera's classes shared a script file. A saved one lost its script: the file holds an empty script reference, and the object comes back as a missing script.
     /// Unity also writes the class's name beside it, so a file saved by Unity 6 says what it was, and this writes the reference back.
     /// </summary>
     internal static class LetteraScriptRepair

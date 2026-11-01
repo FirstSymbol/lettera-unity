@@ -102,12 +102,16 @@ namespace FirstSymbol.Lettera.Editor
             Vector2 P(float x, float y) => origin + new Vector2(x * scale, -y * scale);
             painter.strokeColor = resolvedStyle.color;
             painter.lineWidth = 1f;
-            painter.BeginPath();
+            bool open = false;
             for (int i = 0; i < c.Length;)
             {
                 int command = (int)c[i];
                 if (command == 0 && i + 2 < c.Length)
                 {
+                    // Each contour is its own path: the painter joins a later one to the corner of the element otherwise.
+                    if (open) painter.Stroke();
+                    painter.BeginPath();
+                    open = true;
                     painter.MoveTo(P(c[i + 1], c[i + 2]));
                     i += 3;
                 }
@@ -136,7 +140,7 @@ namespace FirstSymbol.Lettera.Editor
                     break;
                 }
             }
-            painter.Stroke();
+            if (open) painter.Stroke();
         }
     }
 
