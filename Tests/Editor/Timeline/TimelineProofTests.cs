@@ -168,7 +168,7 @@ namespace FirstSymbol.Lettera.Timeline.Editor.Tests
             try
             {
                 AnimationMode.BeginSampling();
-                director.playableAsset.GatherProperties(director, new PreviewCollector());
+                ((IPropertyPreview)director.playableAsset).GatherProperties(director, new PreviewCollector());
                 AnimationMode.EndSampling();
                 director.RebuildGraph();
                 At(director, 2);
