@@ -24,15 +24,15 @@ namespace FirstSymbol.Lettera
         const float SoftnessEm = GlyphAtlas.SpreadEm;
 
         // Vertex data of the current text. Alpha is kept apart from the base alpha, so a fade only rewrites colors.
-        public Vector3[] Vertices = new Vector3[256];
-        public Color32[] Colors = new Color32[256];
-        public Vector4[] Uv0 = new Vector4[256];
-        public Vector4[] Uv1 = new Vector4[256];
-        public Vector4[] Uv2 = new Vector4[256];
-        public Vector4[] Uv3 = new Vector4[256];
-        public int[] Indices = new int[384];
+        public Vector3[] Vertices = System.Array.Empty<Vector3>();
+        public Color32[] Colors = System.Array.Empty<Color32>();
+        public Vector4[] Uv0 = System.Array.Empty<Vector4>();
+        public Vector4[] Uv1 = System.Array.Empty<Vector4>();
+        public Vector4[] Uv2 = System.Array.Empty<Vector4>();
+        public Vector4[] Uv3 = System.Array.Empty<Vector4>();
+        public int[] Indices = System.Array.Empty<int>();
         public int VertexCount, IndexCount;
-        byte[] m_OwnAlpha = new byte[256];
+        byte[] m_OwnAlpha = System.Array.Empty<byte>();
         Bounds m_Bounds;
 
         // The text uses paints, bands or inner shadows, so it draws with the styled shader and needs UV2 and UV3.
@@ -46,8 +46,8 @@ namespace FirstSymbol.Lettera
         Material m_SegmentCustom;
         int m_SegmentStart;
 
-        AtlasGlyph[] m_PlacedAtlas = new AtlasGlyph[64];
-        float[] m_PlacedReach = new float[64];
+        AtlasGlyph[] m_PlacedAtlas = System.Array.Empty<AtlasGlyph>();
+        float[] m_PlacedReach = System.Array.Empty<float>();
         readonly List<LayerGroup> m_Faces = new List<LayerGroup>();
 
         public Bounds MeshBounds => m_Bounds;
@@ -81,6 +81,9 @@ namespace FirstSymbol.Lettera
             List<LayerGroup> groups = m_Attributes.SortedGroups();
             Styled = m_Attributes.NeedsStyledShader() || HasInlineSprites;
             PrepareGlyphs(groups);
+            // One quad a glyph is the usual case, so a long text does not grow through every size on the way.
+            if (m_PlacedCount * 4 > Vertices.Length) GrowVertices(System.Math.Max(m_PlacedCount * 4, Vertices.Length * 2));
+            if (m_PlacedCount * 6 > Indices.Length) System.Array.Resize(ref Indices, System.Math.Max(m_PlacedCount * 6, Indices.Length * 2));
             PrepareFade();
             PrepareExtraMotions();
 
@@ -443,7 +446,7 @@ namespace FirstSymbol.Lettera
             return IsCursive(m_Scripts[a]) && IsCursive(m_Scripts[b]) && !LetteraUnicode.IsWhiteSpace(m_Text[a]) && !LetteraUnicode.IsWhiteSpace(m_Text[b]);
         }
 
-        readonly float[] m_FilterA = new float[20], m_FilterB = new float[20];
+        static readonly float[] s_FilterA = new float[20], s_FilterB = new float[20];
 
         // The filters of later styles that cover a codepoint, composed in style order; an inner range after an outer one.
         float FilterFor(int cluster, int style)
@@ -457,16 +460,16 @@ namespace FirstSymbol.Lettera
                 if (filter.Style <= style || cluster < filter.Start || cluster >= filter.End) continue;
                 if (!any)
                 {
-                    System.Array.Copy(filter.Matrix, m_FilterA, 20);
+                    System.Array.Copy(filter.Matrix, s_FilterA, 20);
                     any = true;
                 }
                 else
                 {
-                    FilterAtlas.Compose(m_FilterA, filter.Matrix, m_FilterB);
-                    System.Array.Copy(m_FilterB, m_FilterA, 20);
+                    FilterAtlas.Compose(s_FilterA, filter.Matrix, s_FilterB);
+                    System.Array.Copy(s_FilterB, s_FilterA, 20);
                 }
             }
-            return any ? FilterAtlas.RowOf(m_FilterA) : 0;
+            return any ? FilterAtlas.RowOf(s_FilterA) : 0;
         }
 
         // A warp reads the field a little to the side per pixel; uv3 carries how far and how fine, in the tile's own uv.
@@ -863,21 +866,26 @@ namespace FirstSymbol.Lettera
             }
         }
 
+        // Only a styled text ever reads the last two streams, and most texts are not styled.
+        void GrowVertices(int capacity)
+        {
+            System.Array.Resize(ref Vertices, capacity);
+            System.Array.Resize(ref Colors, capacity);
+            System.Array.Resize(ref Uv0, capacity);
+            System.Array.Resize(ref Uv1, capacity);
+            System.Array.Resize(ref m_OwnAlpha, capacity);
+        }
+
         int Reserve()
         {
             int v = VertexCount;
-            if (v + 4 > Vertices.Length)
+            if (VertexCount + 4 > Vertices.Length) GrowVertices(System.Math.Max(Vertices.Length * 2, 16));
+            if (Styled && Uv2.Length < Vertices.Length)
             {
-                int capacity = Vertices.Length * 2;
-                System.Array.Resize(ref Vertices, capacity);
-                System.Array.Resize(ref Colors, capacity);
-                System.Array.Resize(ref Uv0, capacity);
-                System.Array.Resize(ref Uv1, capacity);
-                System.Array.Resize(ref Uv2, capacity);
-                System.Array.Resize(ref Uv3, capacity);
-                System.Array.Resize(ref m_OwnAlpha, capacity);
+                System.Array.Resize(ref Uv2, Vertices.Length);
+                System.Array.Resize(ref Uv3, Vertices.Length);
             }
-            if (IndexCount + 6 > Indices.Length) System.Array.Resize(ref Indices, Indices.Length * 2);
+            if (IndexCount + 6 > Indices.Length) System.Array.Resize(ref Indices, System.Math.Max(Indices.Length * 2, 24));
             if (m_RecordOwners)
             {
                 EnsureOwnerSize(v / 4 + 1);

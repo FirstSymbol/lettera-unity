@@ -61,8 +61,8 @@ namespace FirstSymbol.Lettera
         internal readonly List<Claim> Claims = new List<Claim>();
         internal readonly List<RangeRecord> Ranges = new List<RangeRecord>();
         readonly List<int> m_LessThan = new List<int>();
-        bool[] m_Blocked = new bool[256];
-        char[] m_Chars = new char[256];
+        bool[] m_Blocked = Array.Empty<bool>();
+        char[] m_Chars = Array.Empty<char>();
         int m_Length;
         string m_Source;
         internal int CurrentStyle;
@@ -88,7 +88,7 @@ namespace FirstSymbol.Lettera
             m_LessThan.Clear();
             if (m_Chars.Length < source.Length)
             {
-                int capacity = Math.Max(source.Length, m_Chars.Length * 2);
+                int capacity = Math.Max(Math.Max(source.Length, 16), m_Chars.Length * 2);
                 m_Chars = new char[capacity];
                 m_Blocked = new bool[capacity];
             }

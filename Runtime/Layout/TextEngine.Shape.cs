@@ -41,18 +41,18 @@ namespace FirstSymbol.Lettera
         public void InvalidateFonts() => LetteraFontChains.Invalidate();
         readonly List<Paragraph> m_Paragraphs = new List<Paragraph>();
         readonly List<Run> m_Runs = new List<Run>();
-        ShapedGlyph[] m_Shaped = new ShapedGlyph[64];
-        NativeGlyph[] m_NativeGlyphs = new NativeGlyph[256];
+        ShapedGlyph[] m_Shaped = Array.Empty<ShapedGlyph>();
+        static NativeGlyph[] s_NativeGlyphs = new NativeGlyph[256];
         int m_ShapedCount;
-        byte[] m_Levels = new byte[64];
-        bool[] m_Boundaries = new bool[64];
-        LineBreakOpportunity[] m_Breaks = new LineBreakOpportunity[64];
-        UnicodeScript[] m_Scripts = new UnicodeScript[64];
-        int[] m_CpRun = new int[64];
+        byte[] m_Levels = Array.Empty<byte>();
+        bool[] m_Boundaries = Array.Empty<bool>();
+        LineBreakOpportunity[] m_Breaks = Array.Empty<LineBreakOpportunity>();
+        UnicodeScript[] m_Scripts = Array.Empty<UnicodeScript>();
+        int[] m_CpRun = Array.Empty<int>();
         // What shaping reads: the rendered text with case effects applied, so indices stay the same and CleanText keeps its case.
-        int[] m_ShapeText = new int[64];
+        int[] m_ShapeText = Array.Empty<int>();
         static readonly uint s_Smcp = LetteraNative.Tag("smcp"), s_Sups = LetteraNative.Tag("sups"), s_Subs = LetteraNative.Tag("subs");
-        float[] m_CpAdvanceEm = new float[64];
+        float[] m_CpAdvanceEm = Array.Empty<float>();
 
         readonly LetteraSegmenterScratch m_SegmenterScratch = new LetteraSegmenterScratch();
 
@@ -356,18 +356,18 @@ namespace FirstSymbol.Lettera
             {
                 while (true)
                 {
-                    fixed (NativeGlyph* output = m_NativeGlyphs)
+                    fixed (NativeGlyph* output = s_NativeGlyphs)
                         count = LetteraNative.lt_shape(run.Instance.Font, text, paragraph.End - paragraph.Start, run.Start - paragraph.Start, run.End - run.Start,
-                            direction, script, lang, used > 0 ? features : null, used, output, m_NativeGlyphs.Length);
+                            direction, script, lang, used > 0 ? features : null, used, output, s_NativeGlyphs.Length);
                     if (count >= 0) break;
-                    m_NativeGlyphs = new NativeGlyph[-count * 2];
+                    s_NativeGlyphs = new NativeGlyph[-count * 2];
                 }
             }
 
             EnsureSize(ref m_Shaped, m_ShapedCount + count);
             for (int i = 0; i < count; i++)
             {
-                ref NativeGlyph g = ref m_NativeGlyphs[i];
+                ref NativeGlyph g = ref s_NativeGlyphs[i];
                 int cluster = (int)g.Cluster + paragraph.Start;
                 m_Shaped[m_ShapedCount + i] = new ShapedGlyph { Glyph = g.Glyph, Cluster = cluster, XAdvance = g.XAdvance, XOffset = g.XOffset, YOffset = g.YOffset };
                 m_CpAdvanceEm[cluster] += g.XAdvance * run.UnitEm;

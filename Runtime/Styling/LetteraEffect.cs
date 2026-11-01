@@ -394,7 +394,7 @@ namespace FirstSymbol.Lettera
             public LayoutLength FadeDistance, FadeShift;
         }
 
-        internal Cp[] Chars = new Cp[64];
+        internal Cp[] Chars = System.Array.Empty<Cp>();
         internal int Length;
         internal readonly System.Collections.Generic.List<string> FamilyRequests = new System.Collections.Generic.List<string>();
         internal readonly System.Collections.Generic.List<string> Languages = new System.Collections.Generic.List<string>();
@@ -420,7 +420,7 @@ namespace FirstSymbol.Lettera
         internal void Reset(int length)
         {
             Extras.Clear();
-            if (Chars.Length < length) Chars = new Cp[Mathf.Max(length, Chars.Length * 2)];
+            if (Chars.Length < length || Chars.Length == 0) Chars = new Cp[Mathf.Max(Mathf.Max(length, 16), Chars.Length * 2)];
             Length = length;
             for (int i = 0; i < length; i++)
                 Chars[i] = new Cp { SizeMul = 1, Weight = 0, Alpha = 1, Family = -1, Language = -1, Slant = -1, Features = -1, Axes = -1, Warp = -1 };

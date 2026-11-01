@@ -6,10 +6,10 @@ namespace FirstSymbol.Lettera
     // What layout effects add to the shaped widths. Extra space belongs to the first codepoint of its cluster.
     internal sealed partial class TextEngine
     {
-        float[] m_CpExtraEm = new float[64], m_CpExtraUnits = new float[64];
-        float[] m_CpLeadEm = new float[64], m_CpLeadUnits = new float[64];
-        bool[] m_CpKashida = new bool[64];
-        bool[] m_CpDivider = new bool[64];
+        float[] m_CpExtraEm = Array.Empty<float>(), m_CpExtraUnits = Array.Empty<float>();
+        float[] m_CpLeadEm = Array.Empty<float>(), m_CpLeadUnits = Array.Empty<float>();
+        bool[] m_CpKashida = Array.Empty<bool>();
+        bool[] m_CpDivider = Array.Empty<bool>();
 
         void EnsureExtras(int length)
         {

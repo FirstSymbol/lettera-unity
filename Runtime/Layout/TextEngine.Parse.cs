@@ -12,8 +12,8 @@ namespace FirstSymbol.Lettera
         readonly List<int> m_RangeOrder = new List<int>();
 
         // The rendered text as UTF-32, and for each codepoint its index in the source text.
-        int[] m_Text = new int[64];
-        int[] m_SourceIndex = new int[64];
+        int[] m_Text = Array.Empty<int>();
+        int[] m_SourceIndex = Array.Empty<int>();
         int m_TextLength;
 
         void CollectStyles()

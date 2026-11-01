@@ -60,7 +60,7 @@ namespace FirstSymbol.Lettera
         LetteraTextData.Snapshot m_Snapshot;
 
         // Runtime text overrides the serialized field until the field is set again.
-        char[] m_RuntimeChars = new char[64];
+        char[] m_RuntimeChars = Array.Empty<char>();
         int m_RuntimeLength;
         string m_RuntimeText;
         bool m_HasRuntimeText;
@@ -305,10 +305,13 @@ namespace FirstSymbol.Lettera
             return engine.Measure(size, width, height, wrap, autoSize, minSize, maxSize);
         }
 
+        // Thousands of short labels each hold these, so they start empty and grow to what the text asks.
+        const int SmallestBuffer = 16;
+
         static void EnsureSize<T>(ref T[] array, int size)
         {
-            if (array == null) array = new T[Math.Max(size, 64)];
-            else if (array.Length < size) Array.Resize(ref array, Math.Max(size, array.Length * 2));
+            if (array == null) array = new T[Math.Max(size, SmallestBuffer)];
+            else if (array.Length < size) Array.Resize(ref array, Math.Max(Math.Max(size, SmallestBuffer), array.Length * 2));
         }
     }
 }

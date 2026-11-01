@@ -22,10 +22,10 @@ namespace FirstSymbol.Lettera
             public bool Rtl;
         }
 
-        CaretSegment[] m_Segments = new CaretSegment[64];   // By line, each line in visual order.
-        int[] m_SegmentStarts = new int[64];                // Keys and, below, indices of the segments in logical order.
-        int[] m_LogicalOrder = new int[64];
-        int[] m_LineSegments = new int[16];                 // The first segment of each line.
+        CaretSegment[] m_Segments = Array.Empty<CaretSegment>();   // By line, each line in visual order.
+        int[] m_SegmentStarts = Array.Empty<int>();                // Keys and, below, indices of the segments in logical order.
+        int[] m_LogicalOrder = Array.Empty<int>();
+        int[] m_LineSegments = Array.Empty<int>();                 // The first segment of each line.
         int m_SegmentCount;
         bool m_SegmentsValid;
 

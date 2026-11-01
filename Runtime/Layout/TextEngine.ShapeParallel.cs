@@ -27,7 +27,7 @@ namespace FirstSymbol.Lettera
         readonly List<DeferredRun> m_Deferred = new List<DeferredRun>();
         bool m_DeferShaping;
         int m_DeferParagraphStart, m_DeferParagraphLength;
-        ShapedGlyph[] m_ShapedMerged = new ShapedGlyph[64];
+        ShapedGlyph[] m_ShapedMerged = Array.Empty<ShapedGlyph>();
         [ThreadStatic] static NativeGlyph[] s_WorkerGlyphs;
         [ThreadStatic] static LetteraSegmenterScratch s_WorkerScratch;
         Action<int> m_AnalyzeOne, m_ShapeOne;

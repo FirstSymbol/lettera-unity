@@ -406,8 +406,11 @@ namespace FirstSymbol.Lettera
                         Colors[v + i] = Colors[q * 4 + i];
                         Uv0[v + i] = Uv0[q * 4 + i];
                         Uv1[v + i] = Uv1[q * 4 + i];
-                        Uv2[v + i] = Uv2[q * 4 + i];
-                        Uv3[v + i] = Uv3[q * 4 + i];
+                        if (Styled)
+                        {
+                            Uv2[v + i] = Uv2[q * 4 + i];
+                            Uv3[v + i] = Uv3[q * 4 + i];
+                        }
                         m_OwnAlpha[v + i] = m_OwnAlpha[q * 4 + i];
                     }
                 }
