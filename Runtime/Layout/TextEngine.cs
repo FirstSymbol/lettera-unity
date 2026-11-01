@@ -181,9 +181,13 @@ namespace FirstSymbol.Lettera
             m_Snapshot = m_Host.Data.Take();
         }
 
+        /// <summary>The native fonts have been released and a domain is on its way out: nothing shapes until they are back.</summary>
+        internal static bool FontsGone;
+
         /// <summary>Runs the passes the dirty level needs. Returns true when the mesh arrays changed.</summary>
         public bool Rebuild()
         {
+            if (FontsGone) return false;
             m_Snapshot = m_Host.Data.Take();
             DirtyLevel level = m_Dirty;
             m_Dirty = DirtyLevel.None;

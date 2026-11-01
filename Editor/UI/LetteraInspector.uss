@@ -541,3 +541,218 @@
     opacity: 0.55;
     font-size: 10px;
 }
+
+/* ---------------------------------------------------- toolkit of 1.0 */
+
+.lt-section__header {
+    flex-direction: row;
+    align-items: center;
+    min-height: 20px;
+    margin-bottom: 2px;
+}
+
+.lt-section__chevron {
+    width: 14px;
+    color: rgba(255, 255, 255, 0.45);
+    -unity-font-style: normal;
+}
+
+.lt-section__title {
+    margin: 0;
+    padding: 0;
+    flex-shrink: 0;
+}
+
+.lt-section__summary {
+    flex-grow: 1;
+    flex-shrink: 1;
+    margin-left: 8px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    -unity-text-align: middle-right;
+    color: rgba(255, 255, 255, 0.45);
+    font-size: 11px;
+}
+
+.lt-number__label {
+    cursor: resize-horizontal;
+}
+
+.lt-fix {
+    flex-direction: row;
+    align-items: center;
+    padding: 4px 6px;
+    margin: 2px 0;
+    border-radius: 5px;
+    background-color: rgba(255, 170, 60, 0.12);
+    border-left-width: 2px;
+    border-left-color: rgb(255, 170, 60);
+}
+
+.lt-fix__text {
+    flex-grow: 1;
+    flex-shrink: 1;
+    white-space: normal;
+    color: rgb(255, 200, 130);
+    font-size: 11px;
+}
+
+.lt-fix__button {
+    margin-left: 6px;
+    padding: 1px 8px;
+    border-radius: 4px;
+    background-color: rgba(255, 170, 60, 0.25);
+    color: rgb(255, 225, 190);
+    font-size: 11px;
+}
+
+.lt-fix__button:hover {
+    background-color: rgba(255, 170, 60, 0.4);
+}
+
+.lt-status__row {
+    flex-direction: row;
+    align-items: center;
+    min-height: 18px;
+}
+
+.lt-status__dot {
+    width: 6px;
+    height: 6px;
+    margin-right: 6px;
+    border-radius: 3px;
+    background-color: rgba(255, 255, 255, 0.15);
+}
+
+.lt-status__dot--good { background-color: rgb(90, 200, 120); }
+.lt-status__dot--warn { background-color: rgb(255, 170, 60); }
+.lt-status__dot--bad { background-color: rgb(240, 90, 80); }
+
+.lt-status__label {
+    width: 40%;
+    color: rgba(255, 255, 255, 0.55);
+    font-size: 11px;
+}
+
+.lt-status__value {
+    flex-grow: 1;
+    flex-shrink: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 11px;
+}
+
+.lt-search {
+    margin: 2px 0 6px 0;
+}
+
+.lt-popup {
+    padding: 6px;
+    flex-grow: 1;
+}
+
+.lt-box__summary {
+    padding: 2px 6px;
+    border-radius: 4px;
+    background-color: rgba(0, 0, 0, 0.2);
+}
+
+.lt-box__summary:hover {
+    background-color: rgba(255, 255, 255, 0.08);
+}
+
+.lt-list__header {
+    flex-direction: row;
+    align-items: center;
+    margin-bottom: 4px;
+}
+
+.lt-list__title {
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.6);
+    margin-right: 6px;
+}
+
+.lt-list__space {
+    flex-grow: 1;
+}
+
+.lt-list__row {
+    border-left-width: 2px;
+    border-left-color: rgba(0, 0, 0, 0);
+    padding-left: 4px;
+    margin-bottom: 2px;
+    border-radius: 3px;
+}
+
+.lt-list__row--on {
+    border-left-color: rgb(155, 110, 255);
+    background-color: rgba(155, 110, 255, 0.1);
+}
+
+.lt-list__drop {
+    height: 2px;
+    margin: 1px 0;
+    background-color: rgb(155, 110, 255);
+}
+
+.lt-jump {
+    flex-direction: row;
+    flex-wrap: wrap;
+    margin: 4px 0;
+}
+
+.lt-jump__item {
+    padding: 2px 8px;
+    margin: 0 4px 4px 0;
+    border-radius: 10px;
+    background-color: rgba(255, 255, 255, 0.06);
+    font-size: 11px;
+}
+
+.lt-jump__item:hover {
+    background-color: rgba(155, 110, 255, 0.3);
+}
+
+.lt-palette__row {
+    flex-direction: row;
+    align-items: center;
+    padding: 3px 6px;
+    border-radius: 4px;
+}
+
+.lt-palette__row--on {
+    background-color: rgba(155, 110, 255, 0.28);
+}
+
+.lt-palette__name {
+    flex-grow: 1;
+    flex-shrink: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.lt-palette__group {
+    margin-left: 6px;
+    color: rgba(255, 255, 255, 0.4);
+    font-size: 10px;
+}
+
+.lt--light .lt-section__chevron,
+.lt--light .lt-section__summary,
+.lt--light .lt-status__label,
+.lt--light .lt-list__title,
+.lt--light .lt-palette__group {
+    color: rgba(0, 0, 0, 0.55);
+}
+
+.lt--light .lt-jump__item {
+    background-color: rgba(0, 0, 0, 0.08);
+}
+
+.lt--light .lt-fix__text {
+    color: rgb(130, 75, 10);
+}

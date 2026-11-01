@@ -4,6 +4,11 @@ All notable changes to this package are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.7.2] - 2026-11-01
+
+### Fixed
+- **The editor could crash in a domain reload.** Lettera releases its native fonts as a reload begins. A material inspector closing after that makes Unity rebuild canvases, and a text with work pending shaped against a released font. Present since fonts were first released this way. Nothing shapes now until the fonts are back, and the pending work stays pending.
+
 ## [0.7.1] - 2026-11-01
 
 ### Added

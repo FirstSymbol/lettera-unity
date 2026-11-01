@@ -83,6 +83,7 @@ namespace FirstSymbol.Lettera
 #endif
             if (version != LetteraNative.CurrentVersion)
                 Debug.LogError($"Lettera: the native plugin is version {version}, the scripts expect {LetteraNative.CurrentVersion}. Reinstall the package.");
+            TextEngine.FontsGone = false;
             Canvas.willRenderCanvases += GlyphAtlas.Flush;
             LetteraOsPreferences.Install();
             InstallLoop();
@@ -150,6 +151,8 @@ namespace FirstSymbol.Lettera
         /// <summary>Releases native fonts and atlas memory; nothing survives a domain reload.</summary>
         public static void Shutdown()
         {
+            // Fonts go below. Unity can still rebuild a canvas after this, from an inspector closing during a domain reload, and no text may reach for them.
+            TextEngine.FontsGone = true;
             LetteraWorkers.Shutdown();
             LetteraMotionHub.Shutdown();
             LetteraWorldBatcher.Shutdown();
