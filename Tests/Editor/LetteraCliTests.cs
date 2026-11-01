@@ -389,15 +389,16 @@ namespace FirstSymbol.Lettera.Editor.Tests
             string path = Folder + "/Export.unity";
             Assert.IsTrue(EditorSceneManager.SaveScene(SceneManager.GetActiveScene(), path));
             Assert.IsFalse(go.scene.isDirty);
-            int roots = go.scene.rootCount;
 
             string file = Output(kind + ".png");
             Good(LetteraCli.ExportPng("Exported", file));
+            int roots = go.scene.rootCount;
             Dictionary<string, int> before = Census();
             var transformBefore = go.transform.position;
             Dictionary<string, object> answer = Good(LetteraCli.ExportPng("Exported", file));
             CollectionAssert.AreEquivalent(before, Census(), "nothing left behind");
             Assert.IsFalse(go.scene.isDirty, "the scene stays clean");
+            // A world text's own batch is a hidden root of the scene, and any tick makes it, so it is counted after the first export.
             Assert.AreEqual(roots, go.scene.rootCount);
             Assert.AreEqual(1, SceneManager.sceneCount);
             Assert.AreEqual(transformBefore, go.transform.position);
