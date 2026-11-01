@@ -74,6 +74,8 @@ namespace FirstSymbol.Lettera
     [Serializable]
     public class ListItemMatcher : LetteraMatcher
     {
+        internal override bool StartsAtMarkup => true;
+
         [SerializeField] string m_Name = "li";
 
         public ListItemMatcher() { }
@@ -129,6 +131,8 @@ namespace FirstSymbol.Lettera
     [Serializable]
     public class RubyMatcher : LetteraMatcher
     {
+        internal override bool StartsAtMarkup => true;
+
         [SerializeField] string m_Name = "ruby";
 
         public string Name { get => m_Name; set => m_Name = value; }

@@ -417,6 +417,9 @@ namespace FirstSymbol.Lettera
         /// <summary>A base direction forced by an effect: -1 none, 0 ltr, 1 rtl, 2 auto.</summary>
         internal int DirectionOverride = -1;
 
+        // Only effects and eliding write what follows the characters, so a text with neither has nothing to clear of forty lists.
+        internal bool Touched = true;
+
         internal void Reset(int length)
         {
             Extras.Clear();
@@ -424,6 +427,8 @@ namespace FirstSymbol.Lettera
             Length = length;
             for (int i = 0; i < length; i++)
                 Chars[i] = new Cp { SizeMul = 1, Weight = 0, Alpha = 1, Family = -1, Language = -1, Slant = -1, Features = -1, Axes = -1, Warp = -1 };
+            if (!Touched) return;
+            Touched = false;
             Filters.Clear();
             Warps.Clear();
             MotionRequests.Clear();

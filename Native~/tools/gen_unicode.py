@@ -313,43 +313,20 @@ def main():
 
     w("    internal static class UnicodeData\n    {\n")
     w("        const int Shift = %d, Mask = %d, DefaultRecord = %d;\n\n" % (shift, (1 << shift) - 1, default_rec))
+    # As array initializers: loading those is one copy from the binary, where decoding text cost the first text of a session 3 ms.
+    cs_type = {"U8": ("byte", "B", 1, ""), "U16": ("ushort", "H", 2, ""), "U32": ("uint", "I", 4, "u"), "I32": ("int", "i", 4, "")}
     for name, kind, data in tables:
-        s = base64.b64encode(data).decode()
-        w("        const string %sB64 =\n" % name)
-        chunks = [s[i:i + 8000] for i in range(0, len(s), 8000)] or [""]
-        w(" +\n".join('            "%s"' % c for c in chunks))
-        w(";\n")
-    w("\n")
-    cs_type = {"U8": "byte", "U16": "ushort", "U32": "uint", "I32": "int"}
-    for name, kind, _ in tables:
-        w("        internal static readonly %s[] %s = Decode%s(%sB64);\n" % (cs_type[kind], name, kind, name))
+        type_name, code, width, suffix = cs_type[kind]
+        values = struct.unpack("<%d%s" % (len(data) // width, code), data)
+        w("        internal static readonly %s[] %s =
+        {
+" % (type_name, name))
+        for i in range(0, len(values), 32):
+            w("            " + ", ".join(str(v) + suffix for v in values[i:i + 32]) + ",
+")
+        w("        };
+")
     w("""
-        static byte[] DecodeU8(string s) => Convert.FromBase64String(s);
-
-        static ushort[] DecodeU16(string s)
-        {
-            var b = Convert.FromBase64String(s);
-            var r = new ushort[b.Length / 2];
-            for (int i = 0; i < r.Length; i++) r[i] = (ushort)(b[2 * i] | b[2 * i + 1] << 8);
-            return r;
-        }
-
-        static uint[] DecodeU32(string s)
-        {
-            var b = Convert.FromBase64String(s);
-            var r = new uint[b.Length / 4];
-            for (int i = 0; i < r.Length; i++) r[i] = (uint)(b[4 * i] | b[4 * i + 1] << 8 | b[4 * i + 2] << 16 | b[4 * i + 3] << 24);
-            return r;
-        }
-
-        static int[] DecodeI32(string s)
-        {
-            var b = Convert.FromBase64String(s);
-            var r = new int[b.Length / 4];
-            for (int i = 0; i < r.Length; i++) r[i] = b[4 * i] | b[4 * i + 1] << 8 | b[4 * i + 2] << 16 | b[4 * i + 3] << 24;
-            return r;
-        }
-
         internal const uint FExtPict = 1u << 18, FEmoji = 1u << 19, FEmojiPres = 1u << 20, FEmojiMod = 1u << 21,
             FEmojiBase = 1u << 22, FRegional = 1u << 23, FDefaultIgnorable = 1u << 24, FWhiteSpace = 1u << 25;
 

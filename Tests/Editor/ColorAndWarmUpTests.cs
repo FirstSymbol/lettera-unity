@@ -21,7 +21,7 @@ namespace FirstSymbol.Lettera.Editor.Tests
         {
             LetteraWorldText text = Make("Plain words");
             text.ForceRebuild();
-            Assert.Greater(MeshPassesDuring(text, Color.red), 0, "the first change draws again");
+            Assert.AreEqual(0, MeshPassesDuring(text, Color.red), "a plain text's first change needs no pass either");
             Assert.AreEqual(0, MeshPassesDuring(text, Color.green), "a later change runs a mesh pass");
             Color32 shown = text.Engine.Colors[0];
             Assert.AreEqual(0, shown.r);

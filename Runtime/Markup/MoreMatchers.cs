@@ -44,6 +44,8 @@ namespace FirstSymbol.Lettera
     [Serializable]
     public class DividerMatcher : LetteraMatcher
     {
+        internal override bool StartsAtMarkup => true;
+
         [SerializeField] string m_Name = "divider";
         [SerializeField] string m_Text = " | ";
 

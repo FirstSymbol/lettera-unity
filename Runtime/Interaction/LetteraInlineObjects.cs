@@ -9,6 +9,8 @@ namespace FirstSymbol.Lettera
     [Serializable, UnityEngine.Scripting.Preserve]
     public class InlineMediaMatcher : LetteraMatcher
     {
+        internal override bool StartsAtMarkup => true;
+
         [SerializeField] string m_Name = "sprite";
 
         public InlineMediaMatcher() { }

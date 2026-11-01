@@ -14,6 +14,9 @@ namespace FirstSymbol.Lettera
         /// <summary>Higher priority claims first. Equal priority: the earlier style wins.</summary>
         public virtual int Priority => 0;
 
+        /// <summary>Finds nothing in a text with no '&lt;' and no backslash. Only what ships says so.</summary>
+        internal virtual bool StartsAtMarkup => false;
+
         /// <summary>Scans the source text and reports claims and ranges to the context.</summary>
         public abstract void Find(LetteraMatchContext context);
 
@@ -203,6 +206,8 @@ namespace FirstSymbol.Lettera
     [Serializable]
     public class TagMatcher : LetteraMatcher
     {
+        internal override bool StartsAtMarkup => true;
+
         [SerializeField] string m_Name = "";
 
         public TagMatcher() { }
@@ -413,6 +418,8 @@ namespace FirstSymbol.Lettera
     [Serializable]
     public class NoParseMatcher : LetteraMatcher
     {
+        internal override bool StartsAtMarkup => true;
+
         public override int Priority => int.MaxValue;
 
         public override string EscapeFor(string literal) => literal.IndexOf('<') < 0 ? literal : "<noparse>" + literal.Replace("</noparse>", "</noparse>&lt;/noparse>") + "</noparse>";
@@ -449,6 +456,8 @@ namespace FirstSymbol.Lettera
     [Serializable]
     public class EscapeMatcher : LetteraMatcher
     {
+        internal override bool StartsAtMarkup => true;
+
         public override int Priority => int.MaxValue - 2;
 
         public override string EscapeFor(string literal)
@@ -484,6 +493,8 @@ namespace FirstSymbol.Lettera
     [Serializable]
     public class LineBreakMatcher : LetteraMatcher
     {
+        internal override bool StartsAtMarkup => true;
+
         const string LineSeparator = "\u2028";
 
         public override int Priority => 1;
