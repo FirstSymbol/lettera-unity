@@ -237,6 +237,7 @@ def measure(backend):
                 "bytes_values": bytes_values[engine].get(row, []),
                 "largest": max(largest[engine][row]) if row in largest[engine] else -1,
                 "gpu": statistics.median(gpu[engine][row]) if row in gpu[engine] else -1,
+                "gpu_values": gpu[engine].get(row, []),
                 "note": notes[engine].get(row, ""),
             }
     name = "compare.json" if backend == "mono" else f"compare_{backend}.json"
