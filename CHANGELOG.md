@@ -4,6 +4,11 @@ All notable changes to this package are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+- **Lettera from the command line.** With `com.unity.pipeline` installed, `unity command lettera ...` creates, edits, checks and renders text, and answers in JSON. `export_png` draws a text to a picture for an agent to look at, on Canvas, world and 3D text, and leaves the scene as it was. Without that package none of it compiles. The guide for agents is `Documentation~/AgentGuide.md`.
+
 ## [0.7.3] - 2026-11-01
 
 ### Fixed

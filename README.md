@@ -263,6 +263,10 @@ After updating, the editor keeps the native library it loaded until it restarts:
 
 [Comparison](Documentation~/Comparison.md): times, memory, features and pictures, including when to stay on TextMesh Pro.
 
+## Agents and the command line
+
+With `com.unity.pipeline` installed, `unity command lettera ...` creates, edits and renders text from a terminal or an agent. [Agent guide](Documentation~/AgentGuide.md), in English.
+
 ## Rebuilding the native plugin
 
 `Native~/build.py` builds HarfBuzz and the C wrapper for every platform with [zig](https://ziglang.org), and Android with the NDK from Unity's Android module. Shaping comes from [HarfBuzz](https://harfbuzz.github.io), compiled from source in `Native~/third_party`; see [third-party notices](THIRD-PARTY-NOTICES.md). The iOS and web libraries link statically, so they rename HarfBuzz's symbols to avoid the copy Unity's web player links.

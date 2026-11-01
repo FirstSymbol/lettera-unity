@@ -51,15 +51,36 @@ namespace FirstSymbol.Lettera.Editor
             }
         }
 
+        /// <summary>The platforms a build can be asked for by name.</summary>
+        internal static readonly System.Collections.Generic.Dictionary<string, (BuildTarget target, BuildTargetGroup group, string output)> Platforms = new System.Collections.Generic.Dictionary<string, (BuildTarget, BuildTargetGroup, string)>
+        {
+            ["android"] = (BuildTarget.Android, BuildTargetGroup.Android, "lettera-device-check.apk"),
+            ["ios"] = (BuildTarget.iOS, BuildTargetGroup.iOS, "lettera-device-check-ios"),
+            ["web"] = (BuildTarget.WebGL, BuildTargetGroup.WebGL, "lettera-device-check-web"),
+            ["windows"] = (BuildTarget.StandaloneWindows64, BuildTargetGroup.Standalone, "lettera-device-check-windows/check.exe"),
+            ["mac"] = (BuildTarget.StandaloneOSX, BuildTargetGroup.Standalone, "lettera-device-check-mac.app"),
+        };
+
         static void Build(BuildTarget target, BuildTargetGroup group, string output)
         {
-            Type check = CheckType();
-            if (check == null)
+            if (CheckType() == null)
             {
-                EditorUtility.DisplayDialog("Lettera Device Check", "Import the Device Check sample first, from the Package Manager's Samples tab.", "OK");
+                EditorUtility.DisplayDialog("Lettera Device Check", MissingSample, "OK");
                 return;
             }
             if (!EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo()) return;
+            Build(target, group, output, out _, out _);
+        }
+
+        const string MissingSample = "Import the Device Check sample first, from the Package Manager's Samples tab.";
+
+        /// <summary>Asks nothing, so a caller settles unsaved scenes first. Returns why it could not start, or null.</summary>
+        internal static string Build(BuildTarget target, BuildTargetGroup group, string output, out string result, out string file)
+        {
+            result = null;
+            file = null;
+            Type check = CheckType();
+            if (check == null) return MissingSample;
             string path = SceneFolder + "/DeviceCheck.unity";
             Directory.CreateDirectory(SceneFolder);
             var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
@@ -70,11 +91,13 @@ namespace FirstSymbol.Lettera.Editor
             EditorSceneManager.SaveScene(scene, path);
             string full = Path.GetFullPath(Path.Combine("Builds", output));
             Directory.CreateDirectory(Path.GetDirectoryName(full));
+            string outcome = null;
             try
             {
                 WithNativeOn(() =>
                 {
                     BuildReport report = BuildPipeline.BuildPlayer(new BuildPlayerOptions { scenes = new[] { path }, locationPathName = full, target = target, targetGroup = group });
+                    outcome = report.summary.result.ToString();
                     Debug.Log($"Lettera: device check for {target}: {report.summary.result}, at {full}");
                 });
             }
@@ -82,6 +105,9 @@ namespace FirstSymbol.Lettera.Editor
             {
                 AssetDatabase.DeleteAsset(SceneFolder);
             }
+            result = outcome;
+            file = full;
+            return null;
         }
     }
 }
