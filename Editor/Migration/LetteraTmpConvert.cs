@@ -23,9 +23,10 @@ namespace FirstSymbol.Lettera.Editor.Migration
                     break;
                 }
                 result.Append(source, at, open - at);
-                int close = open + 1 < source.Length ? source.IndexOf('>', open + 1) : -1;
-                // No tag runs over a line or past 256 characters: a less-than sign in words is words.
-                if (close < 0 || close - open > 256 || source.IndexOf('\n', open, close - open) >= 0)
+                // No tag runs over a line or past 256 characters: a less-than sign in words is words. So neither search goes further than that.
+                int reach = Math.Min(256, source.Length - open - 1);
+                int close = reach > 0 ? source.IndexOf('>', open + 1, reach) : -1;
+                if (close < 0 || source.IndexOf('\n', open, close - open) >= 0)
                 {
                     result.Append('<');
                     at = open + 1;

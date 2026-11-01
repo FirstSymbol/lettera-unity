@@ -31,6 +31,9 @@ def build(path, dev):
         folder = os.path.join(PROJECT, sub)
         os.makedirs(folder, exist_ok=True)
         shutil.copyfile(os.path.join(HERE, name), os.path.join(folder, name))
+    resources = os.path.join(PROJECT, "Assets", "Compare", "Resources")
+    os.makedirs(resources, exist_ok=True)
+    shutil.copyfile(os.path.join(FONTS, "NotoSans-Regular.ttf"), os.path.join(resources, "NotoSans-Regular.ttf"))
     env = dict(os.environ)
     env["LETTERA_DEV"] = "1" if dev else "0"
     log = os.path.join(OUT, "build_dev.log" if dev else "build.log")
@@ -48,7 +51,7 @@ def build(path, dev):
     sys.exit(1)
 
 
-def run(exe, engine, name, timeout=600):
+def run(exe, engine, name, timeout=300):
     out = os.path.join(OUT, name + ".json")
     if os.path.exists(out):
         os.remove(out)
@@ -95,6 +98,9 @@ for engine in ENGINES:
             if row["row"] == "control_gc_counter":
                 print("gc control", engine, row["bytes"], row["note"], flush=True)
 
+if meta is None:
+    print("No engine gave a result: read the logs in", OUT)
+    sys.exit(1)
 summary = {"meta": {k: meta[k] for k in ("unity", "backend", "gpu", "device")}, "rounds": ROUNDS, "rows": {}}
 for engine in ENGINES:
     for row, values in results[engine].items():
