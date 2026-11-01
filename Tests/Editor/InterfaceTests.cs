@@ -219,11 +219,11 @@ namespace FirstSymbol.Lettera.Editor.Tests
             LetteraTextInspector inspector = Page(text, out VisualElement root);
             Assert.AreEqual("hello", inspector.ShownSource(0));
             Assert.AreEqual("", inspector.ShownSource(2), "nothing set at run time");
-            text.Resolver = new Upper();
+            text.TextResolver = new Upper();
             text.ForceRebuild();
             Assert.AreEqual("HELLO", inspector.ShownSource(1));
             StringAssert.Contains("Upper", inspector.WhereShownComesFrom());
-            text.Resolver = null;
+            text.TextResolver = null;
             text.SetText("from a script");
             text.ForceRebuild();
             Assert.AreEqual("from a script", inspector.ShownSource(2));

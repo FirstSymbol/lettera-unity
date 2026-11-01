@@ -531,7 +531,7 @@ namespace FirstSymbol.Lettera.Editor
         }
 
         // A nested polymorphic field, such as a color filter: a type menu and its fields.
-        static VisualElement ManagedReference(SerializedProperty property)
+        internal static VisualElement ManagedReference(SerializedProperty property)
         {
             SerializedProperty bound = property.Copy();
             var holder = new VisualElement();
