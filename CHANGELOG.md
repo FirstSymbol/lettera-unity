@@ -31,6 +31,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - **Font pages:** where the bytes live per target, what the file says about itself, metrics by hand with a Reset, axes with their ranges and a slider on a variant, a grid of this font's glyphs that opens in the Glyphs window, Clear, Find Uses. A stack lists its families with what each covers, and a test line says which family answers each run, with missing marked. A system font has platform tabs, a switch per platform and Re-Resolve.
 - **Project Settings > Lettera** closes card by card and has a filter. New: Defaults, Atlases, Tools and **In Your Build,** which says what this project carries, why, and what it weighs, with a rescan of the scenes in the build. The settings asset opens one button to here.
 - **In the Scene view:** the pointer area and the ink join the padding as outlines, world text with nothing to click it says so beside itself, Text 3D has a box and a handle for its depth, and the Hierarchy's eye now hides batched world text. Tools > Lettera > Scene turns these off, per user.
+- **Unity Localization, when it is installed.** A text's right click and its Interaction card have **Localize**: a Localize String Event wired to `SetText`, so the saved text stays what it is. **Localize Font**, or **+ Font By Locale**, takes a font or a font stack per locale from an asset table, in play mode. A Game Object Localizer tracks Canvas and world text, with a text's own rebuild after it writes: text, font, stack, size, colour, alignment, padding. With no such package, none of it compiles or shows.
+- **Tools > Lettera > Getting Started,** also in the palette: the guides, the samples with Import, the migration tool, and every window. A new project is told once, by a line in the console and no popup.
+- **Saved objects say which format they are in.** Texts, styles and assets hold `LetteraSerializedVersion`, 0 for a file from before it. `LetteraUpgrades.Register(from, to, action)` is where a later version says what to do with an older file, in the editor and never on a build. No field has needed it so far, so opening an old scene or asset changes nothing and dirties nothing: the stamp goes out with its next save.
+- **New samples:** Emoji, Layout, Fonts, Styles and Rich Editor. Fonts carries a subset of Inter under the OFL, and an icon font and a pixel font drawn for it; Emoji a small COLRv1 font drawn for it.
+- **The Device Check** has a page for scrolling a long document with its frame time, one for a comparison build, and memory in its report. **Share** sends the result with no second device: the share sheet on Android, a mail elsewhere.
 
 ### Fixed
 - **Fifteen public classes came back from disk as missing scripts,** the same bug as the timeline's: five assets (`LetteraFieldPreset`, `LetteraInlineLibrary`, `LetteraEntranceLibrary`, `LetteraEffectPreset`, `LetteraPaintLibrary`) and ten components, among them the row of a dropdown and a password's toggle, which the GameObject menu puts in a scene. In memory they worked, so nothing showed it until a reload. Each has a file of its name now, and a test saves, reloads and checks every saved class in the package. Six internal components and the diagnostics windows moved the same way.
@@ -41,6 +46,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - **Changing a text under a live cue could overflow the stack.** A query before the frame's rebuild parsed, and a hold, refreshing during that parse, asked for it again. Moving a sequencer right after setting its text was enough. The sample's first run in a player found this.
 - **A cue removed while its hold was live, by an edit or an undo, kept holding** the value on the text until the object was disabled.
 - A switch in a row of an inspector stretched across the row with its knob at the far left.
+- **A document that jumped before its first layout** logged "Trying to add Text for graphic rebuild" from inside the canvas's rebuild. The Documents sample did it, on the search result it opens at.
+- **Samples, the first time they ran in a player.** Fields, Motion, Documents and Math told you to add an EventSystem, and now bring one. Motion's typewriter never typed. Documents was dark blue on blue. Math's formula in world space was behind its own page. 3D Text turned far away and edge-on, and was hard to read. Basic asked the web for scripts it has no font for.
 
 ### Limits
 - A selectable has no menu or loupe of its own per platform: Android Menu, iOS Menu and Loupe stay project-wide, and the page says what they are. It would need new fields and a runtime path.
@@ -48,6 +55,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - A UnityEvent's list wears Unity's own look: who is called with what has a world of pickers behind it. Two object slots in the 3D pages too (a solid material's texture, a text's look).
 - The Hierarchy's eye reaches batched world text until Play, and hides it in the Game view too in edit mode. Canvas text, standalone world text and Text 3D are left to the editor, and were not looked at.
 - Atlas size and depth stay fixed, and read only.
+- Localization: **Localize Font** does not preview in edit mode, so that a scene keeps its saved font. The table entry is picked in Unity's own control. A tracked colour goes through Unity's `Convert.ToString`, so on a machine whose culture writes a decimal comma a fraction reads as 0; whole numbers are safe. Text 3D has Localize and Localize Font, and no tracked object.
 
 ## [0.7.3] - 2026-11-01
 
