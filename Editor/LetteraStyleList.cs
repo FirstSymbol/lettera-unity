@@ -445,21 +445,17 @@ namespace FirstSymbol.Lettera.Editor
         VisualElement TypePicker(string label, SerializedProperty reference, Type baseType, string suffix)
         {
             Type[] types = TypeCache.GetTypesDerivedFrom(baseType).Where(t => !t.IsAbstract && !t.IsNested && t.GetConstructor(Type.EmptyTypes) != null).OrderBy(t => t.Name).ToArray();
-            var names = new List<string> { "None" };
-            names.AddRange(types.Select(t => Pretty(t.Name, suffix)));
+            var names = new List<(string, string, object)> { ("None", null, null) };
+            names.AddRange(types.Select(t => (Pretty(t.Name, suffix), (string)null, (object)t)));
             object value = reference.managedReferenceValue;
-            int current = value == null ? 0 : Array.IndexOf(types, value.GetType()) + 1;
-            var popup = new PopupField<string>(names, Mathf.Max(current, 0));
             SerializedProperty bound = reference.Copy();
-            popup.RegisterValueChangedCallback(e =>
+            return new LtPick(label, () => value == null ? "None" : Pretty(value.GetType().Name, suffix), () => names, chosen =>
             {
-                int chosen = names.IndexOf(e.newValue);
                 bound.serializedObject.Update();
-                bound.managedReferenceValue = chosen <= 0 ? null : Activator.CreateInstance(types[chosen - 1]);
+                bound.managedReferenceValue = chosen == null ? null : Activator.CreateInstance((Type)chosen);
                 bound.serializedObject.ApplyModifiedProperties();
                 Rebuild();
             });
-            return LtUI.Row(label, popup);
         }
 
         internal static IEnumerable<SerializedProperty> Children(SerializedProperty reference)

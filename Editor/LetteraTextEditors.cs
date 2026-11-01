@@ -1112,6 +1112,7 @@ namespace FirstSymbol.Lettera.Editor
             page.Add(LtUI.SwitchRow("Cast Shadows", P("m_CastShadows")));
             page.Add(LtUI.SwitchRow("Raycast Target", P("m_RaycastTarget")));
             page.Add(RouteRow());
+            page.Add(new LtFix("A shader of this text is missing from the package's Resources/Lettera folder. Reinstalling the package puts it back.", () => Resources.Load<Shader>("Lettera/LetteraWorld") == null));
             page.Add(new LtFix("Nothing can click this text: no camera has a World Raycaster.", () => targets.Any(o => o is LetteraWorldText text && NeedsRaycaster(text)), "Add To Camera", AddRaycaster, "Adds a World Raycaster to the main camera."));
         }
 
