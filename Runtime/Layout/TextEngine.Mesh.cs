@@ -197,10 +197,10 @@ namespace FirstSymbol.Lettera
                 if (g.Special == SpecialRule)
                 {
                     MathSpecial rule = m_MathSpecials[g.SpecialIndex];
-                    m_PlacedAtlas[i] = m_Host.SolidsOnly ? default : GlyphAtlas.GetRule(rule.Thickness, rule.Vertical, density, m_PlacedReach[i], m_Host.Data.RenderMode == LetteraRenderMode.MSDF);
+                    m_PlacedAtlas[i] = m_SolidsOnly ? default : GlyphAtlas.GetRule(rule.Thickness, rule.Vertical, density, m_PlacedReach[i], m_Host.Data.RenderMode == LetteraRenderMode.MSDF);
                     continue;
                 }
-                if (m_Host.SolidsOnly)
+                if (m_SolidsOnly)
                 {
                     // An outline becomes a solid, so it needs no tile. Only a color glyph goes on being drawn this way.
                     AtlasGlyph flat = g.Instance.Face.IsColor ? GlyphAtlas.Get(g.Instance, g.Glyph, density, 0, false) : default;

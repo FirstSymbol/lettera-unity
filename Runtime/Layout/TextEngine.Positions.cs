@@ -16,8 +16,8 @@ namespace FirstSymbol.Lettera
             public float XScale;    // Added to 1: justification, a fit and connecting strokes widen or narrow a glyph.
             public float Angle;     // Radians around the origin, on curved text.
             public float Pen;       // Where the cluster's advance starts, without the glyph's own offset.
+            public ushort SpecialIndex;
             public byte Special;    // A formula's part: see AddSpecialQuad. 0 for everything else.
-            public int SpecialIndex;
             public bool Marker;     // An elision marker: drawn in the line, but no part of the text.
         }
 
