@@ -55,15 +55,16 @@ namespace FirstSymbol.Lettera.Editor.Tests
         {
             LetteraText text = Built();
             int rebuilds = text.RebuildCount, vertices = DrawnVertices(text);
-            Mesh mesh = text.canvasRenderer.GetMesh();
+            Mesh mesh = text.MeshForTests;
             text.gameObject.SetActive(false);
             Canvas.ForceUpdateCanvases();
             Assert.AreEqual(0, DrawnVertices(text), "nothing is drawn while away");
+            Assert.IsTrue(text.MeshForTests != null, "it is kept");
             text.gameObject.SetActive(true);
             Canvas.ForceUpdateCanvases();
             Assert.AreEqual(rebuilds, text.RebuildCount);
             Assert.AreEqual(vertices, DrawnVertices(text));
-            Assert.AreSame(mesh, text.canvasRenderer.GetMesh());
+            Assert.AreSame(mesh, text.MeshForTests);
         }
 
         [Test]
@@ -160,7 +161,7 @@ namespace FirstSymbol.Lettera.Editor.Tests
         [Test]
         public void ASizeChangedWhileAwayLaysOutAgain()
         {
-            LetteraText text = Label(MakeCanvas().transform, "Words enough to wrap once the box is made narrow");
+            LetteraText text = Label(MakeCanvas().transform, "Words enough to wrap");
             Canvas.ForceUpdateCanvases();
             Assert.AreEqual(1, text.Lines.Count);
             text.gameObject.SetActive(false);
@@ -204,7 +205,7 @@ namespace FirstSymbol.Lettera.Editor.Tests
         public void DisablingKeepsNoMesh()
         {
             LetteraText text = Built();
-            Mesh mesh = text.canvasRenderer.GetMesh();
+            Mesh mesh = text.MeshForTests;
             Assert.IsTrue(mesh != null);
             text.enabled = false;
             Assert.IsTrue(mesh == null, "the mesh is destroyed");
@@ -234,7 +235,7 @@ namespace FirstSymbol.Lettera.Editor.Tests
         {
             LetteraText text = Built();
             int listening = LetteraTextListeners.Count;
-            Mesh mesh = text.canvasRenderer.GetMesh();
+            Mesh mesh = text.MeshForTests;
             text.gameObject.SetActive(false);
             Assert.AreEqual(listening, LetteraTextListeners.Count);
             UnityEngine.Object.DestroyImmediate(text.gameObject);
@@ -270,14 +271,13 @@ namespace FirstSymbol.Lettera.Editor.Tests
             LetteraText text = Label(mask.transform, "<shadow>Masked</shadow> and <mark=#FF0>marked</mark>");
             Canvas.ForceUpdateCanvases();
             int count = text.canvasRenderer.materialCount;
-            Material first = text.canvasRenderer.GetMaterial(0);
-            Assert.IsTrue(first != null);
+            Shader first = text.canvasRenderer.GetMaterial(0).shader;
             text.gameObject.SetActive(false);
             text.gameObject.SetActive(true);
             Canvas.ForceUpdateCanvases();
             Assert.AreEqual(count, text.canvasRenderer.materialCount);
             Assert.IsTrue(text.canvasRenderer.GetMaterial(0) != null);
-            Assert.AreEqual(first.shader, text.canvasRenderer.GetMaterial(0).shader);
+            Assert.AreEqual(first, text.canvasRenderer.GetMaterial(0).shader);
         }
 
         [Test]
