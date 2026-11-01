@@ -98,6 +98,19 @@ if not os.path.exists(release):
 if not os.path.exists(dev):
     build(dev, True)
 
+SHEETS = ENGINES + ["tmp-fallback"]
+
+
+def sheets():
+    for engine in SHEETS:
+        process = subprocess.run([release, "-screen-width", "1200", "-screen-height", "700", "-screen-fullscreen", "0", "-logFile", os.path.join(OUT, engine + "_sheets.log"), "-compare", engine, "-fonts", FONTS, "-sheets", os.path.join(WORK, "sheets")], timeout=300)
+        print("sheets", engine, process.returncode, flush=True)
+
+
+if os.environ.get("COMPARE_SHEETS_ONLY"):
+    sheets()
+    sys.exit(0)
+
 results = {e: {} for e in ENGINES}
 notes = {e: {} for e in ENGINES}
 meta = None
@@ -115,11 +128,14 @@ for r in range(ROUNDS):
     print("round", r, "done", flush=True)
 
 bytes_per = {e: {} for e in ENGINES}
+largest_per = {e: {} for e in ENGINES}
 for engine in ENGINES:
     data = run(dev, engine, f"{engine}_dev")
     if data:
         for row in data["rows"]:
             bytes_per[engine][row["row"]] = row["bytes"]
+            if "largest=" in row["note"]:
+                largest_per[engine][row["row"]] = int(row["note"].split("largest=")[1].split()[0])
             if row["row"] == "control_gc_counter":
                 print("gc control", engine, row["bytes"], row["note"], flush=True)
 
@@ -129,7 +145,7 @@ if meta is None:
 summary = {"meta": {k: meta[k] for k in ("unity", "backend", "gpu", "device")}, "rounds": ROUNDS, "rows": {}}
 for engine in ENGINES:
     for row, values in results[engine].items():
-        summary["rows"].setdefault(row, {})[engine] = {"ms": statistics.median(values), "runs": len(values), "bytes": bytes_per[engine].get(row, -1), "note": notes[engine].get(row, "")}
+        summary["rows"].setdefault(row, {})[engine] = {"ms": statistics.median(values), "runs": len(values), "bytes": bytes_per[engine].get(row, -1), "largest": largest_per[engine].get(row, -1), "note": notes[engine].get(row, "")}
 json.dump(summary, open(os.path.join(WORK, "compare.json"), "w", encoding="utf-8"), indent=1)
 
 lines = ["| Row | Lettera | TextMesh Pro, static atlas | TextMesh Pro, dynamic atlas |", "|---|---|---|---|"]
@@ -151,9 +167,7 @@ for row in summary["rows"]:
     lines.append(f"| {row} | " + " | ".join(cells) + " |")
 open(os.path.join(WORK, "compare_table.md"), "w", encoding="utf-8").write("\n".join(lines) + "\n")
 print("\n".join(lines))
-for engine in ENGINES:
-    process = subprocess.run([release, "-screen-width", "1200", "-screen-height", "700", "-screen-fullscreen", "0", "-logFile", os.path.join(OUT, engine + "_sheets.log"), "-compare", engine, "-fonts", FONTS, "-sheets", os.path.join(WORK, "sheets")], timeout=200)
-    print("sheets", engine, process.returncode, flush=True)
+sheets()
 for name in ("Managed/FirstSymbol.Lettera.dll", "Managed/FirstSymbol.Lettera.Unicode.dll", "Managed/FirstSymbol.Lettera.Text3D.dll", "Managed/Unity.TextMeshPro.dll"):
     path = os.path.join(OUT, "Release", "Compare_Data", name)
     print(name, os.path.getsize(path) // 1024 if os.path.exists(path) else "absent", "KB")

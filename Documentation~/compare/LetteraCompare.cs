@@ -1,5 +1,6 @@
 // Lettera against TextMesh Pro: one workload, one font file, the same scene. Run a player with -compare <engine> -out <file.json>.
-// Engines: lettera, tmp-static (an atlas prepared ahead with the characters used), tmp-dynamic (an atlas filled as it goes).
+// Engines: lettera, tmp-static (an atlas prepared ahead with the characters used), tmp-dynamic (an atlas filled as it goes),
+// and for pictures only tmp-fallback (the dynamic setup with system fonts as fallbacks, and right-to-left on for the right-to-left sheet).
 // The rows are in Documentation~/Comparison.md. No number in the report is typed by hand: tools turn this file's JSON into its tables.
 using System;
 using System.Collections;
@@ -26,6 +27,8 @@ public class LetteraCompare : MonoBehaviour
         void Color(Component c, Color color);
         void Force(Component c);
         void Dirty(Component c);
+        // A viewport over a long text, and how to move it, from 0 at the top to 1 at the end.
+        Action<float> Scroll(Transform parent, string text);
     }
 
     sealed class LetteraEngine : IEngine
@@ -77,6 +80,22 @@ public class LetteraCompare : MonoBehaviour
             if (c is LetteraText a) a.MarkStylesDirty();
             else ((LetteraWorldText)c).MarkStylesDirty();
         }
+
+        public Action<float> Scroll(Transform parent, string text)
+        {
+            var view = new GameObject("View", typeof(RectTransform));
+            view.transform.SetParent(parent, false);
+            ((RectTransform)view.transform).sizeDelta = new Vector2(800, 600);
+            var label = (LetteraText)Label(view.transform, "", 14, new Vector2(800, 600));
+            label.OpenDocument(LetteraRope.FromString(text), takeOwnership: true);
+            var scroller = view.AddComponent<LetteraDocumentScroller>();
+            scroller.Text = label;
+            label.ForceRebuild();
+            scroller.ScrollToEnd();
+            double end = scroller.Position;
+            scroller.ScrollToStart();
+            return at => scroller.Position = at * end;
+        }
     }
 
     sealed class TmpEngine : IEngine
@@ -108,6 +127,28 @@ public class LetteraCompare : MonoBehaviour
         public void Color(Component c, Color color) => ((TMP_Text)c).color = color;
         public void Force(Component c) => ((TMP_Text)c).ForceMeshUpdate();
         public void Dirty(Component c) => ((TMP_Text)c).ForceMeshUpdate(true, true);
+
+        public Action<float> Scroll(Transform parent, string text)
+        {
+            var view = new GameObject("View", typeof(RectTransform), typeof(RectMask2D));
+            view.transform.SetParent(parent, false);
+            var viewport = (RectTransform)view.transform;
+            viewport.sizeDelta = new Vector2(800, 600);
+            var label = (TextMeshProUGUI)Label(view.transform, text, 14, new Vector2(800, 600));
+            label.ForceMeshUpdate();
+            var content = label.rectTransform;
+            content.anchorMin = new Vector2(0, 1);
+            content.anchorMax = new Vector2(1, 1);
+            content.pivot = new Vector2(0.5f, 1);
+            content.sizeDelta = new Vector2(0, label.preferredHeight);
+            var scroll = view.AddComponent<ScrollRect>();
+            scroll.viewport = viewport;
+            scroll.content = content;
+            scroll.horizontal = false;
+            scroll.inertia = false;
+            scroll.movementType = ScrollRect.MovementType.Clamped;
+            return at => scroll.verticalNormalizedPosition = 1 - at;
+        }
     }
 
     static LetteraFont s_LetteraFont;
@@ -161,7 +202,8 @@ public class LetteraCompare : MonoBehaviour
         Camera camera = new GameObject("Camera").AddComponent<Camera>();
         camera.transform.position = new Vector3(0, 0, -60);
         camera.clearFlags = CameraClearFlags.SolidColor;
-        camera.backgroundColor = UnityEngine.Color.black;
+        // Grey, since a black shadow on black would show nothing.
+        camera.backgroundColor = new Color(0.2f, 0.22f, 0.26f);
         yield return null;
         if (Arg("-sheets") != null)
         {
@@ -180,7 +222,9 @@ public class LetteraCompare : MonoBehaviour
         string path = Path.Combine(fonts, "NotoSans-Regular.ttf");
         if (m_Name == "lettera")
         {
+            var first = Stopwatch.StartNew();
             s_LetteraFont = LetteraFont.CreateFromBytes(File.ReadAllBytes(path));
+            Say("prepare_font", first.Elapsed.TotalMilliseconds);
             m_Engine = new LetteraEngine();
             return;
         }
@@ -196,6 +240,14 @@ public class LetteraCompare : MonoBehaviour
         }
         Say("prepare_font", clock.Elapsed.TotalMilliseconds);
         m_Engine = new TmpEngine();
+        if (m_Name != "tmp-fallback") return;
+        s_TmpFont.fallbackFontAssetTable = new List<TMP_FontAsset>();
+        foreach ((string family, string style) in new[] { ("Segoe UI", "Regular"), ("Nirmala UI", "Regular"), ("Leelawadee UI", "Regular"), ("Microsoft YaHei", "Regular"), ("Yu Gothic", "Regular"), ("Malgun Gothic", "Regular"), ("Segoe UI Emoji", "Regular") })
+        {
+            TMP_FontAsset font = TMP_FontAsset.CreateFontAsset(family, style);
+            if (font != null) s_TmpFont.fallbackFontAssetTable.Add(font);
+            else Debug.Log("LETTERA_COMPARE no system font " + family);
+        }
     }
 
     void Say(string row, double ms, long bytes = -1, string note = "")
@@ -230,7 +282,8 @@ public class LetteraCompare : MonoBehaviour
     IEnumerator FrameTime(string row, int frames, Action each, string note = "")
     {
         var times = new List<double>();
-        long allocated = -1;
+        var allocations = new List<double>();
+        long largest = -1;
         for (int i = 0; i < 5; i++) yield return null;
         var clock = new Stopwatch();
         for (int i = 0; i < frames; i++)
@@ -240,9 +293,12 @@ public class LetteraCompare : MonoBehaviour
             yield return null;
             times.Add(clock.Elapsed.TotalMilliseconds);
             long gc = GcNow();
-            if (gc >= 0) allocated = Math.Max(allocated, gc);
+            if (gc < 0) continue;
+            allocations.Add(gc);
+            largest = Math.Max(largest, gc);
         }
-        Say(row, Median(times), allocated, note);
+        // A usual frame, and apart from it the largest, since one frame's growth of a buffer is not what every frame costs.
+        Say(row, Median(times), allocations.Count == 0 ? -1 : (long)Median(allocations), (note + " largest=" + largest).Trim());
     }
 
     IEnumerator Rows()
@@ -343,7 +399,29 @@ public class LetteraCompare : MonoBehaviour
             }
             Destroy(big.gameObject);
             yield return null;
+            // The same work again, since the first long text of a run also pays for what the run has not touched yet.
+            if (size == 10)
+            {
+                Component again = m_Engine.Label(parent, "", 14, new Vector2(800, 100000));
+                yield return null;
+                clock.Restart();
+                m_Engine.Text(again, page.ToString());
+                m_Engine.Force(again);
+                Say("R8_set_10KB_again", clock.Elapsed.TotalMilliseconds);
+                Destroy(again.gameObject);
+                yield return null;
+            }
         }
+
+        // R10, on the 1 MB page the last turn left
+        clock.Restart();
+        Action<float> move = m_Engine.Scroll(parent, page.ToString());
+        yield return null;
+        Say("R10_scroll_1MB_first_frame", clock.Elapsed.TotalMilliseconds);
+        int step = 0;
+        yield return FrameTime("R10_scroll_1MB_frame", 240, () => move(++step / 240f));
+        Clear();
+        yield return null;
 
         // R12
         var mixed = new List<Component>();
@@ -368,6 +446,23 @@ public class LetteraCompare : MonoBehaviour
         Clear();
         yield return null;
 
+        // R15, past Latin. The same system font on each; a prepared Latin atlas has no place here.
+        if (m_Name != "tmp-static")
+        {
+            if (m_Name == "tmp-dynamic") s_TmpFont.fallbackFontAssetTable = new List<TMP_FontAsset> { TMP_FontAsset.CreateFontAsset("Microsoft YaHei", "Regular") };
+            var cjk = new StringBuilder();
+            for (int i = 0; i < 3000; i++) cjk.Append((char)(0x4E00 + i));
+            clock.Restart();
+            Component han = m_Engine.Label(parent, cjk.ToString(), 18, new Vector2(1160, 680));
+            m_Engine.Force(han);
+            yield return null;
+            Say("R15_3000_cjk_first_frame", clock.Elapsed.TotalMilliseconds);
+            for (int i = 0; i < 30; i++) yield return null;
+            yield return R15("R15_atlas_after_3000_cjk");
+            Clear();
+            yield return null;
+        }
+
         Say("control_gc_counter", 0, ControlBytes(), s_Gc.Valid ? "valid" : "not valid in this player: bytes columns say nothing");
     }
 
@@ -384,11 +479,25 @@ public class LetteraCompare : MonoBehaviour
         yield return null;
         long bytes = 0;
         int count = 0;
-        foreach (Texture t in Resources.FindObjectsOfTypeAll<Texture>())
+        // Asked of each engine, since a font made at runtime leaves its atlas without a name to look for.
+        var textures = new HashSet<Texture>();
+        if (m_Name == "lettera")
         {
-            string name = t.name ?? "";
-            bool ours = t is Texture2DArray || name.Contains("Atlas") || name.Contains("NotoSans");
-            if (!ours) continue;
+            foreach (Texture t in Resources.FindObjectsOfTypeAll<Texture>())
+                if (t is Texture2DArray || (t.name ?? "").Contains("Atlas"))
+                    textures.Add(t);
+        }
+        else
+        {
+            foreach (Texture2D t in s_TmpFont.atlasTextures) textures.Add(t);
+            if (s_TmpFont.fallbackFontAssetTable != null)
+                foreach (TMP_FontAsset font in s_TmpFont.fallbackFontAssetTable)
+                    foreach (Texture2D t in font.atlasTextures)
+                        textures.Add(t);
+        }
+        foreach (Texture t in textures)
+        {
+            if (t == null) continue;
             bytes += Profiler.GetRuntimeMemorySizeLong(t);
             count++;
         }
@@ -452,10 +561,21 @@ public class LetteraCompare : MonoBehaviour
         },
         new[]
         {
-            ("S7_markup", 28f, "<b>bold</b> <i>italic</i> <u>under</u> <s>strike</s> <color=#FF8040>color</color> <size=150%>size</size> <alpha=#80>alpha</alpha>"),
+            ("S7_markup", 28f, "<b>bold</b> <i>italic</i> <u>under</u> <s>strike</s> <color=#FF8040>color</color> <size=150%>size</size> <alpha=#80>alpha<alpha=#FF>"),
             ("S7_markup", 28f, "H<sub>2</sub>O x<sup>2</sup> <smallcaps>Small Caps</smallcaps> <uppercase>upper</uppercase> <mark=#FFFF0060>mark</mark>"),
             ("S7_markup", 28f, "<link=x>link</link> <nobr>no break</nobr> <noparse><b>literal</b></noparse>"),
-            ("S7_markup_lettera", 28f, "<stroke=#3399FF,0.08>stroke</stroke> <shadow>shadow</shadow> <glow=#FF0,0.2>glow</glow> <fill=linear(#F40,#FF0)>gradient</fill> <wave>wave</wave> <math>\\frac{a}{b}</math>"),
+            ("S7_markup_lettera", 28f, "<stroke=#3399FF,0.08>stroke</stroke> <shadow>shadow</shadow> <glow=#FF0,0.2>glow</glow> <tracking=0.1em>tracking</tracking> <otf=onum>0123</otf> <math>\\frac{a}{b}</math>"),
+        },
+        new[]
+        {
+            ("S9_sharp", 16f, "Small AKWXvwxz 0123"),
+            ("S9_sharp", 200f, "AKWX"),
+        },
+        new[]
+        {
+            ("S10_motion", 48f, "<wave>Wave moves by tag</wave>"),
+            ("S10_motion", 48f, "<shake>Shake moves by tag</shake>"),
+            ("S10_motion", 48f, "<roll>Roll moves by tag</roll>"),
         },
     };
 
@@ -474,7 +594,12 @@ public class LetteraCompare : MonoBehaviour
                 rect.anchorMin = rect.anchorMax = rect.pivot = new Vector2(0, 1);
                 rect.anchoredPosition = new Vector2(20, y);
                 m_Engine.Color(label, UnityEngine.Color.white);
-                y -= size * 3 + 6;
+                if (m_Name == "tmp-fallback" && sheet == "S2_rtl")
+                {
+                    ((TMP_Text)label).isRightToLeftText = true;
+                    ((TMP_Text)label).alignment = TextAlignmentOptions.Right;
+                }
+                y -= (size > 100 ? 1.4f : 3) * size + 6;
                 made.Add(label);
             }
             yield return new WaitForSeconds(1.5f);
@@ -484,5 +609,109 @@ public class LetteraCompare : MonoBehaviour
             foreach (Component c in made) Destroy(c.gameObject);
             yield return null;
         }
+        yield return EffectsSheet(folder);
+        yield return Msdf(folder);
+    }
+
+    // S8: what each engine has for these, by its own route. Lettera's by a tag or style, TextMesh Pro's by a material.
+    IEnumerator EffectsSheet(string folder)
+    {
+        var made = new List<Component>();
+        (string word, string tag, string material)[] rows =
+        {
+            ("Outline", "<stroke=#3399FF,0.08>Outline</stroke>", "Outline"),
+            ("Shadow", "<shadow=#000000,0.06,-0.06>Shadow</shadow>", "Underlay"),
+            ("Glow", "<glow=#FFFF00,0.2>Glow</glow>", "Glow"),
+            ("Gradient", "Gradient", null),
+            ("Inner shadow", "<inner-shadow=#000000,0.05,-0.05>Inner shadow</inner-shadow>", "Inner"),
+            ("Layers", "<shadow=#000000,0.08,-0.08><stroke=#3399FF,0.08><glow=#FFFF00,0.2>Layers</glow></stroke></shadow>", "All"),
+        };
+        float y = -10;
+        foreach ((string word, string tag, string material) in rows)
+        {
+            bool ours = m_Name == "lettera";
+            Component label = m_Engine.Label(m_Canvas.transform, ours ? tag : word, 64, new Vector2(1160, 100));
+            var rect = (RectTransform)label.transform;
+            rect.anchorMin = rect.anchorMax = rect.pivot = new Vector2(0, 1);
+            rect.anchoredPosition = new Vector2(20, y);
+            y -= 110;
+            m_Engine.Color(label, UnityEngine.Color.white);
+            if (ours && material == null)
+            {
+                var fill = new FillEffect();
+                fill.SetPaint(LetteraPaint.Of(LetteraGradient.Of(new Color(1, 0.3f, 0), new Color(1, 1, 0))));
+                ((LetteraText)label).Styles.Add(LetteraStyle.ForWholeText(fill));
+                ((LetteraText)label).MarkStylesDirty();
+            }
+            else if (!ours)
+            {
+                var text = (TMP_Text)label;
+                if (material == null)
+                {
+                    text.enableVertexGradient = true;
+                    text.colorGradient = new VertexGradient(new Color(1, 0.3f, 0), new Color(1, 1, 0), new Color(1, 0.3f, 0), new Color(1, 1, 0));
+                }
+                else TmpMaterial(text, material);
+            }
+            made.Add(label);
+        }
+        yield return new WaitForSeconds(1.5f);
+        yield return new WaitForEndOfFrame();
+        ScreenCapture.CaptureScreenshot(Path.Combine(folder, "S8_effects_" + m_Name + ".png"));
+        yield return new WaitForSeconds(0.5f);
+        foreach (Component c in made) Destroy(c.gameObject);
+        yield return null;
+    }
+
+    static void TmpMaterial(TMP_Text text, string name)
+    {
+        // The build keeps a material per set of keywords, or a player would have stripped those shader variants.
+        Material keep = Resources.Load<Material>("Tmp_" + name);
+        var material = new Material(text.fontSharedMaterial) { shader = keep.shader };
+        foreach (string keyword in keep.shaderKeywords) material.EnableKeyword(keyword);
+        material.SetFloat(ShaderUtilities.ID_FaceDilate, 0);
+        if (name == "Outline" || name == "All")
+        {
+            // Outside the face, as a project would set it: a width alone also eats into the letter.
+            material.SetFloat(ShaderUtilities.ID_FaceDilate, 0.3f);
+            material.SetColor(ShaderUtilities.ID_OutlineColor, new Color(0.2f, 0.6f, 1));
+            material.SetFloat(ShaderUtilities.ID_OutlineWidth, 0.3f);
+        }
+        if (name == "Underlay" || name == "Inner" || name == "All")
+        {
+            material.SetColor(ShaderUtilities.ID_UnderlayColor, UnityEngine.Color.black);
+            material.SetFloat(ShaderUtilities.ID_UnderlayOffsetX, 0.5f);
+            material.SetFloat(ShaderUtilities.ID_UnderlayOffsetY, -0.5f);
+            if (name == "Inner")
+            {
+                material.SetFloat(ShaderUtilities.ID_UnderlayDilate, -0.2f);
+                material.SetFloat(ShaderUtilities.ID_UnderlaySoftness, 0.2f);
+            }
+        }
+        if (name == "Glow" || name == "All")
+        {
+            material.SetColor(ShaderUtilities.ID_GlowColor, new Color(1, 1, 0));
+            material.SetFloat(ShaderUtilities.ID_GlowOuter, 1f);
+            material.SetFloat(ShaderUtilities.ID_GlowInner, 0f);
+            material.SetFloat(ShaderUtilities.ID_GlowPower, 0.5f);
+        }
+        ShaderUtilities.UpdateShaderRatios(material);
+        text.extraPadding = true;
+        text.fontSharedMaterial = material;
+    }
+
+    // S9's second half: Lettera's sharper mode. TextMesh Pro has no such mode.
+    IEnumerator Msdf(string folder)
+    {
+        if (m_Name != "lettera") yield break;
+        Component label = m_Engine.Label(m_Canvas.transform, "AKWX", 200, new Vector2(1160, 300));
+        ((LetteraText)label).RenderMode = LetteraRenderMode.MSDF;
+        m_Engine.Color(label, UnityEngine.Color.white);
+        yield return new WaitForSeconds(1.5f);
+        yield return new WaitForEndOfFrame();
+        ScreenCapture.CaptureScreenshot(Path.Combine(folder, "S9_sharp_msdf_lettera.png"));
+        yield return new WaitForSeconds(0.5f);
+        Destroy(label.gameObject);
+        yield return null;
     }
 }

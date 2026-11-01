@@ -259,6 +259,10 @@ LetteraFontMemory.Sums sums = LetteraFontMemory.Totals;
 
 После обновления редактор держит загруженную нативную библиотеку до перезапуска: COLRv1 ждёт его, всё остальное работает.
 
+## В сравнении с TextMesh Pro
+
+[Сравнение](Documentation~/Comparison.ru.md): время, память, возможности и картинки, в том числе когда стоит остаться на TextMesh Pro.
+
 ## Пересборка нативного плагина
 
 `Native~/build.py` собирает HarfBuzz и обёртку на C для всех платформ с помощью [zig](https://ziglang.org), а Android — с помощью NDK из модуля Android в Unity. Шейпинг выполняет [HarfBuzz](https://harfbuzz.github.io), собранный из исходников в `Native~/third_party`; см. [сторонние лицензии](THIRD-PARTY-NOTICES.md). Библиотеки для iOS и web линкуются статически, поэтому символы HarfBuzz в них переименованы, чтобы не конфликтовать с копией в web-плеере Unity.
