@@ -42,7 +42,11 @@ public static class LetteraCompareBuild
         const string path = "Assets/Compare.unity";
         EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
         EditorSceneManager.SaveScene(UnityEngine.SceneManagement.SceneManager.GetActiveScene(), path);
-        PlayerSettings.SetScriptingBackend(UnityEditor.Build.NamedBuildTarget.Standalone, ScriptingImplementation.Mono2x);
+        bool il2cpp = Environment.GetEnvironmentVariable("LETTERA_COMPARE_BACKEND") == "il2cpp";
+        PlayerSettings.SetScriptingBackend(UnityEditor.Build.NamedBuildTarget.Standalone, il2cpp ? ScriptingImplementation.IL2CPP : ScriptingImplementation.Mono2x);
+        PlayerSettings.SetIl2CppCompilerConfiguration(UnityEditor.Build.NamedBuildTarget.Standalone, Il2CppCompilerConfiguration.Release);
+        // A release player reports GPU time only when asked to at build time.
+        PlayerSettings.enableFrameTimingStats = true;
         PlayerSettings.fullScreenMode = FullScreenMode.Windowed;
         PlayerSettings.defaultScreenWidth = 1200;
         PlayerSettings.defaultScreenHeight = 700;

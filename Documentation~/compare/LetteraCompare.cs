@@ -2,37 +2,89 @@
 // Engines: lettera, tmp-static (an atlas prepared ahead with the characters used), tmp-dynamic (an atlas filled as it goes),
 // and for pictures only tmp-fallback (the dynamic setup with system fonts as fallbacks, and right-to-left on for the right-to-left sheet).
 // The rows are in Documentation~/Comparison.md. No number in the report is typed by hand: tools turn this file's JSON into its tables.
+// -scenario picks what one cold start runs: main (default), extra, first, multilang, font, memory, draw. Anything that must start cold has its own process.
+// Another engine joins from a script of its own beside this one, by adding to External before the scene loads. This file does not need to know it.
 using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Text;
 using FirstSymbol.Lettera;
 using TMPro;
 using Unity.Profiling;
+using Unity.Profiling.LowLevel.Unsafe;
 using UnityEngine;
+using UnityEngine.EventSystems;
 using UnityEngine.Profiling;
 using UnityEngine.UI;
 using Debug = UnityEngine.Debug;
 
 public class LetteraCompare : MonoBehaviour
 {
-    interface IEngine
+    public interface IEngine
     {
+        // The clock runs around this: reading the file and making what the engine needs of it.
+        void LoadFont(string path);
+        // A second font, from a large file, for the row on first use of one. Null when the file cannot be read.
+        Component LargeLabel(Transform parent, string path, string text, float size, Vector2 box);
         Component Label(Transform parent, string text, float size, Vector2 box);
         Component World(string text, float size);
         void Text(Component c, string text);
+        // Text by the call the engine's documentation gives for text that changes at runtime.
+        void SetText(Component c, string text);
         void Color(Component c, Color color);
         void Force(Component c);
+        void ForceAll(IReadOnlyList<Component> all);
         void Dirty(Component c);
         // A viewport over a long text, and how to move it, from 0 at the top to 1 at the end.
         Action<float> Scroll(Transform parent, string text);
+        // What the engine needs to draw any script, outside any clock.
+        void Fallbacks();
+        // An editable field, focused, with the caret at the end of its text.
+        Component Field(Transform parent, string text, float size, Vector2 box);
+        void Key(Component field, string character);
+        int FieldLength(Component field);
+        // How many glyphs the text holds now, so that a row can say what it built.
+        int Glyphs(Component c);
     }
+
+    public static readonly Dictionary<string, Func<IEngine>> External = new Dictionary<string, Func<IEngine>>();
 
     sealed class LetteraEngine : IEngine
     {
+        public void LoadFont(string path) => s_LetteraFont = LetteraFont.CreateFromBytes(File.ReadAllBytes(path));
+
+        public Component LargeLabel(Transform parent, string path, string text, float size, Vector2 box)
+        {
+            var label = (LetteraText)Label(parent, "", size, box);
+            label.Font = LetteraFont.CreateFromBytes(File.ReadAllBytes(path));
+            label.Text = text;
+            return label;
+        }
+
+        public void SetText(Component c, string text) => ((LetteraText)c).SetText(text);
+        public void ForceAll(IReadOnlyList<Component> all) { foreach (Component c in all) Force(c); }
+        public void Fallbacks() { }
+
+        public Component Field(Transform parent, string text, float size, Vector2 box)
+        {
+            var label = (LetteraText)Label(parent, text, size, box);
+            label.raycastTarget = true;
+            var editable = label.gameObject.AddComponent<LetteraEditable>();
+            editable.Selectable.Activate();
+            label.ForceRebuild();
+            int end = editable.Length;
+            editable.Selectable.Select(end, end);
+            return editable;
+        }
+
+        public void Key(Component field, string character) => ((LetteraEditable)field).InsertText(character, "user.type");
+        public int FieldLength(Component field) => ((LetteraEditable)field).Length;
+        public int Glyphs(Component c) => c is LetteraText a ? a.GlyphCount : -1;
+
         public Component Label(Transform parent, string text, float size, Vector2 box)
         {
             var go = new GameObject("Label", typeof(RectTransform));
@@ -100,6 +152,76 @@ public class LetteraCompare : MonoBehaviour
 
     sealed class TmpEngine : IEngine
     {
+        readonly string m_Name;
+        readonly Event m_Key = new Event { type = EventType.KeyDown };
+
+        public TmpEngine(string name) => m_Name = name;
+
+        public void LoadFont(string path)
+        {
+            // The same file, imported as a font: TextMesh Pro reads a Font asset, and a plain path gives it nothing to read.
+            Font source = Resources.Load<Font>("NotoSans-Regular");
+            if (source == null) throw new InvalidOperationException("Assets/Compare/Resources must hold NotoSans-Regular.ttf.");
+            s_TmpFont = TMP_FontAsset.CreateFontAsset(source, 90, 9, UnityEngine.TextCore.LowLevel.GlyphRenderMode.SDFAA, 2048, 2048, AtlasPopulationMode.Dynamic, true);
+            if (m_Name != "tmp-static") return;
+            s_TmpFont.TryAddCharacters(Latin, out string _);
+            s_TmpFont.atlasPopulationMode = AtlasPopulationMode.Static;
+        }
+
+        public Component LargeLabel(Transform parent, string path, string text, float size, Vector2 box)
+        {
+            var label = (TextMeshProUGUI)Label(parent, "", size, box);
+            label.font = TMP_FontAsset.CreateFontAsset(path, 0, 90, 9, UnityEngine.TextCore.LowLevel.GlyphRenderMode.SDFAA, 2048, 2048);
+            label.text = text;
+            return label;
+        }
+
+        public void SetText(Component c, string text) => ((TMP_Text)c).SetText(text);
+        public void ForceAll(IReadOnlyList<Component> all) { foreach (Component c in all) Force(c); }
+
+        public void Fallbacks()
+        {
+            s_TmpFont.fallbackFontAssetTable = new List<TMP_FontAsset>();
+            foreach ((string family, string style) in new[] { ("Segoe UI", "Regular"), ("Nirmala UI", "Regular"), ("Leelawadee UI", "Regular"), ("Microsoft YaHei", "Regular"), ("Yu Gothic", "Regular"), ("Malgun Gothic", "Regular"), ("Segoe UI Emoji", "Regular") })
+            {
+                TMP_FontAsset font = TMP_FontAsset.CreateFontAsset(family, style);
+                if (font != null) s_TmpFont.fallbackFontAssetTable.Add(font);
+                else Debug.Log("LETTERA_COMPARE no system font " + family);
+            }
+        }
+
+        public Component Field(Transform parent, string text, float size, Vector2 box)
+        {
+            var go = new GameObject("Field", typeof(RectTransform));
+            go.transform.SetParent(parent, false);
+            ((RectTransform)go.transform).sizeDelta = box;
+            var viewport = new GameObject("Viewport", typeof(RectTransform), typeof(RectMask2D));
+            viewport.transform.SetParent(go.transform, false);
+            ((RectTransform)viewport.transform).sizeDelta = box;
+            var label = (TextMeshProUGUI)Label(viewport.transform, "", size, box);
+            var field = go.AddComponent<TMP_InputField>();
+            field.textViewport = (RectTransform)viewport.transform;
+            field.textComponent = label;
+            field.lineType = TMP_InputField.LineType.MultiLineNewline;
+            field.onFocusSelectAll = false;
+            field.text = text;
+            field.ActivateInputField();
+            return field;
+        }
+
+        public void Key(Component field, string character)
+        {
+            var input = (TMP_InputField)field;
+            input.stringPosition = input.text.Length;
+            m_Key.character = character[0];
+            input.ProcessEvent(m_Key);
+            // Its own input loop draws the label after handling a key, and this call stands in for that loop.
+            input.ForceLabelUpdate();
+        }
+
+        public int FieldLength(Component field) => ((TMP_InputField)field).text.Length;
+        public int Glyphs(Component c) => ((TMP_Text)c).textInfo.characterCount;
+
         public Component Label(Transform parent, string text, float size, Vector2 box)
         {
             var go = new GameObject("Label", typeof(RectTransform));
@@ -154,6 +276,7 @@ public class LetteraCompare : MonoBehaviour
     static LetteraFont s_LetteraFont;
     static TMP_FontAsset s_TmpFont;
     static readonly ProfilerRecorder s_Gc = ProfilerRecorder.StartNew(ProfilerCategory.Memory, "GC Allocated In Frame");
+    static readonly FrameTiming[] s_Timing = new FrameTiming[1];
 
     IEngine m_Engine;
     string m_Name;
@@ -198,7 +321,7 @@ public class LetteraCompare : MonoBehaviour
         Prepare(fonts);
         m_Canvas = new GameObject("Canvas", typeof(Canvas), typeof(CanvasScaler)).GetComponent<Canvas>();
         m_Canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-        if (m_Name != "lettera") m_Canvas.additionalShaderChannels |= AdditionalCanvasShaderChannels.TexCoord1 | AdditionalCanvasShaderChannels.Normal | AdditionalCanvasShaderChannels.Tangent;
+        if (m_Engine is TmpEngine) m_Canvas.additionalShaderChannels |= AdditionalCanvasShaderChannels.TexCoord1 | AdditionalCanvasShaderChannels.Normal | AdditionalCanvasShaderChannels.Tangent;
         Camera camera = new GameObject("Camera").AddComponent<Camera>();
         camera.transform.position = new Vector3(0, 0, -60);
         camera.clearFlags = CameraClearFlags.SolidColor;
@@ -211,7 +334,18 @@ public class LetteraCompare : MonoBehaviour
             Application.Quit();
             yield break;
         }
-        yield return Rows();
+        switch (Arg("-scenario") ?? "main")
+        {
+            case "extra": yield return ExtraRows(); break;
+            case "first": yield return FirstRows(); break;
+            case "multilang": yield return MultilingualRows(); break;
+            case "font": yield return FontRows(); break;
+            case "memory": yield return MemoryRows(); break;
+            case "draw": yield return DrawRows(); break;
+            default: yield return Rows(); break;
+        }
+        Say("control_gc_counter", 0, ControlBytes(), s_Gc.Valid ? "valid" : "not valid in this player: bytes columns say nothing");
+        Say("control_frame_timing", 0, FrameTimingManager.IsFeatureEnabled() ? 1 : 0, "");
         Write(Arg("-out"));
         Debug.Log("LETTERA_COMPARE done " + m_Name);
         Application.Quit();
@@ -220,34 +354,13 @@ public class LetteraCompare : MonoBehaviour
     void Prepare(string fonts)
     {
         string path = Path.Combine(fonts, "NotoSans-Regular.ttf");
-        if (m_Name == "lettera")
-        {
-            var first = Stopwatch.StartNew();
-            s_LetteraFont = LetteraFont.CreateFromBytes(File.ReadAllBytes(path));
-            Say("prepare_font", first.Elapsed.TotalMilliseconds);
-            m_Engine = new LetteraEngine();
-            return;
-        }
-        // The same file, imported as a font: TextMesh Pro reads a Font asset, and a plain path gives it nothing to read.
-        Font source = Resources.Load<Font>("NotoSans-Regular");
-        if (source == null) throw new InvalidOperationException("Assets/Compare/Resources must hold NotoSans-Regular.ttf.");
+        if (m_Name == "lettera") m_Engine = new LetteraEngine();
+        else if (External.TryGetValue(m_Name, out Func<IEngine> make)) m_Engine = make();
+        else m_Engine = new TmpEngine(m_Name);
         var clock = Stopwatch.StartNew();
-        s_TmpFont = TMP_FontAsset.CreateFontAsset(source, 90, 9, UnityEngine.TextCore.LowLevel.GlyphRenderMode.SDFAA, 2048, 2048, AtlasPopulationMode.Dynamic, true);
-        if (m_Name == "tmp-static")
-        {
-            s_TmpFont.TryAddCharacters(Latin, out string _);
-            s_TmpFont.atlasPopulationMode = AtlasPopulationMode.Static;
-        }
+        m_Engine.LoadFont(path);
         Say("prepare_font", clock.Elapsed.TotalMilliseconds);
-        m_Engine = new TmpEngine();
-        if (m_Name != "tmp-fallback") return;
-        s_TmpFont.fallbackFontAssetTable = new List<TMP_FontAsset>();
-        foreach ((string family, string style) in new[] { ("Segoe UI", "Regular"), ("Nirmala UI", "Regular"), ("Leelawadee UI", "Regular"), ("Microsoft YaHei", "Regular"), ("Yu Gothic", "Regular"), ("Malgun Gothic", "Regular"), ("Segoe UI Emoji", "Regular") })
-        {
-            TMP_FontAsset font = TMP_FontAsset.CreateFontAsset(family, style);
-            if (font != null) s_TmpFont.fallbackFontAssetTable.Add(font);
-            else Debug.Log("LETTERA_COMPARE no system font " + family);
-        }
+        if (m_Name == "tmp-fallback") m_Engine.Fallbacks();
     }
 
     void Say(string row, double ms, long bytes = -1, string note = "")
@@ -283,6 +396,7 @@ public class LetteraCompare : MonoBehaviour
     {
         var times = new List<double>();
         var allocations = new List<double>();
+        var gpu = new List<double>();
         long largest = -1;
         for (int i = 0; i < 5; i++) yield return null;
         var clock = new Stopwatch();
@@ -292,38 +406,56 @@ public class LetteraCompare : MonoBehaviour
             each?.Invoke();
             yield return null;
             times.Add(clock.Elapsed.TotalMilliseconds);
+            FrameTimingManager.CaptureFrameTimings();
+            if (FrameTimingManager.GetLatestTimings(1, s_Timing) > 0 && s_Timing[0].gpuFrameTime > 0) gpu.Add(s_Timing[0].gpuFrameTime);
             long gc = GcNow();
             if (gc < 0) continue;
             allocations.Add(gc);
             largest = Math.Max(largest, gc);
         }
         // A usual frame, and apart from it the largest, since one frame's growth of a buffer is not what every frame costs.
-        Say(row, Median(times), allocations.Count == 0 ? -1 : (long)Median(allocations), (note + " largest=" + largest).Trim());
+        string timing = gpu.Count == 0 ? "" : " gpu=" + Median(gpu).ToString("0.000", System.Globalization.CultureInfo.InvariantCulture);
+        Say(row, Median(times), allocations.Count == 0 ? -1 : (long)Median(allocations), (note + " largest=" + largest + timing).Trim());
     }
 
     IEnumerator Rows()
     {
         Transform parent = m_Canvas.transform;
+        // A development player is run for what only it can count, and the rows that take longest add nothing to that.
+        bool light = Arg("-light") != null;
 
         // R1, R2, R7
         var labels = new List<Component>();
         var clock = Stopwatch.StartNew();
         for (int i = 0; i < 1000; i++) labels.Add(m_Engine.Label(parent, Sentence(i), 18, new Vector2(400, 30)));
-        foreach (Component c in labels) m_Engine.Force(c);
-        Say("R1_create_1000", clock.Elapsed.TotalMilliseconds);
+        m_Engine.ForceAll(labels);
+        double created = clock.Elapsed.TotalMilliseconds;
+        Say("R1_create_1000", created);
         clock.Restart();
         yield return null;
         Say("R1_first_frame_after", clock.Elapsed.TotalMilliseconds);
+        Say("R1_create_and_frame", created + clock.Elapsed.TotalMilliseconds);
         var runs = new List<double>();
         for (int r = 0; r < 5; r++)
         {
             foreach (Component c in labels) m_Engine.Dirty(c);
             clock.Restart();
-            foreach (Component c in labels) m_Engine.Force(c);
+            m_Engine.ForceAll(labels);
             runs.Add(clock.Elapsed.TotalMilliseconds);
             yield return null;
         }
         Say("R2_rebuild_1000", Median(runs));
+        // The frame as a whole, with no forcing: an engine that gathers its work into the canvas update shows here what it gains.
+        runs.Clear();
+        for (int r = 0; r < 5; r++)
+        {
+            clock.Restart();
+            foreach (Component c in labels) m_Engine.Dirty(c);
+            yield return null;
+            runs.Add(clock.Elapsed.TotalMilliseconds);
+            yield return null;
+        }
+        Say("R2_rebuild_1000_frame", Median(runs));
         yield return FrameTime("R7_1000_unchanging_frame", 120, null);
         yield return R15("R15_atlas_after_latin");
         Clear();
@@ -367,7 +499,7 @@ public class LetteraCompare : MonoBehaviour
 
         // R8, R9
         var page = new StringBuilder();
-        foreach (int size in new[] { 10, 100, 1000 })
+        foreach (int size in light ? new[] { 10, 100 } : new[] { 10, 100, 1000 })
         {
             page.Clear();
             int i = 0;
@@ -388,6 +520,7 @@ public class LetteraCompare : MonoBehaviour
             double set = clock.Elapsed.TotalMilliseconds;
             yield return null;
             Say("R8_set_" + size + "KB", set, -1, note + " frame=" + clock.Elapsed.TotalMilliseconds.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture));
+            Say("R8_set_" + size + "KB_and_frame", clock.Elapsed.TotalMilliseconds, -1, (note + " glyphs=" + m_Engine.Glyphs(big)).Trim());
             if (size == 100)
             {
                 string body = page.ToString();
@@ -414,42 +547,50 @@ public class LetteraCompare : MonoBehaviour
         }
 
         // R10, on the 1 MB page the last turn left
-        clock.Restart();
-        Action<float> move = m_Engine.Scroll(parent, page.ToString());
-        yield return null;
-        Say("R10_scroll_1MB_first_frame", clock.Elapsed.TotalMilliseconds);
-        int step = 0;
-        yield return FrameTime("R10_scroll_1MB_frame", 240, () => move(++step / 240f));
-        Clear();
-        yield return null;
+        if (!light)
+        {
+            clock.Restart();
+            Action<float> move = m_Engine.Scroll(parent, page.ToString());
+            yield return null;
+            Say("R10_scroll_1MB_first_frame", clock.Elapsed.TotalMilliseconds);
+            int step = 0;
+            yield return FrameTime("R10_scroll_1MB_frame", 240, () => move(++step / 240f));
+            Clear();
+            yield return null;
+        }
 
         // R12
         var mixed = new List<Component>();
         clock.Restart();
         for (int i = 0; i < 100; i++) mixed.Add(m_Engine.Label(parent, "مرحبا بالعالم Hello " + i, 18, new Vector2(400, 30)));
-        foreach (Component c in mixed) m_Engine.Force(c);
+        m_Engine.ForceAll(mixed);
         Say("R12_mixed_100_create", clock.Elapsed.TotalMilliseconds);
+        yield return null;
+        Say("R12_mixed_100_and_frame", clock.Elapsed.TotalMilliseconds);
         Clear();
         yield return null;
 
         // R11
-        clock.Restart();
-        for (int i = 0; i < 5000; i++)
+        if (!light)
         {
-            Component world = m_Engine.World("Label " + (i % 1000), 1);
-            world.transform.position = new Vector3(-40 + i % 100 * 0.8f, -20 + i / 100 * 0.8f, 0);
-            m_Made.Add(world.gameObject);
+            clock.Restart();
+            for (int i = 0; i < 5000; i++)
+            {
+                Component world = m_Engine.World("Label " + (i % 1000), 1);
+                world.transform.position = new Vector3(-40 + i % 100 * 0.8f, -20 + i / 100 * 0.8f, 0);
+                m_Made.Add(world.gameObject);
+            }
+            yield return null;
+            Say("R11_5000_world_first_frame", clock.Elapsed.TotalMilliseconds);
+            yield return FrameTime("R11_5000_world_frame", 60, null);
+            Clear();
+            yield return null;
         }
-        yield return null;
-        Say("R11_5000_world_first_frame", clock.Elapsed.TotalMilliseconds);
-        yield return FrameTime("R11_5000_world_frame", 60, null);
-        Clear();
-        yield return null;
 
         // R15, past Latin. The same system font on each; a prepared Latin atlas has no place here.
         if (m_Name != "tmp-static")
         {
-            if (m_Name == "tmp-dynamic") s_TmpFont.fallbackFontAssetTable = new List<TMP_FontAsset> { TMP_FontAsset.CreateFontAsset("Microsoft YaHei", "Regular") };
+            if (m_Engine is TmpEngine) s_TmpFont.fallbackFontAssetTable = new List<TMP_FontAsset> { TMP_FontAsset.CreateFontAsset("Microsoft YaHei", "Regular") };
             var cjk = new StringBuilder();
             for (int i = 0; i < 3000; i++) cjk.Append((char)(0x4E00 + i));
             clock.Restart();
@@ -463,7 +604,323 @@ public class LetteraCompare : MonoBehaviour
             yield return null;
         }
 
-        Say("control_gc_counter", 0, ControlBytes(), s_Gc.Valid ? "valid" : "not valid in this player: bytes columns say nothing");
+    }
+
+    // ---------------------------------------------------------------- rows that need a scene of their own
+
+    IEnumerator ExtraRows()
+    {
+        Transform parent = m_Canvas.transform;
+
+        // R20, R21: 200 labels in a column, under a mask 400 high, and the same column with no mask, to see what the mask costs.
+        var view = new GameObject("Mask", typeof(RectTransform), typeof(RectMask2D));
+        view.transform.SetParent(parent, false);
+        ((RectTransform)view.transform).sizeDelta = new Vector2(800, 400);
+        var content = new GameObject("Content", typeof(RectTransform));
+        content.transform.SetParent(view.transform, false);
+        var rect = (RectTransform)content.transform;
+        for (int i = 0; i < 200; i++)
+        {
+            Component label = m_Engine.Label(content.transform, Sentence(i), 18, new Vector2(760, 26));
+            ((RectTransform)label.transform).anchoredPosition = new Vector2(0, 180 - i * 30);
+        }
+        yield return null;
+        yield return FrameTime("R20_mask_still_frame", 240, null);
+        int step = 0;
+        // Far enough down that labels go out of the mask and others come in, every frame.
+        yield return FrameTime("R21_mask_scroll_frame", 240, () => rect.anchoredPosition = new Vector2(0, Mathf.PingPong(++step * 12f, 5600)));
+        rect.anchoredPosition = new Vector2(3000, 0);
+        yield return FrameTime("R21_mask_swiped_away_frame", 240, null);
+        rect.anchoredPosition = Vector2.zero;
+        Destroy(view.GetComponent<RectMask2D>());
+        yield return null;
+        yield return FrameTime("R20_no_mask_still_frame", 240, null);
+        Clear();
+        yield return null;
+
+        // R22: a keystroke in a field of 2 000 characters, focused, with its caret at the end.
+        var system = new GameObject("EventSystem", typeof(EventSystem), typeof(StandaloneInputModule));
+        m_Made.Add(system);
+        yield return null;
+        var body = new StringBuilder();
+        for (int i = 0; body.Length < 2000; i++) body.Append(Sentence(i)).Append(i % 8 == 7 ? "\n" : " ");
+        body.Length = 2000;
+        Component field = m_Engine.Field(parent, body.ToString(), 18, new Vector2(1100, 640));
+        for (int i = 0; i < 10; i++) yield return null;
+        yield return FrameTime("R22_field_idle_frame", 120, null);
+        var keys = new string[26];
+        for (int i = 0; i < 26; i++) keys[i] = ((char)('a' + i)).ToString();
+        int before = m_Engine.FieldLength(field), typed = 0;
+        yield return FrameTime("R22_keystroke_2000", 120, () => m_Engine.Key(field, keys[typed++ % 26]));
+        Say("R22_keystroke_check", m_Engine.FieldLength(field) - before, -1, "characters added of " + typed);
+        Clear();
+        yield return null;
+
+        // R24: many texts leave and come back by their GameObjects.
+        var labels = new List<Component>();
+        for (int i = 0; i < 1000; i++) labels.Add(m_Engine.Label(parent, Sentence(i), 18, new Vector2(400, 30)));
+        for (int i = 0; i < 5; i++) yield return null;
+        var off = new List<double>();
+        var on = new List<double>();
+        var offBytes = new List<double>();
+        var onBytes = new List<double>();
+        var clock = new Stopwatch();
+        for (int r = 0; r < 7; r++)
+        {
+            clock.Restart();
+            foreach (Component c in labels) c.gameObject.SetActive(false);
+            yield return null;
+            off.Add(clock.Elapsed.TotalMilliseconds);
+            offBytes.Add(GcNow());
+            for (int i = 0; i < 3; i++) yield return null;
+            clock.Restart();
+            foreach (Component c in labels) c.gameObject.SetActive(true);
+            yield return null;
+            on.Add(clock.Elapsed.TotalMilliseconds);
+            onBytes.Add(GcNow());
+            for (int i = 0; i < 3; i++) yield return null;
+        }
+        Say("R24_deactivate_1000", Median(off), s_Gc.Valid ? (long)Median(offBytes) : -1);
+        Say("R24_reactivate_1000", Median(on), s_Gc.Valid ? (long)Median(onBytes) : -1);
+        Clear();
+        yield return null;
+
+        // R25: 64 score labels, by the call each engine gives for text that changes at runtime. The strings exist ahead, so that what allocates is the engine.
+        var scores = new List<Component>();
+        for (int i = 0; i < 64; i++) scores.Add(m_Engine.Label(parent, "Score: 00000", 18, new Vector2(200, 30)));
+        var strings = new string[1000];
+        for (int i = 0; i < strings.Length; i++) strings[i] = "Score: " + (i * 37).ToString("00000");
+        yield return null;
+        int tick = 0;
+        yield return FrameTime("R25_64_score_labels", 240, () =>
+        {
+            tick++;
+            for (int i = 0; i < scores.Count; i++) m_Engine.SetText(scores[i], strings[(tick + i) % strings.Length]);
+        });
+        Clear();
+        yield return null;
+    }
+
+    // Asks nothing of any earlier text: this is the first a process draws.
+    IEnumerator FirstRows()
+    {
+        for (int i = 0; i < 10; i++) yield return null;
+        var clock = Stopwatch.StartNew();
+        Component first = m_Engine.Label(m_Canvas.transform, "Hello, world", 18, new Vector2(400, 30));
+        m_Engine.Force(first);
+        Say("R23_first_text_call", clock.Elapsed.TotalMilliseconds);
+        yield return null;
+        Say("R23_first_text_frame", clock.Elapsed.TotalMilliseconds);
+        // The render thread's part of the first draw ends in the frame after.
+        yield return null;
+        Say("R23_first_text_two_frames", clock.Elapsed.TotalMilliseconds);
+        for (int i = 0; i < 5; i++) yield return null;
+        clock.Restart();
+        Component second = m_Engine.Label(m_Canvas.transform, "Hello, world", 18, new Vector2(400, 30));
+        ((RectTransform)second.transform).anchoredPosition = new Vector2(0, 40);
+        m_Engine.Force(second);
+        yield return null;
+        yield return null;
+        Say("R23_second_text_two_frames", clock.Elapsed.TotalMilliseconds);
+    }
+
+    static readonly string[] Languages =
+    {
+        "The quick brown fox jumps over the lazy dog", "Съешь ещё этих мягких французских булок", "Ξεσκεπάζω την ψυχοφθόρα βδελυγμία",
+        "مرحبا بالعالم، هذا نص عربي موصول", "שלום עולם, זה טקסט בעברית", "नमस्ते दुनिया, यह देवनागरी है", "สวัสดีชาวโลก นี่คือภาษาไทย",
+        "你好世界,这是中文。", "こんにちは世界、これは日本語です。", "안녕하세요 세계, 이것은 한국어입니다",
+    };
+
+    static string Multilingual(int i, string tail = "") => Languages[i % Languages.Length] + " " + i + tail;
+
+    // R26: 100 labels in ten languages, in a process that has shaped nothing. TextMesh Pro draws but does not shape these.
+    IEnumerator MultilingualRows()
+    {
+        // A prepared Latin atlas does not hold these, so its row would say nothing.
+        if (m_Name == "tmp-static") yield break;
+        m_Engine.Fallbacks();
+        for (int i = 0; i < 10; i++) yield return null;
+        Transform parent = m_Canvas.transform;
+        var labels = new List<Component>();
+        var clock = Stopwatch.StartNew();
+        for (int i = 0; i < 100; i++) labels.Add(m_Engine.Label(parent, Multilingual(i), 18, new Vector2(800, 30)));
+        yield return null;
+        Say("R26_multilang_100_cold", clock.Elapsed.TotalMilliseconds);
+        for (int i = 0; i < 5; i++) yield return null;
+        var runs = new List<double>();
+        var bytes = new List<double>();
+        for (int r = 0; r < 7; r++)
+        {
+            string tail = new string('!', r + 1);
+            clock.Restart();
+            for (int i = 0; i < labels.Count; i++) m_Engine.SetText(labels[i], Multilingual(i, tail));
+            yield return null;
+            runs.Add(clock.Elapsed.TotalMilliseconds);
+            bytes.Add(GcNow());
+            yield return null;
+        }
+        Say("R26_multilang_100_edit", Median(runs), s_Gc.Valid ? (long)Median(bytes) : -1);
+        Clear();
+        for (int i = 0; i < 5; i++) yield return null;
+        labels.Clear();
+        clock.Restart();
+        for (int i = 0; i < 100; i++) labels.Add(m_Engine.Label(parent, Multilingual(i), 18, new Vector2(800, 30)));
+        yield return null;
+        Say("R26_multilang_100_again", clock.Elapsed.TotalMilliseconds);
+        Clear();
+        yield return null;
+    }
+
+    // R16: a large font's first use.
+    IEnumerator FontRows()
+    {
+        string path = Path.Combine(Environment.GetEnvironmentVariable("WINDIR") ?? @"C:\Windows", "Fonts", "msyh.ttc");
+        if (!File.Exists(path)) yield break;
+        for (int i = 0; i < 10; i++) yield return null;
+        Memory(out long privateBefore, out _);
+        var clock = Stopwatch.StartNew();
+        Component label = m_Engine.LargeLabel(m_Canvas.transform, path, "Hello 你好世界", 24, new Vector2(800, 60));
+        Say("R16_large_font_load", clock.Elapsed.TotalMilliseconds);
+        m_Engine.Force(label);
+        yield return null;
+        yield return null;
+        Say("R16_large_font_first_text", clock.Elapsed.TotalMilliseconds);
+        Memory(out long privateAfter, out _);
+        Say("M_large_font_private", (privateAfter - privateBefore) / 1048576.0, -1, "file=" + new FileInfo(path).Length / 1048576 + "MB");
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    struct MemoryCounters
+    {
+        public uint Size, PageFaults;
+        public UIntPtr PeakWorkingSet, WorkingSet, PeakPagedPool, PagedPool, PeakNonPagedPool, NonPagedPool, Pagefile, PeakPagefile, Private;
+    }
+
+    [DllImport("kernel32.dll")] static extern IntPtr GetCurrentProcess();
+    [DllImport("kernel32.dll", EntryPoint = "K32GetProcessMemoryInfo")] static extern bool GetMemoryInfo(IntPtr process, out MemoryCounters counters, uint size);
+
+    static void Memory(out long privateBytes, out long workingSet)
+    {
+        GetMemoryInfo(GetCurrentProcess(), out MemoryCounters counters, (uint)Marshal.SizeOf<MemoryCounters>());
+        privateBytes = (long)counters.Private;
+        workingSet = (long)counters.WorkingSet;
+    }
+
+    void SayMemory(string row)
+    {
+        Memory(out long privateBytes, out long workingSet);
+        Say(row, privateBytes / 1048576.0, -1, "workingset=" + workingSet / 1048576 + "MB managed=" + Profiler.GetMonoUsedSizeLong() / 1048576 + "MB");
+    }
+
+    // Whole process, by the operating system: what the engines keep and give back. 15 seconds is longer than any engine here claims to wait.
+    IEnumerator MemoryRows()
+    {
+        Transform parent = m_Canvas.transform;
+        if (m_Name != "tmp-static") m_Engine.Fallbacks();
+        for (int i = 0; i < 30; i++) yield return null;
+        SayMemory("M0_before_text");
+        var labels = new List<Component>();
+        for (int i = 0; i < 100; i++) labels.Add(m_Engine.Label(parent, m_Name == "tmp-static" ? Sentence(i) : Multilingual(i), 18, new Vector2(800, 30)));
+        for (int i = 0; i < 30; i++) yield return null;
+        SayMemory("M1_100_labels");
+        for (int r = 0; r < 60; r++)
+        {
+            for (int i = 0; i < labels.Count; i++) m_Engine.SetText(labels[i], m_Name == "tmp-static" ? Sentence(i + r) : Multilingual(i, new string('!', r % 7 + 1)));
+            yield return null;
+        }
+        var page = new StringBuilder();
+        for (int i = 0; page.Length < 100 * 1024; i++) page.Append(Sentence(i)).Append(i % 8 == 0 ? "\n" : " ");
+        Component big = m_Engine.Label(parent, page.ToString(), 14, new Vector2(800, 100000));
+        for (int i = 0; i < 1000; i++) labels.Add(m_Engine.Label(parent, Sentence(i), 18, new Vector2(400, 30)));
+        for (int i = 0; i < 30; i++) yield return null;
+        SayMemory("M2_heavy_scene");
+        // The text stays, but nothing touches it.
+        yield return new WaitForSecondsRealtime(15);
+        SayMemory("M3_idle_15s_text_kept");
+        Destroy(big.gameObject);
+        foreach (Component c in labels) Destroy(c.gameObject);
+        for (int i = 0; i < 5; i++) yield return null;
+        SayMemory("M4_destroyed");
+        yield return new WaitForSecondsRealtime(15);
+        SayMemory("M5_idle_15s_after_destroy");
+    }
+
+    // ---------------------------------------------------------------- draw calls
+
+    // Unity 6.4 has no recorder named Batches Count or Draw Calls Count in a player, which is why the earlier row was invalid. These are the ones it has.
+    static readonly (string row, string name)[] Counters =
+    {
+        ("setpass", "SetPass Calls Count"), ("vertices", "Vertices Count"), ("triangles", "Triangles Count"),
+        ("draw_calls", "Standard Draw Calls Count"), ("instanced_draw_calls", "Standard Instanced Draw Calls Count"),
+        ("dynamic_batches", "Dynamic Batches Count"), ("dynamic_batched_draws", "Dynamic Batched Draw Calls Count"),
+    };
+
+    IEnumerator DrawCount(string row)
+    {
+        for (int i = 0; i < 5; i++) yield return null;
+        ProfilerRecorder[] counters = Counters.Select(c => ProfilerRecorder.StartNew(ProfilerCategory.Render, c.name, 16)).ToArray();
+        for (int i = 0; i < 14; i++) yield return null;
+        for (int i = 0; i < Counters.Length; i++)
+        {
+            // The scene stands still, but a counter can read back a frame's start: the largest of the frames is the frame.
+            long value = -1;
+            if (counters[i].Valid)
+                for (int j = 0; j < counters[i].Count; j++)
+                    value = Math.Max(value, counters[i].GetSample(j).Value);
+            if (value >= 0) Say("D_" + row + "_" + Counters[i].row, value);
+            counters[i].Dispose();
+        }
+    }
+
+    // The same scenes as the time rows, with the numbers counted while they stand still.
+    IEnumerator DrawRows()
+    {
+        Transform parent = m_Canvas.transform;
+        for (int i = 0; i < 10; i++) yield return null;
+        yield return DrawCount("empty");
+        Component one = m_Engine.Label(parent, "One label", 18, new Vector2(400, 30));
+        yield return DrawCount("1_label");
+        Clear();
+        yield return null;
+        for (int i = 0; i < 1000; i++) m_Engine.Label(parent, Sentence(i), 18, new Vector2(400, 30));
+        yield return DrawCount("1000_labels");
+        Clear();
+        yield return null;
+        if (m_Name != "tmp-static") m_Engine.Fallbacks();
+        for (int i = 0; i < 100; i++) m_Engine.Label(parent, m_Name == "tmp-static" ? Sentence(i) : Multilingual(i), 18, new Vector2(800, 30));
+        yield return DrawCount("100_multilingual");
+        Clear();
+        yield return null;
+        var view = new GameObject("Mask", typeof(RectTransform), typeof(RectMask2D));
+        view.transform.SetParent(parent, false);
+        ((RectTransform)view.transform).sizeDelta = new Vector2(800, 400);
+        for (int i = 0; i < 200; i++)
+        {
+            Component label = m_Engine.Label(view.transform, Sentence(i), 18, new Vector2(760, 26));
+            ((RectTransform)label.transform).anchoredPosition = new Vector2(0, 180 - i * 30);
+        }
+        yield return DrawCount("200_masked");
+        Clear();
+        yield return null;
+        for (int i = 0; i < 5000; i++)
+        {
+            Component world = m_Engine.World("Label " + (i % 1000), 1);
+            world.transform.position = new Vector3(-40 + i % 100 * 0.8f, -20 + i / 100 * 0.8f, 0);
+            m_Made.Add(world.gameObject);
+        }
+        yield return DrawCount("5000_world");
+        Clear();
+        yield return null;
+        // Which counters this player has at all, for whoever finds a row above to be invalid.
+        var handles = new List<ProfilerRecorderHandle>();
+        ProfilerRecorderHandle.GetAvailable(handles);
+        var found = new StringBuilder();
+        foreach (ProfilerRecorderHandle handle in handles)
+        {
+            ProfilerRecorderDescription description = ProfilerRecorderHandle.GetDescription(handle);
+            if (description.Category == ProfilerCategory.Render && description.Name.EndsWith("Count")) found.Append(description.Name).Append("; ");
+        }
+        Debug.Log("LETTERA_COMPARE counters " + found);
     }
 
     static object s_Hold;
@@ -481,7 +938,7 @@ public class LetteraCompare : MonoBehaviour
         int count = 0;
         // Asked of each engine, since a font made at runtime leaves its atlas without a name to look for.
         var textures = new HashSet<Texture>();
-        if (m_Name == "lettera")
+        if (!(m_Engine is TmpEngine))
         {
             foreach (Texture t in Resources.FindObjectsOfTypeAll<Texture>())
                 if (t is Texture2DArray || (t.name ?? "").Contains("Atlas"))
@@ -643,7 +1100,7 @@ public class LetteraCompare : MonoBehaviour
                 ((LetteraText)label).Styles.Add(LetteraStyle.ForWholeText(fill));
                 ((LetteraText)label).MarkStylesDirty();
             }
-            else if (!ours)
+            else if (m_Engine is TmpEngine)
             {
                 var text = (TMP_Text)label;
                 if (material == null)
