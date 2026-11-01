@@ -152,7 +152,7 @@ namespace FirstSymbol.Lettera.Editor
     public sealed class LtListSelection
     {
         readonly List<int> m_Selected = new List<int>();
-        int m_Anchor = -1;
+        int m_Anchor = -1, m_Head = -1;
 
         public IReadOnlyList<int> Selected => m_Selected;
         public int Anchor => m_Anchor;
@@ -161,7 +161,7 @@ namespace FirstSymbol.Lettera.Editor
         public void Clear()
         {
             m_Selected.Clear();
-            m_Anchor = -1;
+            m_Anchor = m_Head = -1;
         }
 
         /// <summary>A plain click takes the row alone.</summary>
@@ -169,7 +169,7 @@ namespace FirstSymbol.Lettera.Editor
         {
             m_Selected.Clear();
             m_Selected.Add(row);
-            m_Anchor = row;
+            m_Anchor = m_Head = row;
         }
 
         /// <summary>Control adds or takes away, and moves the anchor.</summary>
@@ -177,7 +177,7 @@ namespace FirstSymbol.Lettera.Editor
         {
             if (!m_Selected.Remove(row)) m_Selected.Add(row);
             m_Selected.Sort();
-            m_Anchor = row;
+            m_Anchor = m_Head = row;
         }
 
         /// <summary>Shift takes everything from the anchor, which stays.</summary>
@@ -191,6 +191,7 @@ namespace FirstSymbol.Lettera.Editor
             m_Selected.Clear();
             int from = Math.Min(m_Anchor, row), to = Math.Max(m_Anchor, row);
             for (int i = from; i <= to; i++) m_Selected.Add(i);
+            m_Head = row;
         }
 
         /// <summary>Arrow keys: the next row, or with Shift a longer range.</summary>
@@ -202,8 +203,7 @@ namespace FirstSymbol.Lettera.Editor
                 Click(delta > 0 ? 0 : count - 1);
                 return;
             }
-            int head = delta > 0 ? m_Selected[m_Selected.Count - 1] : m_Selected[0];
-            int next = Mathf.Clamp(head + delta, 0, count - 1);
+            int next = Mathf.Clamp(m_Head + delta, 0, count - 1);
             if (extend) ShiftClick(next);
             else Click(next);
         }
