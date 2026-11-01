@@ -634,8 +634,7 @@ namespace FirstSymbol.Lettera.Editor.Cli
             {
                 string[] names = n == 4 && d.ContainsKey("width") ? new[] { "x", "y", "width", "height" } : new[] { "x", "y", "z", "w" };
                 for (int i = 0; i < n; i++)
-                    if (d.TryGetValue(names[i], out object x))
-                        r[i] = (float)Convert(x, typeof(float));
+                    r[i] = d.TryGetValue(names[i], out object x) ? (float)Convert(x, typeof(float)) : throw new ArgumentException($"Expected {string.Join(", ", names.Take(n))}.");
                 return r;
             }
             throw new ArgumentException($"Expected {n} numbers, got {Show(v)}.");
