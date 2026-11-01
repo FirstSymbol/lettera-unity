@@ -128,6 +128,12 @@ namespace FirstSymbol.Lettera
             }
         }
 
+        internal static void ForgetAll()
+        {
+            s_Fonts.Clear();
+            LetteraMathCache.Clear();
+        }
+
         internal static LetteraMathFont For(FontFace face)
         {
             FontInstance instance = face.Regular;

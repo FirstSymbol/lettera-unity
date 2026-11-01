@@ -55,6 +55,10 @@ PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS, OR MODIFICATIONS.
 
 `Runtime/Unicode/UnicodeData.g.cs` is generated from the Unicode Character Database, and `Tests/Unicode/Conformance~` holds Unicode conformance test files. Copyright (c) 1991-2024 Unicode, Inc. Used under the Unicode License v3: https://www.unicode.org/license.txt
 
+## Noto Sans Math
+
+`Runtime/Math/Fonts/LetteraMathNotoSans.asset` holds Noto Sans Math, version 3.000, unhinted, SHA-256 `b127e84699212b6b2ef50aff58e0ebebeec04ffe6db1b9eb9e209c8c3d97b4aa`. It enters a build only when a project references it. Copyright 2022 Google LLC. All Rights Reserved. Licensed under the SIL Open Font License 1.1; the licence is beside it, in `Runtime/Math/Fonts/OFL-NotoSansMath.txt`.
+
 ## Noto fonts
 
 `Runtime/Resources/Lettera/LetteraWebFont.asset` holds Noto Sans, which ships in player builds as the web's default font. `Tests/Fonts~` holds Noto Sans, Noto Sans Arabic, Noto Sans Hebrew and Noto Sans Devanagari, used only by the tests. https://fonts.google.com/noto

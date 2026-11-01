@@ -4,6 +4,20 @@ using UnityEngine;
 
 namespace FirstSymbol.Lettera
 {
+    /// <summary>One formula of a text, as it is drawn.</summary>
+    public struct LetteraFormulaInfo
+    {
+        /// <summary>The code point standing for it in the shown text.</summary>
+        public int CodePoint;
+        public string Source;
+        public bool Display;
+        /// <summary>Its box in the text's local space.</summary>
+        public Rect Box;
+        public bool Failed;
+        public string Message;
+        public int ErrorPosition;
+    }
+
     /// <summary>What a formula that cannot be read shows.</summary>
     public enum LetteraMathErrorDisplay
     {
@@ -30,6 +44,9 @@ namespace FirstSymbol.Lettera
 
         [Tooltip("How much a stretched delimiter covers of what it wraps. 1 covers it exactly.")]
         public float DelimiterFactor = 1;
+
+        [Tooltip("The least a formula's rule draws, in device pixels, since a faint fraction bar reads as missing. Layout does not change. 0 turns this off.")]
+        public float MinRulePixels = 1;
 
         [Tooltip("The most laid-out formulas kept, in bytes.")]
         public long CacheBytes = 4 * 1024 * 1024;

@@ -159,16 +159,81 @@ namespace FirstSymbol.Lettera
             var items = new List<LetteraClipItem>(4) { new LetteraClipItem(LetteraClipFormat.PlainText, plain) };
             // Rich formats carry the source, so text under a cover goes out only as what plain text made of it.
             // An inline item goes as its words too, since its spans would not line up with them.
-            bool literal = engine.Literal || engine.RevealSource >= 0 || selectable.ConcealsSelection || engine.SpanHasInline(s.Start, s.End);
+            bool literal = engine.Literal || engine.RevealSource >= 0 || selectable.ConcealsSelection || engine.SpanHasSprite(s.Start, s.End);
             if (!literal)
             {
                 var spans = new List<LetteraPastedSpan>();
                 CollectSpans(engine, s.Start, s.End, spans);
+                if (engine.SpanHasFormula(s.Start, s.End))
+                {
+                    AddWithFormulas(engine, s.Start, s.End, spans, items);
+                    return items;
+                }
                 items.Add(new LetteraClipItem(LetteraClipFormat.Lettera, LetteraTextCodec.Write(plain, spans)));
                 items.Add(new LetteraClipItem(LetteraClipFormat.Html, LetteraHtmlCodec.Write(plain, spans)));
                 items.Add(new LetteraClipItem(LetteraClipFormat.Markdown, LetteraMarkdownCodec.Write(plain, spans)));
             }
             return items;
+        }
+
+        // A formula is one code point on screen and many on the clipboard, so the spans around it move.
+        // Each format gets it in its own words: the tag for a Lettera field, MathML with its source for a page, dollars for Markdown.
+        static void AddWithFormulas(TextEngine engine, int start, int end, List<LetteraPastedSpan> spans, List<LetteraClipItem> items)
+        {
+            ReadOnlySpan<int> shown = engine.ShownCodepoints;
+            string Text(Func<int, string> formula, List<LetteraPastedSpan> moved)
+            {
+                var builder = new StringBuilder(end - start + 32);
+                var map = new int[end - start + 1];
+                int at = 0;
+                ReadOnlySpan<int> text = engine.ShownCodepoints;
+                for (int c = start; c < end && c < text.Length; c++)
+                {
+                    map[c - start] = at;
+                    string written = text[c] == 0xFFFC ? formula(c) : null;
+                    if (written != null)
+                    {
+                        builder.Append(written);
+                        for (int k = 0; k < written.Length; k++)
+                            if (!char.IsLowSurrogate(written[k]))
+                                at++;
+                    }
+                    else
+                    {
+                        builder.Append(text[c] >= 0xD800 && text[c] < 0xE000 ? "\uFFFD" : char.ConvertFromUtf32(text[c]));
+                        at++;
+                    }
+                }
+                map[end - start] = at;
+                foreach (LetteraPastedSpan span in spans)
+                {
+                    LetteraPastedSpan shifted = span;
+                    shifted.Start = map[span.Start];
+                    shifted.End = map[span.End];
+                    moved.Add(shifted);
+                }
+                return builder.ToString();
+            }
+            var own = new List<LetteraPastedSpan>();
+            string tags = Text(c => "<math" + (engine.FormulaIsDisplay(c) ? " display" : "") + ">" + engine.FormulaSourceAt(c) + "</math>", own);
+            items.Add(new LetteraClipItem(LetteraClipFormat.Lettera, LetteraTextCodec.Write(tags, own)));
+
+            var markdown = new List<LetteraPastedSpan>();
+            string dollars = Text(c => engine.InlineAltAt(c), markdown);
+            items.Add(new LetteraClipItem(LetteraClipFormat.Markdown, LetteraMarkdownCodec.Write(dollars, markdown)));
+
+            // HTML writes its text escaped, so a mark goes in where each formula stands, and turns into MathML after.
+            var html = new List<LetteraPastedSpan>();
+            var formulas = new List<string>();
+            string marked = Text(c =>
+            {
+                formulas.Add(LetteraMathMarkup.ToClipboardMathML(engine.FormulaSourceAt(c), engine.FormulaIsDisplay(c)));
+                return ((char)(0xE000 + formulas.Count - 1)).ToString();
+            }, html);
+            string written2 = LetteraHtmlCodec.Write(marked, html);
+            for (int f = 0; f < formulas.Count; f++)
+                written2 = written2.Replace(((char)(0xE000 + f)).ToString(), formulas[f] ?? "");
+            items.Add(new LetteraClipItem(LetteraClipFormat.Html, written2));
         }
 
         static void CollectSpans(TextEngine engine, int start, int end, List<LetteraPastedSpan> spans)
@@ -180,7 +245,7 @@ namespace FirstSymbol.Lettera
                 int a = Math.Max(range.RenderedStart, start), b = Math.Min(range.RenderedEnd, end);
                 if (a >= b) continue;
                 LetteraEffect effect = engine.EffectiveStyles[range.StyleIndex]?.Effect;
-                if (effect == null || range.WholeText) continue;
+                if (effect == null || range.WholeText || effect is LetteraMathEffect) continue;
                 spans.Add(new LetteraPastedSpan { Start = a - start, End = b - start, EffectKey = LetteraClipSchemas.KeyOf(effect), Raw = range.Raw ?? range.Primary, Label = range.Label });
             }
         }

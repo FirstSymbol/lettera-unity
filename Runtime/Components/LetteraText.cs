@@ -9,6 +9,15 @@ namespace FirstSymbol.Lettera
     [DisallowMultipleComponent]
     public partial class LetteraText : MaskableGraphic, ILayoutElement, ITextHost
     {
+        /// <summary>The formulas this text draws, with where they stand and whether they could be read.</summary>
+        public void GetFormulas(System.Collections.Generic.List<LetteraFormulaInfo> output)
+        {
+            if (output == null) throw new System.ArgumentNullException(nameof(output));
+            output.Clear();
+            ForceRebuild();
+            Engine.CollectFormulas(output);
+        }
+
         [SerializeField] LetteraTextData m_Data = new LetteraTextData();
 
         TextEngine m_Engine;
