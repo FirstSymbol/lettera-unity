@@ -188,6 +188,7 @@ namespace FirstSymbol.Lettera.Editor
                 Menu("Atlases", "Window", "sdf memory pages texture", "Tools/Lettera/Atlases"),
                 Menu("Clipboard", "Window", "copy paste formats html", "Tools/Lettera/Clipboard"),
                 Menu("Font Tools", "Window", "create subset dictionary font asset batch", "Tools/Lettera/Font Tools"),
+                Menu("Sequencer", "Window", "cues timeline rows drag split motion", "Tools/Lettera/Sequencer"),
                 Menu("Inspect Text In Scene", "Window", "overlay boxes baselines bounds debug probe", "Tools/Lettera/Inspect Text In Scene"),
                 Menu("Use Bundled Math Font", "Math", "formula noto", "Lettera/Math/Use Bundled Font"),
                 Do("Project Settings", "Settings", "defaults preferences", () => SettingsService.OpenProjectSettings("Project/Lettera")),

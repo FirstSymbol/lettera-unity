@@ -1,0 +1,22 @@
+{
+    "name": "FirstSymbol.Lettera.Timeline.Editor",
+    "rootNamespace": "FirstSymbol.Lettera.Timeline.Editor",
+    "references": [
+        "FirstSymbol.Lettera",
+        "FirstSymbol.Lettera.Editor",
+        "FirstSymbol.Lettera.Timeline",
+        "Unity.Timeline",
+        "Unity.Timeline.Editor"
+    ],
+    "includePlatforms": ["Editor"],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": ["LETTERA_TIMELINE"],
+    "versionDefines": [
+        { "name": "com.unity.timeline", "expression": "1.0.0", "define": "LETTERA_TIMELINE" }
+    ],
+    "noEngineReferences": false
+}
