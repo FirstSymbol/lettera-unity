@@ -142,6 +142,7 @@ namespace FirstSymbol.Lettera
                 Upem = upem, Ascender = ascender, Descender = descender, CapHeight = ascender, XHeight = upem / 2,
                 UnderlineOffset = -upem / 10, UnderlineSize = upem / 20, StrikeOffset = upem / 4, StrikeSize = upem / 20,
             };
+            NaturalMetrics = Metrics;
         }
 
         /// <summary>A face with no font behind it, whose glyphs come from elsewhere.</summary>
@@ -424,6 +425,7 @@ namespace FirstSymbol.Lettera
             m.SubSize = Metric(font, "sbys");
             m.SubOffset = Math.Abs(Metric(font, "sbyo"));
             Metrics = m;
+            NaturalMetrics = m;
         }
 
         static int Metric(IntPtr font, string tag)
