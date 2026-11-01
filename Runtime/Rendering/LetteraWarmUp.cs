@@ -64,7 +64,7 @@ namespace FirstSymbol.Lettera
     public static class LetteraTextWarmUp
     {
         /// <summary>The printable characters of ASCII, the default set.</summary>
-        public const string Latin = " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\]^_`abcdefghijklmnopqrstuvwxyz{|}~";
+        public const string Latin = " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~";
 
         /// <summary>
         /// Readies a font and a set of characters at one size, so the first text drawn with them costs what a later one does. Call it behind a loading screen; text under 72 units and text over it use different glyphs.
