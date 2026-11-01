@@ -135,6 +135,18 @@ public class LetteraCompare : MonoBehaviour
 
     const string Latin = " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~";
 
+    // A row that throws must not leave a player running with nothing to do.
+    void OnEnable() => Application.logMessageReceived += OnLog;
+    void OnDisable() => Application.logMessageReceived -= OnLog;
+
+    void OnLog(string message, string stack, LogType type)
+    {
+        if (type != LogType.Exception) return;
+        Debug.Log("LETTERA_COMPARE stopped: " + message);
+        if (Arg("-out") != null) Write(Arg("-out"));
+        Application.Quit(3);
+    }
+
     IEnumerator Start()
     {
         QualitySettings.vSyncCount = 0;
@@ -172,8 +184,11 @@ public class LetteraCompare : MonoBehaviour
             m_Engine = new LetteraEngine();
             return;
         }
+        // The same file, imported as a font: TextMesh Pro reads a Font asset, and a plain path gives it nothing to read.
+        Font source = Resources.Load<Font>("NotoSans-Regular");
+        if (source == null) throw new InvalidOperationException("Assets/Compare/Resources must hold NotoSans-Regular.ttf.");
         var clock = Stopwatch.StartNew();
-        s_TmpFont = TMP_FontAsset.CreateFontAsset(new Font(path), 90, 9, UnityEngine.TextCore.LowLevel.GlyphRenderMode.SDFAA, 2048, 2048, AtlasPopulationMode.Dynamic, true);
+        s_TmpFont = TMP_FontAsset.CreateFontAsset(source, 90, 9, UnityEngine.TextCore.LowLevel.GlyphRenderMode.SDFAA, 2048, 2048, AtlasPopulationMode.Dynamic, true);
         if (m_Name == "tmp-static")
         {
             s_TmpFont.TryAddCharacters(Latin, out string _);
