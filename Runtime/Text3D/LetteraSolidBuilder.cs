@@ -1048,9 +1048,11 @@ namespace FirstSymbol.Lettera
             {
                 if (loops[o].Area <= 0) continue;
                 triangles.Clear();
-                if (!LetteraEarClipper.Triangulate(ring, loops.AsArray().Reinterpret<int4>(), o, ref triangles))
+                int why = LetteraEarClipper.Triangulate(ring, loops.AsArray().Reinterpret<int4>(), o, ref triangles);
+                if (why != 0)
                 {
                     Report[2] = Report[2] + 1;
+                    Report[4] = why;
                     continue;
                 }
                 for (int t = 0; t + 2 < triangles.Length; t += 3)
@@ -1080,7 +1082,7 @@ namespace FirstSymbol.Lettera
         }
 
         // Loop reinterpreted: Start, Count, Area (as bits), Parent.
-        internal static bool Triangulate(NativeArray<float2> ring, NativeArray<int4> loops, int outer, ref NativeList<int> triangles)
+        internal static int Triangulate(NativeArray<float2> ring, NativeArray<int4> loops, int outer, ref NativeList<int> triangles)
         {
             int total = loops[outer].y;
             int holes = 0;
@@ -1119,14 +1121,14 @@ namespace FirstSymbol.Lettera
                 }
                 for (int k = 0; k < order.Length; k++)
                     if (!Bridge(ring, ref nodes, first, loops[(int)order[k].y]))
-                        return false;
+                        return 1;
             }
 
             int start = triangles.Length;
             if (!Clip(ring, ref nodes, first, ref triangles))
             {
                 triangles.ResizeUninitialized(start);
-                return false;
+                return 2;
             }
             float area = 0;
             for (int t = start; t + 2 < triangles.Length; t += 3)
@@ -1134,9 +1136,9 @@ namespace FirstSymbol.Lettera
             if (math.abs(area - expected) > math.abs(expected) * 0.001f + 1e-5f)
             {
                 triangles.ResizeUninitialized(start);
-                return false;
+                return 3;
             }
-            return true;
+            return 0;
         }
 
         static float LoopArea(NativeArray<float2> ring, int4 loop)
