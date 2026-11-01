@@ -28,9 +28,13 @@ Then open `preview.png` and look at it. Check that the words are all there, that
 3. `unity command lettera list`: what exists, with paths and ids.
 4. Create or edit. Keep the `id` (`"#1234"`) from the answer as `--target`; names can be ambiguous.
 5. **`export_png`, and look.** Fix, and look again.
-6. `unity command lettera validate --target <t>`: tags nothing is bound to, broken formulas, missing glyphs, fonts missing on a platform.
+6. `unity command lettera validate --target <t>`: tags nothing is bound to, broken formulas, missing glyphs. `ok` answers for those. `otherPlatforms` lists what would be missing on the web and on phones, such as a font, for you to pass on; it fails nothing unless you name that platform with `--platform`.
 
 Targets are hierarchy paths (`/Canvas/Title`), names or ids (`#1234`). On a field, the root and the text inside both work.
+
+**Where things go.** A new object's rect is centred on its parent, and `--position x,y` moves it from there: `0,-40` is 40 below the centre, in local units, y up. Inside its rect a text starts at the top unless `alignment` says otherwise: `Center` alone centres it across and leaves it at the top; `'Center,Middle'` centres both ways.
+
+**Lettera makes text.** A panel behind a card is a plain uGUI `Image`, made with Unity's own `gameobject` and `component` command groups. Give a text as its child and export the panel: `export_png` draws it too. `--background` only colours the picture, not the scene.
 
 ## Commands
 
@@ -47,7 +51,7 @@ Targets are hierarchy paths (`/Canvas/Title`), names or ids (`#1234`). On a fiel
 | `font_stack --fonts a.asset,b.asset [--path ...] [--target <t>]` | Font stack, in fallback order |
 | `font_info --path <asset or file>` | Family, style, metrics, glyph count, color, variable |
 | `font_subset --path <asset> --keep <text or U+0020-007E> [--output ...]` | A smaller copy, as a new asset |
-| `validate --target <t> [--platform web\|android\|ios\|windows\|mac\|linux]` | Problems |
+| `validate --target <t> [--platform web\|android\|ios\|windows\|mac\|linux]` | Problems here, and what is missing on other platforms |
 | `measure --target <t> [--width <w>]` | Size, bounds, lines |
 | `glyphs --target <t>`, `glyphs --text <text> [--font <asset>]` | Shaping result, glyph by glyph |
 | `formula --source <tex> [--display] [--size <n>]` | Checks a formula and measures it |
@@ -64,6 +68,7 @@ Targets are hierarchy paths (`/Canvas/Title`), names or ids (`#1234`). On a fiel
 Relaxed JSON: unquoted keys and words, and single quotes: `{text:'Hi',wrap:false}`.
 
 - **`set` keys:** `text`, `font`, `stack`, `size` (a number is the font size, `[w,h]` the rect), `fontSize`, `rect`, `color`, `alignment` (`"Center"` or `"Center,Middle"`), `wrap`, `overflow`, `padding` (one number or `[left,bottom,right,top]`), `lineHeight`, `direction`, `language`, `renderMode`, `name`, `active`, `position`, `rotation`, `scale`, `styles`, `presets`, `rules`, and any other property of the component (`autoSize`, `depth`, `lit`...). An unknown key answers with the keys there are. All of a patch is read before any of it applies, so a bad one changes nothing.
+- **In `create`,** `--size` is always the rect, and `size` inside `--data` follows the rule above.
 - **Colours:** `"#RRGGBB"`, `"#RRGGBBAA"`, names (`"white"`) or `[r,g,b,a]`.
 - **Vectors:** `[x,y]` or `"x,y"`. **Enums:** by name (`"RightToLeft"`). **Assets:** by path; `null` clears.
 - **Polymorphic values:** effects, matchers and rules take `"$type"`: `{$type:Stroke,width:0.05}`, or just the name: `"Bold"`. `Fill` means `FillEffect`, `MaxLength` means `MaxLengthRule`.
@@ -72,7 +77,7 @@ Relaxed JSON: unquoted keys and words, and single quotes: `{text:'Hi',wrap:false
 
 ## Markup
 
-A tag means something only because a style binds it. The vocabulary in force is in `tags`: `<b>`, `<i>`, `<color=#F00>`, `<size=150%>`, `<fill=...>`, `<stroke=...>`, `<shadow=...>`, `<a=https://...>`, `<wave>`, `<reveal=...>`, `<math>`, and many more. A tag nothing claims shows as written, and `validate` reports it. `\<` escapes markup.
+A tag means something only because a style binds it. The vocabulary in force is in `tags`: `<b>`, `<i>`, `<color=#F00>`, `<size=150%>`, `<fill=...>`, `<stroke=...>`, `<shadow=...>`, `<a=https://...>`, `<wave>`, `<reveal=...>`, `<math>`, and many more. A tag nothing claims shows as written, and `validate` reports it. `\<` escapes markup. A bold title is `{text:'<b>Sunset</b>'}`.
 
 ## Recipes
 
@@ -81,10 +86,12 @@ A tag means something only because a style binds it. The vocabulary in force is 
 unity command lettera create --kind text --name Title --text "Sunset" --size 600,120 --data "{size:72,alignment:'Center,Middle'}"
 unity command lettera style_add --target Title --effect Fill --data "{paint:{gradient:'#FF8A00,#E52E71',angle:0,span:Range}}"
 unity command lettera export_png --target Title --output preview.png   # and look
+# Change the gradient: style_set takes the whole effect
+unity command lettera style_set --target Title --index 0 --data "{effect:{\$type:Fill,paint:{gradient:'#34D399,#38BDF8,#A855F7',angle:0,span:Range}}}"
 
-# A card: a parent holding a title and a body, exported whole
-unity command lettera create --kind text --name Card --text "Sunset" --size 600,300 --data "{size:64,alignment:'Center,Top'}"
-unity command lettera create --kind text --name Body --parent Card --text "Warm colours at the end of the day." --size 560,120 --position 0,-40 --data "{size:28,alignment:Center}"
+# A card: a text holding a body text, exported whole. Body's rect is centred on the card's, so -45 puts its top a little under the title
+unity command lettera create --kind text --name Card --text "<b>Sunset</b>" --size 600,200 --data "{size:64,alignment:'Center,Top'}"
+unity command lettera create --kind text --name Body --parent Card --text "Warm colours at the end of the day." --size 560,90 --position 0,-45 --data "{size:26,alignment:Center,color:'#C7CEDB'}"
 unity command lettera export_png --target Card --output preview.png
 
 # An input field with validation: one line, at most 40 characters, an email's characters only
@@ -119,4 +126,4 @@ unity command lettera migrate_scripts
 unity command lettera migrate_report --output migration.md
 ```
 
-Quoting differs between shells. If a `$type` disappears in a double-quoted string, your shell expanded it: use single quotes around the whole patch, as above.
+Quoting differs between shells. Bash expands `$type` inside double quotes: write `\$type` there, as in `style_set` above, or put single quotes around a patch with no single quotes in it, as in the input field above.

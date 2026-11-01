@@ -440,6 +440,40 @@ namespace FirstSymbol.Lettera.Editor.Tests
         }
 
         [Test]
+        public void APanelBehindATextIsInThePicture()
+        {
+            GameObject title = MakeKind("text", "Title");
+            var panel = new GameObject("Panel", typeof(RectTransform), typeof(UnityEngine.UI.Image));
+            panel.transform.SetParent(title.transform.parent, false);
+            ((RectTransform)panel.transform).sizeDelta = new Vector2(400, 200);
+            panel.GetComponent<UnityEngine.UI.Image>().color = new Color(0, 0.8f, 0);
+            title.transform.SetParent(panel.transform, false);
+            string file = Output("panel.png");
+            Dictionary<string, object> answer = Good(LetteraCli.ExportPng("Panel", file, "1"));
+            Assert.GreaterOrEqual((int)answer["width"], 400);
+            var picture = new Texture2D(2, 2);
+            picture.LoadImage(File.ReadAllBytes(file));
+            Color32 middle = picture.GetPixel(picture.width / 2, picture.height / 8);
+            Object.DestroyImmediate(picture);
+            Assert.Greater(middle.g, 150, "the panel's green");
+            Assert.Less(middle.r, 60);
+        }
+
+        [Test]
+        public void ValidatePutsOtherPlatformsApart()
+        {
+            MakeKind("world", "Fonted");
+            GameObject bare = new GameObject("Bare", typeof(RectTransform));
+            bare.AddComponent<LetteraWorldText>().Text = "x";
+            Dictionary<string, object> anywhere = Good(LetteraCli.Validate("Bare"));
+            Assert.IsTrue((bool)anywhere["ok"], LetteraCliJson.Write(anywhere));
+            Assert.IsNotEmpty((List<object>)anywhere["otherPlatforms"]);
+            Dictionary<string, object> web = Good(LetteraCli.Validate("Bare", "web"));
+            Assert.IsFalse((bool)web["ok"], "named, it counts");
+            Assert.IsFalse(web.ContainsKey("otherPlatforms"));
+        }
+
+        [Test]
         public void TheTextsOverflowIsInThePicture()
         {
             GameObject go = MakeKind("text", "Spilled", "Words that run far past a tiny rect");
