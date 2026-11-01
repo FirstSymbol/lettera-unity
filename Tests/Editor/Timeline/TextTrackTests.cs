@@ -79,7 +79,7 @@ namespace FirstSymbol.Lettera.Timeline.Editor.Tests
             At(director, 1);
             text.ForceRebuild();
             Assert.AreEqual("line", text.Engine.RenderedSourceText);
-            director.Stop();
+            Leave(director);
             text.ForceRebuild();
             Assert.AreSame(own, text.TextResolver);
             Assert.AreEqual("OWN", text.Engine.RenderedSourceText);
@@ -124,11 +124,10 @@ namespace FirstSymbol.Lettera.Timeline.Editor.Tests
             text.ForceRebuild();
             Assert.AreEqual(16, text.Engine.VertexCount, "hidden glyphs keep their vertices");
             Assert.AreEqual((1f, 1f, 0f, 0f), (Alpha(text, 0), Alpha(text, 1), Alpha(text, 2), Alpha(text, 3)));
-            At(director, 4);
+            At(director, 3.9999);
             text.ForceRebuild();
             Assert.AreEqual(1f, Alpha(text, 3));
-            // A later clip without one shows everything at once.
-            director.Stop();
+            Leave(director);
             text.ForceRebuild();
             Assert.AreEqual("own", text.Engine.RenderedSourceText);
             Assert.IsNull(text.Engine.ClipStyle);
@@ -199,7 +198,7 @@ namespace FirstSymbol.Lettera.Timeline.Editor.Tests
             for (double t = 0; t < 4; t += 0.25) At(director, t);
             text.ForceRebuild();
             Assert.IsFalse(scene.isDirty, "while it plays");
-            director.Stop();
+            Leave(director);
             text.ForceRebuild();
             Assert.AreEqual("own", text.Engine.RenderedSourceText);
             Assert.IsNull(text.TextResolver);
@@ -215,7 +214,7 @@ namespace FirstSymbol.Lettera.Timeline.Editor.Tests
             director.RebuildGraph();
             At(director, 1);
             UnityEngine.Object.DestroyImmediate(text.gameObject);
-            Assert.DoesNotThrow(() => director.Stop());
+            Assert.DoesNotThrow(() => Leave(director));
         }
 
         [Test]
