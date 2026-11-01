@@ -7,11 +7,14 @@ namespace FirstSymbol.Lettera
     public static class LetteraMathMarkup
     {
         /// <summary>The source as MathML Core. Null when it cannot be read.</summary>
-        public static string ToMathML(string source, bool display)
+        public static string ToMathML(string source, bool display) => ToMathML(source, display, null);
+
+        /// <summary>With a font, the spaces its italic corrections make are written too, so that a browser's boxes can be held against ours.</summary>
+        internal static string ToMathML(string source, bool display, LetteraMathFont font)
         {
             MathTree tree = LetteraMathParser.Parse(source);
             if (tree.Error != null) return null;
-            var w = new Writer(tree);
+            var w = new Writer(tree, font);
             w.Out.Append("<math xmlns=\"http://www.w3.org/1998/Math/MathML\"").Append(display ? " display=\"block\"" : "").Append('>');
             w.Group(tree.Root, display ? MathStyle.Display : MathStyle.Text);
             w.Out.Append("</math>");
@@ -23,7 +26,30 @@ namespace FirstSymbol.Lettera
             readonly MathTree m_Tree;
             internal readonly StringBuilder Out = new StringBuilder(128);
 
-            internal Writer(MathTree tree) => m_Tree = tree;
+            readonly LetteraMathFont m_Font;
+
+            internal Writer(MathTree tree, LetteraMathFont font)
+            {
+                m_Tree = tree;
+                m_Font = font;
+            }
+
+            float ItalicOf(in MathNode n, MathStyle style)
+            {
+                if (m_Font == null || m_Font.Data == null || n.Kind != MathNodeKind.Char) return 0;
+                int level = style == MathStyle.Script ? 1 : style == MathStyle.ScriptScript ? 2 : 0;
+                uint glyph = m_Font.GlyphOf(LetteraMathAlphabets.Map(n.Cp, (MathAlphabet)n.Info), level);
+                if (glyph == 0) return 0;
+                float scale = level == 0 ? 1 : m_Font.C(level == 1 ? MathConstant.ScriptPercentScaleDown : MathConstant.ScriptScriptPercentScaleDown) / 100;
+                return m_Font.Data.ItalicCorrection(glyph) * scale / m_Font.Upem;
+            }
+
+            // A base goes bare: a wrapper would hide its italic correction from the browser's script placement.
+            void Bare(int node, MathStyle style)
+            {
+                if (node >= 0 && m_Tree.Nodes[node].Kind == MathNodeKind.Char) Node(node, style);
+                else Group(node, style);
+            }
 
             static string Em(float value) => value.ToString("0.####", CultureInfo.InvariantCulture) + "em";
 
@@ -64,6 +90,7 @@ namespace FirstSymbol.Lettera
                     return;
                 }
                 bool has = false;
+                float italic = 0;
                 MathClass previous = MathClass.Ord;
                 for (int c = n.A; c >= 0; c = m_Tree.Nodes[c].Next)
                 {
@@ -91,6 +118,12 @@ namespace FirstSymbol.Lettera
                         float gap = LetteraMathBuilder.SpaceBetween(previous, cls, style >= MathStyle.Script);
                         if (gap != 0) Out.Append("<mspace width=\"").Append(Em(gap)).Append("\"/>");
                     }
+                    if (italic != 0 && child.Kind != MathNodeKind.Scripts)
+                    {
+                        bool nextItalic = child.Kind == MathNodeKind.Char && (MathAlphabet)child.Info == MathAlphabet.Default && LetteraMathBuilder.IsMathItalic(child.Cp);
+                        if (!nextItalic) Out.Append("<mspace width=\"").Append(Em(italic)).Append("\"/>");
+                    }
+                    italic = ItalicOf(child, style);
                     Node(c, style);
                     if (child.Kind != MathNodeKind.Space)
                     {
@@ -146,7 +179,7 @@ namespace FirstSymbol.Lettera
                         }
                         string tag = limits ? (n.B >= 0 && n.C >= 0 ? "munderover" : n.C >= 0 ? "munder" : "mover") : (n.B >= 0 && n.C >= 0 ? "msubsup" : n.C >= 0 ? "msub" : "msup");
                         Out.Append('<').Append(tag).Append('>');
-                        Group(n.A, style);
+                        Bare(n.A, style);
                         if (n.C >= 0) Group(n.C, Script(style));
                         if (n.B >= 0) Group(n.B, Script(style));
                         Out.Append("</").Append(tag).Append('>');
@@ -205,7 +238,7 @@ namespace FirstSymbol.Lettera
                             Out.Append("<mtr>");
                             for (int c = m_Tree.Nodes[r].A; c >= 0; c = m_Tree.Nodes[c].Next)
                             {
-                                Out.Append("<mtd>");
+                                Out.Append("<mtd style=\"padding:0 ").Append(Em(0.5f)).Append("\">");
                                 Group(m_Tree.Nodes[c].A, MathStyle.Text);
                                 Out.Append("</mtd>");
                             }
