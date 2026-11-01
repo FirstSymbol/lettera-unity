@@ -1,6 +1,6 @@
 """Runs the comparison with TextMesh Pro and writes its tables. usage: python compare.py <unity.exe> <lettera package path> <work folder> [rounds]
 Makes a project of its own, builds a Windows player, and runs each engine in turns, a cold start each. Nothing else should be running."""
-import json, os, shutil, statistics, subprocess, sys
+import json, os, shutil, statistics, subprocess, sys, time
 
 EDITOR, PACKAGE, WORK = sys.argv[1:4]
 ROUNDS = int(sys.argv[4]) if len(sys.argv) > 4 else 5
@@ -35,6 +35,13 @@ def build(path, dev):
     os.makedirs(resources, exist_ok=True)
     shutil.copyfile(os.path.join(FONTS, "NotoSans-Regular.ttf"), os.path.join(resources, "NotoSans-Regular.ttf"))
     env = dict(os.environ)
+    # Its essentials, once: shaders and settings it cannot run without.
+    if not os.path.exists(os.path.join(PROJECT, "Assets", "TextMesh Pro")):
+        subprocess.run([EDITOR, "-batchmode", "-quit", "-projectPath", PROJECT, "-logFile", os.path.join(OUT, "resolve.log")])
+        cache = os.path.join(PROJECT, "Library", "PackageCache")
+        ugui = next(d for d in os.listdir(cache) if d.startswith("com.unity.ugui"))
+        subprocess.run([EDITOR, "-batchmode", "-quit", "-projectPath", PROJECT, "-importPackage", os.path.join(cache, ugui, "Package Resources", "TMP Essential Resources.unitypackage"), "-logFile", os.path.join(OUT, "essentials.log")])
+        print("essentials", os.path.exists(os.path.join(PROJECT, "Assets", "TextMesh Pro")), flush=True)
     env["LETTERA_DEV"] = "1" if dev else "0"
     log = os.path.join(OUT, "build_dev.log" if dev else "build.log")
     # Twice, the first time: essentials imported in one pass are compiled in the next.
@@ -51,16 +58,34 @@ def build(path, dev):
     sys.exit(1)
 
 
-def run(exe, engine, name, timeout=300):
+def memory_mb(pid):
+    # What the process has committed, by tasklist, so that this needs nothing installed.
+    line = subprocess.run(["tasklist", "/FI", f"PID eq {pid}", "/FO", "CSV", "/NH"], capture_output=True).stdout.decode("utf-8", "replace")
+    digits = "".join(c for c in line.split('","')[-1] if c.isdigit()) if '","' in line else ""
+    return int(digits) // 1024 if digits else 0
+
+
+def run(exe, engine, name, timeout=300, limit_mb=10240):
     out = os.path.join(OUT, name + ".json")
     if os.path.exists(out):
         os.remove(out)
     process = subprocess.Popen([exe, "-screen-width", "1200", "-screen-height", "700", "-screen-fullscreen", "0", "-logFile", os.path.join(OUT, name + ".log"), "-compare", engine, "-fonts", FONTS, "-out", out])
-    try:
-        process.wait(timeout)
-    except subprocess.TimeoutExpired:
-        process.kill()
-        print("  timed out", name, flush=True)
+    started = time.time()
+    peak = 0
+    # A run that eats the machine stops here, and not when everything else on it has crashed.
+    while process.poll() is None:
+        time.sleep(1)
+        used = memory_mb(process.pid)
+        peak = max(peak, used)
+        if used > limit_mb:
+            process.kill()
+            print(f"  stopped at {used} MB", name, flush=True)
+            break
+        if time.time() - started > timeout:
+            process.kill()
+            print("  timed out", name, flush=True)
+            break
+    print(f"  {name}: peak {peak} MB, {time.time() - started:.0f} s", flush=True)
     if not os.path.exists(out):
         return None
     return json.load(open(out, encoding="utf-8"))
