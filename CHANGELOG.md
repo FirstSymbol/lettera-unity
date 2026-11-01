@@ -42,6 +42,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - **A cue removed while its hold was live, by an edit or an undo, kept holding** the value on the text until the object was disabled.
 - A switch in a row of an inspector stretched across the row with its knob at the far left.
 
+### Limits
+- A selectable has no menu or loupe of its own per platform: Android Menu, iOS Menu and Loupe stay project-wide, and the page says what they are. It would need new fields and a runtime path.
+- Per-glyph overrides of scale and offset are not built. Metrics are.
+- A UnityEvent's list wears Unity's own look: who is called with what has a world of pickers behind it. Two object slots in the 3D pages too (a solid material's texture, a text's look).
+- The Hierarchy's eye reaches batched world text until Play, and hides it in the Game view too in edit mode. Canvas text, standalone world text and Text 3D are left to the editor, and were not looked at.
+- Atlas size and depth stay fixed, and read only.
+
 ## [0.7.3] - 2026-11-01
 
 ### Fixed
