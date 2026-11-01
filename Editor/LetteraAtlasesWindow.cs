@@ -15,7 +15,7 @@ namespace FirstSymbol.Lettera.Editor
     internal sealed class LetteraAtlasesWindow : LetteraToolWindow
     {
         [MenuItem("Tools/Lettera/Atlases", false, 22)]
-        static void Open() => GetWindow<LetteraAtlasesWindow>("Lettera Atlases").minSize = new Vector2(320, 300);
+        internal static void Open() => GetWindow<LetteraAtlasesWindow>("Lettera Atlases").minSize = new Vector2(320, 300);
 
         protected override string Title => "Atlases";
         protected override string Subtitle => "Every text's glyph pages";

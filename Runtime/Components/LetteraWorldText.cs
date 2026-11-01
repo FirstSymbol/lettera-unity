@@ -59,7 +59,26 @@ namespace FirstSymbol.Lettera
 
         RectTransform Rect => m_Rect != null ? m_Rect : m_Rect = (RectTransform)transform;
         internal TextEngine Engine => m_Engine ?? (m_Engine = new TextEngine(this));
+#if UNITY_EDITOR
+        // Batched text draws through renderers of its own, so the Hierarchy's eye reaches it only by this.
+        static System.Collections.Generic.HashSet<LetteraWorldText> s_HiddenInScene = new System.Collections.Generic.HashSet<LetteraWorldText>();
+
+        internal static void SetHiddenInScene(System.Collections.Generic.HashSet<LetteraWorldText> hidden)
+        {
+            System.Collections.Generic.HashSet<LetteraWorldText> before = s_HiddenInScene;
+            s_HiddenInScene = hidden;
+            foreach (LetteraWorldText text in before)
+                if (text != null && !hidden.Contains(text))
+                    LetteraWorldBatcher.NotifyChanged(text);
+            foreach (LetteraWorldText text in hidden)
+                if (!before.Contains(text))
+                    LetteraWorldBatcher.NotifyChanged(text);
+        }
+
+        internal bool Hidden => m_Hidden || s_HiddenInScene.Contains(this);
+#else
         internal bool Hidden => m_Hidden;
+#endif
         internal Vector2 LastRectSize;
 
         /// <summary>The same as <see cref="Color"/>, under the name a Canvas text has, so that code can treat the two alike.</summary>

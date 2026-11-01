@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using UnityEditor;
 using UnityEditor.UIElements;
 using UnityEngine;
@@ -67,6 +68,48 @@ namespace FirstSymbol.Lettera.Editor
                 }));
         }
 
+        // The file's own lines, or the ones written here. Reset goes back to the file.
+        protected VisualElement MetricsCard(LetteraFontAsset font)
+        {
+            SerializedProperty on = serializedObject.FindProperty("m_OverrideMetrics");
+            FontFace face = font.LoadFace();
+            VisualElement values = LtUI.El("lt-list",
+                LtUI.Field("Ascender", serializedObject.FindProperty("m_MetricAscender"), "Font units above the baseline."),
+                LtUI.Field("Descender", serializedObject.FindProperty("m_MetricDescender"), "Font units below it, negative."),
+                LtUI.Field("Line Gap", serializedObject.FindProperty("m_MetricLineGap"), "Font units between lines."));
+            LetteraTextInspector.ShowWhen(values, on, p => p.boolValue);
+            return LtUI.Card("Metrics",
+                new LtStatus().Line("From The File", () => face == null ? "Not read" : face.NaturalMetrics.Ascender + " up, " + face.NaturalMetrics.Descender + " down, " + face.NaturalMetrics.LineGap + " gap, of " + face.NaturalMetrics.Upem).RefreshNow(),
+                LtUI.Field("Set By Hand", on, "Writes this font's vertical lines, for a font whose own are wrong. Texts using it lay out again."),
+                values,
+                LtUI.Clickable("Reset", "lt-add lt-add--small", "Takes the file's own values, and turns this off.", () =>
+                {
+                    serializedObject.Update();
+                    on.boolValue = false;
+                    if (face != null)
+                    {
+                        serializedObject.FindProperty("m_MetricAscender").intValue = face.NaturalMetrics.Ascender;
+                        serializedObject.FindProperty("m_MetricDescender").intValue = face.NaturalMetrics.Descender;
+                        serializedObject.FindProperty("m_MetricLineGap").intValue = face.NaturalMetrics.LineGap;
+                    }
+                    serializedObject.ApplyModifiedProperties();
+                }));
+        }
+
+        protected static VisualElement AxesCard(LetteraFontAsset font)
+        {
+            FontFace face = font.LoadFace();
+            if (face == null || !face.IsVariable) return LtUI.Card("Variable Axes", LtUI.Text("This font has no axes.", "lt-hint"));
+            var status = new LtStatus();
+            foreach (FontFace.AxisInfo axis in face.Axes)
+            {
+                FontFace.AxisInfo shown = axis;
+                status.Line(shown.Tag, () => shown.Min.ToString("0.##") + " to " + shown.Max.ToString("0.##") + ", default " + shown.Default.ToString("0.##"));
+            }
+            status.Refresh();
+            return LtUI.Card("Variable Axes", status, LtUI.Text("A Font Variant pins a point of these, as an asset of its own.", "lt-hint"));
+        }
+
         protected VisualElement AtlasPreview()
         {
             var image = new Image { scaleMode = ScaleMode.ScaleToFit };
@@ -119,16 +162,54 @@ namespace FirstSymbol.Lettera.Editor
     {
         protected override string Title => "Lettera Font";
 
-        // Worked out when the card is drawn, so that a closed inspector costs nothing.
-        static VisualElement MemoryCard(LetteraFont font)
+        static string Kb(long bytes) => (bytes / 1024).ToString("N0", System.Globalization.CultureInfo.InvariantCulture) + " KB";
+
+        // Where a build keeps this font's bytes, by what the project's Font Memory card says for each target.
+        internal static string WhereBytesLive(LetteraFont font)
         {
-            FontFace face = font.LoadedFace;
-            string where = face == null ? "Not loaded yet" : face.Source == LetteraFontSource.CacheMapped ? "Mapped from the cache" : face.Source == LetteraFontSource.SystemMapped ? "Mapped from the system" : "In memory";
-            LetteraFontMemory.Sums sums = LetteraFontMemory.Totals;
-            return LtUI.Card("Memory",
-                LtUI.Row("This Font", LtUI.Text(where, "lt-row__value")),
-                LtUI.Row("Held", LtUI.Text(face != null ? $"{face.RetainedBytes / 1024} KB, {face.InstanceCount} instance(s)" : "Nothing", "lt-row__value"), "Bytes held in memory. A mapped file counts as none, and an instance is one set of variations or synthesis."),
-                LtUI.Row("All Fonts", LtUI.Text($"{sums.Faces} faces, {sums.RetainedBytes / 1024} KB held, {sums.MappedBytes / 1024} KB mapped", "lt-row__value")));
+            if (font.KeepInline) return "Inside this asset, on every target: Keep Inline is on.";
+            var words = new List<string>();
+            LetteraFontMemorySettings memory = LetteraSettings.Instance.FontMemory;
+            foreach ((string name, BuildTarget target) in new[] { ("Desktop", BuildTarget.StandaloneWindows64), ("Android", BuildTarget.Android), ("iOS", BuildTarget.iOS), ("Web", BuildTarget.WebGL) })
+                words.Add(name + ": " + (memory.Packaging(target) == LetteraFontPackaging.Packed ? "packed file, mapped" : "inside the asset"));
+            return string.Join(". ", words) + ".";
+        }
+
+        internal static VisualElement StatusCard(LetteraFont font)
+        {
+            var status = new LtStatus()
+                .Line("Loaded", () => font.LoadedFace == null ? "Not yet" : font.LoadedFace.Source == LetteraFontSource.CacheMapped ? "Mapped from the cache" : font.LoadedFace.Source == LetteraFontSource.SystemMapped ? "Mapped from the system" : "In memory", () => font.LoadFailed ? LtStatus.State.Bad : font.LoadedFace != null ? LtStatus.State.Good : LtStatus.State.None)
+                .Line("Held", () => font.LoadedFace != null ? Kb(font.LoadedFace.RetainedBytes) + ", " + font.LoadedFace.InstanceCount + " instance(s)" : "Nothing")
+                .Line("Stored", () => font.OriginalSize > 0 ? Kb(font.CompressedSize) + " of " + Kb(font.OriginalSize) + ", " + Mathf.RoundToInt(100f * font.CompressedSize / font.OriginalSize) + "%" : Kb(font.CompressedSize))
+                .Line("In A Build", () => WhereBytesLive(font))
+                .Line("All Fonts", () =>
+                {
+                    LetteraFontMemory.Sums sums = LetteraFontMemory.Totals;
+                    return sums.Faces + " faces, " + Kb(sums.RetainedBytes) + " held, " + Kb(sums.MappedBytes) + " mapped";
+                });
+            status.Refresh();
+            return status;
+        }
+
+        static VisualElement FacePage(LetteraFontAsset font)
+        {
+            FontFace face = font.LoadFace();
+            if (face == null) return LtUI.Text("This font could not be read.", "lt-note");
+            FaceMetrics m = face.NaturalMetrics;
+            LtStatus facts = new LtStatus()
+                .Line("Family", () => face.Family)
+                .Line("Style", () => face.StyleName)
+                .Line("Weight", () => face.Weight.ToString())
+                .Line("Italic", () => face.IsItalic ? "Yes" : "No")
+                .Line("Units Per Em", () => m.Upem.ToString())
+                .Line("Ascender", () => m.Ascender.ToString())
+                .Line("Descender", () => m.Descender.ToString())
+                .Line("Line Gap", () => m.LineGap.ToString())
+                .Line("Cap Height", () => m.CapHeight.ToString())
+                .Line("X Height", () => m.XHeight.ToString())
+                .Line("Glyphs", () => LetteraNative.lt_face_glyph_count(face.Face).ToString());
+            facts.Refresh();
+            return facts;
         }
 
         protected override void Fill(VisualElement root)
@@ -144,21 +225,38 @@ namespace FirstSymbol.Lettera.Editor
                 root.Add(LtUI.Text("The stored font could not be read.", "lt-note"));
                 return;
             }
-            root.Add(LtUI.Card("Font",
-                LtUI.Row("Family", LtUI.Text(font.FamilyName, "lt-row__value")),
-                LtUI.Row("Stored", LtUI.Text($"{font.CompressedSize / 1024} KB of {font.OriginalSize / 1024} KB", "lt-row__value")),
+            root.Add(LtUI.Card("Status",
+                StatusCard(font),
+                new LtFold("About This Face", () => FacePage(font)),
+                LtUI.Clickable("Clear", "lt-add lt-add--small", "Lets go of this font's loaded data until a text next asks for it.", () =>
+                {
+                    font.ReleaseFace();
+                    root.Clear();
+                    Rebuild(root);
+                })));
+            root.Add(LtUI.Card("Source",
                 Field("Face Index", "m_FaceIndex", "The face inside a .ttc or .otc file."),
                 Field("Keep Inline", "m_KeepInline", "Keeps this font inside its asset in every build, whatever the project's packaging says.")));
-            root.Add(MemoryCard(font));
+            root.Add(FontCommon());
+            root.Add(PixelCard(font));
+            root.Add(MetricsCard(font));
+            root.Add(AxesCard(font));
+            root.Add(LetteraGlyphGrid.Card(font));
+            root.Add(LetteraSubsetCard.Create(font));
 #if !LETTERA_NO_MATH
             Label mathFacts = LtUI.Text("", "lt-subtitle");
             mathFacts.style.whiteSpace = WhiteSpace.Normal;
-            root.Add(LtUI.Card("Math", LtUI.Clickable("Read The Math Table", "lt-button", "Opens the font and says what it holds for formulas.", () => mathFacts.text = LetteraMathInspector.DescribeFont(font)), mathFacts));
+            root.Add(LtUI.Card("Math", LtUI.Clickable("Read The Math Table", "lt-add lt-add--small", "Opens the font and says what it holds for formulas.", () => mathFacts.text = LetteraMathInspector.DescribeFont(font)), mathFacts));
 #endif
-            root.Add(FontCommon());
-            root.Add(PixelCard(font));
-            root.Add(LetteraSubsetCard.Create(font));
+            root.Add(LetteraFindUses.Card(font));
             root.Add(AtlasPreview());
+        }
+
+        void Rebuild(VisualElement root)
+        {
+            VisualElement info = LtUI.El("lt-header__info", LtUI.Text(Title, "lt-title"), LtUI.Text(target.name, "lt-subtitle"));
+            root.Add(LtUI.El("lt-header", LtUI.Text("Lt", "lt-mark"), info));
+            Fill(root);
         }
     }
 
@@ -254,12 +352,54 @@ namespace FirstSymbol.Lettera.Editor
         protected override void Fill(VisualElement root)
         {
             var variant = (LetteraFontVariant)target;
-            if (variant.HasError) root.Add(LtUI.Text("This variant has no readable source font, so texts fall back past it.", "lt-note"));
+            if (variant.HasError) root.Add(new LtFix("This variant has no readable source font, so texts fall back past it.", () => variant.HasError));
             root.Add(LtUI.Card("Source", Field("Source", "m_Source"), Field("Face", "m_Face")));
-            root.Add(LtUI.Card("Design Space", LtUI.Field("Axes", serializedObject.FindProperty("m_Axes"))));
+            SerializedProperty axes = serializedObject.FindProperty("m_Axes");
+            root.Add(LtUI.Card("", new LtList("Design Space", axes, (axis, index) => AxisRow(variant, axis), "No axes pinned: the font's defaults hold.", list =>
+            {
+                serializedObject.Update();
+                axes.arraySize++;
+                SerializedProperty added = axes.GetArrayElementAtIndex(axes.arraySize - 1);
+                FontFace face = variant.LoadFace();
+                IReadOnlyList<FontFace.AxisInfo> known = face != null ? face.Axes : new FontFace.AxisInfo[0];
+                var taken = new HashSet<string>();
+                for (int i = 0; i < axes.arraySize - 1; i++) taken.Add(axes.GetArrayElementAtIndex(i).FindPropertyRelative("Tag").stringValue);
+                foreach (FontFace.AxisInfo info in known)
+                {
+                    if (taken.Contains(info.Tag)) continue;
+                    added.FindPropertyRelative("Tag").stringValue = info.Tag;
+                    added.FindPropertyRelative("Value").floatValue = info.Default;
+                    break;
+                }
+                serializedObject.ApplyModifiedProperties();
+                list.Rebuild();
+            })));
             root.Add(LtUI.Card("Reported As", Field("Family", "m_Family"), Field("Weight", "m_Weight"), Field("Italic", "m_Italic")));
             root.Add(FontCommon());
             root.Add(PixelCard(variant));
+            root.Add(MetricsCard(variant));
+            root.Add(LetteraGlyphGrid.Card(variant));
+            root.Add(LetteraFindUses.Card(variant));
+        }
+
+        // A tag, and the value on a slider that knows the axis's own range when the font does.
+        VisualElement AxisRow(LetteraFontVariant variant, SerializedProperty axis)
+        {
+            SerializedProperty tag = axis.FindPropertyRelative("Tag").Copy();
+            SerializedProperty value = axis.FindPropertyRelative("Value").Copy();
+            VisualElement line = LtUI.El("lt-axis");
+            FontFace face = variant.Source != null ? variant.Source.LoadFace() : null;
+            FontFace.AxisInfo known = face != null ? face.Axes.FirstOrDefault(a => a.Tag == tag.stringValue) : default;
+            line.Add(LtUI.Field("Tag", tag, "The axis tag, such as wght, wdth or GRAD."));
+            line.Add(LtUI.Field("Value", value));
+            if (!string.IsNullOrEmpty(known.Tag))
+            {
+                var slider = new Slider(known.Min, known.Max);
+                slider.AddToClassList("lt-grow");
+                slider.BindProperty(value);
+                line.Add(LtUI.Row(known.Min.ToString("0.##") + " to " + known.Max.ToString("0.##") + ", default " + known.Default.ToString("0.##"), slider));
+            }
+            return line;
         }
     }
 
@@ -270,9 +410,28 @@ namespace FirstSymbol.Lettera.Editor
 
         protected override void Fill(VisualElement root)
         {
-            root.Add(LtUI.Card("Families", new PropertyField(serializedObject.FindProperty("m_Families"), "")));
+            root.Add(LtUI.Card("", new LtList("Families", serializedObject.FindProperty("m_Families"), FamilyRow, "No families yet. Drag fonts into a new row, or create a stack from selected fonts in the Project window.")));
             root.Add(LtUI.Card("After These", Field("Fallback Stack", "m_FallbackStack")));
-            root.Bind(serializedObject);
+            root.Add(LetteraStackFacts.TestLine((LetteraFontStack)target));
+            root.Add(LetteraFindUses.Card(target));
+        }
+
+        static VisualElement FamilyRow(SerializedProperty family, int index)
+        {
+            SerializedProperty primary = family.FindPropertyRelative("m_Primary").Copy();
+            string name = family.FindPropertyRelative("m_Name").stringValue;
+            var font = primary.objectReferenceValue as LetteraFontAsset;
+            string title = !string.IsNullOrEmpty(name) ? name : font != null ? font.name : "Family " + (index + 1);
+            string language = family.FindPropertyRelative("m_PreferredLanguage").stringValue;
+            string coverage = LetteraStackFacts.Coverage(font);
+            VisualElement row = LtUI.El("lt-family");
+            row.Add(LtUI.El("lt-family__head", LtUI.Text(title, "lt-row__label lt-family__name"), LtUI.Text(string.IsNullOrEmpty(language) ? coverage : language + ". " + coverage, "lt-hint lt-family__facts")));
+            row.Add(LtUI.Field("Primary", primary));
+            row.Add(new LtFold("Name, Faces And Language", () => LtUI.El("lt-list",
+                LtUI.Field("Name", family.FindPropertyRelative("m_Name")),
+                LtUI.Field("Faces", family.FindPropertyRelative("m_Faces"), "Bold, italic and other faces of this family."),
+                LtUI.Field("Language", family.FindPropertyRelative("m_PreferredLanguage"), "A BCP 47 tag this family is chosen for, such as ja."))));
+            return row;
         }
     }
 
@@ -280,16 +439,60 @@ namespace FirstSymbol.Lettera.Editor
     internal sealed class LetteraSystemFontEditor : LtAssetEditor
     {
         protected override string Title => "Lettera System Font";
+        static readonly (string name, string field)[] s_Platforms = { ("Common", "m_Common"), ("Windows", "m_Windows"), ("macOS", "m_MacOS"), ("Linux", "m_Linux"), ("iOS", "m_IOS"), ("Android", "m_Android") };
+        const string TabKey = "Lettera.Inspector.SystemFontTab";
 
         protected override void Fill(VisualElement root)
         {
-            VisualElement card = LtUI.Card("Names To Try");
-            foreach (SerializedProperty child in TopLevel())
+            var font = (LetteraSystemFont)target;
+            VisualElement tabs = LtUI.El("lt-tabs");
+            VisualElement page = LtUI.El("lt-list");
+            var items = new List<VisualElement>();
+            void Show(int index)
             {
-                if (child.name == "m_Script") continue;
-                card.Add(LtUI.Field(child.displayName, child.Copy()));
+                LtPrefs.SetFloat(TabKey, index);
+                for (int i = 0; i < items.Count; i++) items[i].EnableInClassList("lt-tab--active", i == index);
+                page.Clear();
+                (string name, string field) = s_Platforms[index];
+                SerializedProperty names = serializedObject.FindProperty(field);
+                if (index > 0)
+                {
+                    page.Add(LtUI.Row("Own List For " + name, LtUI.El("lt-switch-holder", LtUI.Toggle(() => serializedObject.FindProperty(field).arraySize > 0, on =>
+                    {
+                        serializedObject.Update();
+                        SerializedProperty list = serializedObject.FindProperty(field);
+                        list.arraySize = on ? 1 : 0;
+                        if (on) list.GetArrayElementAtIndex(0).stringValue = "";
+                        serializedObject.ApplyModifiedProperties();
+                        Show(index);
+                    })), "On: this platform tries its own names first, then Common."));
+                }
+                if (index == 0 || names.arraySize > 0) page.Add(new LtList("Names To Try", names, (element, row) => LtUI.Field("", element), "No names here."));
             }
-            root.Add(card);
+            for (int i = 0; i < s_Platforms.Length; i++)
+            {
+                int index = i;
+                Label tab = LtUI.Text(s_Platforms[i].name, "lt-tab__label");
+                VisualElement item = LtUI.El("lt-tab", tab);
+                item.RegisterCallback<ClickEvent>(_ => Show(index));
+                items.Add(item);
+                tabs.Add(item);
+            }
+            LtStatus status = new LtStatus()
+                .Line("Answers With", () => font.ResolveFailed ? "No name here matches: the system's default face" : !string.IsNullOrEmpty(font.ResolvedFamily) ? font.ResolvedFamily : "Not looked up yet", () => font.ResolveFailed ? LtStatus.State.Warn : !string.IsNullOrEmpty(font.ResolvedFamily) ? LtStatus.State.Good : LtStatus.State.None)
+                .Line("Face", () => font.LoadFace() == null ? "None" : font.LoadFace().Family + (string.IsNullOrEmpty(font.LoadFace().StyleName) ? "" : ", " + font.LoadFace().StyleName))
+                .Line("Size", () => font.LoadFace() == null ? "" : (font.LoadFace().MappedBytes + font.LoadFace().RetainedBytes) / 1024 + " KB");
+            status.Refresh();
+            root.Add(LtUI.Card("Status", status, LtUI.Clickable("Re-Resolve", "lt-add lt-add--small", "Looks the names up again.", () =>
+            {
+                font.Common = font.Common;
+                font.LoadFace();
+                status.Refresh();
+            })));
+            root.Add(LtUI.Card("By Platform", tabs, page));
+            Show(Mathf.Clamp((int)LtPrefs.GetFloat(TabKey, 0), 0, s_Platforms.Length - 1));
+            root.Add(FontCommon());
+            root.Add(LetteraFindUses.Card(font));
         }
     }
 
@@ -300,7 +503,7 @@ namespace FirstSymbol.Lettera.Editor
 
         protected override void Fill(VisualElement root)
         {
-            VisualElement card = LtUI.Card("Font");
+            VisualElement card = LtUI.Card("Kinds");
             FontFace colorFace = target is LetteraFont stored && stored.HasData ? stored.LoadFace() : null;
             if (colorFace != null)
             {
@@ -310,14 +513,21 @@ namespace FirstSymbol.Lettera.Editor
                 if ((flags & 1) != 0) kinds.Add("COLRv0");
                 if ((flags & 4) != 0) kinds.Add("Bitmaps");
                 if ((flags & 8) != 0) kinds.Add("SVG (not drawn)");
-                card.Add(LtUI.Row("Color Kinds", LtUI.Text(kinds.Count > 0 ? string.Join(", ", kinds) : "None", "lt-row__value")));
+                card.Add(new LtStatus().Line("Color Kinds", () => kinds.Count > 0 ? string.Join(", ", kinds) : "None", () => kinds.Count > 0 ? LtStatus.State.Good : LtStatus.State.Warn).RefreshNow());
             }
+            else
+            {
+                card.Add(LtUI.Text("This asset holds no font yet.", "lt-hint"));
+            }
+            root.Add(card);
+            VisualElement fields = LtUI.Card("Font");
             foreach (SerializedProperty child in TopLevel())
             {
                 if (child.name == "m_Script") continue;
-                card.Add(LetteraPaintField.For(child, target));
+                fields.Add(LetteraPaintField.For(child, target));
             }
-            root.Add(card);
+            root.Add(fields);
+            root.Add(LetteraFindUses.Card(target));
         }
     }
 
@@ -326,7 +536,11 @@ namespace FirstSymbol.Lettera.Editor
     {
         protected override string Title => "Lettera Style Preset";
 
-        protected override void Fill(VisualElement root) => root.Add(new LetteraStyleList(serializedObject, "m_Styles").Build());
+        protected override void Fill(VisualElement root)
+        {
+            root.Add(new LetteraStyleList(serializedObject, "m_Styles").Build());
+            root.Add(LetteraFindUses.Card(target));
+        }
     }
 
     [CustomEditor(typeof(LetteraEffectPreset))]
@@ -339,6 +553,7 @@ namespace FirstSymbol.Lettera.Editor
             VisualElement card = LtUI.Card("Effect");
             card.Add(LetteraPaintField.For(serializedObject.FindProperty("m_Root"), target));
             root.Add(card);
+            root.Add(LetteraFindUses.Card(target));
         }
     }
 
@@ -347,44 +562,31 @@ namespace FirstSymbol.Lettera.Editor
     {
         protected override string Title => "Lettera Paint Library";
 
-        VisualElement m_List;
-
         protected override void Fill(VisualElement root)
         {
-            m_List = new VisualElement();
-            root.Add(m_List);
-            root.Add(LtUI.Clickable("+ Add Swatch", "lt-add", "Add a named paint", () =>
+            SerializedProperty swatches = serializedObject.FindProperty("m_Swatches");
+            root.Add(LtUI.Card("", new LtList("Swatches", swatches, (swatch, index) => LtUI.El("lt-row lt-row--pair",
+                LtUI.Field("", swatch.FindPropertyRelative("Name")),
+                new LtPaint("", swatch.FindPropertyRelative("Paint"))), "No paints yet. An effect can then use only its own.", list =>
             {
                 serializedObject.Update();
-                SerializedProperty swatches = serializedObject.FindProperty("m_Swatches");
                 swatches.InsertArrayElementAtIndex(swatches.arraySize);
                 swatches.GetArrayElementAtIndex(swatches.arraySize - 1).FindPropertyRelative("Name").stringValue = "New Paint";
                 serializedObject.ApplyModifiedProperties();
-                Rebuild();
-            }));
-            Rebuild();
+                list.Rebuild();
+            }, "+ Add Swatch")));
+            root.Add(LetteraFindUses.Card(target));
         }
+    }
 
-        void Rebuild()
-        {
-            m_List.Clear();
-            serializedObject.Update();
-            SerializedProperty swatches = serializedObject.FindProperty("m_Swatches");
-            for (int i = 0; i < swatches.arraySize; i++)
-            {
-                int index = i;
-                SerializedProperty swatch = swatches.GetArrayElementAtIndex(i);
-                VisualElement card = LtUI.Card(null, LtUI.Field("Name", swatch.FindPropertyRelative("Name").Copy()), LetteraPaintField.Paint(swatch.FindPropertyRelative("Paint").Copy()));
-                card.Add(LtUI.Clickable("× Remove", "lt-add lt-add--small", "Remove this swatch", () =>
-                {
-                    serializedObject.Update();
-                    serializedObject.FindProperty("m_Swatches").DeleteArrayElementAtIndex(index);
-                    serializedObject.ApplyModifiedProperties();
-                    Rebuild();
-                }));
-                m_List.Add(card);
-            }
-        }
+    [CustomEditor(typeof(LetteraSettings))]
+    internal sealed class LetteraSettingsEditor : LtAssetEditor
+    {
+        protected override string Title => "Lettera Settings";
+
+        protected override void Fill(VisualElement root) => root.Add(LtUI.Card("",
+            LtUI.Text("Everything here is edited in one place, in Project Settings.", "lt-hint"),
+            LtUI.Clickable("Open Project Settings", "lt-add lt-add--small", "Goes to Project Settings > Lettera.", () => SettingsService.OpenProjectSettings("Project/Lettera"))));
     }
 
     /// <summary>Writes the files of an effect of your own: a shader whose one function you edit, for a Custom Material effect on Canvas and world text.</summary>
@@ -529,17 +731,48 @@ namespace FirstSymbol.Lettera.Editor
     /// <summary>What the Scene view adds to a selected text: its padding, and the circle of a curved baseline, with a handle for the radius.</summary>
     internal static class LetteraSceneHandles
     {
+        internal static readonly Color PaddingColor = new Color(0.45f, 0.75f, 1f, 0.8f), RaycastColor = new Color(0.3f, 1f, 0.5f, 0.8f), InkColor = new Color(0.61f, 0.43f, 1f, 0.8f);
+
         /// <summary>The area that takes pointers, in a colour of its own.</summary>
         public static void DrawRaycast(Component text, Vector4 padding)
         {
             var rect = text.transform as RectTransform;
-            if (rect == null) return;
+            if (rect == null || !LetteraSceneOptions.Outlines) return;
             Matrix4x4 saved = Handles.matrix;
             Handles.matrix = rect.localToWorldMatrix;
-            Rect box = rect.rect;
-            var inner = Rect.MinMaxRect(box.xMin + padding.x, box.yMin + padding.y, box.xMax - padding.z, box.yMax - padding.w);
-            Handles.DrawSolidRectangleWithOutline(inner, Color.clear, new Color(0.3f, 1f, 0.5f, 0.8f));
+            Handles.DrawSolidRectangleWithOutline(Inside(rect.rect, padding), Color.clear, RaycastColor);
             Handles.matrix = saved;
+        }
+
+        /// <summary>Where the letters really are, in the text's own space. Empty before it has drawn anything.</summary>
+        internal static Rect InkRect(TextEngine engine)
+        {
+            if (engine == null || engine.VertexCount == 0) return Rect.zero;
+            Bounds bounds = engine.MeshBounds;
+            return new Rect(bounds.min.x, bounds.min.y, bounds.size.x, bounds.size.y);
+        }
+
+        /// <summary>What the mesh covers, in a colour of its own.</summary>
+        public static void DrawInk(Component text, TextEngine engine)
+        {
+            Rect ink = InkRect(engine);
+            if (ink.width <= 0 || !LetteraSceneOptions.Outlines) return;
+            Matrix4x4 saved = Handles.matrix;
+            Handles.matrix = text.transform.localToWorldMatrix;
+            Handles.DrawSolidRectangleWithOutline(ink, Color.clear, InkColor);
+            Handles.matrix = saved;
+        }
+
+        internal static Rect Inside(Rect box, Vector4 padding) => Rect.MinMaxRect(box.xMin + padding.x, box.yMin + padding.y, box.xMax - padding.z, box.yMax - padding.w);
+
+        /// <summary>A line in the Scene view beside a text.</summary>
+        public static void Warn(Component text, string words)
+        {
+            var rect = text.transform as RectTransform;
+            Vector3 at = rect != null ? rect.TransformPoint(new Vector3(rect.rect.xMin, rect.rect.yMax, 0)) : text.transform.position;
+            var style = new GUIStyle(EditorStyles.boldLabel);
+            style.normal.textColor = new Color(0.96f, 0.65f, 0.14f);
+            Handles.Label(at, words, style);
         }
 
         public static void Draw(Component text, Vector4 padding, IReadOnlyList<LetteraStyle> styles, float fontSize)
@@ -548,13 +781,8 @@ namespace FirstSymbol.Lettera.Editor
             if (rect == null) return;
             Matrix4x4 saved = Handles.matrix;
             Handles.matrix = rect.localToWorldMatrix;
-            if (padding != Vector4.zero)
-            {
-                Rect box = rect.rect;
-                var inner = Rect.MinMaxRect(box.xMin + padding.x, box.yMin + padding.y, box.xMax - padding.z, box.yMax - padding.w);
-                Handles.color = new Color(0.45f, 0.75f, 1f, 0.8f);
-                Handles.DrawSolidRectangleWithOutline(inner, Color.clear, Handles.color);
-            }
+            if (padding != Vector4.zero && LetteraSceneOptions.Outlines)
+                Handles.DrawSolidRectangleWithOutline(Inside(rect.rect, padding), Color.clear, PaddingColor);
             foreach (LetteraStyle style in styles)
             {
                 if (!(style?.Effect is CurveEffect curve)) continue;

@@ -71,6 +71,31 @@ namespace FirstSymbol.Lettera.Editor
         {
             var text = (LetteraText3D)target;
             LetteraSceneHandles.Draw(text, text.Padding, text.Styles, text.FontSize);
+            DepthGizmo(text);
+        }
+
+        // How deep the text stands: a box around it and a handle on its back. The depth is in em, and the box in the text's own space.
+        static void DepthGizmo(LetteraText3D text)
+        {
+            var rect = text.transform as RectTransform;
+            if (!LetteraSceneOptions.Outlines || rect == null) return;
+            Rect box = rect.rect;
+            float size = text.Engine != null && text.Engine.CurrentFontSize > 0 ? text.Engine.CurrentFontSize : text.FontSize;
+            float depth = text.Depth * size;
+            Matrix4x4 saved = Handles.matrix;
+            Handles.matrix = rect.localToWorldMatrix;
+            Handles.color = LetteraSceneHandles.InkColor;
+            Handles.DrawWireCube(new Vector3(box.center.x, box.center.y, depth * 0.5f), new Vector3(box.width, box.height, depth));
+            EditorGUI.BeginChangeCheck();
+            Vector3 back = new Vector3(box.center.x, box.center.y, depth);
+            Vector3 moved = Handles.Slider(back, Vector3.forward, HandleUtility.GetHandleSize(back) * 0.6f, Handles.ArrowHandleCap, 0);
+            if (EditorGUI.EndChangeCheck() && size > 0)
+            {
+                Undo.RecordObject(text, "Change Depth");
+                text.Depth = Mathf.Max(moved.z, 0) / size;
+                EditorUtility.SetDirty(text);
+            }
+            Handles.matrix = saved;
         }
 
         SerializedProperty P(string name) => serializedObject.FindProperty(name);

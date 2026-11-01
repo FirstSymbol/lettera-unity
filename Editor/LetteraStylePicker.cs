@@ -543,7 +543,7 @@ namespace FirstSymbol.Lettera.Editor
         static List<LetteraStyleTemplate> Recent()
         {
             var list = new List<LetteraStyleTemplate>();
-            foreach (string key in EditorPrefs.GetString(RecentKey, "").Split('\n'))
+            foreach (string key in LtPrefs.GetString(RecentKey, "").Split('\n'))
             {
                 LetteraStyleTemplate found = LetteraStyleTemplates.All.FirstOrDefault(t => KeyOf(t) == key);
                 if (found != null) list.Add(found);
@@ -553,14 +553,14 @@ namespace FirstSymbol.Lettera.Editor
 
         internal static void Remember(LetteraStyleTemplate template)
         {
-            var keys = EditorPrefs.GetString(RecentKey, "").Split(new[] { '\n' }, StringSplitOptions.RemoveEmptyEntries).ToList();
+            var keys = LtPrefs.GetString(RecentKey, "").Split(new[] { '\n' }, StringSplitOptions.RemoveEmptyEntries).ToList();
             keys.Remove(KeyOf(template));
             keys.Insert(0, KeyOf(template));
             if (keys.Count > MostRecent) keys.RemoveRange(MostRecent, keys.Count - MostRecent);
-            EditorPrefs.SetString(RecentKey, string.Join("\n", keys));
+            LtPrefs.SetString(RecentKey, string.Join("\n", keys));
         }
 
-        internal static void ForgetRecent() => EditorPrefs.DeleteKey(RecentKey);
+        internal static void ForgetRecent() => LtPrefs.DeleteKey(RecentKey);
     }
 
     /// <summary>The window that holds the picker: of one size, on the side with room, gone with Esc or a click elsewhere.</summary>

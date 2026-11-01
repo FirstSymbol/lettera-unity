@@ -100,6 +100,25 @@ namespace FirstSymbol.Lettera.Editor
             m_Sections.Add(document);
             m_Root.Add(math);
             m_Root.Add(document);
+            if (!Application.isPlaying) return;
+            // In play mode, what each range is doing now.
+            VisualElement states = LtUI.El("lt-list");
+            var live = new LtSection(prefix + ".live", "Live").With(states);
+            void RefreshLive()
+            {
+                states.Clear();
+                LetteraRangeRouter router = LetteraRangeRouter.Of((Component)m_Object.targetObject);
+                var entries = new List<LetteraRangeInfoEntry>();
+                router?.Snapshot(entries);
+                bool any = entries.Count > 0;
+                foreach (LetteraRangeInfoEntry entry in entries)
+                    states.Add(LtUI.Row(entry.Primary + "  " + entry.Start + " to " + entry.End, LtUI.Text(entry.State.ToString(), "lt-row__value")));
+                live.style.display = any ? DisplayStyle.Flex : DisplayStyle.None;
+            }
+            RefreshLive();
+            m_Root.schedule.Execute(RefreshLive).Every(250);
+            m_Sections.Add(live);
+            m_Root.Add(live);
         }
 
         string FirstLine()
@@ -158,54 +177,7 @@ namespace FirstSymbol.Lettera.Editor
         }
 
         // Hides what does not fit by a class, so that what a row shows by its own rule stays that row's own business.
-        internal void Filter(string query)
-        {
-            bool filtering = !string.IsNullOrWhiteSpace(query);
-            foreach (LtSection section in m_Sections)
-            {
-                bool titleFits = filtering && LtSearchText.Score(query, section.Title) > 0;
-                bool any = false;
-                foreach (VisualElement row in section.Content.Query(className: "lt-row").ToList())
-                {
-                    bool fits = !filtering || titleFits || RowFits(row, query);
-                    row.EnableInClassList("lt-filtered", !fits);
-                    any |= fits;
-                }
-                foreach (VisualElement row in section.Content.Query(className: "lt-list__row").ToList())
-                {
-                    bool fits = !filtering || titleFits || WordsFit(row, query);
-                    row.EnableInClassList("lt-filtered", !fits);
-                    any |= fits;
-                }
-                foreach (VisualElement tool in section.Content.Query(className: "lt-tool").ToList())
-                {
-                    bool fits = !filtering || titleFits || (tool is Label label && LtSearchText.Score(query, label.text) >= 30) || (!string.IsNullOrEmpty(tool.tooltip) && LtSearchText.Score(query, tool.tooltip) >= 60);
-                    tool.EnableInClassList("lt-filtered", !fits);
-                    any |= fits;
-                }
-                foreach (VisualElement source in section.Content.Query(className: "lt-source-box").ToList())
-                    source.EnableInClassList("lt-filtered", filtering && !titleFits);
-                section.EnableInClassList("lt-filtered", filtering && !any && !titleFits);
-                section.ForceOpen(filtering && (any || titleFits));
-            }
-        }
-
-        static bool RowFits(VisualElement row, string query)
-        {
-            if (!string.IsNullOrEmpty(row.tooltip) && LtSearchText.Score(query, row.tooltip) >= 60) return true;
-            foreach (Label label in row.Query<Label>().ToList())
-                if ((label.ClassListContains("lt-row__label") || label.ClassListContains("lt-inline__label")) && LtSearchText.Score(query, label.text) > 0)
-                    return true;
-            return false;
-        }
-
-        static bool WordsFit(VisualElement row, string query)
-        {
-            foreach (Label label in row.Query<Label>().ToList())
-                if ((label.ClassListContains("lt-style__tag") || label.ClassListContains("lt-style__type") || label.ClassListContains("lt-row__label") || label.ClassListContains("lt-object__name")) && LtSearchText.Score(query, label.text) > 0)
-                    return true;
-            return false;
-        }
+        internal void Filter(string query) => LtFilter.Apply(m_Sections, query);
 
         // ------------------------------------------------------------- header
 
@@ -406,21 +378,21 @@ namespace FirstSymbol.Lettera.Editor
 
         bool ColoredOn
         {
-            get => EditorPrefs.GetBool(ColoredKey, true);
-            set => EditorPrefs.SetBool(ColoredKey, value);
+            get => LtPrefs.GetBool(ColoredKey, true);
+            set => LtPrefs.SetBool(ColoredKey, value);
         }
 
         float PreviewSize
         {
-            get => EditorPrefs.GetFloat(PreviewSizeKey, 12);
-            set => EditorPrefs.SetFloat(PreviewSizeKey, value);
+            get => LtPrefs.GetFloat(PreviewSizeKey, 12);
+            set => LtPrefs.SetFloat(PreviewSizeKey, value);
         }
 
         VisualElement BuildEditor()
         {
             // Tools about how the source is shown.
             VisualElement show = LtUI.El("lt-toolbar lt-toolbar--show");
-            m_Tall = EditorPrefs.GetBool(TallKey, false);
+            m_Tall = LtPrefs.GetBool(TallKey, false);
             VisualElement expand = IconTool(LtIcon.Kind.Expand, "A taller text field", ToggleTall);
             expand.name = "lt-expand";
             expand.EnableInClassList("lt-tool--on", m_Tall);
@@ -515,7 +487,7 @@ namespace FirstSymbol.Lettera.Editor
         void ToggleTall()
         {
             m_Tall = !m_Tall;
-            EditorPrefs.SetBool(TallKey, m_Tall);
+            LtPrefs.SetBool(TallKey, m_Tall);
             m_TextField.EnableInClassList("lt-source--tall", m_Tall);
             m_Root.Q("lt-expand")?.EnableInClassList("lt-tool--on", m_Tall);
         }
@@ -1093,7 +1065,8 @@ namespace FirstSymbol.Lettera.Editor
         {
             var text = (LetteraText)target;
             LetteraSceneHandles.Draw(text, text.Padding, text.Styles, text.FontSize);
-            if (text.raycastPadding != Vector4.zero) LetteraSceneHandles.DrawRaycast(text, text.raycastPadding);
+            LetteraSceneHandles.DrawInk(text, ((ITextComponent)text).SharedEngine);
+            if (text.raycastTarget) LetteraSceneHandles.DrawRaycast(text, text.raycastPadding);
         }
 
         protected override void BuildRender(VisualElement page)
@@ -1115,6 +1088,8 @@ namespace FirstSymbol.Lettera.Editor
         {
             var text = (LetteraWorldText)target;
             LetteraSceneHandles.Draw(text, text.Padding, text.Styles, text.FontSize);
+            LetteraSceneHandles.DrawInk(text, ((ITextComponent)text).SharedEngine);
+            if (NeedsRaycaster()) LetteraSceneHandles.Warn(text, "No World Raycaster on a camera: nothing can click this.");
         }
 
         protected override void BuildRender(VisualElement page)

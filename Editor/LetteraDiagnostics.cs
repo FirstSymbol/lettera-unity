@@ -102,10 +102,10 @@ namespace FirstSymbol.Lettera.Editor
 
         internal static bool Enabled
         {
-            get => EditorPrefs.GetBool(Key, false);
+            get => LtPrefs.GetBool(Key, false);
             set
             {
-                EditorPrefs.SetBool(Key, value);
+                LtPrefs.SetBool(Key, value);
                 SceneView.RepaintAll();
             }
         }

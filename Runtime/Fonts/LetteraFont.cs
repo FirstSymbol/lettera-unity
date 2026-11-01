@@ -230,6 +230,13 @@ namespace FirstSymbol.Lettera
         // From here on the file holds it, and a bundle this came from can be unloaded.
         void DropPayload() => m_Compressed = null;
 
+        /// <summary>Lets go of the loaded face until a text next asks for it.</summary>
+        internal void ReleaseFace()
+        {
+            Unload();
+            NotifyChanged();
+        }
+
         void Unload()
         {
             m_Face?.Dispose();

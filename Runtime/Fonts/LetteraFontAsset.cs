@@ -21,6 +21,8 @@ namespace FirstSymbol.Lettera
         [SerializeField, Min(0)] int m_FontPixelsPerEm;
         [Tooltip("Keeps glyphs and the offsets of effects on the font's grid, so they move in whole pixels.")]
         [SerializeField] bool m_SnapToFontPixels = true;
+        [SerializeField] bool m_OverrideMetrics;
+        [SerializeField] int m_MetricAscender, m_MetricDescender, m_MetricLineGap;
 
         public float FontScale { get => m_FontScale; set { m_FontScale = value; NotifyChanged(); } }
         public bool NormalizeSize { get => m_NormalizeSize; set { m_NormalizeSize = value; NotifyChanged(); } }
@@ -51,6 +53,8 @@ namespace FirstSymbol.Lettera
             if (face == null) return;
             face.PixelGrid = m_FontPixelsPerEm;
             face.PixelSnap = m_SnapToFontPixels;
+            if (m_OverrideMetrics) face.OverrideMetrics(m_MetricAscender, m_MetricDescender, m_MetricLineGap);
+            else face.OverrideMetrics(null, null, null);
         }
 
         internal virtual FontFace LoadedFace => null;

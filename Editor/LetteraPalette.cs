@@ -211,7 +211,7 @@ namespace FirstSymbol.Lettera.Editor
             return ranked.OrderByDescending(r => r.score).ThenBy(r => r.command.Name, StringComparer.Ordinal).Select(r => r.command);
         }
 
-        static List<string> Recent() => EditorPrefs.GetString(RecentKey, "").Split(new[] { '\n' }, StringSplitOptions.RemoveEmptyEntries).ToList();
+        static List<string> Recent() => LtPrefs.GetString(RecentKey, "").Split(new[] { '\n' }, StringSplitOptions.RemoveEmptyEntries).ToList();
 
         static void Remember(string name)
         {
@@ -219,7 +219,7 @@ namespace FirstSymbol.Lettera.Editor
             recent.Remove(name);
             recent.Insert(0, name);
             if (recent.Count > 12) recent.RemoveRange(12, recent.Count - 12);
-            EditorPrefs.SetString(RecentKey, string.Join("\n", recent));
+            LtPrefs.SetString(RecentKey, string.Join("\n", recent));
         }
 
         static LetteraCommand Menu(string name, string group, string words, string menu, LetteraPaletteSource source = LetteraPaletteSource.Anywhere, string keys = null) =>
@@ -338,8 +338,8 @@ namespace FirstSymbol.Lettera.Editor
 
         internal static bool Enabled
         {
-            get => EditorPrefs.GetBool(EnabledKey, true);
-            set => EditorPrefs.SetBool(EnabledKey, value);
+            get => LtPrefs.GetBool(EnabledKey, true);
+            set => LtPrefs.SetBool(EnabledKey, value);
         }
 
         static LetteraPaletteHooks()

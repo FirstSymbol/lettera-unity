@@ -29,8 +29,38 @@ namespace FirstSymbol.Lettera.Editor
         }
 
         /// <summary>A labelled row, with this inspector's own switch for a bool.</summary>
-        public static VisualElement Row(SerializedProperty property) =>
-            property.propertyType == SerializedPropertyType.Boolean ? LtUI.Row(Nice(property.name), LtUI.Switch(property), property.tooltip) : LtUI.Field(Nice(property.name), property, property.tooltip);
+        public static VisualElement Row(SerializedProperty property) => LtUI.Field(Nice(property.name), property, property.tooltip);
+
+        /// <summary>A type's name in words, without what every one of its kind ends in.</summary>
+        public static string Words(Type type)
+        {
+            string name = type.Name;
+            foreach (string suffix in new[] { "Effect", "Rule", "Source" })
+                if (name.Length > suffix.Length && name.EndsWith(suffix, StringComparison.Ordinal))
+                    name = name.Substring(0, name.Length - suffix.Length);
+            return ObjectNames.NicifyVariableName(name);
+        }
+
+        /// <summary>A row of a list by the name it holds, or by its place while it has none.</summary>
+        public static string NameOr(SerializedProperty row, string nameField, string fallback)
+        {
+            string name = row.FindPropertyRelative(nameField)?.stringValue;
+            return string.IsNullOrEmpty(name) ? fallback : name;
+        }
+
+        /// <summary>A setting and the switch that goes with it, on one row.</summary>
+        public static VisualElement WithSwitch(VisualElement main, string label, SerializedProperty property, string tooltip = null) =>
+            LtUI.El("lt-row lt-row--pair", main, LtUI.InlineSwitch(label, property, tooltip));
+
+        /// <summary>The whole page of a small component or asset: what it is for in a line, and its fields on a card.</summary>
+        public static VisualElement Small(SerializedObject serialized, string title, string words, params string[] hidden)
+        {
+            VisualElement root = LtUI.Root();
+            VisualElement page = Header(root, title, words);
+            VisualElement fields = AllFields(serialized, "", hidden);
+            if (fields.childCount > 0) page.Add(fields);
+            return root;
+        }
 
         /// <summary>A card with a row for each named field. An empty list takes every visible field the others left.</summary>
         public static VisualElement Card(SerializedObject serialized, string title, params string[] names)
@@ -59,32 +89,29 @@ namespace FirstSymbol.Lettera.Editor
         }
     }
 
-    /// <summary>A list of serialized references: add through a picker, reorder, turn off, remove.</summary>
+    /// <summary>A list of serialized references, on the house's list: add through a grouped picker, drag, turn off at a row's end, remove.</summary>
     internal sealed class LetteraReferenceList : VisualElement
     {
         readonly SerializedObject m_Object;
         readonly string m_Path;
         readonly Func<List<(string, string, Type)>> m_Types;
         readonly Func<int, string> m_Warning;
-        readonly VisualElement m_Rows = new VisualElement();
+        readonly LtList m_List;
 
-        public LetteraReferenceList(SerializedProperty list, Func<List<(string, string, Type)>> types, Func<int, string> warning = null)
+        public LetteraReferenceList(SerializedProperty list, Func<List<(string, string, Type)>> types, Func<int, string> warning = null, string title = null, string empty = "None yet.")
         {
             m_Object = list.serializedObject;
             m_Path = list.propertyPath;
             m_Types = types;
             m_Warning = warning;
-            Add(m_Rows);
-            Add(LtUI.Clickable("+ Add", "lt-tool", "Add one", () =>
-            {
-                Rect anchor = worldBound;
-                LetteraTypePicker.Open(new Rect(anchor.x, anchor.yMax - 20, anchor.width, 20), m_Types(), AddOf);
-            }));
-            Rebuild();
-            this.TrackPropertyValue(m_Object.FindProperty(m_Path).FindPropertyRelative("Array.size"), _ => Rebuild());
+            m_List = new LtList(title, list, MakeRow, empty, _ => OpenPicker());
+            m_List.RowToText = element => element.managedReferenceValue != null ? element.managedReferenceValue.GetType().Name + " " + JsonUtility.ToJson(element.managedReferenceValue) : "";
+            Add(m_List);
         }
 
         SerializedProperty List => m_Object.FindProperty(m_Path);
+
+        void OpenPicker() => LetteraTypePicker.Open(m_List, m_Types(), LetteraRuleCatalog.Words, AddOf);
 
         internal void AddOf(Type type)
         {
@@ -95,67 +122,83 @@ namespace FirstSymbol.Lettera.Editor
             list.GetArrayElementAtIndex(index).managedReferenceValue = Activator.CreateInstance(type);
             m_Object.ApplyModifiedProperties();
             Rebuild();
+            m_List.OpenEnclosing();
         }
 
-        void Move(int from, int to)
-        {
-            m_Object.Update();
-            List.MoveArrayElement(from, to);
-            m_Object.ApplyModifiedProperties();
-            Rebuild();
-        }
+        internal void Rebuild() => m_List.Rebuild();
 
-        void Remove(int index)
+        VisualElement MakeRow(SerializedProperty element, int index)
         {
-            m_Object.Update();
-            List.DeleteArrayElementAtIndex(index);
-            m_Object.ApplyModifiedProperties();
-            Rebuild();
-        }
+            object value = element.managedReferenceValue;
+            if (value == null) return LtUI.Text("A rule whose class is gone.", "lt-hint");
+            Type type = value.GetType();
+            var info = type.GetCustomAttribute<LetteraRuleInfoAttribute>();
+            string title = info != null ? info.Title : LtFrame.Words(type);
 
-        internal void Rebuild()
-        {
-            m_Rows.Clear();
-            m_Object.UpdateIfRequiredOrScript();
-            SerializedProperty list = List;
-            for (int i = 0; i < list.arraySize; i++)
+            VisualElement body = LtUI.El("lt-ref-row");
+            SerializedProperty enabled = element.FindPropertyRelative("m_Enabled");
+            VisualElement head = LtUI.El("lt-ref-row__head", LtUI.Text(title, "lt-row__label lt-ref-row__title"));
+            string words = LetteraRuleCatalog.Words(type);
+            if (!string.IsNullOrEmpty(words)) head.tooltip = words;
+            if (enabled != null) head.Add(LtUI.Switch(enabled));
+            head.Add(LtUI.Clickable("×", "lt-icon-btn lt-icon-btn--danger", "Remove", () =>
             {
-                int index = i;
-                SerializedProperty element = list.GetArrayElementAtIndex(i);
-                object value = element.managedReferenceValue;
-                if (value == null) continue;
-                Type type = value.GetType();
-                var info = type.GetCustomAttribute<LetteraRuleInfoAttribute>();
-                string title = info != null ? info.Title : ObjectNames.NicifyVariableName(type.Name);
+                m_List.Selection.Click(index);
+                m_List.RemoveSelected();
+            }));
+            body.Add(head);
 
-                VisualElement head = LtUI.El("lt-row", LtUI.Text(title, "lt-row__label"));
-                SerializedProperty enabled = element.FindPropertyRelative("m_Enabled");
-                if (enabled != null) head.Add(LtUI.Switch(enabled));
-                head.Add(LtUI.Clickable("▲", "lt-tool", "Earlier", () => { if (index > 0) Move(index, index - 1); }));
-                head.Add(LtUI.Clickable("▼", "lt-tool", "Later", () => { if (index + 1 < List.arraySize) Move(index, index + 1); }));
-                head.Add(LtUI.Clickable("×", "lt-tool", "Remove", () => Remove(index)));
-                VisualElement card = LtUI.Card("", head);
+            string warning = m_Warning?.Invoke(index);
+            if (!string.IsNullOrEmpty(warning)) body.Add(new LtFix(warning, null));
 
-                string warning = m_Warning?.Invoke(index);
-                if (!string.IsNullOrEmpty(warning)) card.Add(LtUI.Text(warning, "lt-chip lt-chip--orange"));
-
-                SerializedProperty child = element.Copy();
-                SerializedProperty end = element.GetEndProperty();
-                bool enter = true;
-                while (child.NextVisible(enter) && !SerializedProperty.EqualContents(child, end))
-                {
-                    enter = false;
-                    if (child.name == "m_Enabled") continue;
-                    card.Add(LtFrame.Row(child.Copy()));
-                }
-                m_Rows.Add(card);
+            SerializedProperty child = element.Copy();
+            SerializedProperty end = element.GetEndProperty();
+            bool enter = true;
+            while (child.NextVisible(enter) && !SerializedProperty.EqualContents(child, end))
+            {
+                enter = false;
+                if (child.name == "m_Enabled") continue;
+                body.Add(LtFrame.Row(child.Copy()));
             }
+            return body;
         }
     }
 
     internal static class LetteraRuleCatalog
     {
         static List<(string, string, Type)> s_Rules, s_Commands;
+
+        static readonly Dictionary<Type, string> s_Words = new Dictionary<Type, string>
+        {
+            { typeof(SingleLineRule), "Stays on one line: line breaks are taken out." },
+            { typeof(PasswordRule), "Shows a mask, and refuses to copy." },
+            { typeof(MaxLengthRule), "Takes no more than so many characters." },
+            { typeof(PatternMaskRule), "Fits what is typed to a pattern, such as a phone number." },
+            { typeof(LetterCaseRule), "Turns what is typed to upper, lower or title case." },
+            { typeof(SelectAllOnFocusRule), "Selects everything when the field gets focus." },
+            { typeof(ReleaseOnCancelRule), "Esc ends editing, and puts the old value back." },
+            { typeof(EnterKeyRule), "What Enter does: a new line, or submit." },
+            { typeof(TabKeyRule), "What Tab does: a tab, spaces, or the next field." },
+            { typeof(KeyboardTraitsRule), "Which keyboard a phone offers, and its correction." },
+            { typeof(KeyboardLiftRule), "Lifts the field above a phone's keyboard." },
+            { typeof(AlphaNumericCharFilter), "Only letters and digits." },
+            { typeof(WholeNumberCharFilter), "Only a whole number." },
+            { typeof(DecimalCharFilter), "Only a number with a decimal point." },
+            { typeof(EmailCharFilter), "Only what an e-mail address can hold." },
+            { typeof(PersonNameCharFilter), "Only what a name can hold, with capitals where they go." },
+            { typeof(ValidationRule), "Checks the value, and says what is wrong with it." },
+            { typeof(HintDecorator), "A line that shows while the field is empty." },
+            { typeof(RaisedLabelDecorator), "A label that lies in the field, and rises when it fills." },
+            { typeof(HelperTextDecorator), "A line under the field, which an error replaces." },
+            { typeof(LengthCounterDecorator), "Counts what was typed against the limit." },
+        };
+
+        /// <summary>What a rule does, in a line. A custom one says it through a Tooltip attribute.</summary>
+        public static string Words(Type type)
+        {
+            if (s_Words.TryGetValue(type, out string words)) return words;
+            return type.GetCustomAttribute<TooltipAttribute>()?.tooltip;
+        }
 
         public static List<(string, string, Type)> Rules
         {
@@ -209,22 +252,65 @@ namespace FirstSymbol.Lettera.Editor
         {
             VisualElement root = LtUI.Root();
             VisualElement page = LtFrame.Header(root, "Selectable", "Selection, copy, gestures, handles and menu");
-            VisualElement warnings = LtUI.El("lt-chips");
+            VisualElement warnings = LtUI.El("lt-warnings");
             page.Add(warnings);
-            page.Add(LtFrame.Card(serializedObject, "Highlight", "m_UseProjectHighlightColor", "m_HighlightColor", "m_HighlightOrder", "m_InactiveHighlight"));
-            page.Add(LtFrame.Card(serializedObject, "Behaviour", "m_DragAutoScroll", "m_SelectOnRightClick", "m_Viewport"));
-            page.Add(LtFrame.Card(serializedObject, "Touch", "m_HandlesComponent", "m_LoupeComponent", "m_NoHandles", "m_NoLoupe", "m_MenuPresenter"));
-            page.Add(LtUI.Card("Commands", new LetteraReferenceList(serializedObject.FindProperty("m_Commands"), () => LetteraRuleCatalog.Commands)));
 
+            SerializedProperty P(string name) => serializedObject.FindProperty(name);
+            VisualElement color = LtUI.Field("Color", P("m_HighlightColor"), "This selection's own color.");
+            LetteraTextInspector.ShowWhen(color, P("m_UseProjectHighlightColor"), p => !p.boolValue);
+            page.Add(LtUI.Card("Highlight",
+                LtUI.Field("Project Color", P("m_UseProjectHighlightColor"), "Takes the color from Project Settings > Lettera."),
+                color,
+                LtUI.Field("Order", P("m_HighlightOrder"), "Whether the highlight lies under the text or over it."),
+                LtUI.Field("When Not Focused", P("m_InactiveHighlight"), "What a selection does while this text has no focus.")));
+            page.Add(LtUI.Card("Behaviour",
+                LtUI.Field("Scroll While Dragging", P("m_DragAutoScroll"), "A drag past the edge scrolls the view."),
+                LtUI.Field("Select On Right Click", P("m_SelectOnRightClick"), "A right click on no selection selects the word under it."),
+                LtUI.Field("Viewport", P("m_Viewport"), "What a scrolled text is clipped by. Handles hide outside it.")));
+            page.Add(LtUI.Card("Touch And Menu",
+                LtFrame.WithSwitch(LtUI.Field("Handles", P("m_HandlesComponent"), "Selection ends a finger can drag. Empty uses the project's."), "None", P("m_NoHandles"), "No handles on this text at all."),
+                LtFrame.WithSwitch(LtUI.Field("Loupe", P("m_LoupeComponent"), "Magnifies under a finger. Empty uses the project's."), "None", P("m_NoLoupe"), "No loupe on this text at all."),
+                LtUI.Field("Menu", P("m_MenuPresenter"), "Draws the right-click and long-press menu. Empty uses the project's."),
+                new LtStatus().Line("Android Menu", () => LetteraSettings.Instance.Editing.AndroidMenu.ToString()).Line("iOS Menu", () => LetteraSettings.Instance.Editing.IosMenu.ToString()).Line("Loupe", () => LetteraSettings.Instance.Editing.Loupe.ToString()).RefreshNow()));
+            page.Add(LtUI.Card("", new LetteraReferenceList(P("m_Commands"), () => LetteraRuleCatalog.Commands, null, "Commands", "No commands: the menu stays empty.")));
+
+            string shown = null;
             void Refresh()
             {
                 if (target == null) return;
+                var selectable = (LetteraSelectable)target;
+                List<string> now = Warnings(selectable).ToList();
+                string key = string.Join("\n", now);
+                if (key == shown) return;
+                shown = key;
                 warnings.Clear();
-                foreach (string warning in Warnings((LetteraSelectable)target)) warnings.Add(LtUI.Text(warning, "lt-chip lt-chip--orange"));
+                foreach (string warning in now)
+                {
+                    Action fix = FixFor(selectable, warning, out string label);
+                    warnings.Add(new LtFix(warning, null, label, fix == null ? (Action)null : () =>
+                    {
+                        fix();
+                        shown = null;
+                        Refresh();
+                    }));
+                }
             }
             Refresh();
             root.schedule.Execute(Refresh).Every(1000);
             return root;
+        }
+
+        static Action FixFor(LetteraSelectable selectable, string warning, out string label)
+        {
+            label = "Add";
+            if (warning.Contains("EventSystem")) return LetteraMenus.CreateEventSystem;
+            if (warning.Contains("World Raycaster") && Camera.main != null) return () => Undo.AddComponent<LetteraWorldRaycaster>(Camera.main.gameObject);
+            if (warning.Contains("Graphic Raycaster"))
+            {
+                Canvas canvas = selectable.GetComponentInParent<Canvas>();
+                if (canvas != null) return () => Undo.AddComponent<GraphicRaycaster>(canvas.gameObject);
+            }
+            return null;
         }
 
         internal static IEnumerable<string> Warnings(LetteraSelectable selectable)
@@ -237,6 +323,52 @@ namespace FirstSymbol.Lettera.Editor
         }
     }
 
+    /// <summary>What a set of rules would do to typed text, through a real field on a hidden object that lives for one trial.</summary>
+    internal static class LetteraRuleTrial
+    {
+        public static string Run(IEnumerable<LetteraFieldRule> rules, IEnumerable<LetteraFieldPreset> presets, string typed, out string note)
+        {
+            note = null;
+            GameObject go = EditorUtility.CreateGameObjectWithHideFlags("Lettera Rule Trial", HideFlags.HideAndDontSave, typeof(RectTransform));
+            try
+            {
+                go.AddComponent<LetteraText>();
+                go.AddComponent<LetteraSelectable>();
+                var field = go.AddComponent<LetteraEditable>();
+                foreach (LetteraFieldRule rule in rules)
+                    if (rule != null)
+                        field.Rules.Add(rule.Clone());
+                if (presets != null)
+                    foreach (LetteraFieldPreset preset in presets)
+                        if (preset != null)
+                            field.RulePresets.Add(preset);
+                field.enabled = false;
+                field.enabled = true;
+                int refused = 0;
+                foreach (string piece in Clusters(typed))
+                    if (!field.InsertText(piece, "user.type"))
+                        refused++;
+                if (refused > 0) note = refused + (refused == 1 ? " character turned away" : " characters turned away");
+                return field.PlainText;
+            }
+            catch (Exception e)
+            {
+                note = "A rule needs a running field for this: " + e.Message;
+                return "";
+            }
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(go);
+            }
+        }
+
+        static IEnumerable<string> Clusters(string text)
+        {
+            System.Globalization.TextElementEnumerator walk = System.Globalization.StringInfo.GetTextElementEnumerator(text ?? "");
+            while (walk.MoveNext()) yield return walk.GetTextElement();
+        }
+    }
+
     [CustomEditor(typeof(LetteraEditable)), CanEditMultipleObjects]
     internal sealed class LetteraEditableEditor : UnityEditor.Editor
     {
@@ -246,13 +378,22 @@ namespace FirstSymbol.Lettera.Editor
             VisualElement page = LtFrame.Header(root, "Editable", "Document, undo, input rules, caret and paste");
             VisualElement live = LtUI.El("lt-chips");
             page.Add(live);
-            page.Add(LtFrame.Card(serializedObject, "Value", "m_ReadOnly", "m_Interactable"));
-            SerializedProperty rules = serializedObject.FindProperty("m_Rules");
+            SerializedProperty P(string name) => serializedObject.FindProperty(name);
+            page.Add(LtUI.Card("Value",
+                LtUI.El("lt-row lt-row--pair",
+                    LtUI.InlineSwitch("Read Only", P("m_ReadOnly"), "Selects and copies, and takes no typing."),
+                    LtUI.InlineSwitch("Interactable", P("m_Interactable"), "Off: takes neither focus nor typing.")),
+                LtUI.Field("Caret", P("m_Caret"), "What draws the caret. Empty makes one when the field first needs it.")));
+            SerializedProperty rules = P("m_Rules");
             string rulesPath = rules.propertyPath;
-            page.Add(LtUI.Card("Rules", new LetteraReferenceList(rules, () => LetteraRuleCatalog.Rules, i => LetteraRuleCatalog.OrderWarning(serializedObject.FindProperty(rulesPath), i))));
-            page.Add(LtFrame.Card(serializedObject, "Presets", "m_RulePresets"));
-            page.Add(LtFrame.Card(serializedObject, "Markup", "m_MarkupView", "m_TypedMarkup", "m_PlainPaste", "m_PasteKeepsStyles"));
-            page.Add(LtFrame.Card(serializedObject, "Caret", "m_Caret"));
+            page.Add(LtUI.Card("", new LetteraReferenceList(rules, () => LetteraRuleCatalog.Rules, i => LetteraRuleCatalog.OrderWarning(serializedObject.FindProperty(rulesPath), i), "Rules", "No rules: this field takes whatever is typed.")));
+            page.Add(LtUI.Card("", LtUI.Field("Field Presets", P("m_RulePresets"), "Rule lists shared between fields.")));
+            page.Add(TryIt());
+            page.Add(LtUI.Card("Markup And Paste",
+                LtUI.Field("Markup Shown As", P("m_MarkupView")),
+                LtUI.Field("Typed Markup", P("m_TypedMarkup")),
+                LtUI.Field("Plain Paste", P("m_PlainPaste")),
+                LtUI.Field("Paste Keeps Styles", P("m_PasteKeepsStyles"))));
 
             void Refresh()
             {
@@ -270,51 +411,55 @@ namespace FirstSymbol.Lettera.Editor
             root.schedule.Execute(Refresh).Every(400);
             return root;
         }
-    }
 
-    /// <summary>The same frame for the smaller components.</summary>
-    internal abstract class LetteraSimpleEditor : UnityEditor.Editor
-    {
-        protected abstract string Title { get; }
-        protected abstract string Subtitle { get; }
-        protected virtual string[] Hidden => Array.Empty<string>();
-
-        public override VisualElement CreateInspectorGUI()
+        // Types into a field made for the moment. Nothing here touches this component.
+        VisualElement TryIt()
         {
-            VisualElement root = LtUI.Root();
-            VisualElement page = LtFrame.Header(root, Title, Subtitle);
-            page.Add(LtFrame.AllFields(serializedObject, "", Hidden));
-            return root;
+            var input = new TextField { value = "" };
+            input.AddToClassList("lt-text-input");
+            input.textEdition.placeholder = "Type here";
+            Label result = LtUI.Text("", "lt-row__value");
+            Label note = LtUI.Text("", "lt-hint");
+            note.style.display = DisplayStyle.None;
+            input.RegisterValueChangedCallback(e =>
+            {
+                var field = (LetteraEditable)target;
+                result.text = LetteraRuleTrial.Run(field.Rules, field.RulePresets, e.newValue, out string words);
+                note.text = words ?? "";
+                note.style.display = words != null ? DisplayStyle.Flex : DisplayStyle.None;
+            });
+            return LtUI.Card("Try It", LtUI.Row("Typed", input, "What this field's rules do to typing. Nothing is kept."), LtUI.Row("Becomes", result), note);
         }
     }
 
     [CustomEditor(typeof(LetteraCaret)), CanEditMultipleObjects]
-    internal sealed class LetteraCaretEditor : LetteraSimpleEditor
+    internal sealed class LetteraCaretEditor : UnityEditor.Editor
     {
-        protected override string Title => "Caret";
-        protected override string Subtitle => "Draws the caret of a field";
-        protected override string[] Hidden => new[] { "m_Material", "m_RaycastTarget", "m_RaycastPadding", "m_Maskable", "m_OnCullStateChanged" };
+        public override VisualElement CreateInspectorGUI() => LtFrame.Small(serializedObject, "Caret", "Draws the caret of a field", "m_Material", "m_RaycastTarget", "m_RaycastPadding", "m_Maskable", "m_OnCullStateChanged");
     }
 
     [CustomEditor(typeof(LetteraContextMenu)), CanEditMultipleObjects]
-    internal sealed class LetteraContextMenuEditor : LetteraSimpleEditor
+    internal sealed class LetteraContextMenuEditor : UnityEditor.Editor
     {
-        protected override string Title => "Context Menu";
-        protected override string Subtitle => "UI objects you own, one per command or one row for all";
+        public override VisualElement CreateInspectorGUI() => LtFrame.Small(serializedObject, "Context Menu", "UI objects you own, one per command or one row for all");
     }
 
     [CustomEditor(typeof(LetteraPrefabHandles)), CanEditMultipleObjects]
-    internal sealed class LetteraHandlesEditor : LetteraSimpleEditor
+    internal sealed class LetteraHandlesEditor : UnityEditor.Editor
     {
-        protected override string Title => "Touch Handles";
-        protected override string Subtitle => "Selection ends a finger can drag";
+        public override VisualElement CreateInspectorGUI() => LtFrame.Small(serializedObject, "Touch Handles", "Selection ends a finger can drag");
     }
 
     [CustomEditor(typeof(LetteraMeshLoupe)), CanEditMultipleObjects]
-    internal sealed class LetteraLoupeEditor : LetteraSimpleEditor
+    internal sealed class LetteraLoupeEditor : UnityEditor.Editor
     {
-        protected override string Title => "Mesh Loupe";
-        protected override string Subtitle => "Magnifies the text under a finger";
+        public override VisualElement CreateInspectorGUI() => LtFrame.Small(serializedObject, "Mesh Loupe", "Magnifies the text under a finger");
+    }
+
+    [CustomEditor(typeof(LetteraFieldPressArea)), CanEditMultipleObjects]
+    internal sealed class LetteraFieldPressAreaEditor : UnityEditor.Editor
+    {
+        public override VisualElement CreateInspectorGUI() => LtFrame.Small(serializedObject, "Press Area", "A press here gives its field the focus, so that a box takes a click as its text does");
     }
 
     [CustomEditor(typeof(LetteraCommandControl)), CanEditMultipleObjects]
@@ -325,60 +470,61 @@ namespace FirstSymbol.Lettera.Editor
             VisualElement root = LtUI.Root();
             VisualElement page = LtFrame.Header(root, "Command Control", "A button or toggle that runs a command");
             page.Add(LtFrame.Card(serializedObject, "", "m_Target"));
-            var names = new List<string> { "None" };
-            var types = new List<Type> { null };
-            foreach ((string _, string title, Type type) in LetteraRuleCatalog.Commands)
+            var items = new List<(string, string, object)> { ("None", null, null) };
+            foreach ((string _, string title, Type type) in LetteraRuleCatalog.Commands) items.Add((title, null, type));
+            page.Add(LtUI.Card("", new LtPick("Command", () =>
             {
-                names.Add(title);
-                types.Add(type);
-            }
-            object current = serializedObject.FindProperty("m_Command").managedReferenceValue;
-            var popup = new PopupField<string>(names, Mathf.Max(types.IndexOf(current?.GetType()), 0));
-            popup.RegisterValueChangedCallback(e =>
+                object current = serializedObject.FindProperty("m_Command").managedReferenceValue;
+                return current == null ? "None" : LtFrame.Words(current.GetType()).Replace(" Command", "");
+            }, () => items, chosen =>
             {
                 serializedObject.Update();
-                Type type = types[names.IndexOf(e.newValue)];
-                serializedObject.FindProperty("m_Command").managedReferenceValue = type != null ? Activator.CreateInstance(type) : null;
+                serializedObject.FindProperty("m_Command").managedReferenceValue = chosen != null ? Activator.CreateInstance((Type)chosen) : null;
                 serializedObject.ApplyModifiedProperties();
-            });
-            page.Add(LtUI.Card("", LtUI.Row("Command", popup)));
+            }, "What this control runs.")));
             return root;
         }
     }
 
     [CustomEditor(typeof(LetteraDropdown)), CanEditMultipleObjects]
-    internal sealed class LetteraDropdownEditor : LetteraSimpleEditor
+    internal sealed class LetteraDropdownEditor : UnityEditor.Editor
     {
-        protected override string Title => "Dropdown";
-        protected override string Subtitle => "Pick one of several options";
+        public override VisualElement CreateInspectorGUI()
+        {
+            VisualElement root = LtUI.Root();
+            VisualElement page = LtFrame.Header(root, "Dropdown", "Pick one of several options");
+            SerializedProperty P(string name) => serializedObject.FindProperty(name);
+            page.Add(LtUI.Card("", new LtList("Options", P("m_Options"), (option, index) => LtUI.Field("", option), "No options yet.")));
+            page.Add(LtUI.Card("Value", LtUI.Field("Value", P("m_Value"), "The chosen option, counted from 0.")));
+            page.Add(LtFrame.Card(serializedObject, "Shown In", "m_CaptionText", "m_CaptionImage", "m_Placeholder"));
+            page.Add(LtFrame.Card(serializedObject, "List", "m_Template", "m_RowPrototype", "m_ParseMarkup", "m_CloseOnSelect", "m_FadeSeconds"));
+            page.Add(LtFrame.Card(serializedObject, "Events", "m_OnValueChanged"));
+            return root;
+        }
     }
 
     [CustomEditor(typeof(LetteraDropdownRow)), CanEditMultipleObjects]
-    internal sealed class LetteraDropdownRowEditor : LetteraSimpleEditor
+    internal sealed class LetteraDropdownRowEditor : UnityEditor.Editor
     {
-        protected override string Title => "Dropdown Row";
-        protected override string Subtitle => "One line of a dropdown's list";
+        public override VisualElement CreateInspectorGUI() => LtFrame.Small(serializedObject, "Dropdown Row", "One line of a dropdown's list");
     }
 
     [CustomEditor(typeof(LetteraKeepFocus)), CanEditMultipleObjects]
-    internal sealed class LetteraKeepFocusEditor : LetteraSimpleEditor
+    internal sealed class LetteraKeepFocusEditor : UnityEditor.Editor
     {
-        protected override string Title => "Keep Focus";
-        protected override string Subtitle => "Pressing this object does not end editing";
+        public override VisualElement CreateInspectorGUI() => LtFrame.Small(serializedObject, "Keep Focus", "Pressing this object does not end editing");
     }
 
     [CustomEditor(typeof(LetteraWorldRaycaster)), CanEditMultipleObjects]
-    internal sealed class LetteraWorldRaycasterEditor : LetteraSimpleEditor
+    internal sealed class LetteraWorldRaycasterEditor : UnityEditor.Editor
     {
-        protected override string Title => "World Raycaster";
-        protected override string Subtitle => "Gives world text pointer events";
+        public override VisualElement CreateInspectorGUI() => LtFrame.Small(serializedObject, "World Raycaster", "Gives world text pointer events", "m_Blockers");
     }
 
     [CustomEditor(typeof(LetteraPasswordToggle)), CanEditMultipleObjects]
-    internal sealed class LetteraPasswordToggleEditor : LetteraSimpleEditor
+    internal sealed class LetteraPasswordToggleEditor : UnityEditor.Editor
     {
-        protected override string Title => "Password Toggle";
-        protected override string Subtitle => "Shows and hides a password field's value";
+        public override VisualElement CreateInspectorGUI() => LtFrame.Small(serializedObject, "Password Toggle", "Shows and hides a password field's value");
     }
 
     [CustomEditor(typeof(LetteraFieldPreset)), CanEditMultipleObjects]
@@ -388,7 +534,8 @@ namespace FirstSymbol.Lettera.Editor
         {
             VisualElement root = LtUI.Root();
             VisualElement page = LtFrame.Header(root, "Field Preset", "One rule list for many fields");
-            page.Add(LtUI.Card("Rules", new LetteraReferenceList(serializedObject.FindProperty("m_Rules"), () => LetteraRuleCatalog.Rules)));
+            page.Add(LtUI.Card("", new LetteraReferenceList(serializedObject.FindProperty("m_Rules"), () => LetteraRuleCatalog.Rules, null, "Rules", "No rules yet.")));
+            page.Add(LetteraFindUses.Card(target));
             return root;
         }
     }

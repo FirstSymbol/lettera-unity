@@ -128,7 +128,7 @@ namespace FirstSymbol.Lettera.Editor
             VisualElement root = LtUI.Root();
             VisualElement page = LtFrame.Header(root, "Sequencer", "Ramps effect parameters on one timeline, and writes no field");
 
-            m_Chips = LtUI.El("lt-chips");
+            m_Chips = LtUI.El("lt-warnings");
             page.Add(m_Chips);
 
             m_Scrub = new Slider(0, 1) { showInputField = false };
@@ -150,48 +150,27 @@ namespace FirstSymbol.Lettera.Editor
                 LtUI.Clickable("■ Stop", "lt-tool", "Back to the start", () => m_Sequencer.Stop()),
                 LtUI.Clickable("✕ End Preview", "lt-tool", "Every value goes back, and nothing was written", () => m_Sequencer.EndPreview()),
                 LtUI.Clickable("Open Sequencer", "lt-tool", "The cues on rows, to drag, split and copy", () => LetteraSequencerWindow.Open(m_Sequencer)));
-            page.Add(LtUI.Card("Transport", transport, m_Scrub, m_Time));
-
             m_Strip = new VisualElement { style = { height = 54, position = Position.Relative, overflow = Overflow.Hidden } };
             m_Strip.AddToClassList("lt-strip");
-            page.Add(LtUI.Card("Timeline", m_Strip));
+            VisualElement playback = LtFrame.Card(serializedObject, "Playback", "m_Clock", "m_Speed", "m_Length", "m_Cycles", "m_Repeat", "m_PlayOnEnable", "m_HonorReducedMotion");
+            playback.Insert(1, transport);
+            playback.Insert(2, m_Scrub);
+            playback.Insert(3, m_Time);
+            playback.Insert(4, m_Strip);
+            page.Add(playback);
 
-            page.Add(LtFrame.Card(serializedObject, "Playback", "m_Clock", "m_Cycles", "m_Repeat", "m_Length", "m_Speed", "m_PlayOnEnable", "m_HonorReducedMotion"));
-
-            VisualElement cues = LtUI.El("lt-list");
-            page.Add(LtUI.Card("Cues", cues, LtUI.Clickable("+ Add Cue", "lt-tool", "A new cue at the start", () =>
-            {
-                SerializedProperty list = serializedObject.FindProperty("m_Cues");
-                list.arraySize++;
-                serializedObject.ApplyModifiedProperties();
-                RebuildCues(cues);
-            })));
-            RebuildCues(cues);
+            page.Add(LtUI.Card("", new LtList("Cues", serializedObject.FindProperty("m_Cues"), (cue, index) => new LtFold(CueTitle(index), () => CueFields(m_Sequencer, serializedObject, cue, index), index == 0), "No cues yet: this sequencer has nothing to move.")));
 
             root.schedule.Execute(Refresh).Every(100);
             return root;
         }
 
-        void RebuildCues(VisualElement holder)
+        // A cue by what it moves, not by a number.
+        string CueTitle(int index)
         {
-            holder.Clear();
-            serializedObject.Update();
-            SerializedProperty list = serializedObject.FindProperty("m_Cues");
-            for (int i = 0; i < list.arraySize; i++) holder.Add(CueCard(list, i, holder));
-            holder.Bind(serializedObject);
-        }
-
-        VisualElement CueCard(SerializedProperty list, int index, VisualElement holder)
-        {
-            VisualElement remove = LtUI.Clickable("✕", "lt-tool", "Remove this cue", () =>
-            {
-                list.DeleteArrayElementAtIndex(index);
-                serializedObject.ApplyModifiedProperties();
-                RebuildCues(holder);
-            });
-            VisualElement card = CueFields(m_Sequencer, serializedObject, list.GetArrayElementAtIndex(index), index);
-            card.Add(remove);
-            return card;
+            IReadOnlyList<LetteraCue> cues = m_Sequencer.Cues;
+            string parameter = index < cues.Count ? cues[index].Target?.Parameter : null;
+            return (index + 1) + ". " + (string.IsNullOrEmpty(parameter) ? "No parameter yet" : parameter);
         }
 
         /// <summary>One cue's whole editor, here and in the window.</summary>
@@ -208,21 +187,11 @@ namespace FirstSymbol.Lettera.Editor
                 values.Bind(serialized);
             }
 
-            var choices = LetteraParamChoices.For(sequencer.GetComponent<LetteraText>() as Component ?? sequencer.GetComponent<LetteraWorldText>());
-            var picker = new DropdownField(choices.Select(c => c.Label).ToList(), choices.FindIndex(c => c.Matches(paramTarget)));
-            picker.RegisterValueChangedCallback(e =>
-            {
-                int at = picker.index;
-                if (at < 0 || at >= choices.Count) return;
-                SerializedProperty stored = cue.FindPropertyRelative("Target");
-                choices[at].WriteTo(stored);
-                serialized.ApplyModifiedProperties();
-                ShowValues();
-            });
+            VisualElement picker = LetteraParamChoices.Picker("Parameter", () => sequencer.GetComponent<LetteraText>() as Component ?? sequencer.GetComponent<LetteraWorldText>(), cue.FindPropertyRelative("Target"), ShowValues);
             ShowValues();
 
-            return LtUI.Card("Cue " + (index + 1),
-                LtUI.Row("Parameter", picker),
+            return LtUI.El("lt-list",
+                picker,
                 values,
                 LtFrame.Row(cue.FindPropertyRelative("Start").Copy()),
                 LtFrame.Row(cue.FindPropertyRelative("UnitSeconds").Copy()),
@@ -306,6 +275,7 @@ namespace FirstSymbol.Lettera.Editor
         public int Style;
         public int[] Node;
         public string Parameter;
+        public LetteraParamKind Kind;
 
         public bool Matches(LetteraParamTarget target) =>
             target != null && target.Style == Style && target.Parameter == Parameter && (target.Node ?? Array.Empty<int>()).SequenceEqual(Node);
@@ -317,6 +287,29 @@ namespace FirstSymbol.Lettera.Editor
             SerializedProperty node = target.FindPropertyRelative("Node");
             node.arraySize = Node.Length;
             for (int i = 0; i < Node.Length; i++) node.GetArrayElementAtIndex(i).intValue = Node[i];
+        }
+
+        /// <summary>The row that chooses a parameter of a text's styles, by effect and with its kind beside it.</summary>
+        internal static LtPick Picker(string label, Func<Component> text, SerializedProperty target, Action changed)
+        {
+            SerializedProperty bound = target.Copy();
+            return new LtPick(label, () =>
+            {
+                string parameter = bound.FindPropertyRelative("Parameter").stringValue;
+                LetteraParamChoices now = For(text()).FirstOrDefault(c => c.Style == bound.FindPropertyRelative("Style").intValue && c.Parameter == parameter);
+                return now != null ? now.Label : string.IsNullOrEmpty(parameter) ? "Choose" : parameter;
+            }, () =>
+            {
+                var items = new List<(string, string, object)>();
+                foreach (LetteraParamChoices choice in For(text())) items.Add((choice.Label, choice.Kind.ToString(), choice));
+                return items;
+            }, chosen =>
+            {
+                bound.serializedObject.Update();
+                ((LetteraParamChoices)chosen).WriteTo(bound);
+                bound.serializedObject.ApplyModifiedProperties();
+                changed?.Invoke();
+            }, "Which effect's value this moves, with what kind of value it is.");
         }
 
         public static List<LetteraParamChoices> For(Component text)
@@ -347,7 +340,7 @@ namespace FirstSymbol.Lettera.Editor
             foreach (LetteraParamInfo info in effect.Parameters)
             {
                 if (info.Slot < 0) continue;
-                results.Add(new LetteraParamChoices { Label = $"{style + 1}. {path} / {info.Display}", Style = style, Node = node.ToArray(), Parameter = info.Id });
+                results.Add(new LetteraParamChoices { Label = $"{style + 1}. {path} / {info.Display}", Style = style, Node = node.ToArray(), Parameter = info.Id, Kind = info.Kind });
             }
         }
     }
@@ -355,19 +348,54 @@ namespace FirstSymbol.Lettera.Editor
     [CustomEditor(typeof(LetteraParamLink)), CanEditMultipleObjects]
     internal sealed class LetteraParamLinkEditor : UnityEditor.Editor
     {
+        Component TextOf()
+        {
+            var link = (LetteraParamLink)target;
+            var set = serializedObject.FindProperty("m_Text").objectReferenceValue as Component;
+            return set != null ? set : link.GetComponent<LetteraText>() as Component ?? link.GetComponent<LetteraWorldText>();
+        }
+
+        LetteraParamKind KindOf()
+        {
+            var link = (LetteraParamLink)target;
+            TextEngine engine = (TextOf() as ITextComponent)?.SharedEngine;
+            LetteraEffect effect = engine != null ? link.Target.Resolve(engine) : null;
+            return LetteraParamTarget.Find(effect, link.Target.Parameter)?.Kind ?? LetteraParamKind.Float;
+        }
+
         public override VisualElement CreateInspectorGUI()
         {
             VisualElement root = LtUI.Root();
             VisualElement page = LtFrame.Header(root, "Parameter Link", "One effect parameter as a field that curves and tracks can reach");
-            VisualElement chips = LtUI.El("lt-chips");
+            VisualElement chips = LtUI.El("lt-warnings");
             page.Add(chips);
-            page.Add(LtFrame.AllFields(serializedObject, "Target"));
+            SerializedProperty P(string name) => serializedObject.FindProperty(name);
+            VisualElement values = LtUI.El("lt-list");
+            page.Add(LtUI.Card("Target",
+                LtUI.Field("Text", P("m_Text"), "Empty takes the text on this object."),
+                LetteraParamChoices.Picker("Parameter", TextOf, P("m_Target"), Show),
+                LtFrame.Row(P("m_Select"))));
+            page.Add(LtUI.Card("Value", values, LtUI.Field("Mix", P("m_Mix"), "How this joins what else drives the parameter."), LtUI.Field("Priority", P("m_Priority"))));
+            void Show()
+            {
+                values.Clear();
+                switch (KindOf())
+                {
+                    case LetteraParamKind.Color: values.Add(LtUI.Field("Color", P("m_Color"))); break;
+                    case LetteraParamKind.Vector2: values.Add(LtUI.Field("Vector", P("m_Vector"))); break;
+                    default: values.Add(LtUI.Field("Value", P("m_Value"))); break;
+                }
+            }
+            Show();
+            string shown = null;
             void Refresh()
             {
                 if (target == null) return;
-                chips.Clear();
                 string problem = ((LetteraParamLink)target).Problem;
-                if (problem != null) chips.Add(LtUI.Text(problem, "lt-chip lt-chip--orange"));
+                if (problem == shown) return;
+                shown = problem;
+                chips.Clear();
+                if (problem != null) chips.Add(new LtFix(problem, null));
             }
             Refresh();
             root.schedule.Execute(Refresh).Every(500);
@@ -376,44 +404,114 @@ namespace FirstSymbol.Lettera.Editor
     }
 
     [CustomEditor(typeof(LetteraSourceLoader)), CanEditMultipleObjects]
-    internal sealed class LetteraSourceLoaderEditor : LetteraSimpleEditor
+    internal sealed class LetteraSourceLoaderEditor : UnityEditor.Editor
     {
-        protected override string Title => "Source Loader";
-        protected override string Subtitle => "Loads a file, an asset or an address into the text as a document";
+        public override VisualElement CreateInspectorGUI()
+        {
+            VisualElement root = LtUI.Root();
+            VisualElement page = LtFrame.Header(root, "Source Loader", "Loads a file, an asset or an address into the text as a document");
+            var loader = (LetteraSourceLoader)target;
+            VisualElement source = LtUI.El("lt-list");
+            void ShowSource()
+            {
+                source.Clear();
+                source.Add(LetteraPaintField.ManagedReference(serializedObject.FindProperty("m_Source")));
+            }
+            ShowSource();
+            LtStatus state = new LtStatus().Line("State", () => loader == null ? "" : loader.IsLoading ? "Loading, " + Mathf.RoundToInt(loader.Progress * 100) + "%" : !string.IsNullOrEmpty(loader.LastError) ? loader.LastError : loader.Source == null || !loader.Source.HasContent ? "Nothing to load: choose a source" : "Idle",
+                () => loader != null && !string.IsNullOrEmpty(loader.LastError) ? LtStatus.State.Bad : loader != null && loader.IsLoading ? LtStatus.State.Warn : LtStatus.State.Good);
+            state.Refresh();
+            page.Add(LtUI.Card("Source", source, LtUI.Field("Load On Enable", serializedObject.FindProperty("m_LoadOnEnable"), "Starts by itself when this object wakes."), state,
+                LtUI.Clickable("Load", "lt-add lt-add--small", "Loads now. A load still running is stopped first.", () =>
+                {
+                    foreach (UnityEngine.Object o in targets) ((LetteraSourceLoader)o).Reload();
+                    state.Refresh();
+                })));
+            root.schedule.Execute(state.Refresh).Every(300);
+            return root;
+        }
     }
 
     [CustomEditor(typeof(LetteraDocumentScroller)), CanEditMultipleObjects]
-    internal sealed class LetteraDocumentScrollerEditor : LetteraSimpleEditor
+    internal sealed class LetteraDocumentScrollerEditor : UnityEditor.Editor
     {
-        protected override string Title => "Document Scroller";
-        protected override string Subtitle => "A viewport for a text: drag, wheel, inertia and scrollbars, with no rebuild";
+        public override VisualElement CreateInspectorGUI()
+        {
+            VisualElement root = LtUI.Root();
+            VisualElement page = LtFrame.Header(root, "Document Scroller", "A viewport for a text: drag, wheel, inertia and scrollbars, with no rebuild");
+            SerializedProperty P(string name) => serializedObject.FindProperty(name);
+            VisualElement elasticity = LtUI.Field("Elasticity", P("m_Elasticity"), "How soft the edge is.");
+            LetteraTextInspector.ShowWhen(elasticity, P("m_MovementType"), p => p.enumValueIndex == (int)LetteraScrollMovement.Elastic);
+            VisualElement decay = LtUI.Field("Slows By", P("m_DecelerationRate"), "How much speed is left after a second.");
+            LetteraTextInspector.ShowWhen(decay, P("m_Inertia"), p => p.boolValue);
+            page.Add(LtUI.Card("Text", LtUI.Field("Text", P("m_Text"), P("m_Text").tooltip), LtUI.Field("Start At", P("m_StartAt"))));
+            page.Add(LtUI.Card("Movement",
+                LtUI.Field("At The Edge", P("m_MovementType")),
+                elasticity,
+                LtUI.Field("Inertia", P("m_Inertia"), "Keeps going after a flick."),
+                decay,
+                LtUI.Field("Wheel Lines", P("m_ScrollSensitivity"), P("m_ScrollSensitivity").tooltip)));
+            page.Add(LtUI.Card("Bar",
+                LtFrame.WithSwitch(LtUI.Field("Scrollbar", P("m_VerticalScrollbar")), "Auto Hide", P("m_HideScrollbarsWhenUnused"), "Hides the bar while all of it fits.")));
+            page.Add(LtUI.Card("Stick And Pass",
+                LtUI.Field("Stick To End", P("m_StickToEnd"), P("m_StickToEnd").tooltip),
+                LtUI.Field("Pass The Wheel On", P("m_PassWheelAtEdges"), P("m_PassWheelAtEdges").tooltip)));
+            return root;
+        }
     }
 
     [CustomEditor(typeof(LetteraRangeNavigator)), CanEditMultipleObjects]
-    internal sealed class LetteraRangeNavigatorEditor : LetteraSimpleEditor
+    internal sealed class LetteraRangeNavigatorEditor : UnityEditor.Editor
     {
-        protected override string Title => "Range Navigator";
-        protected override string Subtitle => "Steps a text's ranges with arrows and gamepads, and leaves at the ends";
+        public override VisualElement CreateInspectorGUI() => LtFrame.Small(serializedObject, "Range Navigator", "Steps a text's ranges with arrows and gamepads, and leaves at the ends", "m_Transition", "m_Colors", "m_SpriteState", "m_AnimationTriggers", "m_TargetGraphic");
     }
 
     [CustomEditor(typeof(LetteraRangeTopic))]
-    internal sealed class LetteraRangeTopicEditor : LetteraSimpleEditor
+    internal sealed class LetteraRangeTopicEditor : UnityEditor.Editor
     {
-        protected override string Title => "Range Topic";
-        protected override string Subtitle => "A name for ranges to listen to together. It holds nothing else";
+        public override VisualElement CreateInspectorGUI()
+        {
+            VisualElement root = LtFrame.Small(serializedObject, "Range Topic", "A name for ranges to listen to together. It holds nothing else");
+            root.Add(LetteraFindUses.Card(target));
+            return root;
+        }
     }
 
     [CustomEditor(typeof(LetteraEntranceLibrary))]
-    internal sealed class LetteraEntranceLibraryEditor : LetteraSimpleEditor
+    internal sealed class LetteraEntranceLibraryEditor : UnityEditor.Editor
     {
-        protected override string Title => "Entrance Library";
-        protected override string Subtitle => "Named ways for revealed text to arrive";
+        public override VisualElement CreateInspectorGUI()
+        {
+            VisualElement root = LtUI.Root();
+            VisualElement page = LtFrame.Header(root, "Entrance Library", "Named ways for revealed text to arrive");
+            page.Add(LtUI.Card("", new LtList("Entrances", serializedObject.FindProperty("m_Entries"), (entry, index) =>
+                new LtFold(LtFrame.NameOr(entry, "Name", "Entrance " + (index + 1)), () =>
+                {
+                    VisualElement body = LtUI.El("lt-list");
+                    foreach (SerializedProperty child in LetteraStyleList.Children(entry)) body.Add(LetteraPaintField.For(child, null));
+                    return body;
+                }), "None yet. Texts then pick from the built-in entrances.")));
+            page.Add(LetteraFindUses.Card(target));
+            return root;
+        }
     }
 
     [CustomEditor(typeof(LetteraInlineLibrary))]
-    internal sealed class LetteraInlineLibraryEditor : LetteraSimpleEditor
+    internal sealed class LetteraInlineLibraryEditor : UnityEditor.Editor
     {
-        protected override string Title => "Inline Library";
-        protected override string Subtitle => "Sprites and objects that can stand in a text's flow";
+        public override VisualElement CreateInspectorGUI()
+        {
+            VisualElement root = LtUI.Root();
+            VisualElement page = LtFrame.Header(root, "Inline Library", "Sprites and objects that can stand in a text's flow");
+            page.Add(LtUI.Card("", new LtList("Items", serializedObject.FindProperty("m_Entries"), (entry, index) =>
+                new LtFold(LtFrame.NameOr(entry, "Key", "Item " + (index + 1)), () =>
+                {
+                    VisualElement body = LtUI.El("lt-list");
+                    foreach (SerializedProperty child in LetteraStyleList.Children(entry)) body.Add(LetteraPaintField.For(child, null));
+                    return body;
+                }), "None yet.")));
+            page.Add(LetteraFindUses.Card(target));
+            return root;
+        }
     }
 }
