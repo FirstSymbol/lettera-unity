@@ -190,6 +190,7 @@ namespace FirstSymbol.Lettera.Editor
                 Menu("Font Tools", "Window", "create subset dictionary font asset batch", "Tools/Lettera/Font Tools"),
                 Menu("Sequencer", "Window", "cues timeline rows drag split motion", "Tools/Lettera/Sequencer"),
                 Menu("Inspect Text In Scene", "Window", "overlay boxes baselines bounds debug probe", "Tools/Lettera/Inspect Text In Scene"),
+                Menu("Edit Text In Scene", "Window", "type caret f2 write where it stands bar", "Tools/Lettera/Edit Text In Scene"),
                 Menu("Use Bundled Math Font", "Math", "formula noto", "Lettera/Math/Use Bundled Font"),
                 Do("Project Settings", "Settings", "defaults preferences", () => SettingsService.OpenProjectSettings("Project/Lettera")),
                 Do("Show Docs", "Help", "readme guide manual", () => { string[] found = AssetDatabase.FindAssets("README t:TextAsset", new[] { "Packages/com.firstsymbol.lettera" }); if (found.Length > 0) EditorGUIUtility.PingObject(AssetDatabase.LoadAssetAtPath<TextAsset>(AssetDatabase.GUIDToAssetPath(found[0]))); }),

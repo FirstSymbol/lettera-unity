@@ -19,6 +19,7 @@ namespace FirstSymbol.Lettera
     {
         public static ISelectionVisual Create(LetteraSelectable owner, LetteraHighlightOrder order)
         {
+            if (owner.VisualSource != null) return owner.VisualSource();
             if (owner.Host is LetteraWorldText world) return new WorldSelectionVisual(world, order);
             return new CanvasSelectionVisual(owner, order);
         }

@@ -99,6 +99,32 @@ namespace FirstSymbol.Lettera
 
         internal TextEngine Engine => Host.SharedEngine;
 
+        // An editing session in the Scene view works on a text from an object of its own, so that nothing is ever added to what is edited.
+        internal void BindHost(ITextComponent host) => m_Host = host;
+
+        /// <summary>The text went away under a session: nothing may reach for it again.</summary>
+        internal void ForgetHost()
+        {
+            if (m_HasFocus)
+            {
+                m_HasFocus = false;
+                if (Current == this) Current = null;
+                m_Source?.Detach();
+                m_Source = null;
+            }
+            m_Host = null;
+        }
+
+        /// <summary>Set for a session in the Scene view: what draws the selection and which camera looks at the text.</summary>
+        internal Func<ISelectionVisual> VisualSource;
+        internal Camera PointerCamera;
+
+        /// <summary>Links do not answer while a text is being written.</summary>
+        internal bool Authoring;
+
+        /// <summary>On a field of the text under a session: its value is being written by someone else, and it hears at the end.</summary>
+        internal bool SourceWritesIgnored;
+
         /// <summary>The Canvas or world text this works on.</summary>
         public Component TextComponent => (Component)Host;
 
@@ -164,6 +190,7 @@ namespace FirstSymbol.Lettera
 
         void OnSourceWritten()
         {
+            if (SourceWritesIgnored) return;
             if (Editable != null) Editable.OnSourceWrittenFromOutside();
             else if (m_Selection.End > 0) ClampAfterTextChange();
         }
@@ -179,6 +206,7 @@ namespace FirstSymbol.Lettera
         /// <summary>The per-frame part: pending focus changes, keeping the drawing in step.</summary>
         internal void Tick()
         {
+            if (Authoring && m_Host is UnityEngine.Object gone && gone == null) return;
             if (m_BlurPending) ResolveBlur();
             TickPointer();
             if (Editable != null) Editable.Tick();

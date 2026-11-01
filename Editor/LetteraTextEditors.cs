@@ -22,6 +22,7 @@ namespace FirstSymbol.Lettera.Editor
         VisualElement m_Chips;
         VisualElement m_StyleList;
         TextField m_TextField;
+        Label m_SceneEditWhy;
 
         public LetteraTextInspector(SerializedObject serialized, string title, Func<string> stats, Func<string> overrideReason, Action<VisualElement> buildRenderPage)
         {
@@ -149,6 +150,9 @@ namespace FirstSymbol.Lettera.Editor
             foreach (string warning in Warnings()) m_Chips.Add(LtUI.Text(warning, "lt-chip lt-chip--orange"));
             foreach (LtSection section in m_Sections) section.RefreshSummary();
             RefreshTools();
+            string why = LetteraSceneEdit.WhyNot(m_Object.targetObjects);
+            m_SceneEditWhy.text = why ?? "";
+            m_SceneEditWhy.style.display = why != null ? DisplayStyle.Flex : DisplayStyle.None;
         }
 
         // What a user would otherwise find out only by looking closely at the result.
@@ -214,7 +218,9 @@ namespace FirstSymbol.Lettera.Editor
             m_TextField.selectAllOnFocus = false;
             m_TextField.selectAllOnMouseUp = false;
             m_TextField.BindProperty(P("Text"));
-            return LtUI.El("lt-editor", toolbar, m_TextField);
+            m_SceneEditWhy = LtUI.Text("", "lt-chip lt-chip--orange");
+            Label sceneEdit = LtUI.Clickable("Edit In Scene", "lt-add lt-add--small", "Type into this text where it stands in the Scene view. F2 there does the same, and Esc ends it.", () => LetteraSceneEditView.Begin(m_Object.targetObjects));
+            return LtUI.El("lt-editor", toolbar, m_TextField, sceneEdit, m_SceneEditWhy);
         }
 
         Label Toggle(string text, string classes, string name, Type effect, string tag)
