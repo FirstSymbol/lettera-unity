@@ -84,6 +84,8 @@ namespace FirstSymbol.Lettera
 
         static float Unset(float value, float fallback) => float.IsNaN(value) ? fallback : value;
 
+        internal virtual TextEngine.InlineItem ResolveIn(TextEngine engine, in LetteraSlots slots, int cp) => Resolve(slots, cp);
+
         internal TextEngine.InlineItem Resolve(in LetteraSlots slots, int cp)
         {
             string key = slots[0] ?? "";

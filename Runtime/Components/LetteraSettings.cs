@@ -36,6 +36,7 @@ namespace FirstSymbol.Lettera
         [SerializeField] LetteraDocumentSettings m_Documents = new LetteraDocumentSettings();
         [SerializeField] LetteraPlatformSettings m_Platform = new LetteraPlatformSettings();
         [SerializeField] LetteraFontMemorySettings m_FontMemory = new LetteraFontMemorySettings();
+        [SerializeField] LetteraMathSettings m_Math = new LetteraMathSettings();
         [Tooltip("Word lists for scripts written without spaces. Empty costs nothing: only what is listed reaches a player.")]
         [SerializeField] System.Collections.Generic.List<LetteraWordDictionary> m_Dictionaries = new System.Collections.Generic.List<LetteraWordDictionary>();
 
@@ -80,6 +81,9 @@ namespace FirstSymbol.Lettera
         public System.Collections.Generic.List<LetteraWordDictionary> Dictionaries => m_Dictionaries ?? (m_Dictionaries = new System.Collections.Generic.List<LetteraWordDictionary>());
 
         /// <summary>Which of a platform's own facilities a project wants.</summary>
+        /// <summary>Defaults for formulas.</summary>
+        public LetteraMathSettings Math => m_Math ?? (m_Math = new LetteraMathSettings());
+
         /// <summary>What fonts may cost, and how a build carries them.</summary>
         public LetteraFontMemorySettings FontMemory => m_FontMemory ?? (m_FontMemory = new LetteraFontMemorySettings());
 

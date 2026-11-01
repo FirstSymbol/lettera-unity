@@ -618,6 +618,70 @@ namespace FirstSymbol.Lettera
 
         static byte[] s_EmojiPixels;
 
+        static readonly Dictionary<ulong, AtlasGlyph> s_Rules = new Dictionary<ulong, AtlasGlyph>();
+
+        /// <summary>A rule's tile: a true distance field of a rectangle of that thickness, in thousandths of an em, and of no real length.</summary>
+        internal static AtlasGlyph GetRule(float thickness, bool vertical, int pixelsPerEm, float reach, bool multi)
+        {
+            int key16 = Mathf.Clamp(Mathf.RoundToInt(thickness * 4), 1, 65535);
+            ulong key = ((ulong)(uint)key16 << 16) | ((ulong)(uint)(pixelsPerEm & 0x1FFF) << 2) | (vertical ? 2u : 0) | (multi ? 1u : 0);
+            float spread = SpreadFor(reach);
+            if (s_Rules.TryGetValue(key, out AtlasGlyph known) && known.Spread >= spread) return known;
+            AtlasGlyph made = CreateRule(thickness, vertical, pixelsPerEm, spread, multi);
+            s_Rules[key] = made;
+            return made;
+        }
+
+        static AtlasGlyph CreateRule(float thickness, bool vertical, int pixelsPerEm, float spread, bool multi)
+        {
+            if (!s_Lines.IsCreated) s_Lines = new NativeList<float4>(4096, Allocator.Persistent);
+            if (!s_LineColors.IsCreated) s_LineColors = new NativeList<byte>(4096, Allocator.Persistent);
+            PageSet set = multi ? s_Msdf : s_Sdf;
+            const float Sliver = 0.5f; // In thousandths of an em: far below a tile's pixel, so the middle column is the whole field across.
+            float w = vertical ? thickness : Sliver, h = vertical ? Sliver : thickness;
+            float density = pixelsPerEm;
+            float scale = density / 1000f;
+            float spreadPixels = spread * density;
+            int width = Mathf.Max(Mathf.CeilToInt(w * scale + 2 * spreadPixels), 1);
+            int height = Mathf.Max(Mathf.CeilToInt(h * scale + 2 * spreadPixels), 1);
+            if (!Allocate(set, width + 2 * Bleed, height + 2 * Bleed, out int page, out int x, out int y)) return default;
+            x += Bleed;
+            y += Bleed;
+            if (s_Commands.Length < 32) s_Commands = new float[32];
+            // Counter-clockwise, as a font's outline turns where this reads it.
+            int n = 0;
+            s_Commands[n++] = 0; s_Commands[n++] = 0; s_Commands[n++] = 0;
+            s_Commands[n++] = 1; s_Commands[n++] = 0; s_Commands[n++] = h;
+            s_Commands[n++] = 1; s_Commands[n++] = w; s_Commands[n++] = h;
+            s_Commands[n++] = 1; s_Commands[n++] = w; s_Commands[n++] = 0;
+            s_Commands[n++] = 4;
+            float offsetX = spreadPixels, offsetY = spreadPixels;
+            int lineStart = s_Lines.Length;
+            OutlineFlattener.Flatten(s_Commands, n, scale, offsetX, offsetY, s_Lines);
+            if (multi) EdgeColoring.Color(s_Lines, s_LineColors, lineStart);
+            s_Tiles.Add(new SdfTile
+            {
+                Target = (byte*)set.Pixels[page],
+                Stride = PageSize * set.Bytes,
+                Multi = multi,
+                X = x, Y = y, Width = width, Height = height,
+                LineStart = lineStart,
+                LineCount = s_Lines.Length - lineStart,
+                Spread = spreadPixels,
+            });
+            s_Uploads.Add(new PendingUpload { Set = set, Page = page, X = x, Y = y, Width = width, Height = height });
+            return new AtlasGlyph
+            {
+                Kind = multi ? AtlasGlyph.Msdf : AtlasGlyph.Sdf,
+                Page = (ushort)page,
+                U0 = (float)x / PageSize, V0 = (float)y / PageSize,
+                U1 = (float)(x + width) / PageSize, V1 = (float)(y + height) / PageSize,
+                Left = -offsetX / scale, Bottom = -offsetY / scale,
+                Right = (width - offsetX) / scale, Top = (height - offsetY) / scale,
+                Spread = spread,
+            };
+        }
+
         struct PendingEmoji
         {
             public string Cluster;
@@ -725,6 +789,7 @@ namespace FirstSymbol.Lettera
                 if (set.LastUsed[i] < set.LastUsed[oldest])
                     oldest = i;
 
+            s_Rules.Clear();
             s_Evicted.Clear();
             foreach (KeyValuePair<ulong, AtlasGlyph> pair in s_Glyphs)
                 if (pair.Value.Page == oldest && pair.Value.Kind == (set == s_Sdf ? AtlasGlyph.Sdf : set == s_Msdf ? AtlasGlyph.Msdf : AtlasGlyph.Color))
@@ -945,6 +1010,7 @@ namespace FirstSymbol.Lettera
             if (renderer == null)
             {
                 s_EmojiPending.Clear();
+            s_Rules.Clear();
                 return;
             }
             if (renderer is IEmojiBatchRenderer batch) FlushEmojiBatches(batch);

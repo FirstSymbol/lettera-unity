@@ -78,7 +78,7 @@ namespace FirstSymbol.Lettera
 #if UNITY_EDITOR
             // An editor holds the library it loaded, so after an update this is the normal state until it restarts: what needs the new one just waits.
             if (version < LetteraNative.CurrentVersion && version >= LetteraNative.MinimumVersion)
-                Debug.LogWarning("Lettera: restart the editor to load the new native plugin. COLRv1 color fonts wait for that; everything else works.");
+                Debug.LogWarning("Lettera: restart the editor to load the new native plugin. COLRv1 color fonts and a formula's true spacing wait for that; formulas use fallback layout until then, and everything else works.");
             else
 #endif
             if (version != LetteraNative.CurrentVersion)
