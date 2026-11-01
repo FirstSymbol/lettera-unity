@@ -697,7 +697,7 @@ namespace FirstSymbol.Lettera.Editor
         void Paint()
         {
             for (int i = 0; i < m_Shown.Count; i++) m_List[i].EnableInClassList("lt-palette__row--on", i == m_At);
-            if (m_At >= 0 && m_At < m_Shown.Count) m_List.ScrollTo(m_List[m_At]);
+            if (m_List.panel != null && m_At >= 0 && m_At < m_Shown.Count) m_List.ScrollTo(m_List[m_At]);
         }
     }
 

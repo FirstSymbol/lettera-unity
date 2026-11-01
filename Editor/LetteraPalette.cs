@@ -181,7 +181,7 @@ namespace FirstSymbol.Lettera.Editor
         void Paint()
         {
             for (int i = 0; i < m_Shown.Count; i++) m_List[i].EnableInClassList("lt-palette__row--on", i == m_At);
-            if (m_At < m_Shown.Count && m_Shown.Count > 0) m_List.ScrollTo(m_List[m_At]);
+            if (m_List.panel != null && m_At < m_Shown.Count && m_Shown.Count > 0) m_List.ScrollTo(m_List[m_At]);
         }
 
         void Execute(LetteraCommand command)
@@ -350,7 +350,13 @@ namespace FirstSymbol.Lettera.Editor
         }
 
         /// <summary>Whether this event is the press that opens the palette.</summary>
-        internal static bool IsTrigger(Event e) => e != null && e.shift && !e.alt && !e.control && e.type == EventType.MouseDown && e.button == 1;
+        internal static bool IsTrigger(Event e) => e != null && IsTrigger(e.type, e.button, e.modifiers);
+
+        internal static bool IsTrigger(EventType type, int button, EventModifiers keys)
+        {
+            const EventModifiers Held = EventModifiers.Shift | EventModifiers.Alt | EventModifiers.Control | EventModifiers.Command;
+            return type == EventType.MouseDown && button == 1 && (keys & Held) == EventModifiers.Shift;
+        }
 
         static void OnHierarchyItem(int id, Rect row)
         {
