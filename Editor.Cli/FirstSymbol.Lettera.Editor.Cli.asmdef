@@ -1,0 +1,23 @@
+{
+    "name": "FirstSymbol.Lettera.Editor.Cli",
+    "rootNamespace": "FirstSymbol.Lettera.Editor.Cli",
+    "references": [
+        "FirstSymbol.Lettera.Editor.CliCore",
+        "Unity.Pipeline.Attributes"
+    ],
+    "includePlatforms": ["Editor"],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": false,
+    "defineConstraints": ["LETTERA_PIPELINE"],
+    "versionDefines": [
+        {
+            "name": "com.unity.pipeline",
+            "expression": "0.0.0",
+            "define": "LETTERA_PIPELINE"
+        }
+    ],
+    "noEngineReferences": false
+}

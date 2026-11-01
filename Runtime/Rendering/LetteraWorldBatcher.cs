@@ -421,6 +421,26 @@ namespace FirstSymbol.Lettera
             return shard;
         }
 
+        /// <summary>A scene that closes takes its shards with it, and what is left of them goes here. Its texts have unregistered by then.</summary>
+        internal static void ForgetScene(Scene scene)
+        {
+            int handle = scene.GetHashCode();
+            List<BatchKey> gone = null;
+            foreach (KeyValuePair<BatchKey, Batch> pair in s_Batches)
+            {
+                if (pair.Key.SceneHandle != handle) continue;
+                foreach (Shard shard in pair.Value.Shards)
+                {
+                    if (shard.Object != null) Destroy(shard.Object);
+                    if (shard.Mesh != null) Destroy(shard.Mesh);
+                }
+                (gone = gone ?? new List<BatchKey>()).Add(pair.Key);
+            }
+            if (gone != null)
+                foreach (BatchKey key in gone)
+                    s_Batches.Remove(key);
+        }
+
         public static void Shutdown()
         {
             foreach (Batch batch in s_Batches.Values)
