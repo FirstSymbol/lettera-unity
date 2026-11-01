@@ -44,7 +44,7 @@ namespace FirstSymbol.Lettera.Editor.Tests
                     {
                         LetteraMathItem it = layout.Items[k];
                         if (k > 0) json.Append(',');
-                        json.Append("{\"rule\":").Append(it.Kind == MathItemKind.Rule ? "true" : "false").Append(",\"g\":").Append(it.Glyph).Append(",\"x\":").Append(it.X.ToString(inv)).Append(",\"y\":").Append(it.Y.ToString(inv)).Append(",\"scale\":").Append(it.Scale.ToString(inv)).Append(",\"len\":").Append(it.Length.ToString(inv)).Append(",\"t\":").Append(it.Thickness.ToString(inv)).Append(",\"crop\":").Append(it.Cropped ? "true" : "false").Append(",\"vert\":").Append(it.Vertical ? "true" : "false").Append(",\"lo\":").Append(it.CropLow.ToString(inv)).Append(",\"hi\":").Append(it.CropHigh.ToString(inv)).Append('}');
+                        json.Append("{\"rule\":").Append(it.Kind == MathItemKind.Rule ? "true" : "false").Append(",\"g\":").Append(it.Glyph).Append(",\"x\":").Append(it.X.ToString(inv)).Append(",\"y\":").Append(it.Y.ToString(inv)).Append(",\"scale\":").Append(it.Scale.ToString(inv)).Append(",\"len\":").Append(it.Length.ToString(inv)).Append(",\"t\":").Append(it.Thickness.ToString(inv)).Append(",\"crop\":").Append(it.Cropped ? "true" : "false").Append(",\"vert\":").Append(it.Vertical ? "true" : "false").Append(",\"lo\":").Append(Mathf.Clamp(it.CropLow, -100000, 100000).ToString(inv)).Append(",\"hi\":").Append(Mathf.Clamp(it.CropHigh, -100000, 100000).ToString(inv)).Append('}');
                     }
                     json.Append("]}");
                 }
