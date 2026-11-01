@@ -725,9 +725,10 @@ namespace FirstSymbol.Lettera.Editor
             return -1;
         }
 
-        int FindWholeText(Type effect)
+        int FindWholeText(Type effect) => FindWholeText(P("Styles"), effect);
+
+        static int FindWholeText(SerializedProperty styles, Type effect)
         {
-            SerializedProperty styles = P("Styles");
             for (int i = 0; i < styles.arraySize; i++)
             {
                 SerializedProperty style = styles.GetArrayElementAtIndex(i);
@@ -736,26 +737,33 @@ namespace FirstSymbol.Lettera.Editor
             return -1;
         }
 
+        // One object at a time: several texts' style lists differ in length, and a shared property cannot add to them all.
         internal void ToggleWholeText(Type effect)
         {
             m_Object.Update();
-            SerializedProperty styles = P("Styles");
-            int found = FindWholeText(effect);
-            if (found >= 0)
+            bool removing = FindWholeText(effect) >= 0;
+            foreach (UnityEngine.Object target in m_Object.targetObjects)
             {
-                styles.DeleteArrayElementAtIndex(found);
+                var single = new SerializedObject(target);
+                SerializedProperty styles = single.FindProperty("m_Data").FindPropertyRelative("Styles");
+                int found = FindWholeText(styles, effect);
+                if (removing && found >= 0)
+                {
+                    styles.DeleteArrayElementAtIndex(found);
+                }
+                else if (!removing && found < 0)
+                {
+                    styles.InsertArrayElementAtIndex(styles.arraySize);
+                    SerializedProperty added = styles.GetArrayElementAtIndex(styles.arraySize - 1);
+                    added.FindPropertyRelative("m_Matcher").managedReferenceValue = new WholeTextMatcher();
+                    added.FindPropertyRelative("m_Effect").managedReferenceValue = Activator.CreateInstance(effect);
+                    added.FindPropertyRelative("m_Enabled").boolValue = true;
+                    SerializedProperty parameter = added.FindPropertyRelative("m_DefaultParameter");
+                    if (parameter != null) parameter.stringValue = "";
+                }
+                single.ApplyModifiedProperties();
             }
-            else
-            {
-                styles.InsertArrayElementAtIndex(styles.arraySize);
-                SerializedProperty added = styles.GetArrayElementAtIndex(styles.arraySize - 1);
-                added.FindPropertyRelative("m_Matcher").managedReferenceValue = new WholeTextMatcher();
-                added.FindPropertyRelative("m_Effect").managedReferenceValue = Activator.CreateInstance(effect);
-                added.FindPropertyRelative("m_Enabled").boolValue = true;
-                SerializedProperty parameter = added.FindPropertyRelative("m_DefaultParameter");
-                if (parameter != null) parameter.stringValue = "";
-            }
-            m_Object.ApplyModifiedProperties();
+            m_Object.Update();
             m_StyleList?.Rebuild();
             RefreshTools();
         }
@@ -1089,7 +1097,7 @@ namespace FirstSymbol.Lettera.Editor
             var text = (LetteraWorldText)target;
             LetteraSceneHandles.Draw(text, text.Padding, text.Styles, text.FontSize);
             LetteraSceneHandles.DrawInk(text, ((ITextComponent)text).SharedEngine);
-            if (NeedsRaycaster()) LetteraSceneHandles.Warn(text, "No World Raycaster on a camera: nothing can click this.");
+            if (NeedsRaycaster(text)) LetteraSceneHandles.Warn(text, "No World Raycaster on a camera: nothing can click this.");
         }
 
         protected override void BuildRender(VisualElement page)
@@ -1104,18 +1112,14 @@ namespace FirstSymbol.Lettera.Editor
             page.Add(LtUI.SwitchRow("Cast Shadows", P("m_CastShadows")));
             page.Add(LtUI.SwitchRow("Raycast Target", P("m_RaycastTarget")));
             page.Add(RouteRow());
-            page.Add(new LtFix("Nothing can click this text: no camera has a World Raycaster.", NeedsRaycaster, "Add To Camera", AddRaycaster, "Adds a World Raycaster to the main camera."));
+            page.Add(new LtFix("Nothing can click this text: no camera has a World Raycaster.", () => targets.Any(o => o is LetteraWorldText text && NeedsRaycaster(text)), "Add To Camera", AddRaycaster, "Adds a World Raycaster to the main camera."));
         }
 
-        bool NeedsRaycaster()
+        internal static bool NeedsRaycaster(LetteraWorldText text)
         {
-            foreach (UnityEngine.Object o in targets)
-            {
-                if (!(o is LetteraWorldText text) || !text.RaycastTarget || !text.gameObject.scene.IsValid()) continue;
-                if (text.GetComponent<LetteraSelectable>() == null && LetteraMotionScan.Of(text.Styles).Links == 0) continue;
-                if (UnityEngine.Object.FindAnyObjectByType<LetteraWorldRaycaster>() == null) return true;
-            }
-            return false;
+            if (!text.RaycastTarget || !text.gameObject.scene.IsValid()) return false;
+            if (text.GetComponent<LetteraSelectable>() == null && LetteraMotionScan.Of(text.Styles).Links == 0) return false;
+            return UnityEngine.Object.FindAnyObjectByType<LetteraWorldRaycaster>() == null;
         }
 
         static void AddRaycaster()

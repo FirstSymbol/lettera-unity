@@ -604,8 +604,12 @@ namespace FirstSymbol.Lettera.Editor
             void Refresh()
             {
                 row.Clear();
-                row.Add(Chip("Selectable", typeof(LetteraSelectable)));
-                row.Add(Chip("Editable", typeof(LetteraEditable)));
+                // A solid text has no caret to place, and these two refuse to live on it.
+                if (targets.All(t => t is LetteraText || t is LetteraWorldText))
+                {
+                    row.Add(Chip("Selectable", typeof(LetteraSelectable)));
+                    row.Add(Chip("Editable", typeof(LetteraEditable)));
+                }
                 row.Add(Chip("Sequencer", typeof(LetteraSequencer)));
                 row.Add(Chip("Navigator", typeof(LetteraRangeNavigator)));
                 row.Add(Chip("Scroller", typeof(LetteraDocumentScroller)));
