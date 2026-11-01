@@ -28,6 +28,8 @@ namespace FirstSymbol.Lettera.Samples
             // The text's own words are what it goes back to once no clip speaks.
             Line = go.AddComponent<LetteraText>();
             Line.FontSize = 40;
+            Line.HorizontalAlignment = LetteraHorizontalAlignment.Center;
+            Line.VerticalAlignment = LetteraVerticalAlignment.Middle;
             Line.Styles.Add(LetteraStyle.ForWholeText(new WaveMotion { Amplitude = 0 }));
             Line.Text = "The scene is over.";
 

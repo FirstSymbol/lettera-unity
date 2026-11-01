@@ -22,16 +22,16 @@ namespace FirstSymbol.Lettera.Samples
             scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
             scaler.referenceResolution = new Vector2(1280, 720);
             m_Root = (RectTransform)canvasObject.transform;
-            canvasObject.AddComponent<Image>().color = new Color(0.1f, 0.11f, 0.14f);
+            canvasObject.AddComponent<Image>().color = new Color(0.33f, 0.37f, 0.45f);
 
             // The tags of the default vocabulary, which need no setup.
             Cell("<outline=#D33,0.08>Outline</outline>");
             Cell("<stroke=#39F,0.08,outside>Stroke</stroke>");
             Cell("<shadow=#000C,0.08,-0.08,0.2>Shadow</shadow>");
             Cell("<glow=#4CF,0.3>Glow</glow>");
-            Cell("<inner-shadow=#000C,0.05,-0.05,0.1>Inner Shadow</inner-shadow>");
+            Cell("<inner-shadow=#D22,0.06,-0.06,0.08>Inner Shadow</inner-shadow>");
             Cell("<extrude=0.1,-0.1,#FA0,#410>Extrude</extrude>");
-            Cell("<mark=#FC06>Marked</mark> <mark=#6CF6,line>whole line</mark>");
+            Cell("<mark=#FC08>Marked</mark> <mark=#6CF8,line>line</mark>");
             Cell("<warp=0.05,6,1>Warped outline</warp>");
             Cell("<stroke=#F60,0.1><union>Union</union></stroke>");
 
@@ -79,7 +79,7 @@ namespace FirstSymbol.Lettera.Samples
             // Styles first, so that the first rebuild knows the tag.
             LetteraText shown = Text(x, y, 52, 34, style, markup);
             LetteraText source = Text(x, y + 54, 26, 13, null, "<noparse>" + markup + "</noparse>");
-            source.color = new Color(0.62f, 0.65f, 0.72f);
+            source.color = new Color(0.8f, 0.83f, 0.88f);
             return shown;
         }
 

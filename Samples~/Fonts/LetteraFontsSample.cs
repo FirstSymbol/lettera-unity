@@ -77,8 +77,8 @@ namespace FirstSymbol.Lettera.Samples
             Slider(100, 900, 400, value => m_Weight.Text = "<axes=wght " + Mathf.RoundToInt(value) + ">Weight " + Mathf.RoundToInt(value) + "</axes>");
 
             // OpenType features, by four-letter tag.
-            Caption("OpenType features: plain, then tabular figures, slashed zero, fractions, a stylistic set, and no contextual forms");
-            Line("1111 0 1/2 a 1x2  /  <otf=tnum>1111</otf> <otf=zero>0</otf> <otf=frac>1/2</otf> <otf=ss07>a</otf> <otf=-calt>1x2</otf>", 28, 38).Font = inter;
+            Caption("OpenType features: plain, then tabular figures, slashed zero, fractions, a one-storey a, and no contextual forms");
+            Line("1111 0 1/2 a 1x2  /  <otf=tnum>1111</otf> <otf=zero>0</otf> <otf=frac>1/2</otf> <otf=cv11>a</otf> <otf=-calt>1x2</otf>", 28, 38).Font = inter;
 
             // A pixel font: at multiples of its grid, every font pixel lands on whole screen pixels.
             pixel.FontPixelsPerEm = 8;

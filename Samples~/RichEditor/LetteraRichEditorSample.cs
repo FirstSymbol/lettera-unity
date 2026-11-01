@@ -163,12 +163,13 @@ namespace FirstSymbol.Lettera.Samples
 
         void Swatch(Color color, string parameter)
         {
-            Image image = Button("", 32, () =>
+            // The plain one says what it is: its colour is close to the bar's.
+            Image image = Button(parameter == null ? "A" : "", 32, () =>
             {
                 if (parameter == null) m_Field.RemoveEffect<ColorEffect>();
                 else m_Field.ApplyEffect<ColorEffect>(parameter);
             });
-            image.color = color;
+            image.color = parameter == null ? Off : color;
         }
     }
 }

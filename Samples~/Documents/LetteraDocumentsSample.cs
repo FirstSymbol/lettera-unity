@@ -34,7 +34,7 @@ namespace FirstSymbol.Lettera.Samples
             viewRect.anchorMin = new Vector2(0.1f, 0.1f);
             viewRect.anchorMax = new Vector2(0.9f, 0.9f);
             viewRect.sizeDelta = Vector2.zero;
-            view.AddComponent<Image>().color = new Color(0, 0, 0, 0.04f);
+            view.AddComponent<Image>().color = new Color(0.1f, 0.11f, 0.14f);
 
             var textObject = new GameObject("Text", typeof(RectTransform));
             textObject.transform.SetParent(view.transform, false);
@@ -46,7 +46,7 @@ namespace FirstSymbol.Lettera.Samples
             text.FontSize = 18;
 
             // A tag opened on the first line stays in force thousands of lines later, wherever the view is.
-            var body = new StringBuilder("<color=#2b6cb0>");
+            var body = new StringBuilder("<color=#9CCBFF>");
             for (int i = 0; i < Lines; i++) body.Append("Line ").Append(i).Append(": a document this long is no harder than a short one.\n");
             LetteraRope rope = LetteraRope.FromString(body.ToString());
 
