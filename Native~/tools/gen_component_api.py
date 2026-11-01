@@ -319,6 +319,9 @@ def main():
     for name in ("LetteraText", "LetteraWorldText"):
         with open(os.path.join(root, name + ".Api.g.cs"), "w", encoding="utf-8", newline="\n") as f:
             f.write(TEMPLATE.replace("CLASS", name))
+    text3d = os.path.normpath(os.path.join(root, "..", "Text3D"))
+    with open(os.path.join(text3d, "LetteraText3D.Api.g.cs"), "w", encoding="utf-8", newline="\n") as f:
+        f.write(TEMPLATE.replace("CLASS", "LetteraText3D"))
 
 
 if __name__ == "__main__":

@@ -37,6 +37,8 @@ namespace FirstSymbol.Lettera
         LetteraTextData ITextHost.Data => m_Data;
         Rect ITextHost.LayoutRect => Rect.rect;
         Color32 ITextHost.BaseColor => m_Color;
+        bool ITextHost.SolidsOnly => false;
+        System.Collections.Generic.IReadOnlyList<LetteraStyle> ITextHost.HostStyles => null;
         float ITextHost.RasterScale => 1f;
         bool ITextHost.ClipsOverflow => false;
         Component ITextHost.Owner => this;

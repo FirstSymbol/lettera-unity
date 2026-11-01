@@ -5,6 +5,25 @@ namespace FirstSymbol.Lettera
 {
     public enum LetteraSizeMatchMetric { XHeight, CapHeight }
 
+    /// <summary>The project's defaults for solid text. Numbers and a reference only, so nothing of the module is needed to read them.</summary>
+    [System.Serializable]
+    public class LetteraSolidSettings
+    {
+        [Tooltip("The material of a Text 3D made from a script, with none of its own. Empty keeps the shader out of builds that do not reference it.")]
+        public Material DefaultMaterial;
+
+        [Tooltip("The most glyph solids kept, in bytes. What no text holds goes first.")]
+        public long CacheBytes =
+#if UNITY_WEBGL
+            16 * 1024 * 1024;
+#else
+            32 * 1024 * 1024;
+#endif
+
+        [Tooltip("The most vertices one text draws. Glyphs past it draw nothing, and the inspector says so.")]
+        public int MaxVertices = 1000000;
+    }
+
     /// <summary>Project-wide defaults. Lives at Resources/LetteraSettings in the project, so it survives a package update.</summary>
     public class LetteraSettings : ScriptableObject
     {
@@ -37,6 +56,7 @@ namespace FirstSymbol.Lettera
         [SerializeField] LetteraPlatformSettings m_Platform = new LetteraPlatformSettings();
         [SerializeField] LetteraFontMemorySettings m_FontMemory = new LetteraFontMemorySettings();
         [SerializeField] LetteraMathSettings m_Math = new LetteraMathSettings();
+        [SerializeField] LetteraSolidSettings m_Solid3D = new LetteraSolidSettings();
         [Tooltip("Word lists for scripts written without spaces. Empty costs nothing: only what is listed reaches a player.")]
         [SerializeField] System.Collections.Generic.List<LetteraWordDictionary> m_Dictionaries = new System.Collections.Generic.List<LetteraWordDictionary>();
 
@@ -83,6 +103,7 @@ namespace FirstSymbol.Lettera
         /// <summary>Which of a platform's own facilities a project wants.</summary>
         /// <summary>Defaults for formulas.</summary>
         public LetteraMathSettings Math => m_Math ?? (m_Math = new LetteraMathSettings());
+        public LetteraSolidSettings Solid3D => m_Solid3D ?? (m_Solid3D = new LetteraSolidSettings());
 
         /// <summary>What fonts may cost, and how a build carries them.</summary>
         public LetteraFontMemorySettings FontMemory => m_FontMemory ?? (m_FontMemory = new LetteraFontMemorySettings());

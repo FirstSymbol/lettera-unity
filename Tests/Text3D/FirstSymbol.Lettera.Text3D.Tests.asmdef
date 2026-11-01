@@ -1,0 +1,25 @@
+{
+    "name": "FirstSymbol.Lettera.Text3D.Tests",
+    "rootNamespace": "FirstSymbol.Lettera.Text3D.Tests",
+    "references": [
+        "UnityEngine.TestRunner",
+        "UnityEditor.TestRunner",
+        "FirstSymbol.Lettera",
+        "FirstSymbol.Lettera.Editor",
+        "FirstSymbol.Lettera.Editor.Tests",
+        "FirstSymbol.Lettera.Text3D",
+        "FirstSymbol.Lettera.Unicode",
+        "Unity.Collections",
+        "Unity.Mathematics",
+        "Unity.Burst"
+    ],
+    "includePlatforms": ["Editor"],
+    "excludePlatforms": [],
+    "allowUnsafeCode": true,
+    "overrideReferences": true,
+    "precompiledReferences": ["nunit.framework.dll"],
+    "autoReferenced": false,
+    "defineConstraints": ["UNITY_INCLUDE_TESTS", "!LETTERA_NO_3D"],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

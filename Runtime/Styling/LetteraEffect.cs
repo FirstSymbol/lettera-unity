@@ -320,6 +320,19 @@ namespace FirstSymbol.Lettera
     /// <summary>Per-codepoint attributes effects write to. Indices are rendered codepoints.</summary>
     public sealed class LetteraAttributes
     {
+        /// <summary>A range's value in a channel core knows nothing of, for an effect that a module and its host agree on.</summary>
+        internal struct ExtraRange
+        {
+            public object Key;
+            public int Start, End;
+            public float Value;
+            public object Payload;
+        }
+
+        internal readonly System.Collections.Generic.List<ExtraRange> Extras = new System.Collections.Generic.List<ExtraRange>();
+
+        internal void AddExtra(object key, int start, int end, float value, object payload) => Extras.Add(new ExtraRange { Key = key, Start = start, End = end, Value = value, Payload = payload });
+
         internal struct Cp
         {
             public float SizeAbsolute, SizeMul, SizeAdd;
@@ -406,6 +419,7 @@ namespace FirstSymbol.Lettera
 
         internal void Reset(int length)
         {
+            Extras.Clear();
             if (Chars.Length < length) Chars = new Cp[Mathf.Max(length, Chars.Length * 2)];
             Length = length;
             for (int i = 0; i < length; i++)

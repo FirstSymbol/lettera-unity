@@ -294,7 +294,7 @@ namespace FirstSymbol.Lettera
             for (int s = 0; s < m_MotionSpans.Count && !moved; s++) moved = m_MotionSpans[s].Effect.Version != m_MotionSpans[s].SeenVersion;
             if (!moved && !m_PoseDirty) return;
             m_PoseDirty = false;
-            if (m_Dirty >= DirtyLevel.Mesh || !m_WantsPose || VertexCount == 0) return;
+            if (m_Dirty >= DirtyLevel.Mesh || !m_WantsPose || (VertexCount == 0 && !m_Host.SolidsOnly)) return;
             RunPosePass();
             m_Host.PoseChanged();
         }

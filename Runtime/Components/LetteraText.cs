@@ -30,6 +30,8 @@ namespace FirstSymbol.Lettera
         LetteraTextData ITextHost.Data => m_Data;
         Rect ITextHost.LayoutRect => rectTransform.rect;
         Color32 ITextHost.BaseColor => color;
+        bool ITextHost.SolidsOnly => false;
+        System.Collections.Generic.IReadOnlyList<LetteraStyle> ITextHost.HostStyles => null;
         float ITextHost.RasterScale => canvas != null ? canvas.scaleFactor : 1f;
         bool ITextHost.ClipsOverflow => m_ClipsOverflow;
         Component ITextHost.Owner => this;
