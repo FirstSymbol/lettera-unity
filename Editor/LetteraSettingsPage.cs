@@ -20,7 +20,7 @@ namespace FirstSymbol.Lettera.Editor
 
         static long SizeOf(UnityEngine.Object asset)
         {
-            if (asset is LetteraFont font) return font.CompressedSize;
+            if (asset is LetteraFont font && font.CompressedSize > 0) return font.CompressedSize;
             string path = asset != null ? AssetDatabase.GetAssetPath(asset) : null;
             return !string.IsNullOrEmpty(path) && File.Exists(path) ? new FileInfo(path).Length : 0;
         }

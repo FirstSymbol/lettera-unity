@@ -46,7 +46,7 @@ namespace FirstSymbol.Lettera.Editor.Tests
             return (text, serialized, list, list.Build());
         }
 
-        static int PaintControls(VisualElement root) => root.Query(className: "lt-paint").ToList().Count;
+        static int PaintControls(VisualElement root) => root.Query(className: "lt-paint-row").ToList().Count;
 
         [Test]
         public void WholeTextStrokeShowsItsEssentialParameters()
@@ -95,7 +95,7 @@ namespace FirstSymbol.Lettera.Editor.Tests
         {
             var (_, _, list, root) = Listed();
             list.Add(Template(LetteraStyleTemplates.WholeText, "Gradient Fill"));
-            Assert.AreEqual(2, root.Query(className: "lt-gradient__stop").ToList().Count);
+            Assert.AreEqual(2, root.Q<LtPaint>().BuildPage().Query(className: "lt-gradient__stop").ToList().Count);
         }
 
         [Test]
@@ -108,13 +108,13 @@ namespace FirstSymbol.Lettera.Editor.Tests
             fill.SetPaint(paint);
             text.Styles.Add(LetteraStyle.ForWholeText(fill));
             VisualElement root = new LetteraStyleList(new SerializedObject(text), "m_Data.Styles").Build();
-            var labels = root.Query<Label>(className: "lt-row__label").ToList().Select(l => l.text).ToList();
+            var labels = root.Q<LtPaint>().BuildPage().Query<Label>(className: "lt-row__label").ToList().Select(l => l.text).ToList();
             CollectionAssert.DoesNotContain(labels, "Fit", "A linear gradient has no fit.");
             CollectionAssert.Contains(labels, "Edge");
 
             paint.Settings.Shape = LetteraPaintShape.Conic;
             root = new LetteraStyleList(new SerializedObject(text), "m_Data.Styles").Build();
-            labels = root.Query<Label>(className: "lt-row__label").ToList().Select(l => l.text).ToList();
+            labels = root.Q<LtPaint>().BuildPage().Query<Label>(className: "lt-row__label").ToList().Select(l => l.text).ToList();
             CollectionAssert.Contains(labels, "Fit");
             CollectionAssert.DoesNotContain(labels, "Edge", "A conic gradient has no edge.");
         }
