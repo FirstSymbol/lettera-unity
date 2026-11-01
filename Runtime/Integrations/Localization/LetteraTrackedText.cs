@@ -1,5 +1,6 @@
 using System;
 using UnityEngine.Localization;
+using UnityEngine.Localization.PropertyVariants;
 using UnityEngine.Localization.PropertyVariants.TrackedObjects;
 
 namespace FirstSymbol.Lettera.Localization
