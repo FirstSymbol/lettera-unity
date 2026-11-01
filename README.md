@@ -178,6 +178,40 @@ text.View.ScrollToParagraph(1000);
 - A `LetteraEditable` on the same text edits the document. `LetteraDocumentSearch` finds text a slice at a time.
 - Thai, Lao, Khmer and Myanmar break by words once a `LetteraWordDictionary` is listed in the project settings. Nothing is listed by default, so nothing is added to a build.
 
+## Formulas
+
+```csharp
+label.Text = "Energy is <math>E = mc^2</math>, and <math=display>\\sum_{i=0}^n i = \\frac{n(n+1)}{2}</math> stands by itself.";
+```
+
+- A formula is written in a linear subset of TeX, inside `<math>`. `<math=display>` makes a paragraph of its own. `<math=inline,x squared>x^2</math>` gives it words for a screen reader.
+- **Commands:** fractions and binomials, roots, scripts and limits, large operators, `\left \right` and sized delimiters, accents, bars, braces, arrows, matrices, `cases`, `aligned`, `array`, `\text`, spacing, `\color`, alphabets such as `\mathbb`, and about 475 symbols. No macros, no `\def`, no `\ce`.
+- A formula that cannot be read draws what was written in a frame, and the text around it renders. `LetteraMath.Validate` checks one, and `LetteraMath.Failed` tells of each.
+- A formula is one object in its line: it does not break, and selects, copies and deletes whole. It takes color, size, alpha, stroke, shadow, glow and motion like text, and moves as one piece.
+- Copying gives `$source$` as plain text, MathML with its source as HTML, and the tag to a Lettera field.
+- **Which font.** In order: the style's `LetteraMathEffect.Font`, the project's `LetteraSettings.Math.Font`, the text's font if it holds a math table, a system math font (Cambria Math on Windows; on the web, Android and iOS there is none), and last the text's font with fallback layout, which is readable but plain.
+- **The bundled font.** Noto Sans Math is in the package and enters a build only when something references it. **Lettera > Math > Use Bundled Font** sets it for the project, at 343 KB in every build. On a style it costs only where that style is used. A build for the web, Android or iOS warns when a scene holds a formula and no font is set. Any font with a MATH table works: STIX Two Math and Latin Modern Math look more classic.
+- `LETTERA_NO_MATH` compiles formulas out. `<math>x</math>` then shows `x`.
+
+## 3D text
+
+```csharp
+LetteraText3D solid = go.AddComponent<LetteraText3D>();    // Or GameObject > Lettera > Text 3D.
+solid.Text = "Solid <wave>Text</wave>";
+solid.Depth = 0.25f;
+solid.FrontBevel = new LetteraBevel { Shape = LetteraBevelShape.Round, Width = 0.03f, Height = 0.03f, Roundness = 0.5f, Segments = 4 };
+```
+
+- Real geometry, lit and shadowed, drawn by the object's own `MeshRenderer`: nine edge shapes and a curve of your own, five material slots that fall back to one another, and a `Lettera/Solid Lit` shader for Built-in and URP.
+- Markup, fonts, fallback, bidi, Arabic and Indic shaping, wrapping and auto size are the same as a world text's. So is motion: every motion moves the solids, and a fade goes through a screen dither, so nothing needs sorting.
+- Each glyph is built once, whatever the text's depth, and shared by every text with the same font and edges. Identical texts share one mesh, so they can instance.
+- `<depth=2>` and `<bevel=chamfer,0.03,0.03>` act on a range. `LetteraSolidLook` holds a depth, edges and materials to give at once.
+- Underline and strikethrough extrude. Formulas extrude, with their bars as boxes. A color glyph draws flat on the front plane, or not at all.
+- **What it does not do:** 2D layers (stroke, shadow, glow) do not draw on a solid. No selection or editing. No HDRP material: assign an opaque one of your own.
+- **In a Canvas.** It is not a Graphic, since a Canvas has no light: it draws as a scene object, without masks or layout, and not at all under Screen Space Overlay. For solids in a UI, point a camera at the text, with a `RenderTexture` as its target, and show that in a `RawImage`. The 3D sample does this.
+- **In a build.** A scene's component brings its material and shader. A build with none holds neither. A text made from a script with no material needs **Lettera > 3D > Allow Creating From Scripts**, which puts the shader in every build. `LETTERA_NO_3D` removes the module.
+- Its context menu has **Bake To Mesh Asset** and **Export OBJ**, and a world text's has **Convert To Text 3D**.
+
 ## Platforms
 
 | Platform | Native plugin | System fonts and emoji |

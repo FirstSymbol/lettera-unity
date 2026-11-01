@@ -474,11 +474,19 @@ namespace FirstSymbol.Lettera
     [Serializable, UnityEngine.Scripting.Preserve]
     public class LetteraMathTagMatcher : LetteraMatcher
     {
+        [SerializeField] string m_Name = "math";
+
+        public LetteraMathTagMatcher() { }
+        public LetteraMathTagMatcher(string name) => m_Name = name;
+
+        public string Name { get => m_Name; set => m_Name = value; }
+
         public override int Priority => int.MaxValue - 1;
 
         public override void Find(LetteraMatchContext context)
         {
-            string text = context.Text;
+            if (context.LessThanPositions.Count == 0) return;
+            string text = context.Source;
             int at = 0;
             while ((at = text.IndexOf("<math", at, StringComparison.OrdinalIgnoreCase)) >= 0)
             {
