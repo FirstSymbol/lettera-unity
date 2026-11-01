@@ -36,7 +36,7 @@ namespace FirstSymbol.Lettera.Editor.Tests
                 foreach (bool display in new[] { false, true })
                 {
                     LetteraMathLayout layout = LetteraMathCache.Get(Sheet[i], display, face, face);
-                    string mathml = LetteraMathMarkup.ToMathML(Sheet[i], display);
+                    string mathml = LetteraMathMarkup.ToMathML(Sheet[i], display, LetteraMathFont.For(face));
                     if (json.Length > 1) json.Append(',');
                     json.Append("{\"id\":\"").Append(i).Append(display ? "d" : "t").Append("\",\"source\":").Append(Quote(Sheet[i])).Append(",\"mathml\":").Append(Quote(mathml)).Append(",\"width\":").Append(layout.Width.ToString(System.Globalization.CultureInfo.InvariantCulture)).Append(",\"ascent\":").Append(layout.InkAscent.ToString(System.Globalization.CultureInfo.InvariantCulture)).Append(",\"descent\":").Append(layout.InkDescent.ToString(System.Globalization.CultureInfo.InvariantCulture)).Append(",\"failed\":").Append(layout.Failed ? "true" : "false").Append(",\"items\":[");
                     var inv = System.Globalization.CultureInfo.InvariantCulture;

@@ -924,6 +924,7 @@ namespace FirstSymbol.Lettera
             }
             int first = m_Items.Count;
             float pen = 0, ascent = 0, descent = 0;
+            float inkLow = float.MaxValue, inkHigh = float.MinValue;
             for (int i = 0; i < sequence.Count; i++)
             {
                 MathPart part = sequence[i];
