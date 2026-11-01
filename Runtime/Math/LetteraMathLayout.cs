@@ -41,6 +41,8 @@ namespace FirstSymbol.Lettera
         struct Box
         {
             public float Width, Ascent, Descent, Italic;
+            /// <summary>A lone glyph's ink as it is, which may sit wholly above or below the baseline. Ascent and descent stop at it.</summary>
+            public float InkLow, InkHigh;
             public int First, End;
             public bool SingleGlyph, Extended;
             public uint Glyph;
@@ -323,7 +325,7 @@ namespace FirstSymbol.Lettera
             return (MathAlphabet)n.Info == MathAlphabet.Default && IsMathItalic(n.Cp);
         }
 
-        static bool IsMathItalic(int cp) => (cp >= 'a' && cp <= 'z') || (cp >= 'A' && cp <= 'Z') || (cp >= 0x3B1 && cp <= 0x3C9) || cp == 0x3D1 || cp == 0x3D5 || cp == 0x3D6 || cp == 0x3F0 || cp == 0x3F1 || cp == 0x3F5;
+        internal static bool IsMathItalic(int cp) => (cp >= 'a' && cp <= 'z') || (cp >= 'A' && cp <= 'Z') || (cp >= 0x3B1 && cp <= 0x3C9) || cp == 0x3D1 || cp == 0x3D5 || cp == 0x3D6 || cp == 0x3F0 || cp == 0x3F1 || cp == 0x3F5;
 
         // ---------------------------------------------------------------- nodes
 
@@ -448,6 +450,8 @@ namespace FirstSymbol.Lettera
                 Width = advance * scale,
                 Ascent = Mathf.Max(0, maxY * scale),
                 Descent = Mathf.Max(0, -minY * scale),
+                InkLow = minY * scale,
+                InkHigh = maxY * scale,
                 First = first,
                 End = m_Items.Count,
                 SingleGlyph = true,
@@ -936,6 +940,8 @@ namespace FirstSymbol.Lettera
                 {
                     ascent = Mathf.Max(ascent, maxY * scale);
                     descent = Mathf.Max(descent, -minY * scale);
+                    inkLow = Mathf.Min(inkLow, minY * scale);
+                    inkHigh = Mathf.Max(inkHigh, maxY * scale);
                 }
                 pen += part.FullAdvance * unit - (i < joints ? overlaps[i] : 0);
             }
@@ -951,6 +957,8 @@ namespace FirstSymbol.Lettera
                 box.Width = pen;
                 box.Ascent = ascent;
                 box.Descent = descent;
+                box.InkLow = inkLow;
+                box.InkHigh = inkHigh;
             }
             return box;
         }
@@ -1198,13 +1206,14 @@ namespace FirstSymbol.Lettera
             float gap = C(over ? MathConstant.StretchStackGapBelowMin : MathConstant.StretchStackGapAboveMin, style);
             float width = Mathf.Max(body.Width, mark.Width);
             Move(body.First, body.End, (width - body.Width) / 2, 0);
-            float y = over ? body.Ascent + gap + mark.Descent : -body.Descent - gap - mark.Ascent;
+            // By the ink: a brace's glyph may sit far above its baseline, and the gap is to what shows.
+            float y = over ? body.Ascent + gap - mark.InkLow : -body.Descent - gap - mark.InkHigh;
             Move(mark.First, mark.End, (width - mark.Width) / 2, y);
             return new Box
             {
                 Width = width,
-                Ascent = over ? y + mark.Ascent : body.Ascent,
-                Descent = over ? body.Descent : -y + mark.Descent,
+                Ascent = over ? y + mark.InkHigh : body.Ascent,
+                Descent = over ? body.Descent : -y - mark.InkLow,
                 First = start,
                 End = m_Items.Count,
             };
