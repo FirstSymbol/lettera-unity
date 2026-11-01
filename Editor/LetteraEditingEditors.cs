@@ -540,6 +540,14 @@ namespace FirstSymbol.Lettera.Editor
         }
     }
 
+    /// <summary>A chip on the Interaction card for a component a module brings. <see cref="Add"/> sets it up on a text.</summary>
+    internal struct LetteraCardChip
+    {
+        public string Title;
+        public Type Type;
+        public Action<Component> Add;
+    }
+
     /// <summary>Menu items for selectable text and ready-made fields.</summary>
     internal static class LetteraEditingMenus
     {
@@ -590,6 +598,9 @@ namespace FirstSymbol.Lettera.Editor
             if (UnityEngine.Object.FindAnyObjectByType<EventSystem>() == null) LetteraMenus.CreateEventSystem();
         }
 
+        /// <summary>Chips a module adds without this card naming it, as Localization does when its package is there.</summary>
+        internal static readonly List<LetteraCardChip> ExtraChips = new List<LetteraCardChip>();
+
         /// <summary>The text inspector's card: which interaction a text has, with one click to change it.</summary>
         public static VisualElement InteractionCard(UnityEngine.Object[] targets)
         {
@@ -613,6 +624,7 @@ namespace FirstSymbol.Lettera.Editor
                 row.Add(Chip("Sequencer", typeof(LetteraSequencer)));
                 row.Add(Chip("Navigator", typeof(LetteraRangeNavigator)));
                 row.Add(Chip("Scroller", typeof(LetteraDocumentScroller)));
+                foreach (LetteraCardChip extra in ExtraChips) row.Add(Chip(extra.Title, extra.Type, extra.Add));
                 var first = targets.Length > 0 ? targets[0] as Component : null;
                 IEnumerable<LetteraStyle> styles = (first as ITextHost)?.Data.Styles;
                 if (styles == null) return;
@@ -636,7 +648,7 @@ namespace FirstSymbol.Lettera.Editor
                 foreach (string warning in LetteraMotionScan.Warnings(first, styles)) row.Add(LtUI.Text(warning, "lt-chip lt-chip--orange"));
             }
             // Off: adds it. On: a click goes to it, and its small cross takes it away.
-            VisualElement Chip(string title, Type type)
+            VisualElement Chip(string title, Type type, Action<Component> add = null)
             {
                 bool has = targets.All(t => t != null && ((Component)t).GetComponent(type) != null);
                 if (!has)
@@ -646,7 +658,9 @@ namespace FirstSymbol.Lettera.Editor
                         foreach (UnityEngine.Object t in targets)
                         {
                             var component = (Component)t;
-                            if (component.GetComponent(type) == null) Undo.AddComponent(component.gameObject, type);
+                            if (component.GetComponent(type) != null) continue;
+                            if (add != null) add(component);
+                            else Undo.AddComponent(component.gameObject, type);
                         }
                         Refresh();
                     });

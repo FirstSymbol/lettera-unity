@@ -1,0 +1,38 @@
+{
+    "name": "FirstSymbol.Lettera.Localization.Editor.Tests",
+    "rootNamespace": "FirstSymbol.Lettera.Localization.Editor.Tests",
+    "references": [
+        "UnityEngine.TestRunner",
+        "UnityEditor.TestRunner",
+        "FirstSymbol.Lettera",
+        "FirstSymbol.Lettera.Editor",
+        "FirstSymbol.Lettera.Localization",
+        "FirstSymbol.Lettera.Localization.Editor",
+        "Unity.Localization",
+        "Unity.Localization.Editor",
+        "Unity.ResourceManager",
+        "Unity.Addressables"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": true,
+    "precompiledReferences": [
+        "nunit.framework.dll"
+    ],
+    "autoReferenced": false,
+    "defineConstraints": [
+        "UNITY_INCLUDE_TESTS",
+        "LETTERA_LOCALIZATION"
+    ],
+    "versionDefines": [
+        {
+            "name": "com.unity.localization",
+            "expression": "1.0.0",
+            "define": "LETTERA_LOCALIZATION"
+        }
+    ],
+    "noEngineReferences": false
+}

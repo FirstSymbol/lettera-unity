@@ -1,0 +1,28 @@
+{
+    "name": "FirstSymbol.Lettera.Localization",
+    "rootNamespace": "FirstSymbol.Lettera.Localization",
+    "references": [
+        "FirstSymbol.Lettera",
+        "Unity.Localization",
+        "Unity.ResourceManager",
+        "Unity.Addressables",
+        "Unity.InternalAPIEngineBridge.013"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [
+        "LETTERA_LOCALIZATION"
+    ],
+    "versionDefines": [
+        {
+            "name": "com.unity.localization",
+            "expression": "1.0.0",
+            "define": "LETTERA_LOCALIZATION"
+        }
+    ],
+    "noEngineReferences": false
+}
