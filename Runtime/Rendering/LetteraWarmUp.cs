@@ -58,6 +58,28 @@ namespace FirstSymbol.Lettera
     }
 
     /// <summary>
+    /// The first text of a session pays once for what every later one finds ready: Lettera's tables, its material, the atlas page and the glyphs. This pays for it at a moment you choose.
+    /// The glyphs are made at run time and nothing is added to a build.
+    /// </summary>
+    public static class LetteraTextWarmUp
+    {
+        /// <summary>The printable characters of ASCII, the default set.</summary>
+        public const string Latin = " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\]^_`abcdefghijklmnopqrstuvwxyz{|}~";
+
+        /// <summary>
+        /// Readies a font and a set of characters at one size, so the first text drawn with them costs what a later one does. Call it behind a loading screen; text under 72 units and text over it use different glyphs.
+        /// A character the font lacks takes the fallback chain, as it would in a text. Null characters mean <see cref="Latin"/>. Call <see cref="LetteraShaderWarmUp"/> as well to have the first draw's shader ready.
+        /// </summary>
+        public static void Prepare(LetteraFontAsset font, string characters = null, float size = 18f, LetteraFontStack stack = null)
+        {
+            GlyphAtlasRegistration.EnsureRegistered();
+            _ = LetteraMaterials.Ui;
+            TextEngine.PrepareFor(font, stack, characters ?? Latin, size);
+            GlyphAtlas.Flush();
+        }
+    }
+
+    /// <summary>
     /// The first draw of a shader variant can stall a frame. This draws each one at a moment you choose, such as behind a loading screen, on a tiny target and with
     /// the vertex layout text really has, since on modern graphics APIs the state depends on that too. Nothing runs unless asked, and a text that never asks pays nothing.
     /// </summary>

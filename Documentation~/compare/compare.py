@@ -28,7 +28,7 @@ os.makedirs(OUT, exist_ok=True)
 FONTS = os.path.join(PACKAGE, "Tests", "Fonts~")
 ENGINES = args.engines.split(",")
 BACKENDS = args.backends.split(",")
-SCENARIOS = ["main", "extra", "first", "multilang", "font", "memory"]
+SCENARIOS = ["main", "extra", "first", "prepared", "multilang", "font", "memory"]
 DEV_SCENARIOS = ["main", "extra", "multilang", "draw"]
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 

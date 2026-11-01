@@ -295,6 +295,14 @@ namespace FirstSymbol.Lettera
             public IReadOnlyList<LetteraStyle> HostStyles => null;
         }
 
+        /// <summary>Runs every pass of a rebuild once, for what the first text of a session would otherwise pay for. No component is involved and nothing is drawn.</summary>
+        internal static void PrepareFor(LetteraFontAsset font, LetteraFontStack stack, string characters, float size)
+        {
+            var data = new LetteraTextData { Font = font, FontStack = stack, FontSize = size, Text = characters };
+            // The characters go in as they are: what looks like a tag is still what was asked for.
+            new TextEngine(new MeasureHost { Data = data, LayoutRect = new Rect(0, 0, 4096, 4096) }) { Literal = true }.Rebuild();
+        }
+
         /// <summary>Measures a text without touching what a component displays.</summary>
         public static Vector2 MeasureWith(Component owner, LetteraTextData data, string text, float size, float width, float height, bool wrap, bool autoSize, float minSize, float maxSize)
         {
