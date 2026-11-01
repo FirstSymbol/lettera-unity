@@ -423,7 +423,7 @@ namespace FirstSymbol.Lettera
         }
 
         // Virtual glyphs: they draw like the letter they follow but are no part of the text.
-        readonly List<PlacedGlyph> m_VirtualGlyphs = new List<PlacedGlyph>();
+        List<PlacedGlyph> m_VirtualGlyphs = Rare<PlacedGlyph>.List;
         const int Tatweel = 0x0640;
 
         // A connecting stroke across the space tracking opened between joined letters.
@@ -443,7 +443,7 @@ namespace FirstSymbol.Lettera
             uint glyph = LetteraNative.lt_font_glyph(instance.Font, Tatweel, 0);
             float advance = LetteraNative.lt_glyph_advance(instance.Font, glyph) * unit;
             if (advance <= 0) return;
-            m_VirtualGlyphs.Add(new PlacedGlyph
+            Own(ref m_VirtualGlyphs).Add(new PlacedGlyph
             {
                 Glyph = glyph, Instance = instance, Cluster = cluster, Line = lineIndex, X = x, Y = baseline, Advance = 0, Unit = unit,
                 Size = run.UnitEm > 0 ? unit / run.UnitEm : 0, XScale = width / advance - 1,

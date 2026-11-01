@@ -55,7 +55,7 @@ namespace FirstSymbol.Lettera
                     // A glyph holds this in the room a plain text already pays for. Past it, a part draws plain.
                     if (m_MathSpecials.Count >= ushort.MaxValue)
                     {
-                        if (part.Kind != MathItemKind.Rule) m_VirtualGlyphs.Add(placed);
+                        if (part.Kind != MathItemKind.Rule) Own(ref m_VirtualGlyphs).Add(placed);
                         continue;
                     }
                     if (part.Kind == MathItemKind.Rule)
@@ -74,15 +74,15 @@ namespace FirstSymbol.Lettera
                         placed.Size = em;
                         placed.Unit = em / 1000;
                         placed.SpecialIndex = (ushort)m_MathSpecials.Count;
-                        m_MathSpecials.Add(new MathSpecial { Length = part.Length * 1000, Thickness = part.Thickness * 1000, Vertical = part.Vertical, HasColor = colored, Color = colored ? item.Math.Colors[part.Color - 1] : default });
+                        Own(ref m_MathSpecials).Add(new MathSpecial { Length = part.Length * 1000, Thickness = part.Thickness * 1000, Vertical = part.Vertical, HasColor = colored, Color = colored ? item.Math.Colors[part.Color - 1] : default });
                     }
                     else if (part.Cropped || colored)
                     {
                         placed.Special = part.Cropped ? SpecialCrop : SpecialColor;
                         placed.SpecialIndex = (ushort)m_MathSpecials.Count;
-                        m_MathSpecials.Add(new MathSpecial { Low = part.CropLow, High = part.CropHigh, Vertical = part.Vertical, HasColor = colored, Color = colored ? item.Math.Colors[part.Color - 1] : default });
+                        Own(ref m_MathSpecials).Add(new MathSpecial { Low = part.CropLow, High = part.CropHigh, Vertical = part.Vertical, HasColor = colored, Color = colored ? item.Math.Colors[part.Color - 1] : default });
                     }
-                    m_VirtualGlyphs.Add(placed);
+                    Own(ref m_VirtualGlyphs).Add(placed);
                 }
             }
         }
@@ -138,7 +138,7 @@ namespace FirstSymbol.Lettera
             public Color32 Color;
         }
 
-        readonly List<MathSpecial> m_MathSpecials = new List<MathSpecial>();
+        List<MathSpecial> m_MathSpecials = Rare<MathSpecial>.List;
 
         int m_FormulaCount;
 
@@ -189,8 +189,8 @@ namespace FirstSymbol.Lettera
             }
         }
 
-        readonly List<InlineItem> m_InlineItems = new List<InlineItem>();
-        readonly Dictionary<int, int> m_InlineByCp = new Dictionary<int, int>();
+        List<InlineItem> m_InlineItems = Rare<InlineItem>.List;
+        Dictionary<int, int> m_InlineByCp = Rare<int, int>.Map;
 
         internal IReadOnlyList<InlineItem> InlineItems => m_InlineItems;
         public bool HasInline => m_InlineItems.Count > 0;
@@ -223,8 +223,8 @@ namespace FirstSymbol.Lettera
                 if (request.Start >= m_TextLength || m_Text[request.Start] != 0xFFFC) continue;
                 InlineItem item = request.Effect.ResolveIn(this, request.Slots, request.Start);
                 if (item.Math != null) m_FormulaCount++;
-                m_InlineByCp[item.Cp] = m_InlineItems.Count;
-                m_InlineItems.Add(item);
+                Own(ref m_InlineByCp)[item.Cp] = m_InlineItems.Count;
+                Own(ref m_InlineItems).Add(item);
             }
             if (m_InlineItems.Count > 0 || had) m_InlinePlacedPending = true;
         }

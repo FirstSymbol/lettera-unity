@@ -31,8 +31,8 @@ namespace FirstSymbol.Lettera
             public bool Second;
         }
 
-        readonly List<SymbolSet> m_SymbolSets = new List<SymbolSet>();
-        readonly List<ExtraQuad> m_ExtraQuads = new List<ExtraQuad>();
+        List<SymbolSet> m_SymbolSets = Rare<SymbolSet>.List;
+        List<ExtraQuad> m_ExtraQuads = Rare<ExtraQuad>.List;
         int[] m_FaceQuad = new int[0];
         SymbolSet[] m_GlyphSymbols = new SymbolSet[0];
         Vector4[] m_RestUv0 = new Vector4[0];
@@ -80,7 +80,7 @@ namespace FirstSymbol.Lettera
                 list.Add(new SymbolGlyph { Atlas = atlas, AdvanceEm = LetteraNative.lt_glyph_advance(instance.Font, glyph), Codepoint = cp });
             }
             var set = new SymbolSet { Instance = instance, Density = density, Reach = reach, Alphabet = alphabet, Glyphs = list.ToArray() };
-            m_SymbolSets.Add(set);
+            Own(ref m_SymbolSets).Add(set);
             return set;
         }
 
@@ -127,7 +127,7 @@ namespace FirstSymbol.Lettera
             m_FilterRow = 0;
             int quad = VertexCount / 4;
             AddQuad(g, atlas, color, atlas.Pixel ? ModePixel : atlas.Kind == AtlasGlyph.Msdf ? ModeMedian : ModeSdf, 0.5f, 0, 0, s_NoPaint, default, 0, 0);
-            m_ExtraQuads.Add(new ExtraQuad { Quad = quad, Glyph = glyph, Body = body, Span = span, Second = second });
+            Own(ref m_ExtraQuads).Add(new ExtraQuad { Quad = quad, Glyph = glyph, Body = body, Span = span, Second = second });
         }
 
         void CollapseExtraQuads()

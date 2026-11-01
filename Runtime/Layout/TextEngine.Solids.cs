@@ -70,7 +70,7 @@ namespace FirstSymbol.Lettera
             public int Glyph;
         }
 
-        readonly List<SolidBox> m_SolidBoxes = new List<SolidBox>();
+        List<SolidBox> m_SolidBoxes = Rare<SolidBox>.List;
 
         internal List<SolidBox> SolidBoxes => m_SolidBoxes;
 
