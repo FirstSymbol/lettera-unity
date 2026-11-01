@@ -240,3 +240,11 @@ Burmese Word Break Dictionary Data (burmesedict.txt)
 ## Color test fonts
 
 `Tests/Fonts~/test_glyphs-glyf_colr_1.ttf` comes from https://github.com/googlefonts/color-fonts under the Apache License 2.0, whose text is in `Tests/Fonts~/color-fonts-LICENSE.txt`. It is used by tests only, and does not ship in player builds.
+
+## Inter
+
+The Fonts sample holds a subset of Inter in `Samples~/Fonts/Resources/LetteraSampleInter.bytes`: Latin only, the optical size axis fixed at 14, the weight axis kept. It enters a project only when that sample is imported, and a build only when a scene uses it. Copyright 2020 The Inter Project Authors (https://github.com/rsms/inter). Licensed under the SIL Open Font License 1.1; the licence is beside it, in `Samples~/Fonts/OFL-Inter.txt`.
+
+## Fonts drawn for the samples
+
+`LetteraSampleIcons`, `LetteraSamplePixel` and `LetteraSampleColor` in `Samples~` were drawn for this package, by `Native~/sample_fonts.py`, and are no third party's.

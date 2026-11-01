@@ -259,6 +259,24 @@ LetteraFontMemory.Sums sums = LetteraFontMemory.Totals;
 
 After updating, the editor keeps the native library it loaded until it restarts: COLRv1 waits for that, and everything else works.
 
+## Samples
+
+In **Window > Package Manager > Lettera > Samples**. Each is built from code: add its component to an empty object in an empty scene, and press Play.
+
+- **Basic:** mixed scripts, emoji, tags, wrapping, eliding, auto size and runtime text, with no fonts in the project.
+- **Fields:** a chat box, a checked e-mail field, a password, a rich text area, a dropdown and selectable text.
+- **Motion:** every motion, a typewriter, a ticker, a link, a spoiler, a hover rule and an inline sprite.
+- **Documents:** 200 000 lines in a scrolling view, searched and jumped through.
+- **Math:** formulas in a sentence and by themselves, every construct beside its source, a field that shows what is typed. Assign a font on the web.
+- **3D Text:** a line per edge shape, each look, a formula, 500 shared labels, and solid text in a Canvas. Assign a material with the Lettera/Solid Lit shader.
+- **Device Check:** one guided session per device, and one text block to copy or share.
+- **Emoji:** flags, joined sequences, skin tones, keycaps, alpha and color on emoji, and a small color font of its own.
+- **Layout:** one box of text with a live control for alignment, wrap, overflow, auto size, line height, trim, curve and padding.
+- **Fonts:** system fonts, a stack, a variable axis, OpenType features, a pixel font and an icon font, made from code.
+- **Styles:** a gallery beside its markup: every layer, gradients, filters, presets, a tag of your own and an effect with its own shader.
+- **Rich Editor:** a word processor's page: a toolbar that follows the caret, the keys you expect, and paste that keeps formatting.
+- **Timeline:** needs the Timeline package. A cut scene built from code, with a line typed by a clip, a sequencer and a linked parameter on three tracks.
+
 ## Against TextMesh Pro
 
 [Comparison](Documentation~/Comparison.md): times, memory, features and pictures, including when to stay on TextMesh Pro.
