@@ -1,0 +1,18 @@
+{
+    "name": "FirstSymbol.Lettera.Samples.Text3D",
+    "rootNamespace": "FirstSymbol.Lettera.Samples",
+    "references": [
+        "FirstSymbol.Lettera",
+        "FirstSymbol.Lettera.Text3D",
+        "UnityEngine.UI"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": ["!LETTERA_NO_3D"],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

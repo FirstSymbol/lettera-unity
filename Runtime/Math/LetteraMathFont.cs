@@ -1,3 +1,4 @@
+#if !LETTERA_NO_MATH
 using System;
 using System.Collections.Generic;
 using UnityEngine;
@@ -239,3 +240,4 @@ namespace FirstSymbol.Lettera
         }
     }
 }
+#endif

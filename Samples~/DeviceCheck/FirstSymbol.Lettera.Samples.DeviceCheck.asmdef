@@ -3,6 +3,7 @@
     "rootNamespace": "FirstSymbol.Lettera.Samples",
     "references": [
         "FirstSymbol.Lettera",
+        "FirstSymbol.Lettera.Text3D",
         "UnityEngine.UI"
     ],
     "includePlatforms": [],

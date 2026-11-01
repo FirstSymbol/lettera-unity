@@ -1,3 +1,4 @@
+#if !LETTERA_NO_MATH
 using System;
 using System.Collections.Generic;
 using System.Globalization;
@@ -1179,3 +1180,4 @@ namespace FirstSymbol.Lettera
         }
     }
 }
+#endif

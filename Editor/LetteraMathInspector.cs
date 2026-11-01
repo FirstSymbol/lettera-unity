@@ -42,6 +42,7 @@ namespace FirstSymbol.Lettera.Editor
             return card;
         }
 
+#if !LETTERA_NO_MATH
         /// <summary>What a font holds for formulas, for its own inspector.</summary>
         internal static string DescribeFont(LetteraFontAsset font)
         {
@@ -53,5 +54,6 @@ namespace FirstSymbol.Lettera.Editor
             LetteraMathFont math = LetteraMathFont.For(face);
             return "Has a math table: 56 constants, scripts at " + math.C(MathConstant.ScriptPercentScaleDown) + "% and " + math.C(MathConstant.ScriptScriptPercentScaleDown) + "%.";
         }
+#endif
     }
 }
