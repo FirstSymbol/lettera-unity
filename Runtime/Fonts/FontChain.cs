@@ -154,6 +154,13 @@ namespace FirstSymbol.Lettera
             }
             if (baseCp == 0) baseCp = cluster.Length > 0 ? cluster[0] : ' ';
 
+            // A line break draws nothing, and few fonts have a glyph for one. Asking the system for it woke the whole font search in the first text with a second line.
+            if (baseCp == '\n' || baseCp == '\r' || baseCp == 0x0B || baseCp == 0x0C || baseCp == 0x85 || baseCp == 0x2028 || baseCp == 0x2029)
+            {
+                family = Primary;
+                return PrimaryFace;
+            }
+
             if (emoji && !settings.DisableEmoji)
             {
                 if (m_ColorFace != null && m_ColorFace.HasGlyph(baseCp)) return m_ColorFace;
