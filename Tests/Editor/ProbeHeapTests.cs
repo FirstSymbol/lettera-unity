@@ -127,6 +127,48 @@ namespace FirstSymbol.Lettera.Editor.Tests
         }
 
 
+
+        [UnityTest]
+        public IEnumerator ProbeBirth()
+        {
+            Transform canvas = Canvas();
+            yield return null;
+            var parts = new long[8];
+            var made = new List<GameObject>();
+            for (int i = 0; i < 200; i++)
+            {
+                var go = new GameObject("Label", typeof(RectTransform));
+                go.transform.SetParent(canvas, false);
+                made.Add(go);
+                long t0 = TextEngine.ProbeAllocated();
+                go.AddComponent<UnityEngine.UI.Image>();
+                long t1 = TextEngine.ProbeAllocated();
+                parts[0] += t1 - t0;
+            }
+            for (int i = 0; i < 200; i++)
+            {
+                var go = new GameObject("Label", typeof(RectTransform));
+                go.transform.SetParent(canvas, false);
+                made.Add(go);
+                long t0 = TextEngine.ProbeAllocated();
+                var label = go.AddComponent<LetteraText>();
+                long t1 = TextEngine.ProbeAllocated();
+                var engine = new TextEngine(label);
+                long t2 = TextEngine.ProbeAllocated();
+                var data = new LetteraTextData();
+                long t3 = TextEngine.ProbeAllocated();
+                parts[1] += t1 - t0; parts[2] += t2 - t1; parts[3] += t3 - t2;
+            }
+            int fields = 0, refs = 0;
+            foreach (var f in typeof(TextEngine).GetFields(System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Public))
+            {
+                fields++;
+                if (!f.FieldType.IsValueType) refs++;
+            }
+            Debug.Log($"LETTERA_PROBE birth: image {parts[0] / 200} lettera {parts[1] / 200} engine {parts[2] / 200} data {parts[3] / 200} fields {fields} refs {refs}");
+            foreach (GameObject go in made) UnityEngine.Object.DestroyImmediate(go);
+        }
+
         static Dictionary<string, int> Lengths(object o, string prefix, Dictionary<string, int> into)
         {
             if (o == null) return into;
