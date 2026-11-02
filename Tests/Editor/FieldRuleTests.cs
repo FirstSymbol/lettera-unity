@@ -953,6 +953,7 @@ namespace FirstSymbol.Lettera.Editor.Tests
             LetteraWorldText label = field.GetComponent<LetteraWorldText>();
             label.ForceRebuild();
             LetteraCaches.ResetStats();
+            int resumed = label.Engine.ResumedShapes;
             var clock = System.Diagnostics.Stopwatch.StartNew();
             const int Rounds = 20;
             System.Array.Clear(TextEngine.PassTicks, 0, TextEngine.PassTicks.Length);
@@ -967,9 +968,9 @@ namespace FirstSymbol.Lettera.Editor.Tests
             double ms = clock.Elapsed.TotalMilliseconds / Rounds;
             double Pass(int pass) => TextEngine.PassTicks[pass] * 1000.0 / System.Diagnostics.Stopwatch.Frequency / Rounds;
             UnityEngine.Debug.Log($"LETTERA_BUDGET keystroke_100_paragraphs total={ms:0.00} shape={Pass(1):0.00} layout={Pass(2):0.00} positions={Pass(3):0.00} mesh={Pass(4):0.00} rest={ms - Pass(1) - Pass(2) - Pass(3) - Pass(4):0.00} ms");
-            // Only the paragraph typed in shapes: the other ninety-nine come from the cache each time.
+            // Only the paragraph typed in shapes: the ones before it stay as they were, and any after it come from the cache.
             Assert.LessOrEqual(LetteraCaches.Stats.Misses, Rounds * 2);
-            Assert.GreaterOrEqual(LetteraCaches.Stats.Hits, Rounds * 90);
+            Assert.AreEqual(Rounds, label.Engine.ResumedShapes - resumed, "each keystroke kept the paragraphs before it");
         }
 
         [TestCase(1000)]
