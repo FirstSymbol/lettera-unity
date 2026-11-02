@@ -69,13 +69,6 @@ namespace FirstSymbol.Lettera
         {
             ShapeCount++;
             int length = m_TextLength;
-            EnsureSize(ref m_Levels, length + 1);
-            EnsureSize(ref m_Boundaries, length + 2);
-            EnsureSize(ref m_Breaks, length + 1);
-            EnsureSize(ref m_Scripts, length + 1);
-            EnsureSize(ref m_CpRun, length + 1);
-            EnsureSize(ref m_CpAdvanceEm, length + 1);
-            EnsureSize(ref m_ShapeText, length + 1);
             LetteraTextData data = m_Host.Data;
             m_Chain = LetteraFontChains.Get(data.Font, data.FontStack);
             int direction = FieldDirection >= 0 ? FieldDirection : m_Attributes.DirectionOverride >= 0 ? m_Attributes.DirectionOverride
@@ -88,9 +81,10 @@ namespace FirstSymbol.Lettera
             ShapedAfresh = resume == 0;
             if (resume == 0 && m_Deferring) ForgetEstimates();
 
-            // A paragraph left for later prepares its own characters when it is shaped.
+            // A paragraph left for later prepares its own characters when it is shaped, and the buffers grow to what is shaped.
             if (!m_Deferring)
             {
+                EnsureShapeBuffers(length + 1);
                 LetteraAttributes chars = m_Attributes;
                 for (int i = resume; i < length; i++)
                 {
@@ -100,7 +94,7 @@ namespace FirstSymbol.Lettera
                 }
                 Array.Clear(m_CpAdvanceEm, resume, length + 1 - resume);
             }
-            else
+            else if (m_CpAdvanceEm.Length > length)
             {
                 m_CpAdvanceEm[length] = 0;
             }
