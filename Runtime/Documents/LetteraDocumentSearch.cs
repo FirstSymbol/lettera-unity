@@ -75,7 +75,7 @@ namespace FirstSymbol.Lettera
         {
             if (!m_Running || m_Query.Length == 0) return false;
             if (m_Version != m_Rope.Version) Start(m_Rope.CharOfBlock(Math.Min(m_Block, Math.Max(m_Rope.BlockCount - 1, 0))));
-            var clock = System.Diagnostics.Stopwatch.StartNew();
+            long started = System.Diagnostics.Stopwatch.GetTimestamp();
             do
             {
                 if (m_Block >= m_Rope.BlockCount)
@@ -86,7 +86,7 @@ namespace FirstSymbol.Lettera
                 ScanBlock(m_Block, results);
                 m_Block++;
             }
-            while (clock.Elapsed.TotalMilliseconds < budgetMs);
+            while (LetteraDocumentView.MillisecondsSince(started) < budgetMs);
             return m_Block < m_Rope.BlockCount;
         }
 

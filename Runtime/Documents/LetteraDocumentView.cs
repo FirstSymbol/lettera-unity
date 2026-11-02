@@ -181,6 +181,7 @@ namespace FirstSymbol.Lettera
             y = Math.Max(0, Math.Min(y, MaxDocumentY));
             if (y == m_Y) return;
             m_Y = y;
+            m_TicksSinceScroll = 0;
             m_AtEnd = m_Y >= MaxDocumentY - 0.5;
             // A scroll says where to be, so the anchor comes from that, not the other way round.
             m_Scrolled = true;
@@ -246,6 +247,7 @@ namespace FirstSymbol.Lettera
         {
             if (IsShownAsBars)
             {
+                m_Lean = false;
                 // No text is laid out: bars come from what is known of each block's height.
                 m_Engine.SetWindowOffset(0);
                 m_Engine.BarsChanged();
@@ -253,6 +255,7 @@ namespace FirstSymbol.Lettera
             }
             if (m_Rope.BlockCount == 0)
             {
+                m_Lean = false;
                 m_Engine.SetWindow(0, 0, "", 0);
                 return;
             }
@@ -268,7 +271,10 @@ namespace FirstSymbol.Lettera
                 return;
             }
 
-            double margin = m_Settings.MarginViewports * viewport;
+            // A scroll that left the whole window behind in one frame will leave the next one behind too: margins would be built and never seen.
+            bool leapt = !force && m_Engine.IsWindowLoaded && (m_Y >= windowBottom || m_Y + viewport <= windowTop);
+            m_Lean = leapt && LeanMargin < m_Settings.MarginViewports;
+            double margin = (m_Lean ? LeanMargin : m_Settings.MarginViewports) * viewport;
             int first = m_Rope.BlockAtHeight(m_Y - margin, out _);
             int last = m_Rope.BlockAtHeight(m_Y + viewport + margin, out _);
             int scanned = 0;
@@ -316,7 +322,7 @@ namespace FirstSymbol.Lettera
             string prelude = m_Walk.PreludeAt(startBlock, m_Engine);
             m_Prelude = prelude;
             int length = endChar - startChar;
-            m_Engine.SetWindow(startChar, length, prelude, 0);
+            m_Engine.SetWindow(startChar, length, prelude, 0, m_Lean ? 0 : TextEngine.WindowBandMargin);
             m_Engine.SetWindowOffset((float)(m_Y - WindowTop()));
             m_WindowMoved = true;
             GeometryChanged?.Invoke();
@@ -324,6 +330,17 @@ namespace FirstSymbol.Lettera
 
         // A frame that builds a new window has spent its time on what shows: measuring waits for one that does not.
         bool m_WindowMoved;
+
+        // A window built for a scroll faster than its margins holds what shows and an eighth of a viewport for estimates that run short,
+        // and places only what shows. Two frames after the scroll stops, it takes its margins again.
+        const float LeanMargin = 0.125f;
+        bool m_Lean;
+        int m_TicksSinceScroll;
+
+        internal bool IsLean => m_Lean;
+
+        // A clock read from a timestamp: a Stopwatch is an object, and this runs every frame.
+        internal static double MillisecondsSince(long started) => (System.Diagnostics.Stopwatch.GetTimestamp() - started) * 1000.0 / System.Diagnostics.Stopwatch.Frequency;
 
         char CharAt(int position)
         {
@@ -441,7 +458,8 @@ namespace FirstSymbol.Lettera
         bool IMotionClient.TickMotion(float scaled, float unscaled)
         {
             UpdateBars();
-            var clock = System.Diagnostics.Stopwatch.StartNew();
+            if (m_Lean && ++m_TicksSinceScroll >= 2 && !m_Dragging) MoveWindow(true);
+            long started = System.Diagnostics.Stopwatch.GetTimestamp();
             double budget = m_Settings.ScanBudgetMs;
             bool walking = m_Walk.Advance(m_Engine, budget * 0.5);
             if (walking && m_Walk.PreludeChanged(m_FirstBlock, m_Engine)) MoveWindow(true);
@@ -450,7 +468,7 @@ namespace FirstSymbol.Lettera
             m_WindowMoved = false;
             if (m_Settings.MeasureInBackground && !m_Dragging && !moved && m_Engine.CanMeasureBlocks)
             {
-                while (m_MeasureCursor < m_Rope.BlockCount && clock.Elapsed.TotalMilliseconds < budget)
+                while (m_MeasureCursor < m_Rope.BlockCount && LetteraDocumentView.MillisecondsSince(started) < budget)
                 {
                     int block = NextToMeasure();
                     if (block < 0) break;
@@ -562,12 +580,12 @@ namespace FirstSymbol.Lettera
                 m_NamesKnown = true;
                 engine.CollectTagNames(m_Names);
             }
-            var clock = System.Diagnostics.Stopwatch.StartNew();
+            long started = System.Diagnostics.Stopwatch.GetTimestamp();
             while (m_NextBlock < m_Rope.BlockCount)
             {
                 ScanBlock(m_NextBlock);
                 m_NextBlock++;
-                if (clock.Elapsed.TotalMilliseconds >= budgetMs) return m_NextBlock < m_Rope.BlockCount;
+                if (LetteraDocumentView.MillisecondsSince(started) >= budgetMs) return m_NextBlock < m_Rope.BlockCount;
             }
             return false;
         }
