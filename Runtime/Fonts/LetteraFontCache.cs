@@ -178,7 +178,8 @@ namespace FirstSymbol.Lettera
     }
 
     /// <summary>Where a face's bytes are.</summary>
-    public enum LetteraFontSource { SystemMapped, CacheMapped, InMemory, RuntimeBytes, Virtual }
+    /// <summary>Where a face's bytes are. RuntimeFile is a file named by <see cref="LetteraFont.CreateFromFile(string, int)"/>, mapped where the platform allows.</summary>
+    public enum LetteraFontSource { SystemMapped, CacheMapped, InMemory, RuntimeBytes, Virtual, RuntimeFile }
 
     /// <summary>One loaded face, for a memory view.</summary>
     public struct LetteraFontMemoryEntry

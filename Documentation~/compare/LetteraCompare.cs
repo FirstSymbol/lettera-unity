@@ -60,6 +60,15 @@ public class LetteraCompare : MonoBehaviour
         public Component LargeLabel(Transform parent, string path, string text, float size, Vector2 box)
         {
             var label = (LetteraText)Label(parent, "", size, box);
+            label.Font = LetteraFont.CreateFromFile(path);
+            label.Text = text;
+            return label;
+        }
+
+        // The same font from an array already read, for a project that downloads its fonts.
+        public Component LargeLabelFromBytes(Transform parent, string path, string text, float size, Vector2 box)
+        {
+            var label = (LetteraText)Label(parent, "", size, box);
             label.Font = LetteraFont.CreateFromBytes(File.ReadAllBytes(path));
             label.Text = text;
             return label;
@@ -340,7 +349,8 @@ public class LetteraCompare : MonoBehaviour
             case "first": yield return FirstRows(); break;
             case "prepared": yield return PreparedRows(); break;
             case "multilang": yield return MultilingualRows(); break;
-            case "font": yield return FontRows(); break;
+            case "font": yield return FontRows(false); break;
+            case "fontbytes": yield return FontRows(true); break;
             case "memory": yield return MemoryRows(); break;
             case "draw": yield return DrawRows(); break;
             default: yield return Rows(); break;
@@ -849,22 +859,25 @@ public class LetteraCompare : MonoBehaviour
         yield return null;
     }
 
-    // R16: a large font's first use.
-    IEnumerator FontRows()
+    // R16: a large font's first use, from its file by each engine's own route. R16b: the same from an array the script has read, Lettera's other route.
+    IEnumerator FontRows(bool fromBytes)
     {
         string path = Path.Combine(Environment.GetEnvironmentVariable("WINDIR") ?? @"C:\Windows", "Fonts", "msyh.ttc");
         if (!File.Exists(path)) yield break;
+        if (fromBytes && !(m_Engine is LetteraEngine)) yield break;
+        string prefix = fromBytes ? "R16b" : "R16";
         for (int i = 0; i < 10; i++) yield return null;
         Memory(out long privateBefore, out _);
         var clock = Stopwatch.StartNew();
-        Component label = m_Engine.LargeLabel(m_Canvas.transform, path, "Hello 你好世界", 24, new Vector2(800, 60));
-        Say("R16_large_font_load", clock.Elapsed.TotalMilliseconds);
+        Component label = fromBytes ? ((LetteraEngine)m_Engine).LargeLabelFromBytes(m_Canvas.transform, path, "Hello 你好世界", 24, new Vector2(800, 60))
+            : m_Engine.LargeLabel(m_Canvas.transform, path, "Hello 你好世界", 24, new Vector2(800, 60));
+        Say(prefix + "_large_font_load", clock.Elapsed.TotalMilliseconds);
         m_Engine.Force(label);
         yield return null;
         yield return null;
-        Say("R16_large_font_first_text", clock.Elapsed.TotalMilliseconds);
+        Say(prefix + "_large_font_first_text", clock.Elapsed.TotalMilliseconds);
         Memory(out long privateAfter, out _);
-        Say("M_large_font_private", (privateAfter - privateBefore) / 1048576.0, -1, "file=" + new FileInfo(path).Length / 1048576 + "MB");
+        Say(fromBytes ? "M_large_font_bytes_private" : "M_large_font_private", (privateAfter - privateBefore) / 1048576.0, -1, "file=" + new FileInfo(path).Length / 1048576 + "MB");
     }
 
     [StructLayout(LayoutKind.Sequential)]

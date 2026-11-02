@@ -86,6 +86,7 @@ namespace FirstSymbol.Lettera
             TextEngine.FontsGone = false;
             Canvas.willRenderCanvases += GlyphAtlas.Flush;
             LetteraOsPreferences.Install();
+            LetteraMemory.Install();
             InstallLoop();
 #if UNITY_EDITOR
             UnityEditor.AssemblyReloadEvents.beforeAssemblyReload += Shutdown;
@@ -146,6 +147,7 @@ namespace FirstSymbol.Lettera
         {
             LetteraWorldBatcher.Update();
             GlyphAtlas.Flush();
+            LetteraMemory.Tick();
         }
 
         /// <summary>Releases native fonts and atlas memory; nothing survives a domain reload.</summary>

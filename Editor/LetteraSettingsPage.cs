@@ -166,6 +166,11 @@ namespace FirstSymbol.Lettera.Editor
             AddAll(fonts, serialized.FindProperty("m_FontMemory"));
             Section("fontmemory", "Font Memory", fonts);
 
+            VisualElement memory = LtUI.El("lt-list");
+            AddAll(memory, serialized.FindProperty("m_Memory"));
+            memory.Add(LtUI.Clickable("Release Now", "lt-add lt-add--small", "Gives back the paragraph cache, the atlas's upload textures and work buffers now; with no text in any scene, the atlas pages too.", LetteraMemory.Release));
+            Section("memory", "Memory", memory);
+
             VisualElement atlases = LtUI.El("lt-list", new LtStatus()
                 .Line("Page Size", () => "2048 by 2048, fixed")
                 .Line("Depth", () => "SDF 8-bit, MSDF 8-bit, color RGBA, fixed")
