@@ -54,7 +54,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - **On the web, Shift with an arrow key undid itself:** the second press shrank what the first had selected. The browser reported the selection it had just been given, without its direction, and the field took that for a new one. A person holding the keys down would see the selection stutter around one character.
 - The 3D Text and Device Check samples asked for a primitive with a collider, which a project with no Physics module has not got on the web. They make their ground from a mesh.
 
+### Changed
+- **A GameObject going off keeps what its text built.** Coming back shows the same mesh with no parse, shaping or layout, unless something changed meanwhile: its text, font, size, colour, canvas scale, or a glyph that left the atlas, which rebuilds the mesh only. Disabling the component still gives everything up, as before. 1000 labels off and the frame: 53.4 ms and 25.7 MB to 4.8 ms and nothing; back on: 78.1 ms and 25.8 MB to 30.3 ms and nothing.
+- **Texts share one list of what they listen to.** Six delegates per text copied a list of every text on each enable and disable, which grew with the square of their number. 5000 world texts made and drawn: 1124 ms to 186 ms.
+- **A label is cheaper at birth.** Its buffers start empty and its first mesh has room for sixteen glyphs; a text with no markup and no style shares one set of attributes and one match context, asks none of the built-in tags, and gathers its styles only when a tool reads them; what few texts use, such as holds, copies and word segmenting, comes with first use. The world batcher's 1.7 MB of merge buffers come with the first world text, and not with the first frame after any text, world or not. 1000 labels made and drawn: 312 ms to 182 ms.
+- **The paragraph cache lives in native memory,** one block per paragraph in a table of its own. Storing a new paragraph makes no garbage, even while the cache grows, and a forgotten one is given back at once. The budget counts what the blocks really take. 64 score labels changing: 2.2 KB a frame to none, and the largest frame 150 KB to 12 KB; 100 multilingual labels edited: 420 KB to 37 KB a frame.
+- **A distance field measures each edge only at the pixels within its reach,** and counts the fill once per row. Past the spread a pixel is fully in or out, so the bytes are the same as before, and a test holds them to the old way. 3000 Han characters, first frame: 1241 ms to 271 ms.
+- **A line break no longer wakes the system font search.** No font has a glyph for one, so the first text with a second line ran the whole fallback search. First 10 KB text and its frame: 59.4 ms to 18.3 ms.
+- **A first colour change of a plain text rewrites colours only.** When every quad takes the text's colour, there is nothing to note per quad.
+- **`LetteraTextWarmUp.Prepare(font, characters, size)`** readies a font and a set of characters at a moment you choose, such as a loading screen: Lettera's tables, its material, the atlas page and the glyphs. Nothing is added to a build. With it the first text of a session costs 7.6 ms and its two frames 12.5 ms, against 40.2 ms and 45.8 ms without.
+
+### Figures
+Windows IL2CPP release player, Lettera alone in the comparison harness, median of 5 cold runs, before at `3fea08b` and after this batch; allocation from development players:
+
+| Row | Before | After |
+|---|---|---|
+| Deactivate 1000 and the frame | 53.4 ms, 25.7 MB | 4.8 ms, 0 |
+| Reactivate 1000 and the frame | 78.1 ms, 25.8 MB | 30.3 ms, 0 |
+| Set 10 KB, first long text, and the frame | 59.4 ms | 18.3 ms |
+| Set 10 KB again | 9.3 ms | 7.8 ms |
+| First text of a session, call; two frames | 42.5 ms; 51.4 ms | 38.8 ms; 45.8 ms |
+| Same after `LetteraTextWarmUp.Prepare` | | 7.6 ms; 12.5 ms |
+| Create 1000 and the frame | 312 ms | 182 ms |
+| 5000 world, create and first frame | 1124 ms | 186 ms |
+| 64 score labels by SetText; allocation; largest frame | 2.21 ms; 2.2 KB; 150 KB | 1.69 ms; 0; 12 KB |
+| Keystroke in 2000 characters; allocation | 1.94 ms; 16.2 KB | 1.85 ms; 8.5 KB |
+| 100 multilingual all edited; allocation | 8.37 ms; 420 KB | 7.24 ms; 37 KB |
+| 64 labels change a frame; largest frame | 1.96 ms; 8.7 KB | 1.50 ms; 8.7 KB |
+| Rebuild 1000 | 30.3 ms | 22.7 ms |
+| Multilingual 100, cold; recreated | 114 ms; 19.5 ms | 78.6 ms; 12.2 ms |
+| Set 100 KB; 1 MB, and the frame | 175 ms; 1507 ms | 98 ms; 806 ms |
+| 3000 Han, first frame | 1241 ms | 271 ms |
+| Heavy scene, private memory | 992 MB | 841 MB |
+
+The Mono player, the same way: deactivate and reactivate 1000, 58.7 and 85.2 ms to 4.0 and 28.2 ms; first 10 KB text 99.4 to 32.3 ms, and again 12.7 to 13.4 ms; first text, call 182.8 to 174.4 ms; create 1000, 459 to 329 ms; 5000 world, 1098 to 242 ms; 64 score labels 2.53 to 2.02 ms; keystroke 2.54 to 2.43 ms; multilingual edited 10.7 to 8.7 ms; 3000 Han 1346 to 306 ms. 100 Arabic and Latin labels made went from 21.3 to 39.9 ms: the system font search that a line break used to start in the first long text now runs at the first character no font has, here their Arabic, and costs less where it lands than it did there. A 19 MB font loads in 57.4 ms against 55.5 ms.
+
+Open a 1 MB document and the first frame reads 56.7 ms against 42.7 ms. That is the previous row's 1 MB text, which now builds in half the time, still being uploaded by the render thread when this row starts: with 30 idle frames before it, the row is 43.1 ms, the same as before.
+
 ### Limits
+- **Performance rows still short of their targets:** a first 10 KB text (18.3 ms, target 12) and the same again (7.8 ms, target 6.5) allocate about 4 MB of buffers for a new text, and the collection that follows lands in them; the first text of a session with no warm-up (38.8 ms, target 12) pays for Lettera's types, its first atlas page and its first glyphs, which only `LetteraTextWarmUp.Prepare` or a glyph set baked ahead could move, and no baked set exists; 1000 labels made (182 ms, target 170); a keystroke in 2000 characters (1.85 ms, target 1.6, and 8.5 KB, target 0) rebuilds and uploads the whole mesh and writes the source as a new string; 100 multilingual labels edited (7.24 ms, target 7) is mostly shaping, which a cache of words would cut. The largest single frame of 64 changing labels or of a masked column is 9 to 19 KB in a player, against 4 KB; the same frames replayed in the editor allocate nothing, so what remains comes from a part of the player's frame not yet found.
 - A selectable has no menu or loupe of its own per platform: Android Menu, iOS Menu and Loupe stay project-wide, and the page says what they are. It would need new fields and a runtime path.
 - Per-glyph overrides of scale and offset are not built. Metrics are.
 - A UnityEvent's list wears Unity's own look: who is called with what has a world of pickers behind it. Two object slots in the 3D pages too (a solid material's texture, a text's look).
