@@ -11,8 +11,16 @@ namespace FirstSymbol.Lettera
         bool[] m_CpKashida = Array.Empty<bool>();
         bool[] m_CpDivider = Array.Empty<bool>();
 
+        // A long text left for later has no layout effect, so all its extras are zero: it keeps none, and reads none.
+        bool m_NoExtras;
+
         void EnsureExtras(int length, int from = 0)
         {
+            bool none = m_Deferring;
+            // What the arrays held before a text that kept none is not known to be zero.
+            if (m_NoExtras) from = 0;
+            m_NoExtras = none;
+            if (none) return;
             Cleared(ref m_CpDivider, length, from);
             Cleared(ref m_CpExtraEm, length, from);
             Cleared(ref m_CpExtraUnits, length, from);
@@ -35,6 +43,7 @@ namespace FirstSymbol.Lettera
         /// <summary>A codepoint's share of the line: its shaped advance, and what effects and a fit add.</summary>
         float CpWidth(int cp, float size)
         {
+            if (m_NoExtras) return m_CpAdvanceEm[cp] * m_FitGlyphScale * size;
             float em = m_CpAdvanceEm[cp] * m_FitGlyphScale + m_CpExtraEm[cp];
             if (m_FitTracking != 0 && m_Boundaries[cp]) em += m_FitTracking;
             return em * size + m_CpExtraUnits[cp];

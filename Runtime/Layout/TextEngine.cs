@@ -240,6 +240,7 @@ namespace FirstSymbol.Lettera
             ApplyHookStale();
             if (level >= DirtyLevel.Mesh) RaiseInlinePlaced();
             AfterWindowPasses();
+            PlaceWindowAgainIfStale();
             if (m_SemanticsStale)
             {
                 m_SemanticsStale = false;

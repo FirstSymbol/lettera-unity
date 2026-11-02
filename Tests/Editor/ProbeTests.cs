@@ -57,19 +57,19 @@ namespace FirstSymbol.Lettera.Editor.Tests
             System.Array.Clear(TextEngine.PassTicks, 0, 5);
             for (int step = 1; step <= 240; step++)
             {
-                long a = System.GC.GetAllocatedBytesForCurrentThread();
+                long a = System.GC.GetTotalMemory(false);
                 clock.Restart();
                 scroller.Position = step / 240.0 * end;
                 move += clock.Elapsed.TotalMilliseconds;
-                long b = System.GC.GetAllocatedBytesForCurrentThread();
+                long b = System.GC.GetTotalMemory(false);
                 clock.Restart();
                 label.ForceRebuild();
                 rebuild += clock.Elapsed.TotalMilliseconds;
-                long c = System.GC.GetAllocatedBytesForCurrentThread();
+                long c = System.GC.GetTotalMemory(false);
                 clock.Restart();
                 clientOf.TickMotion(0.016f, 0.016f);
                 tick += clock.Elapsed.TotalMilliseconds;
-                long d = System.GC.GetAllocatedBytesForCurrentThread();
+                long d = System.GC.GetTotalMemory(false);
                 bytesMove += b - a;
                 bytesRebuild += c - b;
                 bytesTick += d - c;
@@ -109,12 +109,12 @@ namespace FirstSymbol.Lettera.Editor.Tests
                     Canvas.ForceUpdateCanvases();
                     TextEngine.TimePasses = true;
                     System.Array.Clear(TextEngine.PassTicks, 0, 5);
-                    long a = System.GC.GetAllocatedBytesForCurrentThread();
+                    long a = System.GC.GetTotalMemory(false);
                     var clock = Stopwatch.StartNew();
                     label.Text = page;
                     label.ForceRebuild();
                     double ms = clock.Elapsed.TotalMilliseconds;
-                    long bytes = System.GC.GetAllocatedBytesForCurrentThread() - a;
+                    long bytes = System.GC.GetTotalMemory(false) - a;
                     TextEngine.TimePasses = false;
                     double f = 1000.0 / Stopwatch.Frequency;
                     var engine = ((ITextComponent)label).SharedEngine;

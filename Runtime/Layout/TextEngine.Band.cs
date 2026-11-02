@@ -48,8 +48,18 @@ namespace FirstSymbol.Lettera
         }
 
         bool BandApplies =>
-            LetteraLongText.VisibleLinesOnly && m_HasVisible && (m_ShapedCount >= LetteraLongText.FromGlyphs || m_PendingCount > 0) && !IsWindowed && !ClipsViewport && !m_MarqueeScrolling &&
-            !m_Attributes.HasCurve && m_RevealSpans.Count == 0 && m_StageHooks.Count == 0 && m_InlineItems.Count == 0;
+            LetteraLongText.VisibleLinesOnly && !m_MarqueeScrolling && !m_Attributes.HasCurve && m_RevealSpans.Count == 0 && m_StageHooks.Count == 0 && m_InlineItems.Count == 0 &&
+            (IsWindowed ? !ShowsBars : m_HasVisible && (m_ShapedCount >= LetteraLongText.FromGlyphs || m_PendingCount > 0) && !ClipsViewport);
+
+        // A document's window reaches past its viewport so that a scroll is only an offset; of it, only the lines near the viewport are placed.
+        const float WindowBandMargin = 0.25f;
+
+        // The window's viewport, in the window's own y: a scroll moves it by the offset.
+        bool WindowBandCovers()
+        {
+            float top = m_Box.yMax - m_WindowOffset;
+            return BandCovers(top - m_Box.height, top);
+        }
 
         void StartBand()
         {
@@ -58,6 +68,13 @@ namespace FirstSymbol.Lettera
             m_BandFirst = int.MaxValue;
             m_BandEnd = 0;
             if (!m_Banded) return;
+            if (IsWindowed)
+            {
+                float top = m_Box.yMax - m_WindowOffset, height = Mathf.Max(m_Box.height, CurrentFontSize * 4);
+                m_BandLow = top - height * (1 + WindowBandMargin);
+                m_BandHigh = top + height * WindowBandMargin;
+                return;
+            }
             float shown = Mathf.Max(m_VisibleHigh - m_VisibleLow, CurrentFontSize * 4);
             float margin = shown * Mathf.Max(LetteraLongText.Margin, 0);
             m_BandLow = m_VisibleLow - margin;
