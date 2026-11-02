@@ -63,6 +63,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - **A line break no longer wakes the system font search.** No font has a glyph for one, so the first text with a second line ran the whole fallback search. First 10 KB text and its frame: 59.4 ms to 18.3 ms.
 - **A first colour change of a plain text rewrites colours only.** When every quad takes the text's colour, there is nothing to note per quad.
 - **`LetteraTextWarmUp.Prepare(font, characters, size)`** readies a font and a set of characters at a moment you choose, such as a loading screen: Lettera's tables, its material, the atlas page and the glyphs. Nothing is added to a build. With it the first text of a session costs 7.6 ms and its two frames 12.5 ms, against 40.2 ms and 45.8 ms without.
+- **A long text places and draws only the lines near what shows.** Every line is still broken, so `Lines`, the preferred height, carets, selection and links stay exact anywhere in it; glyphs go down only on the lines within half a screen of what the root canvas and any `RectMask2D` let show, and a scroll past them places the new lines before that frame draws. A caret, hit or selection on a line far away places that line for itself, where the mesh never reads it. It starts at 4096 glyphs; `LetteraLongText` turns it off or moves that.
+- **An edit of a long plain text redoes only the paragraphs from the one it touched.** The parse splices the new characters in and looks for markup only among them, shaping keeps every paragraph before the edit as it stands, and line breaking keeps their lines. A test holds every line and glyph of an edited text to the same text built from nothing, for typing at the end and in the middle, joining and splitting paragraphs, a surrogate pair and right-to-left letters.
+- A layout group that asks a text's preferred height at the width it has gets the layout the text runs anyway, not a second line breaking.
+- A plain text's runs continue on the face a codepoint took before, with no font search per character; line breaking sizes a run once, not per character; a text's per-character spacing buffers start as fresh zeros instead of being cleared.
+- **Short paragraphs are cached too,** so a counter's digits shape once across all texts.
+- **A document's window and its block measures reuse their buffers and one measuring engine,** so a scroll that moves the window and the measuring behind it make no garbage.
+- **A solid glyph is held before the 3D cache trims.** A full cache gave back the solid it had just built, and the text read freed memory; the Text 3D tests hit it once the cache filled.
 
 ### Figures
 Windows IL2CPP release player, Lettera alone in the comparison harness, median of 5 cold runs, before at `3fea08b` and after this batch; allocation from development players:
@@ -91,8 +98,32 @@ The Mono player, the same way: deactivate and reactivate 1000, 58.7 and 85.2 ms 
 
 Open a 1 MB document and the first frame reads 56.7 ms against 42.7 ms. That is the previous row's 1 MB text, which now builds in half the time, still being uploaded by the render thread when this row starts: with 30 idle frames before it, the row is 43.1 ms, the same as before.
 
+### Figures, second batch
+The same harness, IL2CPP, median of 5, before at `71db03c` and after this batch:
+
+| Row | Before | After |
+|---|---|---|
+| Set 10 KB, first long text, and the frame | 17.6 ms | 11.8 ms |
+| Set 10 KB again | 7.58 ms | 1.76 ms |
+| Set 100 KB and the frame | 95.7 ms | 29.8 ms |
+| Set 1 MB and the frame | 804 ms | 196 ms |
+| 100 KB, a character a frame; GPU | 50.9 ms; 3.37 ms | 1.52 ms; 0.049 ms |
+| Scroll a 1 MB document, a frame; GPU; allocation a frame | 4.63 ms; 0.77 ms; 17 KB | 4.36 ms; 0.32 ms; 152 B |
+| Keystroke in 2000 characters | 1.79 ms | 1.63 ms |
+| 100 multilingual all edited | 7.08 ms | 6.90 ms |
+| 64 labels change a frame | 1.49 ms | 1.45 ms |
+| Heavy scene, private memory | 842 MB | 793 MB |
+
+The 100 KB row's 205 KB a frame is the harness's own: it writes a new 100 KB string each frame.
+
+Worse: opening a 1 MB document and its first frame, 55.7 to 107 ms. The 1 MB text before it now leaves its garbage to this row, where it used to be collected inside its own 800 ms: with a collection forced before the row, the row is 40 ms. 5000 world texts made and their first frame, 185 to 250 ms, with no pass of Lettera's slower by that much; a collection landing there is likely and not shown. A 19 MB font's first text, 59.5 to 64.1 ms, cause not found. A second text's two frames (2.4 to 3.1 ms) and a masked column standing still (1.31 to 1.57 ms) read the same with this batch's code left out, so they are the machine's.
+The Mono player, the same way, against batch one's Mono figures: set 10 KB and the frame 32.3 to 20.2 ms, again 13.4 to 2.4 ms; 100 KB 132 to 34 ms; 1 MB 1109 to 240 ms; a character a frame into 100 KB 84.4 to 1.49 ms; scrolling 1 MB 7.58 to 6.95 ms and 17 KB to 144 B a frame; keystroke 2.43 to 2.07 ms; 64 labels 1.62 to 1.49 ms. Opening the 1 MB document went from 114 to 156 ms and 5000 world texts from 242 to 271 ms, as on IL2CPP; a 19 MB font's first text 193 to 203 ms.
+
 ### Limits
-- **Performance rows still short of their targets:** a first 10 KB text (18.3 ms, target 12) and the same again (7.8 ms, target 6.5) allocate about 4 MB of buffers for a new text, and the collection that follows lands in them; the first text of a session with no warm-up (38.8 ms, target 12) pays for Lettera's types, its first atlas page and its first glyphs, which only `LetteraTextWarmUp.Prepare` or a glyph set baked ahead could move, and no baked set exists; 1000 labels made (182 ms, target 170); a keystroke in 2000 characters (1.85 ms, target 1.6, and 8.5 KB, target 0) rebuilds and uploads the whole mesh and writes the source as a new string; 100 multilingual labels edited (7.24 ms, target 7) is mostly shaping, which a cache of words would cut. The largest single frame of 64 changing labels or of a masked column is 9 to 19 KB in a player, against 4 KB; the same frames replayed in the editor allocate nothing, so what remains comes from a part of the player's frame not yet found.
+- **Performance rows still short of their targets:** the first text of a session with no warm-up (38.8 ms, target 12) pays for Lettera's types, its first atlas page and its first glyphs, which only `LetteraTextWarmUp.Prepare` or a glyph set baked ahead could move, and no baked set exists; 1000 labels made (182 ms, target 170); a keystroke in 2000 characters (1.63 ms, target 1.6, and 8.5 KB, target 0) still builds and uploads the whole mesh, and the field writes its source as a new string. The largest single frame of 64 changing labels or of a masked column is 9 to 19 KB in a player, against 4 KB; the same frames replayed in the editor allocate nothing, so what remains comes from a part of the player's frame not yet found.
+- **A long text's sizes are exact, and its glyphs are not all there.** `GlyphCount`, `GetGlyph`, `InkBounds` and the mesh cover the placed lines only; `Lines`, the preferred height, carets, selection rects and links cover all of it. A selection's whole lines far from the screen are their line boxes, not their glyphs. What decides the band is the root canvas on screen and `RectMask2D`: a stencil `Mask`, a camera that sees past its canvas, and a world canvas with no `RectMask2D` place everything. A text with a curve, a marquee, a reveal, an inline object or a stage hook places everything.
+- **Big texts against their targets:** setting 100 KB (29.8 ms, target 2.5) and 1 MB (196 ms, target 15) still parse, shape and break every line, which keeps `Lines` and the preferred height exact; most of what is left is filling per-character buffers the first time, about 150 bytes a character. The target figures need measuring by estimate, which this batch does not do. Scrolling a 1 MB document (4.36 ms a frame, target 1.6; GPU 0.32 ms, target 0.2) builds a new window each frame at the harness's speed, and the largest frame still allocates 9.4 MB, at the window's first build; opening it costs 107 ms, target 17, for the collection described above. 64 labels changing (1.45 ms, target 1.4).
+- **Not done in this batch:** words cached below the paragraph (P4) beyond caching short paragraphs, one batch of short labels across cores (P5), and filling new glyphs off the frame (P28).
 - A selectable has no menu or loupe of its own per platform: Android Menu, iOS Menu and Loupe stay project-wide, and the page says what they are. It would need new fields and a runtime path.
 - Per-glyph overrides of scale and offset are not built. Metrics are.
 - A UnityEvent's list wears Unity's own look: who is called with what has a world of pickers behind it. Two object slots in the 3D pages too (a solid material's texture, a text's look).
