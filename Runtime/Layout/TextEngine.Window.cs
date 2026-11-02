@@ -42,7 +42,7 @@ namespace FirstSymbol.Lettera
         {
             CloseDocument();
             settings = settings ?? new LetteraDocumentSettings();
-            ReserveFor(settings.MaxWindowCodepoints + 512);
+            ReserveFor(EstimatedWindowCodepoints(settings));
             m_View = new LetteraDocumentView(this, rope, takeOwnership, settings);
             m_WindowLoaded = false;
             m_ViewWidth = WindowViewportWidth;
@@ -140,12 +140,19 @@ namespace FirstSymbol.Lettera
 
         bool m_WindowBandStale;
 
-        // A window holds at most so many codepoints: its buffers take that room when the document opens, so no scroll grows them.
+        // What a window with its margins holds, by its viewport and font size, with room to spare. Its buffers take that room when the document opens,
+        // so a scroll grows nothing, and opening takes no more than a window needs.
+        int EstimatedWindowCodepoints(LetteraDocumentSettings settings)
+        {
+            float lines = WindowViewportHeight * (1 + 2 * settings.MarginViewports) / EstimatedLineHeight + 2;
+            float perLine = WindowViewportWidth / Mathf.Max(m_Host.Data.FontSize * 0.4f, 0.5f);
+            return (int)Mathf.Clamp(lines * perLine * 1.25f, 2048, settings.MaxWindowCodepoints + 512);
+        }
+
         void ReserveFor(int codepoints)
         {
             int n = Math.Max(codepoints, SmallestBuffer);
             EnsureSize(ref m_Text, n + 4);
-            EnsureSize(ref m_SourceIndex, n + 4);
             if (m_RuntimeChars.Length < n) m_RuntimeChars = new char[n];
             if (m_PrevSource.Length < n) m_PrevSource = new char[n];
             EnsureSize(ref m_Levels, n + 1);
@@ -162,11 +169,13 @@ namespace FirstSymbol.Lettera
             Cleared(ref m_CpLeadUnits, n, 0);
             Cleared(ref m_CpKashida, n, 0);
             EnsureSize(ref m_Shaped, n);
-            EnsureSize(ref m_Placed, n);
-            EnsureSize(ref m_PlacedAtlas, n);
-            EnsureSize(ref m_PlacedReach, n);
-            if (Vertices.Length < n * 4) GrowVertices(n * 4);
-            if (Indices.Length < n * 6) Array.Resize(ref Indices, n * 6);
+            // Of a window, the lines near the viewport are placed: three quarters of it at most.
+            int quads = n * 3 / 4;
+            EnsureSize(ref m_Placed, quads);
+            EnsureSize(ref m_PlacedAtlas, quads);
+            EnsureSize(ref m_PlacedReach, quads);
+            if (Vertices.Length < quads * 4) GrowVertices(quads * 4);
+            if (Indices.Length < quads * 6) Array.Resize(ref Indices, quads * 6);
         }
 
         void PlaceWindowAgainIfStale()

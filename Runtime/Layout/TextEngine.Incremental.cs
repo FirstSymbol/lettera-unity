@@ -69,7 +69,7 @@ namespace FirstSymbol.Lettera
                 return;
             }
             m_PrevString = null;
-            if (m_PrevSource.Length < source.Length) { m_PrevSource = new char[Math.Max(source.Length, m_PrevSource.Length * 3 / 2)]; LogAlloc("PrevSource", m_PrevSource.Length); } // probe
+            if (m_PrevSource.Length < source.Length) m_PrevSource = new char[Math.Max(source.Length, m_PrevSource.Length * 3 / 2)];
             source.CopyTo(m_PrevSource);
             m_PrevSourceLength = source.Length;
         }

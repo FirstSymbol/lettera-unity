@@ -24,8 +24,9 @@ namespace FirstSymbol.Lettera
                 SortingLayer = text.SortingLayerID;
                 SortingOrder = text.SortingOrder;
                 Group = text.BatchGroup;
-                Layer = text.gameObject.layer;
-                SceneHandle = text.gameObject.scene.GetHashCode();
+                GameObject go = text.CachedObject;
+                Layer = go.layer;
+                SceneHandle = go.scene.GetHashCode();
                 Shadows = text.CastShadows;
                 Lit = text.Lit;
                 StandaloneId = text.Standalone ? text.GetHashCode() : 0;
@@ -180,7 +181,8 @@ namespace FirstSymbol.Lettera
                 if (text == null || text.Hidden) continue;
                 Assign(entry);
 
-                Vector2 size = ((RectTransform)text.transform).rect.size;
+                RectTransform rect = text.CachedRect;
+                Vector2 size = rect.rect.size;
                 if (size != text.LastRectSize) text.OnRectChanged(size);
                 if (text.HasAnimator) text.Engine.SyncSerializedFields();
                 if (text.Engine.Dirty != DirtyLevel.None && text.Engine.Rebuild())
@@ -188,7 +190,7 @@ namespace FirstSymbol.Lettera
                     entry.Batch.Dirty = true;
                     text.NotifyRebuilt();
                 }
-                Matrix4x4 matrix = text.transform.localToWorldMatrix;
+                Matrix4x4 matrix = rect.localToWorldMatrix;
                 if (matrix != entry.Matrix)
                 {
                     entry.Matrix = matrix;

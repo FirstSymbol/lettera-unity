@@ -248,22 +248,16 @@ namespace FirstSymbol.Lettera
             }
             if (Engine.Dirty == DirtyLevel.None) Engine.SetDirty(DirtyLevel.Mesh);
             m_LastRasterScale = ((ITextHost)this).RasterScale;
-            long tp = TextEngine.PassStart(); // probe
             PushVisible();
-            TextEngine.PassEnd(12, tp); // probe
             if (!Engine.Rebuild()) return;
-            tp = TextEngine.PassStart(); // probe
             AfterBandRebuild();
-            TextEngine.PassEnd(15, tp); // probe
             m_RendererEmpty = false;
             bool parts = Engine.VertexCount > MaxPartVertices;
             if (parts) UploadParts();
             else
             {
                 ClearParts();
-                long tq = TextEngine.PassStart(); // probe
                 UploadMesh();
-                TextEngine.PassEnd(9, tq); // probe
             }
             Engine.ClearPoseStreams();
             ApplyMarqueeClip();
@@ -276,11 +270,8 @@ namespace FirstSymbol.Lettera
             {
                 PartMaterials();
             }
-            long tr = TextEngine.PassStart(); // probe
             canvasRenderer.SetMesh(m_Mesh);
-            TextEngine.PassEnd(10, tr); tr = TextEngine.PassStart(); // probe
             RaiseRebuilt(Engine.LastChanges);
-            TextEngine.PassEnd(11, tr); // probe
         }
 
         // ------------------------------------------------------------- parts of a long text

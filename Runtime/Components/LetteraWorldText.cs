@@ -59,7 +59,11 @@ namespace FirstSymbol.Lettera
         /// <summary>How this text takes a press.</summary>
         public LetteraRoute Route { get => m_Route; set => m_Route = value; }
 
-        RectTransform Rect => m_Rect != null ? m_Rect : m_Rect = (RectTransform)transform;
+        // A component's own transform and object never change: kept by reference, the batcher asks the engine for neither each frame.
+        RectTransform Rect => !ReferenceEquals(m_Rect, null) ? m_Rect : m_Rect = (RectTransform)transform;
+        GameObject m_Object;
+        internal RectTransform CachedRect => Rect;
+        internal GameObject CachedObject => !ReferenceEquals(m_Object, null) ? m_Object : m_Object = gameObject;
         internal TextEngine Engine => m_Engine ?? (m_Engine = new TextEngine(this));
 #if UNITY_EDITOR
         // Batched text draws through renderers of its own, so the Hierarchy's eye reaches it only by this.

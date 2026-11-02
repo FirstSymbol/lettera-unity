@@ -105,7 +105,6 @@ namespace FirstSymbol.Lettera
             }
 
             // An edit of a plain text needs only its new characters looked at: the rest was plain before.
-            long tq = PassStart(); // probe
             bool edited = m_Resolver == null && FindEdit(source);
             ReadOnlySpan<char> looked = edited ? source.Slice(m_EditPrefix, source.Length - m_EditSuffix - m_EditPrefix) : source;
             bool markup = looked.IndexOfAny('<', '\\') >= 0;
@@ -143,7 +142,6 @@ namespace FirstSymbol.Lettera
                 }
             }
 
-            PassEnd(16, tq); tq = PassStart(); // probe
             if (RevealSource >= 0) RevealRangesAt(context, RevealSource);
             plain &= m_Resolver == null;
             // A source that is a string is remembered by reference.
@@ -154,16 +152,13 @@ namespace FirstSymbol.Lettera
                 m_EditParse = -1;
                 BuildRenderedText(source, context);
             }
-            PassEnd(17, tq); tq = PassStart(); // probe
             RememberSource(source, plain, spliced, kept);
-            PassEnd(18, tq); tq = PassStart(); // probe
             ResolveRangeEnds(context);
             AssignRangeIds(context);
             m_RangesApplied = false;
             foreach (IHoldSource hold in m_Holds) hold.Refresh();
             ApplyEffects(context);
             m_RangesApplied = true;
-            PassEnd(19, tq); // probe
         }
 
         static int s_DefaultCount = -1;
