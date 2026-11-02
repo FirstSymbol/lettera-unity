@@ -296,7 +296,6 @@ namespace FirstSymbol.Lettera.Editor.Tests
                     low = Mathf.Min(low, text.Engine.Vertices[v].y);
                     high = Mathf.Max(high, text.Engine.Vertices[v].y);
                 }
-                UnityEngine.Debug.Log($"LEANDBG i {i} y {text.View.DocumentY:0} start {text.View.WindowStart} len {text.View.WindowLength} offset {text.Engine.WindowOffset:0} extent {text.Engine.PlainExtent:0} verts {text.Engine.VertexCount} ink {low:0}..{high:0} {text.Engine.BandReport}");
                 Assert.Greater(high, 300 - 40, "the viewport's top line is drawn");
                 Assert.Less(low, -300 + 40, "the viewport's bottom line is drawn");
                 Assert.Less(high, 300 + 80);
@@ -318,10 +317,10 @@ namespace FirstSymbol.Lettera.Editor.Tests
             text.View.ScrollBy(new Vector2(0, 5));
             text.ForceRebuild();
             Assert.IsFalse(text.View.IsLean, "a scroll that stays near the window gets margins");
-            int rebuilds = text.RebuildCount;
+            int rebuilds = text.RebuildCount, poses = text.PoseCount;
             text.View.ScrollBy(new Vector2(0, 5));
-            text.ForceRebuild();
             Assert.AreEqual(rebuilds, text.RebuildCount, "and moves inside them as a pose");
+            Assert.Greater(text.PoseCount, poses);
         }
     }
 
