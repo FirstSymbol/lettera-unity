@@ -471,22 +471,25 @@ namespace FirstSymbol.Lettera
             return -1;
         }
 
+        char[] m_MeasureChars = Array.Empty<char>();
+
         void MeasureBlock(int block)
         {
             int start = m_Rope.CharOfBlock(block), chars = m_Rope.BlockChars(block);
             string prelude = m_Walk.PreludeAt(block, m_Engine);
-            var text = new char[prelude.Length + chars];
+            if (m_MeasureChars.Length < prelude.Length + chars) m_MeasureChars = new char[Math.Max(prelude.Length + chars, m_MeasureChars.Length * 2)];
+            char[] text = m_MeasureChars;
             prelude.CopyTo(0, text, 0, prelude.Length);
             m_Rope.CopyTo(start, new Span<char>(text, prelude.Length, chars));
             // The separator that ends a block starts no line of its own in the document: the next block's first line is that line.
-            int length = text.Length;
+            int length = prelude.Length + chars;
             if (block + 1 < m_Rope.BlockCount && length > prelude.Length)
             {
                 char last = text[length - 1];
                 if (last == '\n' || last == '\r' || last == '\u0085' || last == (char)0x2029) length--;
                 if (last == '\n' && length > prelude.Length && text[length - 1] == '\r') length--;
             }
-            float height = m_Engine.MeasureBlockHeight(new string(text, 0, length));
+            float height = m_Engine.MeasureBlockHeight(new ReadOnlySpan<char>(text, 0, length));
             double before = WindowTop();
             m_Rope.SetBlockHeight(block, height);
             m_Rope.MarkBlockMeasured(block, true);
