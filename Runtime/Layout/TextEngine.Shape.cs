@@ -196,15 +196,44 @@ namespace FirstSymbol.Lettera
             var current = new Run { Start = -1 };
             int i = paragraph.Start;
             FontFace primary = m_Chain.PrimaryFace;
+            // With no range, every character has the same attributes, so a codepoint whose face matches the run's continues it with no question asked.
+            bool plain = m_SignaturesPlain && MaskGlyph == 0;
+            if (plain) PrepareRunMemo();
+            FontFace lastFace = null;
+            FontChain.Family lastOwner = null;
             while (i < paragraph.End)
             {
                 int clusterEnd = i + 1;
                 while (clusterEnd < paragraph.End && !m_Boundaries[clusterEnd]) clusterEnd++;
+                int memo = -1;
+                if (plain && clusterEnd == i + 1)
+                {
+                    int single = m_ShapeText[i];
+                    memo = single & (RunMemoSize - 1);
+                    if (s_MemoCp[memo] == single)
+                    {
+                        if (current.Start >= 0 && s_MemoFace[memo] == lastFace && s_MemoOwner[memo] == lastOwner && !s_MemoEmoji[memo] && current.Level == m_Levels[i] && current.Script == m_Scripts[i])
+                        {
+                            i = clusterEnd;
+                            continue;
+                        }
+                        memo = -1;
+                    }
+                }
                 ref LetteraAttributes.Cp attr = ref attrs[i];
                 string family = attr.Family >= 0 ? m_Attributes.FamilyRequests[attr.Family] : null;
                 string language = LanguageOf(attr.Language);
                 bool emoji = MaskGlyph == 0 && EmojiClassifier.IsEmojiCluster(m_Text, i, clusterEnd - i);
                 FontFace face = m_Chain.Resolve(new ReadOnlySpan<int>(m_ShapeText, i, clusterEnd - i), emoji, family, language, out FontChain.Family owner);
+                if (memo >= 0)
+                {
+                    s_MemoCp[memo] = m_ShapeText[i];
+                    s_MemoFace[memo] = face;
+                    s_MemoOwner[memo] = owner;
+                    s_MemoEmoji[memo] = emoji;
+                }
+                lastFace = face;
+                lastOwner = owner;
                 AxisSet axes = attr.Axes >= 0 ? m_Attributes.AxisSets[attr.Axes] : null;
                 FontInstance instance = face == null ? null : FontChain.Style(face, owner, attr.Weight, attr.BoldMode, attr.Italic, attr.Slant, axes);
 
@@ -230,6 +259,36 @@ namespace FirstSymbol.Lettera
                 i = clusterEnd;
             }
             if (current.Start >= 0) FinishRun(ref current, paragraph.End, paragraph);
+        }
+
+        // What face each codepoint of a plain text took, by its low bits, for the chain and language it was asked with.
+        const int RunMemoSize = 256;
+        static readonly int[] s_MemoCp = NewMemo();
+        static readonly FontFace[] s_MemoFace = new FontFace[RunMemoSize];
+        static readonly FontChain.Family[] s_MemoOwner = new FontChain.Family[RunMemoSize];
+        static readonly bool[] s_MemoEmoji = new bool[RunMemoSize];
+        static int s_MemoChain = -1;
+        static string s_MemoLanguage;
+
+        static int[] NewMemo()
+        {
+            var memo = new int[RunMemoSize];
+            for (int i = 0; i < RunMemoSize; i++) memo[i] = -1;
+            return memo;
+        }
+
+        void PrepareRunMemo()
+        {
+            string language = LanguageOf(-1);
+            if (s_MemoChain == m_Chain.Id && (object)s_MemoLanguage == language) return;
+            s_MemoChain = m_Chain.Id;
+            s_MemoLanguage = language;
+            for (int i = 0; i < RunMemoSize; i++)
+            {
+                s_MemoCp[i] = -1;
+                s_MemoFace[i] = null;
+                s_MemoOwner[i] = null;
+            }
         }
 
         // Decided per face and per character: the same range can use a font's real small caps and synthesize them for a fallback.
