@@ -10,6 +10,8 @@ Every figure below comes from a script: [compare/](compare/) runs both engines a
 - The same font file on both: Noto Sans. TextMesh Pro in two setups, each its best case: a static atlas prepared ahead with the characters used, and a dynamic atlas. Lettera has one.
 - The work is forced inside the clock (`ForceMeshUpdate`, `ForceRebuild`), and rows named "a frame" time the whole frame, so that no row is won by moving work out of it.
 - Allocation comes from a development player, with a deliberate allocation showing that the counter counts.
+- Since 1.0's third optimization batch, the rows that follow the long texts (scrolling a document, mixed labels, 5000 world texts, 3000 Han) start after a collection and ten idle frames, the same for every engine, so that none pays for the garbage of the row before it. Earlier figures had no such pause.
+- A text whose paragraphs are partly left for later frames (Lettera's long texts) is timed on the frame it is set; the finishing in the frames after is the frame time of whatever row comes next.
 
 ## Time
 

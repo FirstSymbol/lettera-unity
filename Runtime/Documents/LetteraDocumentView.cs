@@ -318,8 +318,12 @@ namespace FirstSymbol.Lettera
             int length = endChar - startChar;
             m_Engine.SetWindow(startChar, length, prelude, 0);
             m_Engine.SetWindowOffset((float)(m_Y - WindowTop()));
+            m_WindowMoved = true;
             GeometryChanged?.Invoke();
         }
+
+        // A frame that builds a new window has spent its time on what shows: measuring waits for one that does not.
+        bool m_WindowMoved;
 
         char CharAt(int position)
         {
@@ -442,7 +446,9 @@ namespace FirstSymbol.Lettera
             bool walking = m_Walk.Advance(m_Engine, budget * 0.5);
             if (walking && m_Walk.PreludeChanged(m_FirstBlock, m_Engine)) MoveWindow(true);
             bool measuring = false;
-            if (m_Settings.MeasureInBackground && !m_Dragging && m_Engine.CanMeasureBlocks)
+            bool moved = m_WindowMoved;
+            m_WindowMoved = false;
+            if (m_Settings.MeasureInBackground && !m_Dragging && !moved && m_Engine.CanMeasureBlocks)
             {
                 while (m_MeasureCursor < m_Rope.BlockCount && clock.Elapsed.TotalMilliseconds < budget)
                 {
