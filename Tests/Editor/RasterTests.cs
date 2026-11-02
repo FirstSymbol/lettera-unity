@@ -109,5 +109,124 @@ namespace FirstSymbol.Lettera.Editor.Tests
         {
             Assert.AreEqual(Make("ab").Engine.VertexCount, Make("a    b").Engine.VertexCount);
         }
+        // The field as it was first computed: every line measured at every pixel, and the fill counted at each pixel from every line.
+        static byte[] EveryLineAtEveryPixel(float4[] all, int size, float spread)
+        {
+            int Winding(float2 p, bool keptOnly)
+            {
+                int winding = 0;
+                foreach (float4 line in all)
+                {
+                    float2 a = line.xy, b = line.zw;
+                    if ((a.y <= p.y) == (b.y <= p.y)) continue;
+                    float crossing = a.x + (p.y - a.y) / (b.y - a.y) * (b.x - a.x);
+                    if (crossing > p.x) winding += b.y > a.y ? 1 : -1;
+                }
+                return winding;
+            }
+            var kept = new System.Collections.Generic.List<float4>();
+            foreach (float4 line in all)
+            {
+                float2 a = line.xy, b = line.zw, edge = b - a;
+                float length = math.length(edge);
+                if (length <= 0) continue;
+                float2 normal = new float2(-edge.y, edge.x) / length * 0.1f, middle = (a + b) * 0.5f;
+                if ((Winding(middle + normal, false) != 0) != (Winding(middle - normal, false) != 0)) kept.Add(line);
+            }
+            float toValue = 0.5f / spread;
+            var output = new byte[size * size];
+            for (int row = 0; row < size; row++)
+                for (int column = 0; column < size; column++)
+                {
+                    var p = new float2(column + 0.5f, row + 0.5f);
+                    float nearest = float.MaxValue;
+                    foreach (float4 line in kept)
+                    {
+                        float2 a = line.xy, b = line.zw, edge = b - a, toPoint = p - a;
+                        float lengthSquared = math.dot(edge, edge);
+                        float t = lengthSquared > 0 ? math.saturate(math.dot(toPoint, edge) / lengthSquared) : 0;
+                        float2 offset = toPoint - edge * t;
+                        nearest = math.min(nearest, math.dot(offset, offset));
+                    }
+                    float distance = math.sqrt(nearest);
+                    if (Winding(p, false) == 0) distance = -distance;
+                    output[row * size + column] = (byte)(math.saturate(0.5f + distance * toValue) * 255f + 0.5f);
+                }
+            return output;
+        }
+
+        static float4[] Polygon(float cx, float cy, float radius, int sides, bool clockwise, float spike = 0)
+        {
+            var points = new float2[sides];
+            for (int i = 0; i < sides; i++)
+            {
+                float angle = (clockwise ? -1 : 1) * i * 2 * math.PI / sides;
+                float r = radius * (spike > 0 && i % 2 == 1 ? spike : 1);
+                points[i] = new float2(cx + r * math.cos(angle), cy + r * math.sin(angle));
+            }
+            var lines = new float4[sides];
+            for (int i = 0; i < sides; i++) lines[i] = new float4(points[i], points[(i + 1) % sides]);
+            return lines;
+        }
+
+        static float4[] Join(params float4[][] parts)
+        {
+            var all = new System.Collections.Generic.List<float4>();
+            foreach (float4[] part in parts) all.AddRange(part);
+            return all.ToArray();
+        }
+
+        [Test]
+        public void TheFieldIsWhatMeasuringEveryLineAtEveryPixelGives()
+        {
+            var shapes = new[]
+            {
+                Square,
+                Join(Square, Polygon(20, 20, 6, 24, true)),
+                Join(Polygon(30, 30, 22, 64, false), Polygon(30, 30, 12, 48, true)),
+                Polygon(32, 30, 26, 18, false, 0.4f),
+                Join(Polygon(18, 30, 14, 40, false), Polygon(40, 30, 14, 40, false)),
+                Polygon(3, 3, 9, 7, false),
+                new[] { new float4(5, 5, 50, 52), new float4(50, 52, 55, 5), new float4(55, 5, 5, 5), new float4(20, 20, 20, 20) },
+            };
+            int size = 64;
+            foreach (float spread in new[] { 2f, 6f, 12.5f })
+                for (int s = 0; s < shapes.Length; s++)
+                {
+                    byte[] wanted = EveryLineAtEveryPixel(shapes[s], size, spread);
+                    byte[] got = Rasterize(shapes[s], size, spread);
+                    int differ = 0, most = 0;
+                    for (int i = 0; i < wanted.Length; i++)
+                    {
+                        int d = System.Math.Abs(wanted[i] - got[i]);
+                        if (d > 0) differ++;
+                        most = System.Math.Max(most, d);
+                    }
+                    // Compiled code may round a last bit differently from this reference; anything more is a different field.
+                    Assert.LessOrEqual(most, 1, "shape " + s + " spread " + spread);
+                    Assert.LessOrEqual(differ, wanted.Length / 200, "shape " + s + " spread " + spread);
+                }
+        }
+
+        [Test]
+        public void AMultiChannelFieldCarriesTheSameTrueDistance()
+        {
+            float4[] shape = Join(Polygon(30, 30, 22, 64, false), Polygon(30, 30, 12, 48, true), Polygon(32, 30, 26, 18, false, 0.4f));
+            int size = 64;
+            byte[] single = Rasterize(shape, size, 6);
+            var lines = new NativeList<float4>(shape.Length, Allocator.TempJob);
+            foreach (float4 line in shape) lines.Add(line);
+            var colors = new NativeList<byte>(shape.Length, Allocator.TempJob);
+            EdgeColoring.Color(lines, colors, 0);
+            var output = new NativeArray<byte>(size * size * 4, Allocator.TempJob);
+            var tiles = new NativeArray<SdfTile>(1, Allocator.TempJob);
+            tiles[0] = new SdfTile { Target = (byte*)output.GetUnsafePtr(), Stride = size * 4, Width = size, Height = size, LineCount = lines.Length, Spread = 6, Multi = true };
+            new SdfTileJob { Tiles = tiles, Lines = lines.AsArray(), LineColors = colors.GetUnsafePtr() }.Run(1);
+            for (int i = 0; i < size * size; i++) Assert.AreEqual(single[i], output[i * 4 + 3], "pixel " + i);
+            output.Dispose();
+            tiles.Dispose();
+            lines.Dispose();
+            colors.Dispose();
+        }
     }
 }

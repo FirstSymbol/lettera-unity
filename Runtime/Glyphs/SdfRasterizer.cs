@@ -89,34 +89,86 @@ namespace FirstSymbol.Lettera
             return kept;
         }
 
+        // The places where a row crosses the outline, sorted, and the direction of each. The winding at a pixel is the sum of the directions
+        // of crossings to its right, by the same arithmetic as asking every line at every pixel.
+        static int RowCrossings(float4* all, int allCount, float py, float* xs, int* directions, out int total)
+        {
+            int count = 0;
+            total = 0;
+            for (int i = 0; i < allCount; i++)
+            {
+                float2 a = all[i].xy, b = all[i].zw;
+                if ((a.y <= py) == (b.y <= py)) continue;
+                float crossing = a.x + (py - a.y) / (b.y - a.y) * (b.x - a.x);
+                int direction = b.y > a.y ? 1 : -1;
+                total += direction;
+                int j = count++;
+                while (j > 0 && xs[j - 1] > crossing)
+                {
+                    xs[j] = xs[j - 1];
+                    directions[j] = directions[j - 1];
+                    j--;
+                }
+                xs[j] = crossing;
+                directions[j] = direction;
+            }
+            return count;
+        }
+
         // Distances are to the outline alone; the fill comes from every contour, or overlaps would count wrong.
+        // A pixel farther than the spread from every line comes out fully in or out whatever its exact distance, so each line measures
+        // only the pixels within its reach. The bytes are the same as measuring every line at every pixel.
         static void RasterSingle(in SdfTile tile, float4* all, int allCount, float4* lines, int lineCount)
         {
             float toValue = 0.5f / tile.Spread;
-
-            for (int row = 0; row < tile.Height; row++)
+            int width = tile.Width, height = tile.Height;
+            long pixels = (long)width * height;
+            var nearest = (float*)UnsafeUtility.Malloc(pixels * sizeof(float), 16, Allocator.Persistent);
+            for (long i = 0; i < pixels; i++) nearest[i] = float.MaxValue;
+            float reach = tile.Spread + 1;
+            for (int i = 0; i < lineCount; i++)
             {
-                byte* output = tile.Target + (tile.Y + row) * tile.Stride + tile.X;
-                float py = row + 0.5f;
-                for (int column = 0; column < tile.Width; column++)
+                float4 line = lines[i];
+                float2 a = line.xy, b = line.zw;
+                int x0 = math.max((int)math.floor(math.min(a.x, b.x) - reach), 0), x1 = math.min((int)math.ceil(math.max(a.x, b.x) + reach), width - 1);
+                int y0 = math.max((int)math.floor(math.min(a.y, b.y) - reach), 0), y1 = math.min((int)math.ceil(math.max(a.y, b.y) + reach), height - 1);
+                for (int row = y0; row <= y1; row++)
                 {
-                    float px = column + 0.5f;
-                    float nearest = float.MaxValue;
-                    for (int i = 0; i < lineCount; i++)
+                    float py = row + 0.5f;
+                    float* rowNearest = nearest + (long)row * width;
+                    for (int column = x0; column <= x1; column++)
                     {
-                        float4 line = lines[i];
-                        float2 a = line.xy, b = line.zw, p = new float2(px, py);
+                        float2 p = new float2(column + 0.5f, py);
                         float2 edge = b - a, toPoint = p - a;
                         float lengthSquared = math.dot(edge, edge);
                         float t = lengthSquared > 0 ? math.saturate(math.dot(toPoint, edge) / lengthSquared) : 0;
                         float2 offset = toPoint - edge * t;
-                        nearest = math.min(nearest, math.dot(offset, offset));
+                        rowNearest[column] = math.min(rowNearest[column], math.dot(offset, offset));
                     }
-                    float distance = math.sqrt(nearest);
-                    if (WindingAt(all, allCount, new float2(px, py)) == 0) distance = -distance;
+                }
+            }
+
+            var xs = (float*)UnsafeUtility.Malloc(math.max(allCount, 1) * (long)sizeof(float), 16, Allocator.Persistent);
+            var directions = (int*)UnsafeUtility.Malloc(math.max(allCount, 1) * (long)sizeof(int), 16, Allocator.Persistent);
+            for (int row = 0; row < height; row++)
+            {
+                byte* output = tile.Target + (tile.Y + row) * tile.Stride + tile.X;
+                float py = row + 0.5f;
+                int crossings = RowCrossings(all, allCount, py, xs, directions, out int winding);
+                int next = 0;
+                float* rowNearest = nearest + (long)row * width;
+                for (int column = 0; column < width; column++)
+                {
+                    float px = column + 0.5f;
+                    while (next < crossings && xs[next] <= px) winding -= directions[next++];
+                    float distance = math.sqrt(rowNearest[column]);
+                    if (winding == 0) distance = -distance;
                     output[column] = (byte)(math.saturate(0.5f + distance * toValue) * 255f + 0.5f);
                 }
             }
+            UnsafeUtility.Free(directions, Allocator.Persistent);
+            UnsafeUtility.Free(xs, Allocator.Persistent);
+            UnsafeUtility.Free(nearest, Allocator.Persistent);
         }
 
         // Each channel measures to the nearest line of its color. Beyond a corner a line's distance extends straight past its end, so at
@@ -129,13 +181,18 @@ namespace FirstSymbol.Lettera
             for (int i = 0; i < lineCount; i++) area += lines[i].x * lines[i].w - lines[i].z * lines[i].y;
             float insideSign = area >= 0 ? 1 : -1;
 
+            var xs = (float*)UnsafeUtility.Malloc(math.max(allCount, 1) * (long)sizeof(float), 16, Allocator.Persistent);
+            var directions = (int*)UnsafeUtility.Malloc(math.max(allCount, 1) * (long)sizeof(int), 16, Allocator.Persistent);
             for (int row = 0; row < tile.Height; row++)
             {
                 byte* output = tile.Target + (tile.Y + row) * tile.Stride + tile.X * 4;
                 float py = row + 0.5f;
+                int crossings = RowCrossings(all, allCount, py, xs, directions, out int winding);
+                int next = 0;
                 for (int column = 0; column < tile.Width; column++)
                 {
                     var p = new float2(column + 0.5f, py);
+                    while (next < crossings && xs[next] <= p.x) winding -= directions[next++];
                     float nearest = float.MaxValue;
                     float3 best = float.MaxValue, bestAlign = 2, bestSigned = 0;
                     for (int i = 0; i < lineCount; i++)
@@ -167,7 +224,7 @@ namespace FirstSymbol.Lettera
                         if ((color & 4) != 0 && Better(squared, align, best.z, bestAlign.z)) { best.z = squared; bestAlign.z = align; bestSigned.z = signedDistance; }
                     }
                     float trueDistance = math.sqrt(nearest);
-                    if (WindingAt(all, allCount, p) == 0) trueDistance = -trueDistance;
+                    if (winding == 0) trueDistance = -trueDistance;
                     float median = math.max(math.min(bestSigned.x, bestSigned.y), math.min(math.max(bestSigned.x, bestSigned.y), bestSigned.z));
                     if ((median >= 0) != (trueDistance >= 0) || best.x == float.MaxValue || best.y == float.MaxValue || best.z == float.MaxValue)
                         bestSigned = trueDistance;
@@ -177,6 +234,8 @@ namespace FirstSymbol.Lettera
                     output[column * 4 + 3] = (byte)(math.saturate(0.5f + trueDistance * toValue) * 255f + 0.5f);
                 }
             }
+            UnsafeUtility.Free(directions, Allocator.Persistent);
+            UnsafeUtility.Free(xs, Allocator.Persistent);
         }
     }
 
