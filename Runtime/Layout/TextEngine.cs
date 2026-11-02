@@ -105,11 +105,19 @@ namespace FirstSymbol.Lettera
         // Where a rebuild's time goes, for a test that splits it: Parse, Shape, Layout, Positions, Mesh.
         internal static readonly long[] PassTicks = new long[5];
         internal static bool TimePasses;
-        static long PassStart() => TimePasses ? System.Diagnostics.Stopwatch.GetTimestamp() : 0;
+        static long PassStart()
+        {
+            if (TimePasses) s_PassBytesAt = GC.GetAllocatedBytesForCurrentThread(); // probe
+            return TimePasses ? System.Diagnostics.Stopwatch.GetTimestamp() : 0;
+        }
+
+        internal static readonly long[] PassBytes = new long[5]; // probe
+        static long s_PassBytesAt; // probe
 
         static void PassEnd(int pass, long start)
         {
             if (TimePasses) PassTicks[pass] += System.Diagnostics.Stopwatch.GetTimestamp() - start;
+            if (TimePasses) PassBytes[pass] += GC.GetAllocatedBytesForCurrentThread() - s_PassBytesAt; // probe
         }
 
         bool m_Reapply, m_SemanticsStale;
