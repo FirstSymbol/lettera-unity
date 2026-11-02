@@ -1,4 +1,5 @@
 using System;
+using FirstSymbol.Lettera.Unicode;
 
 namespace FirstSymbol.Lettera
 {
