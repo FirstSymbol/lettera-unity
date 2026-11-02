@@ -22,7 +22,7 @@ namespace FirstSymbol.Lettera
             if (root == null) return false;
             bool has = false;
             Rect area = default;
-            if (root.renderMode != RenderMode.WorldSpace)
+            if (root.renderMode != UnityEngine.RenderMode.WorldSpace)
             {
                 area = ((RectTransform)root.transform).rect;
                 has = true;
