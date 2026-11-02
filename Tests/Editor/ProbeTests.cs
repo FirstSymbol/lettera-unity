@@ -88,7 +88,7 @@ namespace FirstSymbol.Lettera.Editor.Tests
             {
                 double move = 0, rebuild = 0, tick = 0;
                 long bytesMove = 0, bytesRebuild = 0, bytesTick = 0, largest = 0;
-                int windows = 0, glyphs = 0, length = 0;
+                int windows = 0, glyphs = 0, length = 0, uncovered = 0;
                 StartPasses();
                 for (int step = 1; step <= 240; step++)
                 {
@@ -108,6 +108,17 @@ namespace FirstSymbol.Lettera.Editor.Tests
                     tick += clock.Elapsed.TotalMilliseconds;
                     long d = System.GC.GetTotalMemory(false);
                     if (engine.WindowStart != startBefore) windows++;
+                    float low = float.MaxValue, high = float.MinValue;
+                    for (int v = 0; v < engine.VertexCount; v++)
+                    {
+                        low = Mathf.Min(low, engine.Vertices[v].y);
+                        high = Mathf.Max(high, engine.Vertices[v].y);
+                    }
+                    if ((high < 300 - 20 || low > -300 + 20) && step < 235)
+                    {
+                        uncovered++;
+                        if (uncovered < 6) report.Append($"round {round} step {step}: ink {low:0}..{high:0}, lean {engine.View.IsLean}, window {engine.WindowLength}\n");
+                    }
                     glyphs += engine.GlyphCount;
                     length += engine.WindowLength;
                     bytesMove += b - a;
@@ -122,7 +133,7 @@ namespace FirstSymbol.Lettera.Editor.Tests
                 TextEngine.TimePasses = false;
                 report.Append($"round {round} per step ms: move {move / 240:0.000} rebuild {rebuild / 240:0.000} tick {tick / 240:0.000}; bytes: move {bytesMove / 240} rebuild {bytesRebuild / 240} tick {bytesTick / 240}\n");
                 report.Append($"  passes ms per step: {Passes(240)}\n");
-                report.Append($"  new windows {windows}, mean window {length / 240} chars, mean placed glyphs {glyphs / 240}, vertices now {engine.VertexCount}\n");
+                report.Append($"  uncovered {uncovered}, new windows {windows}, mean window {length / 240} chars, mean placed glyphs {glyphs / 240}, vertices now {engine.VertexCount}\n");
                 scroller.ScrollToStart();
                 Canvas.ForceUpdateCanvases();
             }
