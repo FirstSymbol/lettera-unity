@@ -324,10 +324,9 @@ namespace FirstSymbol.Lettera
             else if (m_Lean)
             {
                 // Blocks run to thousands of characters, more than a viewport: a lean window takes the paragraphs the heights point at.
-                // It starts inside a block only where that block opens no tag, since what is open is known at block starts.
-                bool tags = false;
-                for (int b = first; b <= topBlock; b++) tags |= m_Rope.BlockHasMarkup(b);
-                if (!tags) startChar = ParagraphStartNear(topBlock, m_Y - margin, startChar);
+                // It starts inside a block only where no tag stands before it in that block, since what is open is known at block starts.
+                int inside = ParagraphStartNear(topBlock, m_Y - margin, startChar);
+                if (inside > startChar && NoTagBetween(m_Rope.CharOfBlock(m_Rope.BlockAtChar(inside)), inside)) startChar = inside;
                 // Its length comes from what the last window laid out, since a block's height is an estimate and may run long.
                 double density = m_CharsPerPixel > 0 ? m_CharsPerPixel : m_Rope.BlockChars(topBlock) / Math.Max(m_Rope.HeightAtBlock(topBlock + 1) - m_Rope.HeightAtBlock(topBlock), 1);
                 int wanted = (int)Math.Min(m_Rope.Length, startChar + Math.Ceiling((viewport + 2 * margin) * density * LeanSlack));
@@ -388,6 +387,19 @@ namespace FirstSymbol.Lettera
                 if (IsSeparator(m_Look[i]))
                     return from + i + 1;
             return fallback;
+        }
+
+        bool NoTagBetween(int from, int to)
+        {
+            while (from < to)
+            {
+                int take = Math.Min(to - from, m_Look.Length);
+                var part = new Span<char>(m_Look, 0, take);
+                m_Rope.CopyTo(from, part);
+                if (part.IndexOf('<') >= 0) return false;
+                from += take;
+            }
+            return true;
         }
 
         // The end of the paragraph that holds a character, its separator included, if it is near; else that character.
