@@ -69,8 +69,9 @@ namespace FirstSymbol.Lettera
         }
 
         // Source is what is open before the window, then the window's own text: open tags give claims with no shown text, so no matcher needs to know.
-        internal void SetWindow(int start, int length, string prelude, float offset)
+        internal void SetWindow(int start, int length, string prelude, float offset, float bandMargin = -1)
         {
+            if (bandMargin >= 0) m_WindowBandMargin = bandMargin;
             LetteraRope rope = m_View.Rope;
             // The window's characters go straight into the runtime text's buffer: a scroll that moves the window makes no garbage.
             int total = prelude.Length + length;
@@ -376,6 +377,7 @@ namespace FirstSymbol.Lettera
         }
 
         Dictionary<long, int> m_DocumentRangeIds = Rare<long, int>.Map;
+        HashSet<long> m_PresentRanges;
         List<long> m_DocumentRangeScratch = Rare<long>.List;
 
         /// <summary>Tells whether a range holds state worth keeping out of a window, beyond the covers this knows itself.</summary>
@@ -387,8 +389,10 @@ namespace FirstSymbol.Lettera
         void AssignDocumentRangeIds(LetteraMatchContext context)
         {
             List<LetteraMatchContext.RangeRecord> ranges = context.Ranges;
-            var present = new HashSet<long>();
             m_RangeIds.Clear();
+            if (ranges.Count == 0 && m_DocumentRangeIds.Count == 0) return;
+            HashSet<long> present = m_PresentRanges ?? (m_PresentRanges = new HashSet<long>());
+            present.Clear();
             for (int r = 0; r < ranges.Count; r++)
             {
                 LetteraMatchContext.RangeRecord range = ranges[r];

@@ -56,7 +56,8 @@ namespace FirstSymbol.Lettera
             (IsWindowed ? !ShowsBars : m_HasVisible && (m_ShapedCount >= LetteraLongText.FromGlyphs || m_PendingCount > 0) && !ClipsViewport);
 
         // A document's window reaches past its viewport so that a scroll is only an offset; of it, only the lines near the viewport are placed.
-        const float WindowBandMargin = 0.25f;
+        internal const float WindowBandMargin = 0.25f;
+        float m_WindowBandMargin = WindowBandMargin;
 
         // The window's viewport, in the window's own y: a scroll moves it by the offset.
         bool WindowBandCovers()
@@ -75,8 +76,8 @@ namespace FirstSymbol.Lettera
             if (IsWindowed)
             {
                 float top = m_Box.yMax - m_WindowOffset, height = Mathf.Max(m_Box.height, CurrentFontSize * 4);
-                m_BandLow = top - height * (1 + WindowBandMargin);
-                m_BandHigh = top + height * WindowBandMargin;
+                m_BandLow = top - height * (1 + m_WindowBandMargin);
+                m_BandHigh = top + height * m_WindowBandMargin;
                 return;
             }
             float shown = Mathf.Max(m_VisibleHigh - m_VisibleLow, CurrentFontSize * 4);

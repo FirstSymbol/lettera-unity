@@ -302,6 +302,7 @@ namespace FirstSymbol.Lettera
         {
             TextEngine e = Engine;
             int v = firstQuad * 4, count = quads * 4;
+            if (mesh == m_Mesh) m_MeshInStreams = false;
             mesh.Clear(false);
             mesh.indexFormat = UnityEngine.Rendering.IndexFormat.UInt16;
             mesh.SetVertices(e.Vertices, v, count);
@@ -468,6 +469,16 @@ namespace FirstSymbol.Lettera
             TextEngine e = Engine;
             int streams = e.PoseStreams;
             e.ClearPoseStreams();
+            if (m_MeshInStreams)
+            {
+                int count = e.VertexCount;
+                if ((streams & TextEngine.StreamPositions) != 0) m_Mesh.SetVertexBufferData(e.Vertices, 0, 0, count, 0, QuietUpload);
+                if ((streams & TextEngine.StreamColors) != 0) m_Mesh.SetVertexBufferData(e.Colors, 0, 0, count, 1, QuietUpload);
+                if ((streams & TextEngine.StreamUv0) != 0) m_Mesh.SetVertexBufferData(e.Uv0, 0, 0, count, 2, QuietUpload);
+                if ((streams & TextEngine.StreamUv1) != 0) m_Mesh.SetVertexBufferData(e.Uv1, 0, 0, count, 3, QuietUpload);
+                canvasRenderer.SetMesh(m_Mesh);
+                return;
+            }
             if ((streams & TextEngine.StreamPositions) != 0) m_Mesh.SetVertices(e.Vertices, 0, e.VertexCount, UnityEngine.Rendering.MeshUpdateFlags.DontRecalculateBounds);
             if ((streams & TextEngine.StreamColors) != 0) m_Mesh.SetColors(e.Colors, 0, e.VertexCount);
             if ((streams & TextEngine.StreamUv0) != 0) m_Mesh.SetUVs(0, e.Uv0, 0, e.VertexCount);
@@ -526,10 +537,30 @@ namespace FirstSymbol.Lettera
             if (m_Parts.Count > 0) PartClip();
         }
 
+        // An unstyled text's four arrays go up as four streams, each one copy, with no layout made again and nothing checked that the engine wrote itself.
+        static readonly UnityEngine.Rendering.VertexAttributeDescriptor[] s_Streams =
+        {
+            new UnityEngine.Rendering.VertexAttributeDescriptor(UnityEngine.Rendering.VertexAttribute.Position, UnityEngine.Rendering.VertexAttributeFormat.Float32, 3, 0),
+            new UnityEngine.Rendering.VertexAttributeDescriptor(UnityEngine.Rendering.VertexAttribute.Color, UnityEngine.Rendering.VertexAttributeFormat.UNorm8, 4, 1),
+            new UnityEngine.Rendering.VertexAttributeDescriptor(UnityEngine.Rendering.VertexAttribute.TexCoord0, UnityEngine.Rendering.VertexAttributeFormat.Float32, 4, 2),
+            new UnityEngine.Rendering.VertexAttributeDescriptor(UnityEngine.Rendering.VertexAttribute.TexCoord1, UnityEngine.Rendering.VertexAttributeFormat.Float32, 4, 3),
+        };
+
+        const UnityEngine.Rendering.MeshUpdateFlags QuietUpload = UnityEngine.Rendering.MeshUpdateFlags.DontValidateIndices | UnityEngine.Rendering.MeshUpdateFlags.DontResetBoneBounds |
+                                                                 UnityEngine.Rendering.MeshUpdateFlags.DontNotifyMeshUsers | UnityEngine.Rendering.MeshUpdateFlags.DontRecalculateBounds;
+
+        bool m_MeshInStreams;
+
         void UploadMesh()
         {
             if (m_Mesh == null) m_Mesh = new Mesh { name = "Lettera Text", hideFlags = HideFlags.HideAndDontSave };
             TextEngine e = Engine;
+            if (!e.Styled)
+            {
+                UploadStreams(e);
+                return;
+            }
+            m_MeshInStreams = false;
             m_Mesh.Clear(false);
             m_Mesh.SetVertices(e.Vertices, 0, e.VertexCount);
             m_Mesh.SetColors(e.Colors, 0, e.VertexCount);
@@ -540,6 +571,34 @@ namespace FirstSymbol.Lettera
                 m_Mesh.SetUVs(2, e.Uv2, 0, e.VertexCount);
                 m_Mesh.SetUVs(3, e.Uv3, 0, e.VertexCount);
             }
+            int segments = e.Segments.Count;
+            if (segments <= 1)
+            {
+                m_Mesh.subMeshCount = 1;
+                m_Mesh.SetIndices(e.Indices, 0, e.IndexCount, MeshTopology.Triangles, 0, false);
+            }
+            else
+            {
+                m_Mesh.subMeshCount = segments;
+                for (int i = 0; i < segments; i++)
+                    m_Mesh.SetIndices(e.Indices, e.Segments[i].IndexStart, e.Segments[i].IndexCount, MeshTopology.Triangles, i, false);
+            }
+            m_Mesh.bounds = e.MeshBounds;
+        }
+
+        void UploadStreams(TextEngine e)
+        {
+            int count = e.VertexCount;
+            if (!m_MeshInStreams)
+            {
+                m_Mesh.Clear(false);
+                m_MeshInStreams = true;
+            }
+            m_Mesh.SetVertexBufferParams(count, s_Streams);
+            m_Mesh.SetVertexBufferData(e.Vertices, 0, 0, count, 0, QuietUpload);
+            m_Mesh.SetVertexBufferData(e.Colors, 0, 0, count, 1, QuietUpload);
+            m_Mesh.SetVertexBufferData(e.Uv0, 0, 0, count, 2, QuietUpload);
+            m_Mesh.SetVertexBufferData(e.Uv1, 0, 0, count, 3, QuietUpload);
             int segments = e.Segments.Count;
             if (segments <= 1)
             {

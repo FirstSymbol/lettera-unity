@@ -68,6 +68,7 @@ namespace FirstSymbol.Lettera
             m_RecordOwners = HasPoseConsumers || m_RevealSpans.Count > 0 || (m_Marquee != null && m_MarqueeScrolling) || NeedsRestState;
             if (m_StageHooks.Count > 0) m_CoverQuads.Clear();
             m_CurrentOwner = -1;
+            m_DrawBase = m_Host.BaseColor;
             GlyphAtlasRegistration.EnsureRegistered();
 
             if (ShowsBars)
@@ -148,6 +149,9 @@ namespace FirstSymbol.Lettera
         }
 
         bool m_RecordOwners;
+
+        // The text's colour, read once a mesh: through the host it is a conversion per glyph.
+        Color32 m_DrawBase;
 
         /// <summary>Moves a position through a pixel font's grid, as glyphs and effect offsets go when snapping is on.</summary>
         public static float SnapToGrid(float position, float size, int grid) => grid > 0 && size > 0 ? Mathf.Round(position * grid / size) * size / grid : position;
@@ -385,7 +389,7 @@ namespace FirstSymbol.Lettera
                 return;
             }
             ref LetteraAttributes.Cp attr = ref m_Attributes.At(g.Cluster);
-            Color32 baseColor = m_Host.BaseColor;
+            Color32 baseColor = m_DrawBase;
             UseSegment(s_NoPaint);
             // The face lies below every filter in the list.
             m_FilterRow = FilterFor(g.Cluster, -1);
@@ -498,6 +502,7 @@ namespace FirstSymbol.Lettera
         bool FirstFill(int cluster, byte kind, out int record)
         {
             record = -1;
+            if (m_Faces.Count == 0) return false;
             foreach (LayerGroup group in m_Faces)
             {
                 int index = group.Cover[cluster] - 1;
@@ -537,7 +542,7 @@ namespace FirstSymbol.Lettera
             Color32 color = record.Paint.Color;
             if (record.Paint.UsesGlyphColor)
             {
-                Color32 baseColor = m_Host.BaseColor;
+                Color32 baseColor = m_DrawBase;
                 color = attr.HasColor ? attr.Color : new Color32(baseColor.r, baseColor.g, baseColor.b, 255);
             }
             color.a = (byte)(color.a * attr.Alpha);
@@ -739,7 +744,8 @@ namespace FirstSymbol.Lettera
         void UseSegment(in ResolvedPaint paint, Material custom = null)
         {
             LetteraBlend blend = paint.Blend == LetteraBlend.Inherit ? LetteraBlend.Normal : paint.Blend;
-            if (blend == m_SegmentBlend && paint.Texture == m_SegmentTexture && custom == m_SegmentCustom) return;
+            // By reference: Unity's comparison asks the engine whether each is alive, and this runs per quad.
+            if (blend == m_SegmentBlend && ReferenceEquals(paint.Texture, m_SegmentTexture) && ReferenceEquals(custom, m_SegmentCustom)) return;
             FinishSegment();
             m_SegmentBlend = blend;
             m_SegmentTexture = paint.Texture;
