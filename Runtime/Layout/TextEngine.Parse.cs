@@ -423,7 +423,8 @@ namespace FirstSymbol.Lettera
         {
             List<LetteraMatchContext.RangeRecord> ranges = context.Ranges;
             LetteraAttributes attributes;
-            if (ranges.Count == 0 && m_Host.Data.Overflow == LetteraOverflow.Visible && m_TextLength <= LetteraAttributes.PlainLength)
+            // A document's window holds its own uniform set: a short window, such as the last of a document, would grow the shared one.
+            if (ranges.Count == 0 && m_Host.Data.Overflow == LetteraOverflow.Visible && m_TextLength <= LetteraAttributes.PlainLength && !IsWindowed)
             {
                 attributes = m_Attributes = LetteraAttributes.Plain;
                 attributes.PreparePlain(m_TextLength);
