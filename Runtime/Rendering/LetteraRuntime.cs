@@ -161,6 +161,8 @@ namespace FirstSymbol.Lettera
             FilterAtlas.Shutdown();
             FontFace.DisposeAll();
             LetteraSystemFonts.Reset();
+            // Its blocks are native and would outlive a domain reload.
+            TextEngine.ClearParagraphCache();
         }
     }
 }

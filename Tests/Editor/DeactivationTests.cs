@@ -437,6 +437,25 @@ namespace FirstSymbol.Lettera.Editor.Tests
         }
 
         [Test]
+        public void ACounterGrowingFromOneDigitToFiveGrowsNoBuffer()
+        {
+            Canvas canvas = MakeCanvas();
+            LetteraText text = Label(canvas.transform, "0");
+            Canvas.ForceUpdateCanvases();
+            string[] values = { "12", "345", "6789", "10234", "7" };
+            long bytes = Allocated(() =>
+            {
+                foreach (string value in values)
+                {
+                    text.SetText(value);
+                    text.ForceRebuild();
+                }
+            });
+            // Buffers that started empty grew in the frame a counter first changed: 43 KB for 64 counters.
+            Assert.Less(bytes, 256);
+        }
+
+        [Test]
         public void AStyledTextStillGetsItsStreams()
         {
             Canvas canvas = MakeCanvas();

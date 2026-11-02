@@ -83,8 +83,8 @@ namespace FirstSymbol.Lettera
             Styled = m_Attributes.NeedsStyledShader() || HasInlineSprites;
             PrepareGlyphs(groups);
             // One quad a glyph is the usual case, so a long text does not grow through every size on the way.
-            if (m_PlacedCount * 4 > Vertices.Length) GrowVertices(System.Math.Max(m_PlacedCount * 4, Vertices.Length * 2));
-            if (m_PlacedCount * 6 > Indices.Length) System.Array.Resize(ref Indices, System.Math.Max(m_PlacedCount * 6, Indices.Length * 2));
+            if (m_PlacedCount * 4 > Vertices.Length) GrowVertices(System.Math.Max(System.Math.Max(m_PlacedCount * 4, Vertices.Length * 2), FirstVertices));
+            if (m_PlacedCount * 6 > Indices.Length) System.Array.Resize(ref Indices, System.Math.Max(System.Math.Max(m_PlacedCount * 6, Indices.Length * 2), FirstVertices * 3 / 2));
             PrepareFade();
             PrepareExtraMotions();
 
@@ -874,6 +874,9 @@ namespace FirstSymbol.Lettera
             }
         }
 
+        // A label's first mesh takes room for sixteen glyphs, so a counter going from one digit to three does not grow its buffers in the frame it changes.
+        const int FirstVertices = 64;
+
         // Only a styled text ever reads the last two streams, and most texts are not styled.
         void GrowVertices(int capacity)
         {
@@ -889,13 +892,13 @@ namespace FirstSymbol.Lettera
         int Reserve()
         {
             int v = VertexCount;
-            if (VertexCount + 4 > Vertices.Length) GrowVertices(System.Math.Max(Vertices.Length * 2, 16));
+            if (VertexCount + 4 > Vertices.Length) GrowVertices(System.Math.Max(Vertices.Length * 2, FirstVertices));
             if (Styled && Uv2.Length < Vertices.Length)
             {
                 System.Array.Resize(ref Uv2, Vertices.Length);
                 System.Array.Resize(ref Uv3, Vertices.Length);
             }
-            if (IndexCount + 6 > Indices.Length) System.Array.Resize(ref Indices, System.Math.Max(Indices.Length * 2, 24));
+            if (IndexCount + 6 > Indices.Length) System.Array.Resize(ref Indices, System.Math.Max(Indices.Length * 2, FirstVertices * 3 / 2));
             if (m_RecordOwners)
             {
                 EnsureOwnerSize(v / 4 + 1);
