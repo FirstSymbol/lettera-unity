@@ -222,23 +222,22 @@ namespace FirstSymbol.Lettera.Editor.Tests
             Assert.AreEqual(layouts + 1, engine.ResumedLayouts, "and line breaking");
             SameAsFresh(text, "typed at the end");
 
-            int middle = page.IndexOf('
-', page.Length / 2);
+            int middle = page.IndexOf('\n', page.Length / 2);
             string edits = text.Text.Insert(middle - 5, "inserted words ");
             text.Text = edits;
             text.ForceRebuild();
             SameAsFresh(text, "typed in the middle");
 
-            text.Text = edits.Remove(middle + 10, 1);
+            Assert.AreEqual('\n', edits[middle + 15]);
+            text.Text = edits.Remove(middle + 15, 1);
             text.ForceRebuild();
             SameAsFresh(text, "a line break removed, two paragraphs joined");
 
-            text.Text = text.Text.Insert(200, "
-");
+            text.Text = text.Text.Insert(200, "\n");
             text.ForceRebuild();
             SameAsFresh(text, "a paragraph split near the start");
 
-            text.Text = text.Text.Insert(3000, "😀 שלום ");
+            text.Text = text.Text.Insert(3000, "\U0001F600 שלום ");
             text.ForceRebuild();
             SameAsFresh(text, "a pair of surrogates and right-to-left letters");
 
