@@ -64,7 +64,7 @@ namespace FirstSymbol.Lettera.Editor.Tests
             foreach (LetteraText l in labels) l.ForceRebuild();
             steps[4] = GC.GetAllocatedBytesForCurrentThread() - before;
             before = GC.GetAllocatedBytesForCurrentThread();
-            Canvas.ForceUpdateCanvases();
+            UnityEngine.Canvas.ForceUpdateCanvases();
             yield return null;
             steps[5] = GC.GetAllocatedBytesForCurrentThread() - before;
             Debug.Log($"LETTERA_PROBE per label: go {steps[0] / 1000} add {steps[1] / 1000} font {steps[2] / 1000} text {steps[3] / 1000} rebuild {steps[4] / 1000} frame {steps[5] / 1000}");
@@ -113,7 +113,7 @@ namespace FirstSymbol.Lettera.Editor.Tests
                 for (int f = 0; f < 8; f++)
                 {
                     before = GC.GetAllocatedBytesForCurrentThread();
-                    Canvas.ForceUpdateCanvases();
+                    UnityEngine.Canvas.ForceUpdateCanvases();
                     LetteraMotionHubTick();
                     yield return null;
                     frames.Add(GC.GetAllocatedBytesForCurrentThread() - before);
