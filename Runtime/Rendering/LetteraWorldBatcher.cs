@@ -75,15 +75,16 @@ namespace FirstSymbol.Lettera
         static readonly Dictionary<LetteraWorldText, Entry> s_ByText = new Dictionary<LetteraWorldText, Entry>();
         static readonly Dictionary<BatchKey, Batch> s_Batches = new Dictionary<BatchKey, Batch>();
 
-        // Merged geometry of one shard.
-        static Vector3[] s_Vertices = new Vector3[ShardVertices + 1024];
-        static Vector3[] s_Normals = new Vector3[ShardVertices + 1024];
-        static Color32[] s_Colors = new Color32[ShardVertices + 1024];
-        static Vector4[] s_Uv0 = new Vector4[ShardVertices + 1024];
-        static Vector4[] s_Uv1 = new Vector4[ShardVertices + 1024];
-        static Vector4[] s_Uv2 = new Vector4[ShardVertices + 1024];
-        static Vector4[] s_Uv3 = new Vector4[ShardVertices + 1024];
-        static int[] s_Indices = new int[(ShardVertices + 1024) * 3 / 2];
+        // Merged geometry of one shard. A project with no world text never needs them, and the update runs every frame from the first text on, so they come with the first batch.
+        const int ScratchVertices = ShardVertices + 1024;
+        static Vector3[] s_Vertices = Array.Empty<Vector3>();
+        static Vector3[] s_Normals = Array.Empty<Vector3>();
+        static Color32[] s_Colors = Array.Empty<Color32>();
+        static Vector4[] s_Uv0 = Array.Empty<Vector4>();
+        static Vector4[] s_Uv1 = Array.Empty<Vector4>();
+        static Vector4[] s_Uv2 = Array.Empty<Vector4>();
+        static Vector4[] s_Uv3 = Array.Empty<Vector4>();
+        static int[] s_Indices = Array.Empty<int>();
 
         // The stretches of one shard that need different materials, in drawing order.
         struct MaterialRun
@@ -321,7 +322,7 @@ namespace FirstSymbol.Lettera
         {
             if (vertices > s_Vertices.Length)
             {
-                int capacity = Math.Max(vertices, s_Vertices.Length * 2);
+                int capacity = Math.Max(Math.Max(vertices, s_Vertices.Length * 2), ScratchVertices);
                 Array.Resize(ref s_Vertices, capacity);
                 Array.Resize(ref s_Normals, capacity);
                 Array.Resize(ref s_Colors, capacity);
@@ -330,7 +331,7 @@ namespace FirstSymbol.Lettera
                 Array.Resize(ref s_Uv2, capacity);
                 Array.Resize(ref s_Uv3, capacity);
             }
-            if (indices > s_Indices.Length) Array.Resize(ref s_Indices, Math.Max(indices, s_Indices.Length * 2));
+            if (indices > s_Indices.Length) Array.Resize(ref s_Indices, Math.Max(Math.Max(indices, s_Indices.Length * 2), ScratchVertices * 3 / 2));
         }
 
         static void Commit(Batch batch, int index, int vertexCount, int indexCount)
