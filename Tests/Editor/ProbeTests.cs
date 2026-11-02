@@ -82,8 +82,7 @@ namespace FirstSymbol.Lettera.Editor.Tests
             var report = new StringBuilder();
             long g0 = System.GC.GetAllocatedBytesForCurrentThread();
             var junk = new byte[10000];
-            report.Append($"allocation check: {System.GC.GetAllocatedBytesForCurrentThread() - g0} for {junk.Length}
-");
+            report.Append($"allocation check: {System.GC.GetAllocatedBytesForCurrentThread() - g0} for {junk.Length}; ");
             var clock = new Stopwatch();
             for (int round = 0; round < 2; round++)
             {
