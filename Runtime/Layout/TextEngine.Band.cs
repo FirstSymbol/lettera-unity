@@ -27,6 +27,10 @@ namespace FirstSymbol.Lettera
         internal int BandFirstLine => m_Banded ? m_BandFirst : 0;
         internal int BandEndLine => m_Banded ? m_BandEnd : m_Lines.Count;
 
+        /// <summary>What decided the band, for a test's message.</summary>
+        internal string BandReport =>
+            $"visible {m_HasVisible} {m_VisibleLow:0}..{m_VisibleHigh:0}, band {m_BandLow:0}..{m_BandHigh:0}, lines {m_BandFirst}..{m_BandEnd}, estimates {m_EstAdvanceEm:0.000} em {m_EstLineEm:0.000} em {m_EstFill:0.00}";
+
         /// <summary>Whether a host should say what of this text shows: a text this long may place only part of its lines.</summary>
         internal bool MayBand => LetteraLongText.VisibleLinesOnly && !IsWindowed && (m_Banded || RawChars.Length >= LetteraLongText.FromGlyphs / 2);
 

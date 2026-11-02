@@ -458,6 +458,7 @@ namespace FirstSymbol.Lettera.Editor.Tests
             Vector3 middle = text.transform.parent.position;
             Vector2 local = text.transform.InverseTransformPoint(middle);
             int first = engine.BandFirstLine, end = engine.BandEndLine;
+            what += " (" + engine.BandReport + ", middle at " + local + ")";
             FinishBySlices(text, out _);
             int line = text.GetLineIndex(text.HitTestCaret(local, out _), LetteraCaretBias.Forward);
             Assert.GreaterOrEqual(line, first, what + ": the middle line was placed when set");
