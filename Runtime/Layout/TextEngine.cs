@@ -355,8 +355,7 @@ namespace FirstSymbol.Lettera
 
         internal static void LogAlloc(string name, int length) // probe
         {
-            if (AllocLog != null && length >= 50000) AllocLog.Append(name).Append('[').Append(length).Append("] ").Append(new System.Diagnostics.StackTrace(2, false).GetFrame(0)?.GetMethod()?.Name).Append('
-');
+            if (AllocLog != null && length >= 50000) AllocLog.Append(name).Append('[').Append(length).Append("] ").Append(new System.Diagnostics.StackTrace(2, false).GetFrame(0)?.GetMethod()?.Name).Append("; ");
         }
     }
 }
