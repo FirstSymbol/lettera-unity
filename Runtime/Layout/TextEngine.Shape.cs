@@ -86,7 +86,7 @@ namespace FirstSymbol.Lettera
             m_Deferring = DeferApplies(length, data);
             m_DeferBaseLevel = baseLevel;
             ShapedAfresh = resume == 0;
-            if (resume == 0) ForgetEstimates();
+            if (resume == 0 && m_Deferring) ForgetEstimates();
 
             // A paragraph left for later prepares its own characters when it is shaped.
             if (!m_Deferring)

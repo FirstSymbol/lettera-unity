@@ -214,7 +214,8 @@ namespace FirstSymbol.Lettera
             if (size == m_LastRectSize) return;
             bool widthChanged = !Mathf.Approximately(size.x, m_LastRectSize.x);
             m_LastRectSize = size;
-            bool heightMatters = m_Data.AutoSize || m_Data.Overflow != LetteraOverflow.Visible || m_ClipsOverflow || Engine.HasElideRequests;
+            // A long text placed by its band only moves its lines when it grows taller, as a fitter makes it while it finishes: no line breaks anew.
+            bool heightMatters = m_Data.AutoSize || m_Data.Overflow != LetteraOverflow.Visible || (m_ClipsOverflow && !Engine.IsBanded) || Engine.HasElideRequests;
             MarkDirty(widthChanged || heightMatters ? DirtyLevel.Layout : DirtyLevel.Positions);
         }
 

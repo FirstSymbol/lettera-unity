@@ -484,5 +484,28 @@ namespace FirstSymbol.Lettera.Editor.Tests
             MiddleIsDrawn(RenderMode.WorldSpace, false, 30, 0.5f, "a viewport turned and scaled down");
             MiddleIsDrawn(RenderMode.ScreenSpaceOverlay, false, 90, 2, "a viewport turned on its side and scaled up");
         }
+
+        [Test]
+        public void FinishingAcrossWorkersEndsAsAWholeBuild()
+        {
+            LetteraWorkerMode saved = LetteraWorkers.Mode;
+            LetteraWorkers.Mode = LetteraWorkerMode.Parallel;
+            try
+            {
+                string source = Page(200 * 1024);
+                LetteraLongText.VisibleLinesOnly = true;
+                LetteraText whole = MakeWhole(source, 20000);
+                int batches = LetteraWorkers.ParallelBatches;
+                LetteraText part = Make(source, out _, 20000);
+                Assert.Greater(EngineOf(part).PendingParagraphs, 0);
+                FinishBySlices(part, out _);
+                Assert.Greater(LetteraWorkers.ParallelBatches, batches, "finishing went across the workers");
+                SameAsWhole(whole, part, "finished across workers");
+            }
+            finally
+            {
+                LetteraWorkers.Mode = saved;
+            }
+        }
     }
 }

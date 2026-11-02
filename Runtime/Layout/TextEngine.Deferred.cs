@@ -169,6 +169,7 @@ namespace FirstSymbol.Lettera
         }
 
         // Shapes paragraphs that all wait, side by side, at the end of the runs and glyphs, then moves those into reading order.
+        // Many codepoints at once go across the workers, as a whole text does; the result is the same either way.
         void ShapePending(int first, int end)
         {
             int runs = m_Runs.Count, glyphs = m_ShapedCount;
@@ -178,24 +179,36 @@ namespace FirstSymbol.Lettera
             for (int p = first; p < end; p++)
             {
                 Paragraph paragraph = m_Paragraphs[p];
-                int start = paragraph.Start;
-                for (int i = start; i < paragraph.End; i++)
+                for (int i = paragraph.Start; i < paragraph.End; i++)
                 {
                     int cp = m_Text[i];
                     byte map = attributes.At(i).CaseMap;
                     m_ShapeText[i] = map == 0 ? cp : map == 1 ? LetteraUnicode.ToUpper(cp) : LetteraUnicode.ToLower(cp);
                 }
-                Array.Clear(m_CpAdvanceEm, start, paragraph.End - start);
-                paragraph.Pending = false;
-                paragraph.Level = baseLevel == 1 ? 1 : 0;
-                ShapeParagraph(ref paragraph, baseLevel);
-                if (paragraph.ContentEnd == start && baseLevel < 0 && p > 0) paragraph.Level = m_Paragraphs[p - 1].Level;
-                m_Paragraphs[p] = paragraph;
+                Array.Clear(m_CpAdvanceEm, paragraph.Start, paragraph.End - paragraph.Start);
+            }
+            int chars = m_Paragraphs[end - 1].End - m_Paragraphs[first].Start;
+            if (end - first > 1 && ShapesInParallel(chars)) ShapePendingInParallel(first, end, runs, glyphs);
+            else
+            {
+                for (int p = first; p < end; p++)
+                {
+                    Paragraph paragraph = m_Paragraphs[p];
+                    paragraph.Pending = false;
+                    paragraph.Level = baseLevel == 1 ? 1 : 0;
+                    ShapeParagraph(ref paragraph, baseLevel);
+                    if (paragraph.ContentEnd == paragraph.Start && baseLevel < 0 && p > 0) paragraph.Level = m_Paragraphs[p - 1].Level;
+                    m_Paragraphs[p] = paragraph;
+                }
+            }
+            for (int p = first; p < end; p++)
+            {
+                Paragraph paragraph = m_Paragraphs[p];
                 m_PendingCount--;
                 double advance = 0;
-                for (int i = start; i < paragraph.ContentEnd; i++) advance += m_CpAdvanceEm[i];
+                for (int i = paragraph.Start; i < paragraph.ContentEnd; i++) advance += m_CpAdvanceEm[i];
                 m_SeenAdvanceEm += advance;
-                m_SeenChars += paragraph.ContentEnd - start;
+                m_SeenChars += paragraph.ContentEnd - paragraph.Start;
             }
             // An empty paragraph after these took its direction from one that waited.
             for (int p = end; p < m_Paragraphs.Count && baseLevel < 0; p++)
@@ -385,6 +398,8 @@ namespace FirstSymbol.Lettera
         internal bool FinishStep(long deadline)
         {
             if (m_PendingCount == 0 || m_Dirty >= DirtyLevel.Layout || m_InPasses) return false;
+            // With workers, a step is one slice for each of them and the main thread.
+            int step = LetteraWorkers.ShouldRun(LetteraWorkers.ParallelFromCodepoints) ? Math.Max(StepCodepoints * (LetteraWorkers.WorkerCount + 1), LetteraWorkers.ParallelFromCodepoints) : StepCodepoints;
             do
             {
                 int first = m_FirstPending;
@@ -392,7 +407,7 @@ namespace FirstSymbol.Lettera
                 m_FirstPending = first;
                 if (first >= m_Paragraphs.Count) break;
                 int end = first, chars = 0;
-                while (end < m_Paragraphs.Count && m_Paragraphs[end].Pending && chars < StepCodepoints)
+                while (end < m_Paragraphs.Count && m_Paragraphs[end].Pending && chars < step)
                 {
                     chars += m_Paragraphs[end].End - m_Paragraphs[end].Start;
                     end++;
