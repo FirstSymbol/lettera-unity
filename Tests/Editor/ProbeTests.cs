@@ -280,5 +280,48 @@ return $"parse {t[0] * f / n:0.000} shape {t[1] * f / n:0.000} layout {t[2] * f 
             }
             Debug.Log("LETTERA_PROBE\n" + report);
         }
+        static readonly Unity.Profiling.ProfilerRecorder s_Gc = Unity.Profiling.ProfilerRecorder.StartNew(Unity.Profiling.ProfilerCategory.Memory, "GC Allocated In Frame");
+
+        [UnityEngine.TestTools.UnityTest]
+        public System.Collections.IEnumerator ProbeKeystrokeAllocation()
+        {
+            TextEngine.PendingSourceInEditMode = true;
+            GameObject canvas = MakeCanvas();
+            var body = new StringBuilder();
+            for (int i = 0; body.Length < 2000; i++)
+            {
+                const string Words = "The quick brown fox jumps over a lazy dog and then runs back home again ";
+                body.Append(Words, i % 20, 12 + i * 7 % 29).Append(i % 8 == 7 ? "|" : " ");
+            }
+            body.Length = 2000;
+            body.Replace('|', (char)10);
+            LetteraText label = Label(canvas.transform, body.ToString(), 18, new Vector2(1100, 640));
+            label.raycastTarget = true;
+            var field = label.gameObject.AddComponent<LetteraEditable>();
+            field.Selectable.Activate();
+            label.ForceRebuild();
+            field.Selectable.Select(field.Length, field.Length);
+            var report = new StringBuilder();
+            var idle = new System.Collections.Generic.List<long>();
+            var typed = new System.Collections.Generic.List<long>();
+            for (int i = 0; i < 30; i++)
+            {
+                Canvas.ForceUpdateCanvases();
+                yield return null;
+                idle.Add(s_Gc.LastValue);
+            }
+            for (int k = 0; k < 60; k++)
+            {
+                field.InsertText(((char)('a' + k % 26)).ToString(), "user.type");
+                Canvas.ForceUpdateCanvases();
+                yield return null;
+                typed.Add(s_Gc.LastValue);
+            }
+            idle.Sort();
+            typed.Sort();
+            report.Append($"recorder valid {s_Gc.Valid}; idle median {idle[idle.Count / 2]} min {idle[0]}; typed median {typed[typed.Count / 2]} min {typed[0]} max {typed[typed.Count - 1]}");
+            TextEngine.PendingSourceInEditMode = false;
+            Debug.Log("LETTERA_PROBE" + (char)10 + report);
+        }
     }
 }

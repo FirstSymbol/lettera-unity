@@ -180,6 +180,7 @@ namespace FirstSymbol.Lettera
         {
             y = Math.Max(0, Math.Min(y, MaxDocumentY));
             if (y == m_Y) return;
+            m_LastStep = Math.Abs(y - m_Y);
             m_Y = y;
             m_TicksSinceScroll = 0;
             m_AtEnd = m_Y >= MaxDocumentY - 0.5;
@@ -274,8 +275,9 @@ namespace FirstSymbol.Lettera
                 return;
             }
 
-            // A scroll that left the whole window behind in one frame will leave the next one behind too: margins would be built and never seen.
-            bool leapt = !force && m_Engine.IsWindowLoaded && (m_Y >= windowBottom || m_Y + viewport <= windowTop);
+            // A scroll that steps further than a margin reaches, or leaves the whole window behind, will do so again in the next frame:
+            // margins would be built and never seen.
+            bool leapt = !force && m_Engine.IsWindowLoaded && (m_Y >= windowBottom || m_Y + viewport <= windowTop || m_LastStep > m_Settings.MarginViewports * viewport);
             m_Lean = leapt && LeanMargin < m_Settings.MarginViewports;
             double margin = (m_Lean ? LeanMargin : m_Settings.MarginViewports) * viewport;
             int first = m_Rope.BlockAtHeight(m_Y - margin, out _);
@@ -356,7 +358,7 @@ namespace FirstSymbol.Lettera
 
         // How much more text than the last window's density asks a lean window takes, for denser text ahead.
         const double LeanSlack = 1.25;
-        double m_CharsPerPixel;
+        double m_CharsPerPixel, m_LastStep;
         bool m_Lean;
         int m_TicksSinceScroll;
 
