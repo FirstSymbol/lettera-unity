@@ -28,13 +28,16 @@ namespace FirstSymbol.Lettera.Editor.Tests
         {
             double f = 1000.0 / Stopwatch.Frequency;
             long[] t = TextEngine.PassTicks;
-            return $"parse {t[0] * f / n:0.000} shape {t[1] * f / n:0.000} layout {t[2] * f / n:0.000} positions {t[3] * f / n:0.000} mesh {t[4] * f / n:0.000}";
+            string fine = "";
+            string[] names = { "", "", "", "", "", "prepareGlyphs", "draw", "finish", "rest+pose", "upload", "setMesh", "rebuilt", "pushVisible", "afterWindow", "placeAgain", "afterBand" };
+            for (int i = 5; i < 16; i++) fine += $" {names[i]} {t[i] * f / n:0.000}";
+            return $"parse {t[0] * f / n:0.000} shape {t[1] * f / n:0.000} layout {t[2] * f / n:0.000} positions {t[3] * f / n:0.000} mesh {t[4] * f / n:0.000};{fine}";
         }
 
         static void StartPasses()
         {
             TextEngine.TimePasses = true;
-            System.Array.Clear(TextEngine.PassTicks, 0, 5);
+            System.Array.Clear(TextEngine.PassTicks, 0, 16);
         }
 
         GameObject MakeCanvas()
@@ -77,6 +80,10 @@ namespace FirstSymbol.Lettera.Editor.Tests
             var engine = ((ITextComponent)label).SharedEngine;
             var clientOf = (IMotionClient)engine.View;
             var report = new StringBuilder();
+            long g0 = System.GC.GetAllocatedBytesForCurrentThread();
+            var junk = new byte[10000];
+            report.Append($"allocation check: {System.GC.GetAllocatedBytesForCurrentThread() - g0} for {junk.Length}
+");
             var clock = new Stopwatch();
             for (int round = 0; round < 2; round++)
             {
