@@ -48,7 +48,7 @@ namespace FirstSymbol.Lettera
         }
 
         bool BandApplies =>
-            LetteraLongText.VisibleLinesOnly && m_HasVisible && m_ShapedCount >= LetteraLongText.FromGlyphs && !IsWindowed && !ClipsViewport && !m_MarqueeScrolling &&
+            LetteraLongText.VisibleLinesOnly && m_HasVisible && (m_ShapedCount >= LetteraLongText.FromGlyphs || m_PendingCount > 0) && !IsWindowed && !ClipsViewport && !m_MarqueeScrolling &&
             !m_Attributes.HasCurve && m_RevealSpans.Count == 0 && m_StageHooks.Count == 0 && m_InlineItems.Count == 0;
 
         void StartBand()

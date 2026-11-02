@@ -197,6 +197,7 @@ namespace FirstSymbol.Lettera
         /// <summary>The rects of a range's fragments, in local space.</summary>
         public void ActiveRectsOf(int id, List<Rect> rects)
         {
+            Exact();
             EnsurePositioned();
             EnsureActiveRects();
             foreach (ActiveRange range in m_Active)
@@ -210,6 +211,7 @@ namespace FirstSymbol.Lettera
         /// <summary>The range at a local point: highest priority, then the earlier style, then the shorter range, then the order they came in. 0 for none.</summary>
         public int HitTestActive(Vector2 point, float touchPadding)
         {
+            Exact();
             if (m_Active.Count == 0 || ShowsBars) return 0;
             EnsurePositioned();
             EnsureActiveRects();
@@ -384,7 +386,7 @@ namespace FirstSymbol.Lettera
         public string LanguageAt(int cp)
         {
             if (cp < 0 || cp >= m_Attributes.Length) return null;
-            int index = m_Attributes.Chars[cp].Language;
+            int index = m_Attributes.At(cp).Language;
             return index >= 0 ? m_Attributes.Languages[index] : null;
         }
 

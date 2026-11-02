@@ -115,7 +115,7 @@ namespace FirstSymbol.Lettera
         {
             ref PlacedGlyph g = ref m_Placed[glyph];
             ref AtlasGlyph atlas = ref m_PlacedAtlas[glyph];
-            ref LetteraAttributes.Cp attr = ref m_Attributes.Chars[g.Cluster];
+            ref LetteraAttributes.Cp attr = ref m_Attributes.At(g.Cluster);
             if (span < m_MotionSpans.Count && m_MotionSpans[span].Effect is RollMotion)
             {
                 Color32 baseColor = m_Host.BaseColor;

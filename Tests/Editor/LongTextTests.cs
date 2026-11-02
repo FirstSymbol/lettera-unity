@@ -9,13 +9,24 @@ namespace FirstSymbol.Lettera.Editor.Tests
     /// <summary>A long text places and draws only the lines near what shows, and nothing a caller reads differs from placing all of it.</summary>
     public class LongTextTests : TextFixture
     {
-        bool m_Saved;
+        bool m_Saved, m_SavedLater;
+        float m_SavedBudget;
 
         [SetUp]
-        public void SaveSwitch() => m_Saved = LetteraLongText.VisibleLinesOnly;
+        public void SaveSwitch()
+        {
+            m_Saved = LetteraLongText.VisibleLinesOnly;
+            m_SavedLater = LetteraLongText.FinishLater;
+            m_SavedBudget = LetteraLongText.FinishMillisecondsPerFrame;
+        }
 
         [TearDown]
-        public void RestoreSwitch() => LetteraLongText.VisibleLinesOnly = m_Saved;
+        public void RestoreSwitch()
+        {
+            LetteraLongText.VisibleLinesOnly = m_Saved;
+            LetteraLongText.FinishLater = m_SavedLater;
+            LetteraLongText.FinishMillisecondsPerFrame = m_SavedBudget;
+        }
 
         internal static string Page(int bytes, string at = null, int where = -1)
         {
@@ -37,7 +48,7 @@ namespace FirstSymbol.Lettera.Editor.Tests
         }
 
         // A world canvas, a 800 by 600 viewport that clips, and a text in it whose top meets the viewport's.
-        LetteraText Make(string source, out RectTransform viewport)
+        LetteraText Make(string source, out RectTransform viewport, float down = 0)
         {
             var canvas = new GameObject("Canvas", typeof(RectTransform), typeof(Canvas));
             Track(canvas);
@@ -52,7 +63,7 @@ namespace FirstSymbol.Lettera.Editor.Tests
             var rect = (RectTransform)go.transform;
             rect.anchorMin = rect.anchorMax = rect.pivot = new Vector2(0.5f, 1);
             rect.sizeDelta = new Vector2(800, 100000);
-            rect.anchoredPosition = Vector2.zero;
+            rect.anchoredPosition = new Vector2(0, down);
             var text = go.AddComponent<LetteraText>();
             text.Font = Latin;
             text.FontSize = 14;
@@ -249,6 +260,147 @@ namespace FirstSymbol.Lettera.Editor.Tests
             text.Text = "<b>" + text.Text;
             text.ForceRebuild();
             SameAsFresh(text, "markup comes in and all of it is done again");
+        }
+
+        // ------------------------------------------------------------- paragraphs left for later
+
+        LetteraText MakeWhole(string source, float down = 0)
+        {
+            LetteraLongText.FinishLater = false;
+            LetteraText whole = Make(source, out _, down);
+            LetteraLongText.FinishLater = true;
+            return whole;
+        }
+
+        // Finishes a text a slice at a time, as frames of a player would, and gives the longest slice in milliseconds.
+        static double FinishBySlices(LetteraText text, out int slices)
+        {
+            TextEngine engine = EngineOf(text);
+            var clock = new System.Diagnostics.Stopwatch();
+            double longest = 0;
+            slices = 0;
+            while (engine.PendingParagraphs > 0 && slices < 100000)
+            {
+                clock.Restart();
+                LetteraText.FinishSomeNow();
+                longest = System.Math.Max(longest, clock.Elapsed.TotalMilliseconds);
+                slices++;
+            }
+            text.ForceRebuild();
+            return longest;
+        }
+
+        static void SameAsWhole(LetteraText whole, LetteraText part, string what)
+        {
+            IReadOnlyList<LetteraLine> a = whole.Lines, b = part.Lines;
+            Assert.AreEqual(a.Count, b.Count, what + ": lines");
+            for (int l = 0; l < a.Count; l++)
+            {
+                Assert.AreEqual(a[l].Start, b[l].Start, what + ": start of line " + l);
+                Assert.AreEqual(a[l].End, b[l].End, what + ": end of line " + l);
+                Assert.AreEqual(a[l].Width, b[l].Width, 0.001f, what + ": width of line " + l);
+                Assert.AreEqual(a[l].Baseline, b[l].Baseline, 0.001f, what + ": baseline of line " + l);
+                Assert.AreEqual(a[l].X, b[l].X, 0.001f, what + ": x of line " + l);
+            }
+            Assert.AreEqual(whole.preferredHeight, part.preferredHeight, 0.01f, what + ": preferred height");
+            Assert.AreEqual(whole.LayoutBounds, part.LayoutBounds, what + ": layout bounds");
+            Assert.AreEqual(whole.GlyphCount, part.GlyphCount, what + ": placed glyphs");
+            for (int i = 0; i < whole.GlyphCount; i++)
+            {
+                LetteraGlyphInfo g = whole.GetGlyph(i), h = part.GetGlyph(i);
+                Assert.AreEqual(g.Glyph, h.Glyph, what + ": glyph " + i);
+                Assert.AreEqual(g.Cluster, h.Cluster, what + ": cluster of glyph " + i);
+                Assert.AreEqual(g.X, h.X, 0.001f, what + ": x of glyph " + i);
+                Assert.AreEqual(g.Y, h.Y, 0.001f, what + ": y of glyph " + i);
+            }
+        }
+
+        [Test]
+        public void ALongTextShapesWhatShowsAtOnceAndFinishesInSlicesToWhatAWholeBuildMakes()
+        {
+            string source = Page(100 * 1024);
+            LetteraLongText.VisibleLinesOnly = true;
+            LetteraText whole = MakeWhole(source);
+            LetteraText part = Make(source, out _);
+            TextEngine engine = EngineOf(part), all = EngineOf(whole);
+            Assert.AreEqual(0, all.PendingParagraphs);
+            Assert.Greater(engine.PendingParagraphs, 100, "most paragraphs wait");
+            Assert.IsTrue(part.IsFinishing);
+            Assert.Less(engine.ShapedGlyphCount * 10, all.ShapedGlyphCount, "a small part is shaped when it is set");
+            Assert.Greater(engine.VertexCount, 0, "what shows is drawn");
+            Assert.AreEqual(all.VertexCount, engine.VertexCount, "the same lines are drawn as with every paragraph done");
+
+            LetteraLongText.FinishMillisecondsPerFrame = 1;
+            double longest = FinishBySlices(part, out int slices);
+            Assert.AreEqual(0, engine.PendingParagraphs);
+            Assert.IsFalse(part.IsFinishing);
+            Assert.Greater(slices, 3, "finishing took several frames");
+            Assert.Less(longest, 30, "no slice took long");
+            SameAsWhole(whole, part, "finished in slices");
+        }
+
+        [Test]
+        public void LinesAndCaretsAskedMidwayFinishAndAreExact()
+        {
+            string source = Page(100 * 1024);
+            LetteraLongText.VisibleLinesOnly = true;
+            LetteraText whole = MakeWhole(source);
+            LetteraText part = Make(source, out _);
+            TextEngine engine = EngineOf(part);
+            Assert.Greater(engine.PendingParagraphs, 0);
+            float estimate = part.preferredHeight;
+            Assert.Greater(engine.PendingParagraphs, 0, "a layout's question is answered by the estimate");
+            Assert.AreEqual(whole.preferredHeight, estimate, whole.preferredHeight * 0.25f, "the estimate is near");
+            Assert.AreEqual(whole.Lines.Count, part.Lines.Count, "Lines asked midway is exact");
+            Assert.AreEqual(0, engine.PendingParagraphs, "asking finished everything");
+            int far = source.Length - 300;
+            Assert.IsTrue(whole.TryGetCaretRect(far, LetteraCaretBias.Forward, out Rect a));
+            Assert.IsTrue(part.TryGetCaretRect(far, LetteraCaretBias.Forward, out Rect b));
+            Assert.AreEqual(a, b, "a caret far below");
+            part.ForceRebuild();
+            SameAsWhole(whole, part, "finished by a query");
+
+            LetteraText other = Make(source, out _);
+            Assert.Greater(EngineOf(other).PendingParagraphs, 0);
+            var point = new Vector2(100, -40000);
+            Assert.AreEqual(whole.HitTestCaret(point, out _), other.HitTestCaret(point, out _), "a hit far below");
+            Assert.AreEqual(0, EngineOf(other).PendingParagraphs);
+        }
+
+        [Test]
+        public void AViewDeepInALongTextShowsAtOnceAndLandsWhereAWholeBuildPutsIt()
+        {
+            string source = Page(200 * 1024);
+            LetteraLongText.VisibleLinesOnly = true;
+            const float Down = 20000;
+            LetteraText whole = MakeWhole(source, Down);
+            LetteraText part = Make(source, out _, Down);
+            TextEngine engine = EngineOf(part);
+            Assert.Greater(engine.PendingParagraphs, 0);
+            Assert.Greater(engine.VertexCount, 0, "lines deep in the text are drawn when it is set");
+            Assert.Greater(engine.BandFirstLine, 0);
+            FinishBySlices(part, out _);
+            SameAsWhole(whole, part, "a deep view, finished");
+        }
+
+        [Test]
+        public void TypingWhileFinishingKeepsWhatWasDoneAndEndsAsAWholeBuild()
+        {
+            string source = Page(100 * 1024);
+            LetteraLongText.VisibleLinesOnly = true;
+            LetteraText part = Make(source, out _);
+            TextEngine engine = EngineOf(part);
+            LetteraText.FinishSomeNow();
+            int waiting = engine.PendingParagraphs;
+            Assert.Greater(waiting, 0);
+            part.Text = source + "x";
+            part.ForceRebuild();
+            Assert.AreEqual(waiting, engine.PendingParagraphs, "typing at the end redoes only the last paragraph");
+            part.Text = source.Insert(500, "inserted ");
+            part.ForceRebuild();
+            Assert.Greater(engine.PendingParagraphs, 0);
+            FinishBySlices(part, out _);
+            SameAsWhole(MakeWhole(part.Text), part, "typed while finishing");
         }
     }
 }

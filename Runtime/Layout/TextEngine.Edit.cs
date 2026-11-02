@@ -89,7 +89,7 @@ namespace FirstSymbol.Lettera
         /// <summary>The color a cluster draws in, for a caret next to it.</summary>
         public Color GlyphColorAt(int shown)
         {
-            if (shown >= 0 && shown < m_TextLength && m_Attributes.Chars != null && m_Attributes.Chars[shown].HasColor) return m_Attributes.Chars[shown].Color;
+            if (shown >= 0 && shown < m_TextLength && m_Attributes.At(shown).HasColor) return m_Attributes.At(shown).Color;
             return m_Host.BaseColor;
         }
 

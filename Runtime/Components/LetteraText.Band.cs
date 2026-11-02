@@ -69,17 +69,14 @@ namespace FirstSymbol.Lettera
 
         void AfterBandRebuild()
         {
+            JoinFinishing();
             bool banded = Engine.IsBanded && isActiveAndEnabled;
             if (banded == m_InBanded) return;
             m_InBanded = banded;
             if (banded)
             {
                 s_Banded.Add(this);
-                if (!s_BandHooked)
-                {
-                    s_BandHooked = true;
-                    Canvas.preWillRenderCanvases += CheckBands;
-                }
+                HookBands();
             }
             else
             {
@@ -87,8 +84,16 @@ namespace FirstSymbol.Lettera
             }
         }
 
+        static void HookBands()
+        {
+            if (s_BandHooked) return;
+            s_BandHooked = true;
+            Canvas.preWillRenderCanvases += CheckBands;
+        }
+
         void LeaveBanded()
         {
+            LeaveFinishing();
             if (!m_InBanded) return;
             m_InBanded = false;
             s_Banded.Remove(this);
@@ -96,9 +101,80 @@ namespace FirstSymbol.Lettera
 
         internal static void CheckBandsNow() => CheckBands();
 
+        // ------------------------------------------------------------- paragraphs left for later
+
+        static readonly List<LetteraText> s_Finishing = new List<LetteraText>();
+        [System.NonSerialized] bool m_InFinishing;
+        [System.NonSerialized] int m_SeenEstimate;
+
+        void JoinFinishing()
+        {
+            if (m_InFinishing || Engine.PendingParagraphs == 0 || !isActiveAndEnabled) return;
+            m_InFinishing = true;
+            m_SeenEstimate = Engine.EstimateVersion;
+            s_Finishing.Add(this);
+            HookBands();
+        }
+
+        void LeaveFinishing()
+        {
+            if (!m_InFinishing) return;
+            m_InFinishing = false;
+            s_Finishing.Remove(this);
+        }
+
+        /// <summary>Whether this text still has paragraphs left for later frames, and so a height that is an estimate.</summary>
+        public bool IsFinishing => Engine.PendingParagraphs > 0;
+
+        /// <summary>Shapes and lays out every paragraph left for later now, so that its height is exact.</summary>
+        public void FinishNow()
+        {
+            if (Engine.PendingParagraphs == 0) return;
+            Engine.EnsurePositioned();
+            MarkDirty(DirtyLevel.Mesh);
+            if (IsActive()) SetLayoutDirty();
+        }
+
+        internal static void FinishSomeNow() => FinishSome();
+
+        // Each frame finishes a slice of what waits, in all texts together, within the time the settings give it.
+        static void FinishSome()
+        {
+            if (s_Finishing.Count == 0) return;
+            long deadline = System.Diagnostics.Stopwatch.GetTimestamp() +
+                            (long)(Mathf.Max(LetteraLongText.FinishMillisecondsPerFrame, 0) * 0.001 * System.Diagnostics.Stopwatch.Frequency);
+            bool first = true;
+            for (int i = 0; i < s_Finishing.Count; i++)
+            {
+                LetteraText text = s_Finishing[i];
+                if (text == null)
+                {
+                    s_Finishing.RemoveAt(i--);
+                    continue;
+                }
+                TextEngine e = text.Engine;
+                if (e.PendingParagraphs > 0 && (first || System.Diagnostics.Stopwatch.GetTimestamp() < deadline))
+                {
+                    first = false;
+                    if (e.FinishStep(deadline)) text.MarkDirty(DirtyLevel.Positions);
+                }
+                // A query may have finished it meanwhile, which placed it again.
+                if (e.Dirty >= DirtyLevel.Mesh) text.SetVerticesDirty();
+                if (e.EstimateVersion != text.m_SeenEstimate)
+                {
+                    text.m_SeenEstimate = e.EstimateVersion;
+                    text.SetLayoutDirty();
+                }
+                if (e.PendingParagraphs > 0) continue;
+                text.m_InFinishing = false;
+                s_Finishing.RemoveAt(i--);
+            }
+        }
+
         // Before the canvases rebuild, so a text scrolled past its band draws the new lines in the same frame.
         static void CheckBands()
         {
+            FinishSome();
             for (int i = s_Banded.Count - 1; i >= 0; i--)
             {
                 if (i >= s_Banded.Count) continue;

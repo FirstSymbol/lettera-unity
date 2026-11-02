@@ -27,7 +27,14 @@ namespace FirstSymbol.Lettera
         byte[] m_LineLevels = Array.Empty<byte>();
         int[] m_VisualOrder = Array.Empty<int>();
 
-        public IReadOnlyList<LetteraLine> Lines => m_Lines;
+        public IReadOnlyList<LetteraLine> Lines
+        {
+            get
+            {
+                Exact();
+                return m_Lines;
+            }
+        }
         public int GlyphCount => m_RealCount;
 
         /// <summary>How far a glyph is turned, in radians, on curved text.</summary>
@@ -56,8 +63,6 @@ namespace FirstSymbol.Lettera
             m_PlacedCount = 0;
             m_SegmentsValid = false;
             m_VirtualGlyphs.Clear();
-            // Nearly always one placed glyph per shaped one, so a long text does not grow through every size on the way.
-            EnsureSize(ref m_Placed, m_ShapedCount);
 
             float top = m_Box.yMax;
             bool clips = m_Host.ClipsOverflow || m_MarqueeScrolling || ClipsViewport;
@@ -75,6 +80,13 @@ namespace FirstSymbol.Lettera
             float y = top + m_TrimTop;
             float left = float.MaxValue, right = float.MinValue;
             StartBand();
+            if (m_PendingCount > 0)
+            {
+                if (m_Banded) ShapeBand(y);
+                else ProcessParagraphs(0, m_Paragraphs.Count);
+            }
+            // Nearly always one placed glyph per shaped one, so a long text does not grow through every size on the way.
+            EnsureSize(ref m_Placed, m_ShapedCount);
             for (int l = 0; l < m_Lines.Count; l++)
             {
                 LetteraLine line = m_Lines[l];
@@ -90,7 +102,7 @@ namespace FirstSymbol.Lettera
                     if (x < left) left = x;
                     if (x + line.Width > right) right = x + line.Width;
                 }
-                if (LineInBand(y, y - line.Height, l)) PlaceLine(line, l, paragraph, x, baseline, stretch);
+                if (!paragraph.Pending && LineInBand(y, y - line.Height, l)) PlaceLine(line, l, paragraph, x, baseline, stretch);
                 y -= line.Height;
             }
             m_RealCount = m_PlacedCount;
@@ -104,6 +116,7 @@ namespace FirstSymbol.Lettera
             }
             if (m_Attributes.HasCurve) CurveLines();
             FinishBand(top + m_TrimTop, y);
+            m_PlacedOnEstimates = m_PendingCount > 0 && m_BandFirst < m_BandEnd && PendingBefore(m_Lines[m_BandFirst].Paragraph);
             if (left > right) left = right = m_Box.x;
             LayoutBounds = new Rect(left, top - m_ContentHeight, right - left, m_ContentHeight);
         }
@@ -517,6 +530,7 @@ namespace FirstSymbol.Lettera
         /// <summary>The glyph at a local point, within a distance.</summary>
         public bool HitTestGlyph(Vector2 point, float maxDistance, out LetteraHit hit)
         {
+            Exact();
             point = MapToContent(point);
             hit = default;
             float best = maxDistance;

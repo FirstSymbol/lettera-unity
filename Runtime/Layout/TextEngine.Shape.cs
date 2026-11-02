@@ -11,6 +11,7 @@ namespace FirstSymbol.Lettera
         {
             public int Start, ContentEnd, End;
             public int Level;
+            public bool Pending;    // Not shaped yet: it stands as one line of an estimated height.
         }
 
         struct Run
@@ -82,15 +83,26 @@ namespace FirstSymbol.Lettera
             int baseLevel = direction == 2 ? -1 : direction;
             // After an edit, the paragraphs before the one it touched stay as they are.
             int resume = ShapeResume(baseLevel, data);
+            m_Deferring = DeferApplies(length, data);
+            m_DeferBaseLevel = baseLevel;
+            if (resume == 0) ForgetEstimates();
 
-            LetteraAttributes.Cp[] chars = m_Attributes.Chars;
-            for (int i = resume; i < length; i++)
+            // A paragraph left for later prepares its own characters when it is shaped.
+            if (!m_Deferring)
             {
-                int cp = m_Text[i];
-                byte map = chars[i].CaseMap;
-                m_ShapeText[i] = map == 0 ? cp : map == 1 ? LetteraUnicode.ToUpper(cp) : LetteraUnicode.ToLower(cp);
+                LetteraAttributes chars = m_Attributes;
+                for (int i = resume; i < length; i++)
+                {
+                    int cp = m_Text[i];
+                    byte map = chars.At(i).CaseMap;
+                    m_ShapeText[i] = map == 0 ? cp : map == 1 ? LetteraUnicode.ToUpper(cp) : LetteraUnicode.ToLower(cp);
+                }
+                Array.Clear(m_CpAdvanceEm, resume, length + 1 - resume);
             }
-            Array.Clear(m_CpAdvanceEm, resume, length + 1 - resume);
+            else
+            {
+                m_CpAdvanceEm[length] = 0;
+            }
             LetteraWordDictionaries.EnsureFromSettings();
 
             if (resume == 0)
@@ -100,11 +112,15 @@ namespace FirstSymbol.Lettera
                 m_ShapedCount = 0;
             }
             EnsureExtras(length, resume);
-            if (length == 0) return;
+            if (length == 0)
+            {
+                CountPending();
+                return;
+            }
             PrepareInlineShaping();
             PrepareShapeSignatures(length);
 
-            bool parallel = resume == 0 && ShapesInParallel(length);
+            bool parallel = resume == 0 && !m_Deferring && ShapesInParallel(length);
             if (parallel)
             {
                 BaseLevelForSlots = baseLevel;
@@ -127,6 +143,8 @@ namespace FirstSymbol.Lettera
                     break;
                 }
             }
+            CountPending();
+            if (m_Deferring && resume == 0) ShapeSample();
             RunAnalyzedHooks();
             RunShapedHooks();
             if (m_Attributes.HasLayout)
@@ -145,7 +163,22 @@ namespace FirstSymbol.Lettera
         void AddParagraph(int start, int contentEnd, int end, int baseLevel)
         {
             var paragraph = new Paragraph { Start = start, ContentEnd = contentEnd, End = end, Level = baseLevel == 1 ? 1 : 0 };
-            int count = end - start;
+            if (m_Deferring)
+            {
+                paragraph.Pending = true;
+                m_Paragraphs.Add(paragraph);
+                return;
+            }
+            ShapeParagraph(ref paragraph, baseLevel);
+            // An empty paragraph has nothing to decide a direction with, so a caret on it stays on the side the text before it reads from.
+            if (contentEnd == start && baseLevel < 0 && m_Paragraphs.Count > 0) paragraph.Level = m_Paragraphs[m_Paragraphs.Count - 1].Level;
+            m_Paragraphs.Add(paragraph);
+        }
+
+        void ShapeParagraph(ref Paragraph paragraph, int baseLevel)
+        {
+            int start = paragraph.Start, contentEnd = paragraph.ContentEnd;
+            int count = paragraph.End - start;
             bool cacheable = count > 0 && ParagraphCacheApplies(count);
             long hash = 0;
             string language = null;
@@ -154,12 +187,7 @@ namespace FirstSymbol.Lettera
             {
                 language = LanguageOf(-1);
                 hash = HashParagraph(start, count, baseLevel, language);
-                if (TryRestoreParagraph(hash, ref paragraph, start, count, baseLevel, language))
-                {
-                    if (contentEnd == start && baseLevel < 0 && m_Paragraphs.Count > 0) paragraph.Level = m_Paragraphs[m_Paragraphs.Count - 1].Level;
-                    m_Paragraphs.Add(paragraph);
-                    return;
-                }
+                if (TryRestoreParagraph(hash, ref paragraph, start, count, baseLevel, language)) return;
                 LetteraCaches.s_Stats.Misses++;
             }
             if (count > 0)
@@ -178,9 +206,6 @@ namespace FirstSymbol.Lettera
                 BuildRuns(paragraph);
                 if (cacheable) StoreParagraph(hash, paragraph, start, count, baseLevel, language, firstRun, firstGlyph);
             }
-            // An empty paragraph has nothing to decide a direction with, so a caret on it stays on the side the text before it reads from.
-            if (contentEnd == start && baseLevel < 0 && m_Paragraphs.Count > 0) paragraph.Level = m_Paragraphs[m_Paragraphs.Count - 1].Level;
-            m_Paragraphs.Add(paragraph);
         }
 
         string LanguageOf(short index)
@@ -192,7 +217,7 @@ namespace FirstSymbol.Lettera
 
         void BuildRuns(in Paragraph paragraph)
         {
-            LetteraAttributes.Cp[] attrs = m_Attributes.Chars;
+            LetteraAttributes attrs = m_Attributes;
             var current = new Run { Start = -1 };
             int i = paragraph.Start;
             FontFace primary = m_Chain.PrimaryFace;
@@ -220,7 +245,7 @@ namespace FirstSymbol.Lettera
                         memo = -1;
                     }
                 }
-                ref LetteraAttributes.Cp attr = ref attrs[i];
+                ref LetteraAttributes.Cp attr = ref attrs.At(i);
                 string family = attr.Family >= 0 ? m_Attributes.FamilyRequests[attr.Family] : null;
                 string language = LanguageOf(attr.Language);
                 bool emoji = MaskGlyph == 0 && EmojiClassifier.IsEmojiCluster(m_Text, i, clusterEnd - i);

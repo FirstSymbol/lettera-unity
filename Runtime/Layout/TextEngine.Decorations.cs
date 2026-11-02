@@ -42,12 +42,12 @@ namespace FirstSymbol.Lettera
 
         void AddLinesOf(LayerGroup group, bool strike, bool overlay)
         {
-            LetteraAttributes.Cp[] attrs = m_Attributes.Chars;
+            LetteraAttributes attrs = m_Attributes;
             int i = 0;
             while (i < m_RealCount)
             {
                 ref PlacedGlyph first = ref m_Placed[i];
-                ref LetteraAttributes.Cp attr = ref attrs[first.Cluster];
+                ref LetteraAttributes.Cp attr = ref attrs.At(first.Cluster);
                 int index = strike ? attr.Strike : attr.Underline;
                 int layer = group != null ? group.Cover[first.Cluster] : 0;
                 if (index == 0 || m_Attributes.Decorations[index - 1].Overlay != overlay)
@@ -63,7 +63,7 @@ namespace FirstSymbol.Lettera
                 while (j < m_RealCount && !sliced)
                 {
                     ref PlacedGlyph next = ref m_Placed[j];
-                    ref LetteraAttributes.Cp nextAttr = ref attrs[next.Cluster];
+                    ref LetteraAttributes.Cp nextAttr = ref attrs.At(next.Cluster);
                     if (next.Line != first.Line || (strike ? nextAttr.Strike : nextAttr.Underline) != index || next.Size != first.Size ||
                         nextAttr.Color.r != attr.Color.r || nextAttr.Color.g != attr.Color.g || nextAttr.Color.b != attr.Color.b || nextAttr.HasColor != attr.HasColor ||
                         (group != null && group.Cover[next.Cluster] != layer)) break;
@@ -405,7 +405,7 @@ namespace FirstSymbol.Lettera
             float limit = Mathf.Min(shape.width, shape.height) * 0.5f;
             radii = new Vector4(Mathf.Min(radii.x, limit), Mathf.Min(radii.y, limit), Mathf.Min(radii.z, limit), Mathf.Min(radii.w, limit));
 
-            ref LetteraAttributes.Cp attr = ref m_Attributes.Chars[glyph.Cluster];
+            ref LetteraAttributes.Cp attr = ref m_Attributes.At(glyph.Cluster);
             Color32 baseColor = m_Host.BaseColor;
             Color32 color = record.Paint.UsesGlyphColor ? (attr.HasColor ? attr.Color : new Color32(baseColor.r, baseColor.g, baseColor.b, 255)) : record.Paint.Color;
             color.a = (byte)(color.a * attr.Alpha);

@@ -629,8 +629,15 @@ namespace FirstSymbol.Lettera
         public float preferredWidth => Engine.GetMaxContentWidth() + m_Data.Padding.x + m_Data.Padding.z;
         public float flexibleWidth => -1;
         public float minHeight => 0;
-        public float preferredHeight =>
-            Engine.GetHeightForWidth(Mathf.Max(rectTransform.rect.width - m_Data.Padding.x - m_Data.Padding.z, 0)) + m_Data.Padding.y + m_Data.Padding.w;
+        public float preferredHeight => PreferredHeightNow();
+
+        float PreferredHeightNow()
+        {
+            // A layout may ask before the first rebuild: what shows decides what a long text shapes now.
+            PushVisible();
+            return Engine.GetHeightForWidth(Mathf.Max(rectTransform.rect.width - m_Data.Padding.x - m_Data.Padding.z, 0)) + m_Data.Padding.y + m_Data.Padding.w;
+        }
+
         public float flexibleHeight => -1;
         public int layoutPriority => 0;
 
