@@ -11,6 +11,7 @@ namespace FirstSymbol.Lettera.Editor.Tests
     {
         static readonly Dictionary<string, LetteraFont> s_Fonts = new Dictionary<string, LetteraFont>();
         readonly List<Object> m_Created = new List<Object>();
+        protected List<Object> Created => m_Created;
         bool m_SavedFallback;
 
         protected static LetteraFont Font(string file)

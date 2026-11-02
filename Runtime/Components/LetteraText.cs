@@ -102,6 +102,7 @@ namespace FirstSymbol.Lettera
         {
             ClearParts();
             RemoveListeners();
+            LeaveBanded();
             DestroyMesh();
             if (m_Engine != null)
             {
@@ -124,6 +125,7 @@ namespace FirstSymbol.Lettera
             bool kept = ((ITextListener)this).ListenerSlot >= 0;
             if (kept)
             {
+                AfterBandRebuild();
                 Engine.SyncSerializedFields();
                 if (rectTransform.rect.size != m_LastRectSize) OnRectTransformDimensionsChange();
                 if (((ITextHost)this).RasterScale != m_LastRasterScale) Engine.SetDirty(DirtyLevel.Mesh);
@@ -149,6 +151,7 @@ namespace FirstSymbol.Lettera
             bool keep = enabled && !gameObject.activeInHierarchy;
             if (!keep) RemoveListeners();
             Engine.SetEnabledForMotion(false);
+            LeaveBanded();
             LetteraRangeRouter.NotifyDisabled(Engine);
             if (m_SegmentMasks.Count > 0)
             {
@@ -244,7 +247,9 @@ namespace FirstSymbol.Lettera
             }
             if (Engine.Dirty == DirtyLevel.None) Engine.SetDirty(DirtyLevel.Mesh);
             m_LastRasterScale = ((ITextHost)this).RasterScale;
+            PushVisible();
             if (!Engine.Rebuild()) return;
+            AfterBandRebuild();
             m_RendererEmpty = false;
             bool parts = Engine.VertexCount > MaxPartVertices;
             if (parts) UploadParts();

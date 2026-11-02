@@ -34,9 +34,10 @@ namespace FirstSymbol.Lettera
             if (m_SegmentsValid) return;
             m_SegmentsValid = true;
             m_SegmentCount = 0;
-            EnsureSize(ref m_Segments, m_RealCount + 1);
-            EnsureSize(ref m_SegmentStarts, m_RealCount + 1);
-            EnsureSize(ref m_LogicalOrder, m_RealCount + 1);
+            int glyphs = m_RealCount + ExtraGlyphCount + 1;
+            EnsureSize(ref m_Segments, glyphs);
+            EnsureSize(ref m_SegmentStarts, glyphs);
+            EnsureSize(ref m_LogicalOrder, glyphs);
             EnsureSize(ref m_LineSegments, m_Lines.Count + 1);
 
             bool curved = m_Attributes.HasCurve;
@@ -46,9 +47,14 @@ namespace FirstSymbol.Lettera
                 m_LineSegments[l] = m_SegmentCount;
                 int first = m_SegmentCount;
                 float baseline = m_Lines[l].Baseline;
-                for (; glyph < m_RealCount && m_Placed[glyph].Line == l; glyph++)
+                int from = glyph;
+                while (glyph < m_RealCount && m_Placed[glyph].Line == l) glyph++;
+                int to = glyph;
+                // A line the band left out may have been placed for a query, past what the mesh reads.
+                if (from == to && m_ExtraLines.Count > 0) ExtraRange(l, out from, out to);
+                for (int i = from; i < to; i++)
                 {
-                    ref PlacedGlyph g = ref m_Placed[glyph];
+                    ref PlacedGlyph g = ref m_Placed[i];
                     if (g.Marker) continue;
                     float left = curved ? g.X : g.Pen, right = left + g.Advance;
                     if (m_SegmentCount > first && m_Segments[m_SegmentCount - 1].Start == g.Cluster)
@@ -226,6 +232,11 @@ namespace FirstSymbol.Lettera
             else
             {
                 int lineIndex = LineOf(index, bias);
+                if (m_Banded)
+                {
+                    EnsureLinePlaced(lineIndex);
+                    EnsureSegments();
+                }
                 x = CaretX(index, bias, lineIndex, out cluster, out baseline);
                 if (cluster < 0) cluster = NeighbourOnLine(index, lineIndex);
                 if (cluster >= 0 && m_Runs[m_CpRun[cluster]].Instance != null)
@@ -300,6 +311,18 @@ namespace FirstSymbol.Lettera
                 if (line.Start >= end) break;
                 if (line.End <= start && line.End != line.Start) continue;
                 float bottom = line.Baseline - line.Descent, height = line.Height;
+                if (m_Banded && !LinePlaced(l))
+                {
+                    // A whole line far from what shows is its box; a line the range starts or ends in needs its glyphs.
+                    if (start <= line.Start && end >= line.End)
+                    {
+                        if (line.Width > 0) rects.Add(new Rect(line.X, bottom, line.Width, height));
+                        AddHangingRect(line, start, end, bottom, height, rects);
+                        continue;
+                    }
+                    EnsureLinePlaced(l);
+                    EnsureSegments();
+                }
                 bool open = false;
                 float left = 0, right = 0;
 
@@ -405,6 +428,11 @@ namespace FirstSymbol.Lettera
             bias = LetteraCaretBias.Forward;
             if (m_Lines.Count == 0) return 0;
             lineIndex = Math.Min(Math.Max(lineIndex, 0), m_Lines.Count - 1);
+            if (m_Banded)
+            {
+                EnsureLinePlaced(lineIndex);
+                EnsureSegments();
+            }
             LetteraLine line = m_Lines[lineIndex];
             int first = m_LineSegments[lineIndex], stop = m_LineSegments[lineIndex + 1];
             if (first == stop)
