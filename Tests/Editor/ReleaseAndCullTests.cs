@@ -213,7 +213,7 @@ namespace FirstSymbol.Lettera.Editor.Tests
             below.Text = "a line above\nwn fox jumps ove";
             Canvas.ForceUpdateCanvases();
             Canvas.ForceUpdateCanvases();
-            Assert.IsFalse(below.canvasRenderer.cull, "its ink reaches in now");
+            Assert.IsFalse(below.canvasRenderer.cull, "its ink reaches in now: " + below.Engine.InkKnown + " " + below.Engine.InkRect + " " + below.Engine.MeshBounds + " lines " + below.Lines.Count + " drawn " + Drawn(below) + " dirty " + below.Engine.Dirty);
             Assert.Greater(Drawn(below), 0);
 
             // With the mask gone, nothing stays culled.
