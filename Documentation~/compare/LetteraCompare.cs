@@ -507,10 +507,11 @@ public class LetteraCompare : MonoBehaviour
         Clear();
         yield return null;
 
-        // R8, R9
+        // R8, R9. Each long text starts after a collection, so that none pays for what the labels before it or the text before it left.
         var page = new StringBuilder();
         foreach (int size in light ? new[] { 10, 100 } : new[] { 10, 100, 1000 })
         {
+            yield return Settle();
             page.Clear();
             int i = 0;
             while (page.Length < size * 1024) page.Append(Sentence(i++)).Append(i % 8 == 0 ? "\n" : " ");
