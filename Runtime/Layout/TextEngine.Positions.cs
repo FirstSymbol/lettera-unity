@@ -74,6 +74,7 @@ namespace FirstSymbol.Lettera
 
             float y = top + m_TrimTop;
             float left = float.MaxValue, right = float.MinValue;
+            StartBand();
             for (int l = 0; l < m_Lines.Count; l++)
             {
                 LetteraLine line = m_Lines[l];
@@ -89,7 +90,7 @@ namespace FirstSymbol.Lettera
                     if (x < left) left = x;
                     if (x + line.Width > right) right = x + line.Width;
                 }
-                PlaceLine(line, l, paragraph, x, baseline, stretch);
+                if (LineInBand(y, y - line.Height, l)) PlaceLine(line, l, paragraph, x, baseline, stretch);
                 y -= line.Height;
             }
             m_RealCount = m_PlacedCount;
@@ -102,6 +103,7 @@ namespace FirstSymbol.Lettera
                 m_Placed[m_PlacedCount++] = glyph;
             }
             if (m_Attributes.HasCurve) CurveLines();
+            FinishBand(top + m_TrimTop, y);
             if (left > right) left = right = m_Box.x;
             LayoutBounds = new Rect(left, top - m_ContentHeight, right - left, m_ContentHeight);
         }

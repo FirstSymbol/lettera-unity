@@ -34,6 +34,14 @@ namespace FirstSymbol.Lettera.Editor.Tests
         [Test]
         public void ALongCanvasTextDrawsThroughSeveralRenderersAndGivesThemBack()
         {
+            bool saved = LetteraLongText.VisibleLinesOnly;
+            LetteraLongText.VisibleLinesOnly = false;
+            try { DrawsThroughSeveral(); }
+            finally { LetteraLongText.VisibleLinesOnly = saved; }
+        }
+
+        void DrawsThroughSeveral()
+        {
             var canvas = new GameObject("Canvas", typeof(Canvas));
             var go = new GameObject("Text", typeof(RectTransform));
             go.transform.SetParent(canvas.transform, false);
