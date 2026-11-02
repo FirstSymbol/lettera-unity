@@ -223,5 +223,92 @@ namespace FirstSymbol.Lettera.Editor.Tests
         }
 
         static byte[] s_Control;
+
+        [Test]
+        public void StoringNewParagraphsAllocatesNothing()
+        {
+            LetteraWorldText text = Make("Score: 00000");
+            var strings = new string[600];
+            for (int i = 0; i < strings.Length; i++) strings[i] = "Score: " + (10000 + i).ToString("00000");
+            for (int i = 0; i < 100; i++)
+            {
+                text.SetText(strings[i]);
+                text.ForceRebuild();
+            }
+            using var recorder = Unity.Profiling.ProfilerRecorder.StartNew(Unity.Profiling.ProfilerCategory.Memory, "GC Allocated In Frame");
+            long control = recorder.CurrentValue;
+            s_Control = new byte[64];
+            Assert.GreaterOrEqual(recorder.CurrentValue - control, 32, "the allocation counter does not work here");
+            long misses = LetteraCaches.Stats.Misses;
+            long quietest = long.MaxValue;
+            for (int window = 0; window < 5; window++)
+            {
+                long before = recorder.CurrentValue;
+                for (int i = 0; i < 100; i++)
+                {
+                    text.SetText(strings[100 + window * 100 + i]);
+                    text.ForceRebuild();
+                }
+                quietest = System.Math.Min(quietest, recorder.CurrentValue - before);
+            }
+            Assert.AreEqual(500, LetteraCaches.Stats.Misses - misses, "each was a new paragraph, and was stored");
+            // It was about 2 KB for each, in arrays rented from a pool that could not hold them all.
+            Assert.Less(quietest, 200);
+            long hits = LetteraCaches.Stats.Hits;
+            text.SetText(strings[333]);
+            text.ForceRebuild();
+            Assert.AreEqual(hits + 1, LetteraCaches.Stats.Hits, "and each can be found");
+        }
+
+        [Test]
+        public void EntriesGoingAndComingKeepEveryOtherFindable()
+        {
+            LetteraCaches.ParagraphCacheBytes = 64 * 1024;
+            LetteraCaches.Clear();
+            for (int i = 0; i < 600; i++) Make("Some words that differ here " + i);
+            Assert.Greater(LetteraCaches.Stats.Evictions, 0);
+            Assert.LessOrEqual(LetteraCaches.Stats.Bytes, 64 * 1024);
+            int kept = TextEngine.ParagraphCount;
+            Assert.Greater(kept, 10);
+            long hits = LetteraCaches.Stats.Hits;
+            for (int i = 600 - kept; i < 600; i++) Make("Some words that differ here " + i);
+            Assert.AreEqual(hits + kept, LetteraCaches.Stats.Hits, "every entry still held is found, after many were taken from among them");
+            long misses = LetteraCaches.Stats.Misses;
+            Make("Some words that differ here 0");
+            Assert.AreEqual(misses + 1, LetteraCaches.Stats.Misses, "and one taken out is not");
+            LetteraCaches.Clear();
+            Assert.AreEqual(0, TextEngine.ParagraphCount);
+            Assert.AreEqual(0, LetteraCaches.Stats.Bytes);
+        }
+
+        [Test]
+        public void AParagraphOfThousandsOfCharactersComesBackTheSame()
+        {
+            string body = new string('x', 6000) + " " + new string('y', 6000) + " مرحبا بالعالم";
+            Snapshot wanted;
+            LetteraCaches.Enabled = false;
+            wanted = Take(Make(body));
+            LetteraCaches.Enabled = true;
+            Take(Make(body));
+            long hits = LetteraCaches.Stats.Hits;
+            AssertSame(wanted, Take(Make(body)), "again");
+            Assert.AreEqual(hits + 1, LetteraCaches.Stats.Hits);
+        }
+
+        // A stored run holds every field of a run but its font, language and features, which come back from elsewhere.
+        [Test]
+        public void AStoredRunKeepsEveryFieldOfARun()
+        {
+            const System.Reflection.BindingFlags Fields = System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic;
+            var run = new List<string>();
+            foreach (var field in typeof(TextEngine).GetNestedType("Run", System.Reflection.BindingFlags.NonPublic).GetFields(Fields))
+                if (field.Name != "Language" && field.Name != "Features")
+                    run.Add(field.Name);
+            var stored = new List<string>();
+            foreach (var field in typeof(TextEngine).GetNestedType("StoredRun", System.Reflection.BindingFlags.NonPublic).GetFields(Fields)) stored.Add(field.Name);
+            run.Sort();
+            stored.Sort();
+            CollectionAssert.AreEqual(run, stored);
+        }
     }
 }

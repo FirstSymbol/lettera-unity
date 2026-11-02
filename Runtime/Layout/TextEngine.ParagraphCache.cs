@@ -1,8 +1,9 @@
 using System;
-using System.Buffers;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using FirstSymbol.Lettera.Unicode;
+using Unity.Collections;
+using Unity.Collections.LowLevel.Unsafe;
 using UnityEngine;
 
 namespace FirstSymbol.Lettera
@@ -100,82 +101,180 @@ namespace FirstSymbol.Lettera
     }
 
     // A paragraph with the same characters and shaping attributes shapes the same anywhere, so its analysis and glyphs are kept in font units and shared.
+    // Each entry is one block of native memory: storing a paragraph makes no garbage, even while the cache grows, and a forgotten one is given back at once.
     internal sealed unsafe partial class TextEngine
     {
-        sealed class ParagraphEntry
+        // The head of a block. Its arrays follow it, widest first, so each stays aligned.
+        struct ParagraphEntry
         {
             public long Hash, Bytes;
-            public int Count, ChainId, BaseLevel, SizeMatch, Level, RunCount, GlyphCount;
-            public string Language;
-            public int[] Text, Shape, CpRun;
-            public long[] Signature;
-            public byte[] Levels;
-            public bool[] Boundaries;
-            public LineBreakOpportunity[] Breaks;
-            public UnicodeScript[] Scripts;
-            public float[] Advances;
-            public Run[] Runs;
-            public ShapedGlyph[] Glyphs;
-            public ParagraphEntry Newer, Older;
+            public int Count, ChainId, BaseLevel, SizeMatch, Level, RunCount, GlyphCount, Language, Signed;
+            public ParagraphEntry* Newer, Older;
+        }
+
+        // A run without its font, which a managed list holds for all blocks. Language and features are the text's own, read again where the run lands.
+        struct StoredRun
+        {
+            public int Start, End, GlyphStart, GlyphCount, Instance;
+            public float UnitEm, SizeAbsolute, SizeMul, SizeAdd, BaselineShift;
+            public UnicodeScript Script;
+            public byte Level, FaceFeature;
         }
 
         const int ParagraphCacheMinimum = 8;
+        // What the system's allocator keeps beside each block, counted against the budget too.
+        const int BlockOverhead = 16;
+        static readonly int EntryHead = (sizeof(ParagraphEntry) + 15) & ~15;
 
-        static readonly Dictionary<long, ParagraphEntry> s_Paragraphs = new Dictionary<long, ParagraphEntry>();
-        static ParagraphEntry s_Newest, s_Oldest;
+        // Open addressing over native memory, so that growing it makes no garbage either.
+        static ParagraphEntry** s_Table;
+        static int s_TableMask = -1, s_EntryCount;
+        static ParagraphEntry* s_Newest, s_Oldest;
         static long s_ParagraphBytes;
+        static readonly List<FontInstance> s_StoredInstances = new List<FontInstance>();
+        static readonly List<string> s_StoredLanguages = new List<string>();
 
         internal static long ParagraphBytes => s_ParagraphBytes;
+        internal static int ParagraphCount => s_EntryCount;
 
         long[] m_CpSignature = Array.Empty<long>();
         bool m_SignaturesPlain;
 
         internal static void ClearParagraphCache()
         {
-            foreach (ParagraphEntry entry in s_Paragraphs.Values) ReturnArrays(entry);
-            s_Paragraphs.Clear();
+            ParagraphEntry* entry = s_Newest;
+            while (entry != null)
+            {
+                ParagraphEntry* older = entry->Older;
+                UnsafeUtility.Free(entry, Allocator.Persistent);
+                entry = older;
+            }
+            if (s_Table != null) UnsafeUtility.Free(s_Table, Allocator.Persistent);
+            s_Table = null;
+            s_TableMask = -1;
+            s_EntryCount = 0;
             s_Newest = s_Oldest = null;
             s_ParagraphBytes = 0;
+            s_StoredInstances.Clear();
+            s_StoredLanguages.Clear();
         }
 
-        static void ReturnArrays(ParagraphEntry entry)
+        static long* SignatureOf(ParagraphEntry* e) => (long*)((byte*)e + EntryHead);
+        static int* TextOf(ParagraphEntry* e) => (int*)(SignatureOf(e) + (e->Signed != 0 ? e->Count : 0));
+        static int* ShapeOf(ParagraphEntry* e) => TextOf(e) + e->Count;
+        static int* CpRunOf(ParagraphEntry* e) => ShapeOf(e) + e->Count;
+        static float* AdvancesOf(ParagraphEntry* e) => (float*)(CpRunOf(e) + e->Count);
+        static ShapedGlyph* GlyphsOf(ParagraphEntry* e) => (ShapedGlyph*)(AdvancesOf(e) + e->Count);
+        static StoredRun* RunsOf(ParagraphEntry* e) => (StoredRun*)(GlyphsOf(e) + e->GlyphCount);
+        static UnicodeScript* ScriptsOf(ParagraphEntry* e) => (UnicodeScript*)(RunsOf(e) + e->RunCount);
+        static byte* LevelsOf(ParagraphEntry* e) => (byte*)(ScriptsOf(e) + e->Count);
+        static bool* BoundariesOf(ParagraphEntry* e) => (bool*)(LevelsOf(e) + e->Count);
+        static LineBreakOpportunity* BreaksOf(ParagraphEntry* e) => (LineBreakOpportunity*)(BoundariesOf(e) + e->Count + 1);
+
+        static long BlockBytes(int count, int glyphs, int runs, bool signed) =>
+            EntryHead + (signed ? count * 8L : 0) + count * 16L + glyphs * (long)sizeof(ShapedGlyph) + runs * (long)sizeof(StoredRun) + count * 2L + count + (count + 1) + count;
+
+        static int SlotOf(long hash) => (int)(((ulong)hash * 0x9E3779B97F4A7C15UL) >> 32) & s_TableMask;
+
+        static ParagraphEntry* Lookup(long hash)
         {
-            ArrayPool<int>.Shared.Return(entry.Text);
-            ArrayPool<int>.Shared.Return(entry.Shape);
-            ArrayPool<int>.Shared.Return(entry.CpRun);
-            ArrayPool<long>.Shared.Return(entry.Signature);
-            ArrayPool<byte>.Shared.Return(entry.Levels);
-            ArrayPool<bool>.Shared.Return(entry.Boundaries);
-            ArrayPool<LineBreakOpportunity>.Shared.Return(entry.Breaks);
-            ArrayPool<UnicodeScript>.Shared.Return(entry.Scripts);
-            ArrayPool<float>.Shared.Return(entry.Advances);
-            ArrayPool<Run>.Shared.Return(entry.Runs, true);
-            ArrayPool<ShapedGlyph>.Shared.Return(entry.Glyphs);
+            if (s_Table == null) return null;
+            for (int i = SlotOf(hash); ; i = (i + 1) & s_TableMask)
+            {
+                ParagraphEntry* entry = s_Table[i];
+                if (entry == null || entry->Hash == hash) return entry;
+            }
         }
 
-        static void Unlink(ParagraphEntry entry)
+        static void Insert(ParagraphEntry* entry)
         {
-            if (entry.Newer != null) entry.Newer.Older = entry.Older;
-            else s_Newest = entry.Older;
-            if (entry.Older != null) entry.Older.Newer = entry.Newer;
-            else s_Oldest = entry.Newer;
-            entry.Newer = entry.Older = null;
+            if ((s_EntryCount + 1) * 2 > s_TableMask + 1) GrowTable();
+            int i = SlotOf(entry->Hash);
+            while (s_Table[i] != null) i = (i + 1) & s_TableMask;
+            s_Table[i] = entry;
+            s_EntryCount++;
         }
 
-        static void LinkNewest(ParagraphEntry entry)
+        static void GrowTable()
         {
-            entry.Older = s_Newest;
-            if (s_Newest != null) s_Newest.Newer = entry;
+            int old = s_TableMask + 1;
+            ParagraphEntry** before = s_Table;
+            int size = Math.Max(old * 2, 256);
+            long bytes = size * (long)sizeof(IntPtr);
+            s_Table = (ParagraphEntry**)UnsafeUtility.Malloc(bytes, 16, Allocator.Persistent);
+            UnsafeUtility.MemClear(s_Table, bytes);
+            s_TableMask = size - 1;
+            for (int i = 0; i < old; i++)
+            {
+                ParagraphEntry* entry = before[i];
+                if (entry == null) continue;
+                int slot = SlotOf(entry->Hash);
+                while (s_Table[slot] != null) slot = (slot + 1) & s_TableMask;
+                s_Table[slot] = entry;
+            }
+            if (before != null) UnsafeUtility.Free(before, Allocator.Persistent);
+        }
+
+        // Linear probing with no markers left behind: what follows the hole moves back into it, unless its own place lies after the hole.
+        static void RemoveFromTable(ParagraphEntry* entry)
+        {
+            int hole = SlotOf(entry->Hash);
+            while (s_Table[hole] != entry) hole = (hole + 1) & s_TableMask;
+            for (int j = (hole + 1) & s_TableMask; s_Table[j] != null; j = (j + 1) & s_TableMask)
+            {
+                int home = SlotOf(s_Table[j]->Hash);
+                bool stays = hole <= j ? hole < home && home <= j : hole < home || home <= j;
+                if (stays) continue;
+                s_Table[hole] = s_Table[j];
+                hole = j;
+            }
+            s_Table[hole] = null;
+            s_EntryCount--;
+        }
+
+        static void Unlink(ParagraphEntry* entry)
+        {
+            if (entry->Newer != null) entry->Newer->Older = entry->Older;
+            else s_Newest = entry->Older;
+            if (entry->Older != null) entry->Older->Newer = entry->Newer;
+            else s_Oldest = entry->Newer;
+            entry->Newer = entry->Older = null;
+        }
+
+        static void LinkNewest(ParagraphEntry* entry)
+        {
+            entry->Older = s_Newest;
+            if (s_Newest != null) s_Newest->Newer = entry;
             s_Newest = entry;
             if (s_Oldest == null) s_Oldest = entry;
         }
 
-        static void Forget(ParagraphEntry entry)
+        static void Forget(ParagraphEntry* entry)
         {
             Unlink(entry);
-            s_Paragraphs.Remove(entry.Hash);
-            s_ParagraphBytes -= entry.Bytes;
-            ReturnArrays(entry);
+            RemoveFromTable(entry);
+            s_ParagraphBytes -= entry->Bytes;
+            UnsafeUtility.Free(entry, Allocator.Persistent);
+        }
+
+        static int StoredLanguage(string language, bool add)
+        {
+            if (language == null) return -1;
+            for (int i = s_StoredLanguages.Count - 1; i >= 0; i--)
+                if (s_StoredLanguages[i] == language)
+                    return i;
+            if (!add) return -2;
+            s_StoredLanguages.Add(language);
+            return s_StoredLanguages.Count - 1;
+        }
+
+        static int StoredInstance(FontInstance instance)
+        {
+            for (int i = s_StoredInstances.Count - 1; i >= 0; i--)
+                if (ReferenceEquals(s_StoredInstances[i], instance))
+                    return i;
+            s_StoredInstances.Add(instance);
+            return s_StoredInstances.Count - 1;
         }
 
         // What about a codepoint changes how it shapes. Color, decoration and spacing are not here, so a change of those finds the same entry.
@@ -269,56 +368,62 @@ namespace FirstSymbol.Lettera
         // The hash only finds a candidate. Only equal characters and attributes may use it, so a collision can never draw the wrong text.
         bool ParagraphIsCached(long hash, int start, int count, int baseLevel, string language) => FindParagraph(hash, start, count, baseLevel, language) != null;
 
-        ParagraphEntry FindParagraph(long hash, int start, int count, int baseLevel, string language)
+        ParagraphEntry* FindParagraph(long hash, int start, int count, int baseLevel, string language)
         {
-            if (!s_Paragraphs.TryGetValue(hash, out ParagraphEntry entry) || entry.Count != count || entry.ChainId != m_Chain.Id || entry.BaseLevel != baseLevel ||
-                entry.SizeMatch != m_Attributes.SizeMatchOverride || entry.Language != language)
+            ParagraphEntry* entry = Lookup(hash);
+            if (entry == null || entry->Count != count || entry->ChainId != m_Chain.Id || entry->BaseLevel != baseLevel || entry->SizeMatch != m_Attributes.SizeMatchOverride ||
+                entry->Language != StoredLanguage(language, false))
                 return null;
-            if (!new ReadOnlySpan<int>(m_Text, start, count).SequenceEqual(new ReadOnlySpan<int>(entry.Text, 0, count))) return null;
-            for (int i = 0; i < count; i++)
-                if ((m_SignaturesPlain ? 0 : m_CpSignature[start + i]) != entry.Signature[i])
-                    return null;
+            if (!new ReadOnlySpan<int>(m_Text, start, count).SequenceEqual(new ReadOnlySpan<int>(TextOf(entry), count))) return null;
+            if ((entry->Signed != 0) == m_SignaturesPlain) return null;
+            if (!m_SignaturesPlain && !new ReadOnlySpan<long>(m_CpSignature, start, count).SequenceEqual(new ReadOnlySpan<long>(SignatureOf(entry), count))) return null;
             return entry;
         }
 
         bool TryRestoreParagraph(long hash, ref Paragraph paragraph, int start, int count, int baseLevel, string language)
         {
-            ParagraphEntry entry = FindParagraph(hash, start, count, baseLevel, language);
+            ParagraphEntry* entry = FindParagraph(hash, start, count, baseLevel, language);
             if (entry == null) return false;
 
             Unlink(entry);
             LinkNewest(entry);
 
-            Array.Copy(entry.Shape, 0, m_ShapeText, start, count);
-            Array.Copy(entry.Levels, 0, m_Levels, start, count);
-            Array.Copy(entry.Boundaries, 0, m_Boundaries, start, count + 1);
-            Array.Copy(entry.Breaks, 0, m_Breaks, start, count);
-            Array.Copy(entry.Scripts, 0, m_Scripts, start, count);
-            Array.Copy(entry.Advances, 0, m_CpAdvanceEm, start, count);
-            paragraph.Level = entry.Level;
+            new ReadOnlySpan<int>(ShapeOf(entry), count).CopyTo(new Span<int>(m_ShapeText, start, count));
+            new ReadOnlySpan<byte>(LevelsOf(entry), count).CopyTo(new Span<byte>(m_Levels, start, count));
+            new ReadOnlySpan<bool>(BoundariesOf(entry), count + 1).CopyTo(new Span<bool>(m_Boundaries, start, count + 1));
+            new ReadOnlySpan<LineBreakOpportunity>(BreaksOf(entry), count).CopyTo(new Span<LineBreakOpportunity>(m_Breaks, start, count));
+            new ReadOnlySpan<UnicodeScript>(ScriptsOf(entry), count).CopyTo(new Span<UnicodeScript>(m_Scripts, start, count));
+            new ReadOnlySpan<float>(AdvancesOf(entry), count).CopyTo(new Span<float>(m_CpAdvanceEm, start, count));
+            paragraph.Level = entry->Level;
 
             int runBase = m_Runs.Count;
-            for (int i = 0; i < count; i++) m_CpRun[start + i] = runBase + entry.CpRun[i];
-            EnsureSize(ref m_Shaped, m_ShapedCount + entry.GlyphCount);
-            for (int g = 0; g < entry.GlyphCount; g++)
+            int* cpRun = CpRunOf(entry);
+            for (int i = 0; i < count; i++) m_CpRun[start + i] = runBase + cpRun[i];
+            int glyphCount = entry->GlyphCount;
+            EnsureSize(ref m_Shaped, m_ShapedCount + glyphCount);
+            ShapedGlyph* glyphs = GlyphsOf(entry);
+            for (int g = 0; g < glyphCount; g++)
             {
-                ShapedGlyph glyph = entry.Glyphs[g];
+                ShapedGlyph glyph = glyphs[g];
                 glyph.Cluster += start;
                 m_Shaped[m_ShapedCount + g] = glyph;
             }
             // A run's language and features are indices of this text's own lists: the same values, by the check above, at maybe other places.
             LetteraAttributes.Cp[] chars = m_Attributes.Chars;
-            for (int r = 0; r < entry.RunCount; r++)
+            StoredRun* runs = RunsOf(entry);
+            for (int r = 0; r < entry->RunCount; r++)
             {
-                Run run = entry.Runs[r];
-                run.Start += start;
-                run.End += start;
-                run.GlyphStart += m_ShapedCount;
-                run.Language = chars[run.Start].Language;
-                run.Features = chars[run.Start].Features;
-                m_Runs.Add(run);
+                StoredRun stored = runs[r];
+                int runStart = stored.Start + start;
+                m_Runs.Add(new Run
+                {
+                    Start = runStart, End = stored.End + start, GlyphStart = stored.GlyphStart + m_ShapedCount, GlyphCount = stored.GlyphCount,
+                    Instance = s_StoredInstances[stored.Instance], Level = stored.Level, UnitEm = stored.UnitEm,
+                    SizeAbsolute = stored.SizeAbsolute, SizeMul = stored.SizeMul, SizeAdd = stored.SizeAdd, Script = stored.Script, FaceFeature = stored.FaceFeature,
+                    BaselineShift = stored.BaselineShift, Language = chars[runStart].Language, Features = chars[runStart].Features,
+                });
             }
-            m_ShapedCount += entry.GlyphCount;
+            m_ShapedCount += glyphCount;
             LetteraCaches.s_Stats.Hits++;
             return true;
         }
@@ -333,51 +438,57 @@ namespace FirstSymbol.Lettera
                 if (m_Runs[r].Instance == null || m_Runs[r].Instance.Face.IsVirtual)
                     return;
 
-            long bytes = count * (4 + 4 + 4 + 8 + 1 + 1 + 1 + 4 + 4) + runCount * 64 + glyphCount * 20 + 256;
+            bool signed = !m_SignaturesPlain;
+            long block = BlockBytes(count, glyphCount, runCount, signed);
+            long bytes = block + BlockOverhead;
             // One paragraph that would push out everything else is not worth keeping.
             if (bytes > LetteraCaches.ParagraphCacheBytes / 2) return;
+            // Fonts that come and go leave their instances listed until the next clear; this keeps that list short.
+            if (s_StoredInstances.Count >= 1024 || s_StoredLanguages.Count >= 1024) ClearParagraphCache();
 
-            if (s_Paragraphs.TryGetValue(hash, out ParagraphEntry old)) Forget(old);
+            ParagraphEntry* old = Lookup(hash);
+            if (old != null) Forget(old);
             while (s_ParagraphBytes + bytes > LetteraCaches.ParagraphCacheBytes && s_Oldest != null)
             {
                 Forget(s_Oldest);
                 LetteraCaches.s_Stats.Evictions++;
             }
 
-            var entry = new ParagraphEntry
+            var entry = (ParagraphEntry*)UnsafeUtility.Malloc(block, 16, Allocator.Persistent);
+            *entry = new ParagraphEntry
             {
                 Hash = hash, Bytes = bytes, Count = count, ChainId = m_Chain.Id, BaseLevel = baseLevel, SizeMatch = m_Attributes.SizeMatchOverride, Level = paragraph.Level,
-                RunCount = runCount, GlyphCount = glyphCount, Language = language,
-                Text = ArrayPool<int>.Shared.Rent(count), Shape = ArrayPool<int>.Shared.Rent(count), CpRun = ArrayPool<int>.Shared.Rent(count),
-                Signature = ArrayPool<long>.Shared.Rent(count), Levels = ArrayPool<byte>.Shared.Rent(count), Boundaries = ArrayPool<bool>.Shared.Rent(count + 1),
-                Breaks = ArrayPool<LineBreakOpportunity>.Shared.Rent(count), Scripts = ArrayPool<UnicodeScript>.Shared.Rent(count), Advances = ArrayPool<float>.Shared.Rent(count),
-                Runs = ArrayPool<Run>.Shared.Rent(Math.Max(runCount, 1)), Glyphs = ArrayPool<ShapedGlyph>.Shared.Rent(Math.Max(glyphCount, 1)),
+                RunCount = runCount, GlyphCount = glyphCount, Language = StoredLanguage(language, true), Signed = signed ? 1 : 0,
             };
-            Array.Copy(m_Text, start, entry.Text, 0, count);
-            Array.Copy(m_ShapeText, start, entry.Shape, 0, count);
-            if (m_SignaturesPlain) Array.Clear(entry.Signature, 0, count);
-            else Array.Copy(m_CpSignature, start, entry.Signature, 0, count);
-            Array.Copy(m_Levels, start, entry.Levels, 0, count);
-            Array.Copy(m_Boundaries, start, entry.Boundaries, 0, count + 1);
-            Array.Copy(m_Breaks, start, entry.Breaks, 0, count);
-            Array.Copy(m_Scripts, start, entry.Scripts, 0, count);
-            Array.Copy(m_CpAdvanceEm, start, entry.Advances, 0, count);
-            for (int i = 0; i < count; i++) entry.CpRun[i] = m_CpRun[start + i] - firstRun;
+            if (signed) new ReadOnlySpan<long>(m_CpSignature, start, count).CopyTo(new Span<long>(SignatureOf(entry), count));
+            new ReadOnlySpan<int>(m_Text, start, count).CopyTo(new Span<int>(TextOf(entry), count));
+            new ReadOnlySpan<int>(m_ShapeText, start, count).CopyTo(new Span<int>(ShapeOf(entry), count));
+            new ReadOnlySpan<byte>(m_Levels, start, count).CopyTo(new Span<byte>(LevelsOf(entry), count));
+            new ReadOnlySpan<bool>(m_Boundaries, start, count + 1).CopyTo(new Span<bool>(BoundariesOf(entry), count + 1));
+            new ReadOnlySpan<LineBreakOpportunity>(m_Breaks, start, count).CopyTo(new Span<LineBreakOpportunity>(BreaksOf(entry), count));
+            new ReadOnlySpan<UnicodeScript>(m_Scripts, start, count).CopyTo(new Span<UnicodeScript>(ScriptsOf(entry), count));
+            new ReadOnlySpan<float>(m_CpAdvanceEm, start, count).CopyTo(new Span<float>(AdvancesOf(entry), count));
+            int* cpRun = CpRunOf(entry);
+            for (int i = 0; i < count; i++) cpRun[i] = m_CpRun[start + i] - firstRun;
+            ShapedGlyph* glyphs = GlyphsOf(entry);
             for (int g = 0; g < glyphCount; g++)
             {
                 ShapedGlyph glyph = m_Shaped[firstGlyph + g];
                 glyph.Cluster -= start;
-                entry.Glyphs[g] = glyph;
+                glyphs[g] = glyph;
             }
+            StoredRun* runs = RunsOf(entry);
             for (int r = 0; r < runCount; r++)
             {
                 Run run = m_Runs[firstRun + r];
-                run.Start -= start;
-                run.End -= start;
-                run.GlyphStart -= firstGlyph;
-                entry.Runs[r] = run;
+                runs[r] = new StoredRun
+                {
+                    Start = run.Start - start, End = run.End - start, GlyphStart = run.GlyphStart - firstGlyph, GlyphCount = run.GlyphCount,
+                    Instance = StoredInstance(run.Instance), Level = run.Level, UnitEm = run.UnitEm, SizeAbsolute = run.SizeAbsolute, SizeMul = run.SizeMul,
+                    SizeAdd = run.SizeAdd, Script = run.Script, FaceFeature = run.FaceFeature, BaselineShift = run.BaselineShift,
+                };
             }
-            s_Paragraphs[hash] = entry;
+            Insert(entry);
             LinkNewest(entry);
             s_ParagraphBytes += bytes;
         }
