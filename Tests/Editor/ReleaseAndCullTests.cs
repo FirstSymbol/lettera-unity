@@ -213,7 +213,7 @@ namespace FirstSymbol.Lettera.Editor.Tests
             below.FontSize = 40;
             Canvas.ForceUpdateCanvases();
             Canvas.ForceUpdateCanvases();
-            Assert.IsFalse(below.canvasRenderer.cull, "its ink reaches in now");
+            Assert.IsFalse(below.canvasRenderer.cull, "its ink reaches in now: " + below.Engine.InkKnown + " " + below.Engine.InkRect + " " + below.Engine.MeshBounds + " " + below.rectTransform.rect + " lines " + below.Lines.Count);
             Assert.Greater(Drawn(below), 0);
 
             // With the mask gone, nothing stays culled.
