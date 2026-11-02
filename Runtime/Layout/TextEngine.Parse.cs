@@ -89,7 +89,10 @@ namespace FirstSymbol.Lettera
                 source = m_ResolvedText.AsSpan();
             }
 
-            bool markup = source.IndexOf('<') >= 0 || source.IndexOf('\\') >= 0;
+            // An edit of a plain text needs only its new characters looked at: the rest was plain before.
+            bool edited = m_Resolver == null && FindEdit(source);
+            ReadOnlySpan<char> looked = edited ? source.Slice(m_EditPrefix, source.Length - m_EditSuffix - m_EditPrefix) : source;
+            bool markup = looked.IndexOf('<') >= 0 || looked.IndexOf('\\') >= 0;
             LetteraMatchContext context;
             bool plain = !markup && m_ProtectLength == 0 && RevealSource < 0 && OnlyTheDefaultVocabulary();
             if (plain)
@@ -126,12 +129,13 @@ namespace FirstSymbol.Lettera
 
             if (RevealSource >= 0) RevealRangesAt(context, RevealSource);
             plain &= m_Resolver == null;
-            if (!plain || !TrySplice(source))
+            bool spliced = plain && edited && TrySplice(source);
+            if (!spliced)
             {
                 m_EditParse = -1;
                 BuildRenderedText(source, context);
             }
-            RememberSource(source, plain);
+            RememberSource(source, plain, spliced);
             ResolveRangeEnds(context);
             AssignRangeIds(context);
             m_RangesApplied = false;

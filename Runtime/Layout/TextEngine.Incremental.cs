@@ -46,8 +46,11 @@ namespace FirstSymbol.Lettera
         internal int ResumedShapes { get; private set; }
         internal int ResumedLayouts { get; private set; }
 
-        void RememberSource(ReadOnlySpan<char> source, bool plain)
+        int m_EditPrefix, m_EditSuffix;     // In source chars, found by FindEdit.
+
+        void RememberSource(ReadOnlySpan<char> source, bool plain, bool spliced)
         {
+            if (spliced) return;
             if (!plain || source.Length < SpliceFromChars)
             {
                 m_PrevSourceLength = -1;
@@ -75,8 +78,8 @@ namespace FirstSymbol.Lettera
             return i;
         }
 
-        // Old and new source are both plain, so shown codepoints are the source's: the stretch that changed is cut out and the new one put in.
-        bool TrySplice(ReadOnlySpan<char> source)
+        // The one stretch where a plain source changed since the last parse, or false when it did not, or the last parse was no plain one.
+        bool FindEdit(ReadOnlySpan<char> source)
         {
             int oldLength = m_PrevSourceLength;
             if (oldLength < 0 || source.Length < SpliceFromChars) return false;
@@ -88,6 +91,16 @@ namespace FirstSymbol.Lettera
             // Never between the halves of a pair.
             if (prefix > 0 && char.IsHighSurrogate(old[prefix - 1])) prefix--;
             if (suffix > 0 && char.IsLowSurrogate(old[oldLength - suffix])) suffix--;
+            m_EditPrefix = prefix;
+            m_EditSuffix = suffix;
+            return true;
+        }
+
+        // Old and new source are both plain, so shown codepoints are the source's: the stretch that changed is cut out and the new one put in.
+        bool TrySplice(ReadOnlySpan<char> source)
+        {
+            int oldLength = m_PrevSourceLength;
+            int prefix = m_EditPrefix, suffix = m_EditSuffix;
             int oldEnd = oldLength - suffix, newEnd = source.Length - suffix;
 
             int cpStart = RenderedIndexFromSource(prefix), cpOldEnd = RenderedIndexFromSource(oldEnd);
@@ -137,6 +150,17 @@ namespace FirstSymbol.Lettera
             m_SourceIndex[newCount] = source.Length;
             m_EditParse = ParseCount;
             m_EditStart = cpStart;
+
+            // The kept source takes the same edit, so nothing but the change is copied.
+            if (m_PrevSource.Length < source.Length)
+            {
+                var grown = new char[Math.Max(source.Length, m_PrevSource.Length * 3 / 2)];
+                Array.Copy(m_PrevSource, grown, oldLength);
+                m_PrevSource = grown;
+            }
+            if (suffix > 0 && newEnd != oldEnd) Array.Copy(m_PrevSource, oldEnd, m_PrevSource, newEnd, suffix);
+            source.Slice(prefix, newEnd - prefix).CopyTo(new Span<char>(m_PrevSource, prefix, newEnd - prefix));
+            m_PrevSourceLength = source.Length;
             return true;
         }
 

@@ -317,6 +317,9 @@ namespace FirstSymbol.Lettera
                 lines.Clear();
             }
             m_PendingGap = 0;
+            bool simple = m_Removals.Count == 0 && !m_Attributes.HasLayout;
+            int sizedRun = -1;
+            float runSize = 0;
             int previousParagraph = firstParagraph - 1;
             for (int p = firstParagraph; p < m_Paragraphs.Count; p++)
             {
@@ -336,15 +339,35 @@ namespace FirstSymbol.Lettera
                     int clusterEnd = i + 1;
                     while (clusterEnd < paragraph.ContentEnd && !m_Boundaries[clusterEnd]) clusterEnd++;
 
-                    float width = IndentRiseAt(i, lineStart, baseSize);
+                    float width;
                     bool space = true;
-                    for (int c = i; c < clusterEnd; c++)
+                    if (simple)
                     {
-                        width += MarkerWidthAt(c, baseSize);
-                        if (IsRemoved(c)) { space &= false; continue; }
-                        width += CpWidth(c, SizeOf(m_Runs[m_CpRun[c]], baseSize));
-                        // A divider never forces a break by itself: it hangs out of a line it ends, like a space.
-                        space &= LetteraUnicode.IsWhiteSpace(m_Text[c]) || m_CpDivider[c];
+                        // Nothing removed and no layout effect: a cluster is its codepoints' widths, at its run's size.
+                        width = 0;
+                        for (int c = i; c < clusterEnd; c++)
+                        {
+                            int run = m_CpRun[c];
+                            if (run != sizedRun)
+                            {
+                                sizedRun = run;
+                                runSize = SizeOf(m_Runs[run], baseSize);
+                            }
+                            width += CpWidth(c, runSize);
+                            space &= LetteraUnicode.IsWhiteSpace(m_Text[c]) || m_CpDivider[c];
+                        }
+                    }
+                    else
+                    {
+                        width = IndentRiseAt(i, lineStart, baseSize);
+                        for (int c = i; c < clusterEnd; c++)
+                        {
+                            width += MarkerWidthAt(c, baseSize);
+                            if (IsRemoved(c)) { space &= false; continue; }
+                            width += CpWidth(c, SizeOf(m_Runs[m_CpRun[c]], baseSize));
+                            // A divider never forces a break by itself: it hangs out of a line it ends, like a space.
+                            space &= LetteraUnicode.IsWhiteSpace(m_Text[c]) || m_CpDivider[c];
+                        }
                     }
 
                     if (wrap && !space && x + width > maxWidth - margin + Epsilon && x > 0)
