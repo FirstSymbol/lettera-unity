@@ -61,9 +61,13 @@ namespace FirstSymbol.Lettera.Editor.Tests
             labels.Clear();
             GC.Collect();
             for (int i = 0; i < 1000; i++) labels.Add(Label(canvas, Sentence(i), 18, new Vector2(400, 30), steps));
+            TextEngine.TimePasses = true;
+            Array.Clear(TextEngine.PassBytes, 0, TextEngine.PassBytes.Length);
             long before = TextEngine.ProbeAllocated();
             foreach (LetteraText l in labels) l.ForceRebuild();
             steps[4] = TextEngine.ProbeAllocated() - before;
+            TextEngine.TimePasses = false;
+            Debug.Log("LETTERA_PROBE label passes " + string.Join(" ", Array.ConvertAll(TextEngine.PassBytes, b => b / 1000)));
             UnityEngine.Canvas.ForceUpdateCanvases();
             yield return null;
             steps[5] = s_Frame.LastValue;
