@@ -99,11 +99,11 @@ namespace FirstSymbol.Lettera
             s_MeshMarker = new Unity.Profiling.ProfilerMarker("Lettera.Mesh");
 
         // Where a rebuild's time goes, for a test that splits it: Parse, Shape, Layout, Positions, Mesh.
-        internal static readonly long[] PassTicks = new long[5];
+        internal static readonly long[] PassTicks = new long[16];
         internal static bool TimePasses;
-        static long PassStart() => TimePasses ? System.Diagnostics.Stopwatch.GetTimestamp() : 0;
+        internal static long PassStart() => TimePasses ? System.Diagnostics.Stopwatch.GetTimestamp() : 0;
 
-        static void PassEnd(int pass, long start)
+        internal static void PassEnd(int pass, long start)
         {
             if (TimePasses) PassTicks[pass] += System.Diagnostics.Stopwatch.GetTimestamp() - start;
         }
@@ -239,8 +239,8 @@ namespace FirstSymbol.Lettera
             }
             ApplyHookStale();
             if (level >= DirtyLevel.Mesh) RaiseInlinePlaced();
-            AfterWindowPasses();
-            PlaceWindowAgainIfStale();
+            long tq = PassStart(); AfterWindowPasses(); PassEnd(13, tq); // probe
+            tq = PassStart(); PlaceWindowAgainIfStale(); PassEnd(14, tq); // probe
             if (m_SemanticsStale)
             {
                 m_SemanticsStale = false;
