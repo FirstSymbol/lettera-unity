@@ -167,6 +167,8 @@ namespace FirstSymbol.Lettera.Editor.Tests
                 Lengths(label, "l.", before);
                 Lengths(scroller, "s.", before);
                 Lengths(typeof(TextEngine).GetField("m_BlockMeasure", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic).GetValue(engine), "m.", before);
+                TextEngine.TimePasses = true;
+                Array.Clear(TextEngine.PassBytes, 0, 5);
                 long a0 = TextEngine.ProbeAllocated();
                 scroller.Position = step / 240.0 * end;
                 long a1 = TextEngine.ProbeAllocated();
@@ -181,7 +183,7 @@ namespace FirstSymbol.Lettera.Editor.Tests
                 long frame = s_Frame.LastValue;
                 if (frame > 20000 || a2 - a0 > 20000)
                 {
-                    log.Append($"step {step} frame {frame} move {a1 - a0} canvas {a2 - a1} lean {engine.View.IsLean} window {engine.WindowStart}+{engine.WindowLength}:");
+                    log.Append($"step {step} frame {frame} move {a1 - a0} canvas {a2 - a1} lean {engine.View.IsLean} window {engine.WindowStart}+{engine.WindowLength} passes {string.Join(",", TextEngine.PassBytes)}:");
                     foreach (var kv in after)
                         if (!before.TryGetValue(kv.Key, out int was) || was != kv.Value) log.Append($" {kv.Key} {was}->{kv.Value}");
                     log.Append(';');
