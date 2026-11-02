@@ -340,6 +340,34 @@ namespace FirstSymbol.Lettera.Editor.Tests
         }
 
         [Test]
+        public void AFinishedLongTextHoldsPlacesForWhatShowsOnly()
+        {
+            LetteraLongText.VisibleLinesOnly = true;
+            LetteraText part = Make(Page(100 * 1024), out _);
+            TextEngine engine = EngineOf(part);
+            LetteraLongText.FinishMillisecondsPerFrame = 1;
+            FinishBySlices(part, out _);
+            part.ForceRebuild();
+            Assert.AreEqual(0, engine.PendingParagraphs);
+            Assert.Greater(engine.ShapedGlyphCount, 90000);
+            // Each slice placed the band again: a buffer sized to all that was shaped made a new array of every size on the way.
+            Assert.Less(engine.PlacedCapacity, engine.ShapedGlyphCount / 8, "places are sized for the band, not for everything shaped");
+        }
+
+        [Test]
+        public void MarkupLateInALongPlainTextIsFoundAsTheTextIsCopied()
+        {
+            // A short text is looked through before it is copied: what follows the same plain text must read as that short text does.
+            string plain = Page(8 * 1024);
+            foreach (string tail in new[] { " <b>bold</b> end", " \\<b> and \\\\ <i>x</i>", " 1 < 2 \\ end", "<color=#f00>red</color>" })
+            {
+                int alone = EngineOf(Make(tail, out _)).ShownLength;
+                Assert.AreEqual(plain.Length + alone, EngineOf(Make(plain + tail, out _)).ShownLength, tail);
+            }
+            Assert.AreEqual(plain.Length + " bold end".Length, EngineOf(Make(plain + " <b>bold</b> end", out _)).ShownLength, "the tag is markup, not text");
+        }
+
+        [Test]
         public void LinesAndCaretsAskedMidwayFinishAndAreExact()
         {
             string source = Page(100 * 1024);

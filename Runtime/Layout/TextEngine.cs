@@ -105,27 +105,11 @@ namespace FirstSymbol.Lettera
         // Where a rebuild's time goes, for a test that splits it: Parse, Shape, Layout, Positions, Mesh.
         internal static readonly long[] PassTicks = new long[5];
         internal static bool TimePasses;
-        static long PassStart()
-        {
-            if (TimePasses) s_PassBytesAt = ProbeAllocated(); // probe
-            return TimePasses ? System.Diagnostics.Stopwatch.GetTimestamp() : 0;
-        }
-
-        internal static readonly long[] PassBytes = new long[5]; // probe
-        static long s_PassBytesAt; // probe
-        static Unity.Profiling.ProfilerRecorder s_ProbeRecorder; // probe
-        static bool s_ProbeTried; // probe
-        internal static long ProbeAllocated() // probe
-        {
-            if (!s_ProbeTried) s_ProbeRecorder = Unity.Profiling.ProfilerRecorder.StartNew(Unity.Profiling.ProfilerCategory.Memory, "GC Allocated In Frame");
-            s_ProbeTried = true;
-            return s_ProbeRecorder.Valid ? s_ProbeRecorder.CurrentValue : 0;
-        }
+        static long PassStart() => TimePasses ? System.Diagnostics.Stopwatch.GetTimestamp() : 0;
 
         static void PassEnd(int pass, long start)
         {
             if (TimePasses) PassTicks[pass] += System.Diagnostics.Stopwatch.GetTimestamp() - start;
-            if (TimePasses) PassBytes[pass] += ProbeAllocated() - s_PassBytesAt; // probe
         }
 
         bool m_Reapply, m_SemanticsStale;
