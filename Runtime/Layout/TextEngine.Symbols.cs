@@ -33,9 +33,9 @@ namespace FirstSymbol.Lettera
 
         List<SymbolSet> m_SymbolSets = Rare<SymbolSet>.List;
         List<ExtraQuad> m_ExtraQuads = Rare<ExtraQuad>.List;
-        int[] m_FaceQuad = new int[0];
-        SymbolSet[] m_GlyphSymbols = new SymbolSet[0];
-        Vector4[] m_RestUv0 = new Vector4[0];
+        int[] m_FaceQuad = System.Array.Empty<int>();
+        SymbolSet[] m_GlyphSymbols = System.Array.Empty<SymbolSet>();
+        Vector4[] m_RestUv0 = System.Array.Empty<Vector4>();
         bool m_UsesRestUv0;
 
         // Before the first quad of a mesh.
