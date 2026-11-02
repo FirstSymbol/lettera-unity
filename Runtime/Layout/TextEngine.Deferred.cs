@@ -161,9 +161,9 @@ namespace FirstSymbol.Lettera
         }
 
         // Finishing writes to the end of the text, so its first step takes that room at once: growing by halves through every size on the way
-        // leaves about as much garbage again as the text needs, and that is collected in some later frame. Past a few megabytes, taking it all
-        // in one frame would cost that frame more than its slice, and the buffers grow as before.
-        const int ReserveAtOnceCodepoints = 1 << 17;
+        // leaves about as much garbage again as the text needs, and that is collected in some later frame. Past a megabyte or so, taking it all
+        // in one frame would cost that frame more than its slice, and may start a collection there: the buffers grow as before.
+        const int ReserveAtOnceCodepoints = 1 << 15;
 
         void ReserveForFinishing()
         {
