@@ -328,7 +328,10 @@ namespace FirstSymbol.Lettera
                 bool tags = false;
                 for (int b = first; b <= topBlock; b++) tags |= m_Rope.BlockHasMarkup(b);
                 if (!tags) startChar = ParagraphStartNear(topBlock, m_Y - margin, startChar);
-                endChar = ParagraphEndNear(last, m_Y + viewport + margin, endChar);
+                // Its length comes from what the last window laid out, since a block's height is an estimate and may run long.
+                double density = m_CharsPerPixel > 0 ? m_CharsPerPixel : m_Rope.BlockChars(topBlock) / Math.Max(m_Rope.HeightAtBlock(topBlock + 1) - m_Rope.HeightAtBlock(topBlock), 1);
+                int wanted = (int)Math.Min(m_Rope.Length, startChar + Math.Ceiling((viewport + 2 * margin) * density * LeanSlack));
+                endChar = ParagraphEndAfter(Math.Min(wanted, startChar + m_Settings.MaxWindowCodepoints));
                 // Where the window stands is read from the blocks it starts and ends in.
                 int lastChar = Math.Max(m_Rope.Length - 1, 0);
                 m_FirstBlock = m_Rope.BlockAtChar(Math.Min(startChar, lastChar));
@@ -351,6 +354,10 @@ namespace FirstSymbol.Lettera
         // A window built for a scroll faster than its margins holds what shows and an eighth of a viewport for estimates that run short,
         // and places only what shows. Two frames after the scroll stops, it takes its margins again.
         const float LeanMargin = 0.125f;
+
+        // How much more text than the last window's density asks a lean window takes, for denser text ahead.
+        const double LeanSlack = 1.25;
+        double m_CharsPerPixel;
         bool m_Lean;
         int m_TicksSinceScroll;
 
@@ -383,11 +390,11 @@ namespace FirstSymbol.Lettera
             return fallback;
         }
 
-        // The end of the paragraph that holds the character a height points at, its separator included, if it is near; else what was there.
-        int ParagraphEndNear(int block, double y, int fallback)
+        // The end of the paragraph that holds a character, its separator included, if it is near; else that character.
+        int ParagraphEndAfter(int at)
         {
-            int at = CharAtHeight(block, y), to = Math.Min(fallback, at + m_Look.Length);
-            if (at >= fallback) return fallback;
+            int to = Math.Min(m_Rope.Length, at + m_Look.Length);
+            if (at >= to) return Math.Min(at, m_Rope.Length);
             m_Rope.CopyTo(at, new Span<char>(m_Look, 0, to - at));
             for (int i = 0; i < to - at; i++)
             {
@@ -396,7 +403,7 @@ namespace FirstSymbol.Lettera
                 if (m_Look[i] == '\r' && i + 1 < to - at && m_Look[i + 1] == '\n') i++;
                 return at + i + 1;
             }
-            return fallback;
+            return at > 0 && at < m_Rope.Length && char.IsLowSurrogate(CharAt(at)) ? at - 1 : at;
         }
 
         char CharAt(int position)
@@ -412,6 +419,8 @@ namespace FirstSymbol.Lettera
         internal void AfterLayout()
         {
             if (m_FirstBlock >= m_Rope.BlockCount) return;
+            float laid = m_Engine.PlainExtent;
+            if (laid > 1 && m_Engine.WindowLength > 0) m_CharsPerPixel = m_Engine.WindowLength / (double)laid;
             int startChar = m_Rope.CharOfBlock(m_FirstBlock);
             for (int b = m_FirstBlock; b <= m_LastBlock && b < m_Rope.BlockCount; b++)
             {
