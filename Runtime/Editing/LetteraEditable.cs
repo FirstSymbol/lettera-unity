@@ -362,10 +362,25 @@ namespace FirstSymbol.Lettera
         void WriteBuilt()
         {
             m_Writing = true;
-            if (Engine.IsWindowed) Engine.WriteWindowSource(m_Builder.ToString());
-            else Host.WriteSource(m_Builder);
+            if (Engine.IsWindowed) Engine.WriteWindowSource(new string(m_Edit, 0, m_EditLength));
+            else Host.WriteSource(new ReadOnlySpan<char>(m_Edit, 0, m_EditLength));
             m_Writing = false;
             AfterWrite();
+        }
+
+        // An edit's source, spliced in place. A StringBuilder makes a new chunk for each insert into a long text, and a new array when cleared after that.
+        char[] m_Edit = Array.Empty<char>();
+        int m_EditLength;
+
+        ReadOnlySpan<char> Edited => new ReadOnlySpan<char>(m_Edit, 0, m_EditLength);
+
+        void SpliceEdit(int at, int removed, string inserted)
+        {
+            int delta = inserted.Length - removed;
+            if (m_Edit.Length < m_EditLength + delta) Array.Resize(ref m_Edit, Math.Max(m_EditLength + delta + 64, m_Edit.Length * 2));
+            Array.Copy(m_Edit, at + removed, m_Edit, at + inserted.Length, m_EditLength - at - removed);
+            inserted.CopyTo(0, m_Edit, at, inserted.Length);
+            m_EditLength += delta;
         }
 
         void AfterWrite()
@@ -646,20 +661,20 @@ namespace FirstSymbol.Lettera
         // What is inserted goes where the first removed character stood, so later splices never move the caret.
         void ApplySplices(ReadOnlySpan<char> source)
         {
-            m_Builder.Clear();
-            m_Builder.Append(source);
+            if (m_Edit.Length < source.Length) m_Edit = new char[Math.Max(source.Length + 64, m_Edit.Length * 2)];
+            source.CopyTo(m_Edit);
+            m_EditLength = source.Length;
             int shift = 0;
             foreach (Splice splice in m_Splices)
             {
                 string inserted = splice.Inserted ?? "";
-                m_History.AddSplice(splice.Position + shift, m_Builder, splice.Removed, inserted);
-                m_Builder.Remove(splice.Position + shift, splice.Removed);
-                m_Builder.Insert(splice.Position + shift, inserted);
+                m_History.AddSplice(splice.Position + shift, Edited, splice.Removed, inserted);
+                SpliceEdit(splice.Position + shift, splice.Removed, inserted);
                 shift += inserted.Length - splice.Removed;
             }
         }
 
-        // Taking a range's last character takes its delimiters too. The builder holds the source as last written.
+        // Taking a range's last character takes its delimiters too. The edit buffer holds the source as last written.
         void RemoveEmptiedRanges(ref int caretSource)
         {
             for (int guard = 0; guard < 16; guard++)
@@ -671,8 +686,8 @@ namespace FirstSymbol.Lettera
                 m_Spans.Sort((a, b) => b.x.CompareTo(a.x));
                 foreach (Vector2Int span in m_Spans)
                 {
-                    m_History.AddSplice(span.x, m_Builder, span.y - span.x, "");
-                    m_Builder.Remove(span.x, span.y - span.x);
+                    m_History.AddSplice(span.x, Edited, span.y - span.x, "");
+                    SpliceEdit(span.x, span.y - span.x, "");
                     if (span.x < caretSource) caretSource -= Mathf.Min(span.y - span.x, caretSource - span.x);
                 }
                 WriteBuilt();
