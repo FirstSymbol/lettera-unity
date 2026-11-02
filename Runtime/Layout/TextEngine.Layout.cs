@@ -673,6 +673,18 @@ namespace FirstSymbol.Lettera
         {
             EnsureMeasured();
             LetteraTextData data = m_Host.Data;
+            // Asked for the width the text has, the layout it is about to run answers, so a layout group's question costs no second line breaking.
+            if (!data.AutoSize && width > 0 && m_Attributes.Elides.Count == 0 && m_Marquee == null && m_StageHooks.Count == 0 && m_RevealSpans.Count == 0 &&
+                width == ComputeBox(data.Padding, m_Host.LayoutRect).width)
+            {
+                if (m_Dirty >= DirtyLevel.Layout)
+                {
+                    RunLayout();
+                    m_EarlyChanges |= LetteraChanges.Layout;
+                    m_Dirty = DirtyLevel.Positions;
+                }
+                if (m_Removals.Count == 0 && m_FitGlyphScale == 1 && m_FitTracking == 0 && m_FitLineHeight == 1) return m_ContentHeight;
+            }
             float size = data.AutoSize ? CurrentFontSize > 0 ? CurrentFontSize : data.FontSize : data.FontSize;
             return BreakLines(m_MeasureLines, size, width, data.WordWrap && width > 0, true).Height;
         }

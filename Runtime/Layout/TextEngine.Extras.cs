@@ -13,19 +13,23 @@ namespace FirstSymbol.Lettera
 
         void EnsureExtras(int length, int from = 0)
         {
-            EnsureSize(ref m_CpExtraEm, length + 1);
-            EnsureSize(ref m_CpExtraUnits, length + 1);
-            EnsureSize(ref m_CpLeadEm, length + 1);
-            EnsureSize(ref m_CpLeadUnits, length + 1);
-            EnsureSize(ref m_CpKashida, length + 1);
-            EnsureSize(ref m_CpDivider, length + 1);
-            int count = length + 1 - from;
-            Array.Clear(m_CpDivider, from, count);
-            Array.Clear(m_CpExtraEm, from, count);
-            Array.Clear(m_CpExtraUnits, from, count);
-            Array.Clear(m_CpLeadEm, from, count);
-            Array.Clear(m_CpLeadUnits, from, count);
-            Array.Clear(m_CpKashida, from, count);
+            Cleared(ref m_CpDivider, length, from);
+            Cleared(ref m_CpExtraEm, length, from);
+            Cleared(ref m_CpExtraUnits, length, from);
+            Cleared(ref m_CpLeadEm, length, from);
+            Cleared(ref m_CpLeadUnits, length, from);
+            Cleared(ref m_CpKashida, length, from);
+        }
+
+        // Zeros from a codepoint on. A new array is zeros already, and what stood before that codepoint is zeros on every path that keeps it.
+        static void Cleared<T>(ref T[] array, int length, int from)
+        {
+            if (array.Length < length + 1)
+            {
+                array = new T[Math.Max(Math.Max(length + 1, SmallestBuffer), array.Length * 2)];
+                return;
+            }
+            Array.Clear(array, from, length + 1 - from);
         }
 
         /// <summary>A codepoint's share of the line: its shaped advance, and what effects and a fit add.</summary>
