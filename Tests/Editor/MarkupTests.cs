@@ -177,6 +177,25 @@ namespace FirstSymbol.Lettera.Editor.Tests
         }
 
         [Test]
+        public void AFirstColorChangeByTintDrawsWhatAFullPassDraws()
+        {
+            LetteraWorldText tinted = Make("Plain <color=#00FF00>green</color> words");
+            LetteraWorldText plain = Make("Plain words, all in the text's color");
+            foreach (LetteraWorldText text in new[] { tinted, plain })
+            {
+                text.Color = new Color(0.2f, 0.4f, 0.8f, 0.5f);
+                DirtyLevel level = text.Engine.Dirty;
+                text.ForceRebuild();
+                var colors = new Color32[text.Engine.VertexCount];
+                System.Array.Copy(text.Engine.Colors, colors, colors.Length);
+                text.SetDirty(DirtyLevel.Mesh);
+                text.ForceRebuild();
+                for (int i = 0; i < colors.Length; i++) Assert.AreEqual(text.Engine.Colors[i], colors[i], level + " vertex " + i);
+                Assert.AreEqual(text == plain ? DirtyLevel.Tint : DirtyLevel.Mesh, level);
+            }
+        }
+
+        [Test]
         public void ChangesRequestTheExpectedLevel()
         {
             LetteraWorldText text = Make("x");
@@ -186,8 +205,9 @@ namespace FirstSymbol.Lettera.Editor.Tests
             text.FontSize = 30;
             Assert.AreEqual(DirtyLevel.Layout, text.Engine.Dirty);
             text.ForceRebuild();
+            // Every quad takes the text's color, so even the first change rewrites colors only.
             text.Color = Color.red;
-            Assert.AreEqual(DirtyLevel.Mesh, text.Engine.Dirty);
+            Assert.AreEqual(DirtyLevel.Tint, text.Engine.Dirty);
             text.ForceRebuild();
             text.Language = "ar";
             Assert.AreEqual(DirtyLevel.Shape, text.Engine.Dirty);
