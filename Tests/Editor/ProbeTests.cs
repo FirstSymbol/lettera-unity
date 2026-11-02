@@ -29,15 +29,15 @@ namespace FirstSymbol.Lettera.Editor.Tests
             double f = 1000.0 / Stopwatch.Frequency;
             long[] t = TextEngine.PassTicks;
             string fine = "";
-            string[] names = { "", "", "", "", "", "prepareGlyphs", "draw", "finish", "rest+pose", "upload", "setMesh", "rebuilt", "pushVisible", "afterWindow", "placeAgain", "afterBand" };
-            for (int i = 5; i < 16; i++) fine += $" {names[i]} {t[i] * f / n:0.000}";
+            string[] names = { "", "", "", "", "", "prepareGlyphs", "draw", "finish", "rest+pose", "upload", "setMesh", "rebuilt", "pushVisible", "afterWindow", "placeAgain", "afterBand", "p.find", "p.build", "p.remember", "p.effects" };
+            for (int i = 5; i < 20; i++) fine += $" {names[i]} {t[i] * f / n:0.000}";
             return $"parse {t[0] * f / n:0.000} shape {t[1] * f / n:0.000} layout {t[2] * f / n:0.000} positions {t[3] * f / n:0.000} mesh {t[4] * f / n:0.000};{fine}";
         }
 
         static void StartPasses()
         {
             TextEngine.TimePasses = true;
-            System.Array.Clear(TextEngine.PassTicks, 0, 16);
+            System.Array.Clear(TextEngine.PassTicks, 0, 24);
         }
 
         GameObject MakeCanvas()
@@ -144,6 +144,7 @@ namespace FirstSymbol.Lettera.Editor.Tests
                     StartPasses();
                     int gcs = System.GC.CollectionCount(0);
                     long a = System.GC.GetTotalMemory(false);
+                    TextEngine.AllocLog = new StringBuilder();
                     var clock = Stopwatch.StartNew();
                     label.Text = page;
                     label.ForceRebuild();
@@ -155,6 +156,8 @@ namespace FirstSymbol.Lettera.Editor.Tests
                     TextEngine.TimePasses = false;
                     var engine = ((ITextComponent)label).SharedEngine;
                     report.Append($"{size} KB round {round}: {ms:0.00} ms (+{frame:0.00} frame), {bytes / 1024} KB, gen0 collections {System.GC.CollectionCount(0) - gcs}; {Passes(1)}; pending {engine.PendingParagraphs}, shaped {engine.ShapedGlyphCount}, placed {engine.GlyphCount}\n");
+                    report.Append(TextEngine.AllocLog);
+                    TextEngine.AllocLog = null;
                     Object.DestroyImmediate(label.gameObject);
                 }
             }

@@ -57,7 +57,7 @@ namespace FirstSymbol.Lettera
                 if (m_PrevSource.Length > 0 && source.Length < SpliceFromChars) m_PrevSource = Array.Empty<char>();
                 return;
             }
-            if (m_PrevSource.Length < source.Length) m_PrevSource = new char[Math.Max(source.Length, m_PrevSource.Length * 3 / 2)];
+            if (m_PrevSource.Length < source.Length) { m_PrevSource = new char[Math.Max(source.Length, m_PrevSource.Length * 3 / 2)]; LogAlloc("PrevSource", m_PrevSource.Length); } // probe
             source.CopyTo(m_PrevSource);
             m_PrevSourceLength = source.Length;
         }
