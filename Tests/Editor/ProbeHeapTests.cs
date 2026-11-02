@@ -145,8 +145,7 @@ namespace FirstSymbol.Lettera.Editor.Tests
             Transform canvas = Canvas();
             var page = new StringBuilder();
             int n = 0;
-            while (page.Length < 1000 * 1024) page.Append(Sentence(n++)).Append(n % 8 == 0 ? "
-" : " ");
+            while (page.Length < 1000 * 1024) page.Append(Sentence(n++)).Append(n % 8 == 0 ? '\n' : ' ');
             var view = new GameObject("View", typeof(RectTransform));
             view.transform.SetParent(canvas, false);
             ((RectTransform)view.transform).sizeDelta = new Vector2(800, 600);
@@ -179,12 +178,10 @@ namespace FirstSymbol.Lettera.Editor.Tests
                     log.Append($"step {step} frame {frame} move {a1 - a0} canvas {a2 - a1} lean {engine.View.IsLean} window {engine.WindowStart}+{engine.WindowLength}:");
                     foreach (var kv in after)
                         if (!before.TryGetValue(kv.Key, out int was) || was != kv.Value) log.Append($" {kv.Key} {was}->{kv.Value}");
-                    log.Append('
-');
+                    log.Append(';');
                 }
             }
-            Debug.Log("LETTERA_PROBE scroll
-" + log);
+            Debug.Log("LETTERA_PROBE scroll " + log);
         }
 
     }
