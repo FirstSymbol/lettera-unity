@@ -182,5 +182,74 @@ namespace FirstSymbol.Lettera.Editor.Tests
             free.ForceRebuild();
             Assert.IsFalse(EngineOf(free).IsBanded, "a world canvas shows anywhere, so all of it is placed");
         }
+
+        // Every line of an edited text against the same text built from nothing.
+        void SameAsFresh(LetteraWorldText edited, string what)
+        {
+            LetteraWorldText fresh = Make(edited.Text, 800, 100000, Latin, 14);
+            Assert.AreEqual(fresh.Lines.Count, edited.Lines.Count, what + ": lines");
+            for (int l = 0; l < fresh.Lines.Count; l++)
+            {
+                LetteraLine a = fresh.Lines[l], b = edited.Lines[l];
+                Assert.AreEqual(a.Start, b.Start, what + ": line " + l);
+                Assert.AreEqual(a.End, b.End, what + ": line " + l);
+                Assert.AreEqual(a.Width, b.Width, 0.001f, what + ": width of line " + l);
+                Assert.AreEqual(a.Baseline, b.Baseline, 0.001f, what + ": baseline of line " + l);
+            }
+            Assert.AreEqual(fresh.GlyphCount, edited.GlyphCount, what + ": glyphs");
+            Assert.AreEqual(fresh.LayoutBounds, edited.LayoutBounds, what);
+            for (int i = 0; i < fresh.GlyphCount; i += 97)
+            {
+                LetteraGlyphInfo a = fresh.GetGlyph(i), b = edited.GetGlyph(i);
+                Assert.AreEqual(a.Glyph, b.Glyph, what + ": glyph " + i);
+                Assert.AreEqual(a.X, b.X, 0.001f, what + ": glyph " + i);
+                Assert.AreEqual(a.Y, b.Y, 0.001f, what + ": glyph " + i);
+            }
+            Object.DestroyImmediate(fresh.gameObject);
+        }
+
+        [Test]
+        public void AnEditRedoesOnlyFromItsParagraphAndEndsAsAFreshBuildWould()
+        {
+            string page = Page(40 * 1024);
+            LetteraWorldText text = Make(page, 800, 100000, Latin, 14);
+            TextEngine engine = text.Engine;
+            int shapes = engine.ResumedShapes, layouts = engine.ResumedLayouts;
+
+            text.Text = page + "x";
+            text.ForceRebuild();
+            Assert.AreEqual(shapes + 1, engine.ResumedShapes, "typing at the end resumes shaping");
+            Assert.AreEqual(layouts + 1, engine.ResumedLayouts, "and line breaking");
+            SameAsFresh(text, "typed at the end");
+
+            int middle = page.IndexOf('
+', page.Length / 2);
+            string edits = text.Text.Insert(middle - 5, "inserted words ");
+            text.Text = edits;
+            text.ForceRebuild();
+            SameAsFresh(text, "typed in the middle");
+
+            text.Text = edits.Remove(middle + 10, 1);
+            text.ForceRebuild();
+            SameAsFresh(text, "a line break removed, two paragraphs joined");
+
+            text.Text = text.Text.Insert(200, "
+");
+            text.ForceRebuild();
+            SameAsFresh(text, "a paragraph split near the start");
+
+            text.Text = text.Text.Insert(3000, "😀 שלום ");
+            text.ForceRebuild();
+            SameAsFresh(text, "a pair of surrogates and right-to-left letters");
+
+            text.Text = text.Text.Remove(text.Text.Length - 1000, 1000);
+            text.ForceRebuild();
+            SameAsFresh(text, "the end cut");
+            Assert.Greater(engine.ResumedShapes, shapes + 4, "each of them resumed");
+
+            text.Text = "<b>" + text.Text;
+            text.ForceRebuild();
+            SameAsFresh(text, "markup comes in and all of it is done again");
+        }
     }
 }

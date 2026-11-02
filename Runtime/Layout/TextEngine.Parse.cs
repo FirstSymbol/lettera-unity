@@ -91,7 +91,8 @@ namespace FirstSymbol.Lettera
 
             bool markup = source.IndexOf('<') >= 0 || source.IndexOf('\\') >= 0;
             LetteraMatchContext context;
-            if (!markup && m_ProtectLength == 0 && RevealSource < 0 && OnlyTheDefaultVocabulary())
+            bool plain = !markup && m_ProtectLength == 0 && RevealSource < 0 && OnlyTheDefaultVocabulary();
+            if (plain)
             {
                 context = m_MatchContext = s_PlainContext;
                 m_EffectiveStyles.Clear();
@@ -124,7 +125,13 @@ namespace FirstSymbol.Lettera
             }
 
             if (RevealSource >= 0) RevealRangesAt(context, RevealSource);
-            BuildRenderedText(source, context);
+            plain &= m_Resolver == null;
+            if (!plain || !TrySplice(source))
+            {
+                m_EditParse = -1;
+                BuildRenderedText(source, context);
+            }
+            RememberSource(source, plain);
             ResolveRangeEnds(context);
             AssignRangeIds(context);
             m_RangesApplied = false;

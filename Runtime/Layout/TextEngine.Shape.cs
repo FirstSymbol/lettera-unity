@@ -75,38 +75,42 @@ namespace FirstSymbol.Lettera
             EnsureSize(ref m_CpRun, length + 1);
             EnsureSize(ref m_CpAdvanceEm, length + 1);
             EnsureSize(ref m_ShapeText, length + 1);
+            LetteraTextData data = m_Host.Data;
+            m_Chain = LetteraFontChains.Get(data.Font, data.FontStack);
+            int direction = FieldDirection >= 0 ? FieldDirection : m_Attributes.DirectionOverride >= 0 ? m_Attributes.DirectionOverride
+                : data.BaseDirection == LetteraDirection.LeftToRight ? 0 : data.BaseDirection == LetteraDirection.RightToLeft ? 1 : 2;
+            int baseLevel = direction == 2 ? -1 : direction;
+            // After an edit, the paragraphs before the one it touched stay as they are.
+            int resume = ShapeResume(baseLevel, data);
+
             LetteraAttributes.Cp[] chars = m_Attributes.Chars;
-            for (int i = 0; i < length; i++)
+            for (int i = resume; i < length; i++)
             {
                 int cp = m_Text[i];
                 byte map = chars[i].CaseMap;
                 m_ShapeText[i] = map == 0 ? cp : map == 1 ? LetteraUnicode.ToUpper(cp) : LetteraUnicode.ToLower(cp);
             }
-            Array.Clear(m_CpAdvanceEm, 0, length + 1);
-
-            LetteraTextData data = m_Host.Data;
-            m_Chain = LetteraFontChains.Get(data.Font, data.FontStack);
+            Array.Clear(m_CpAdvanceEm, resume, length + 1 - resume);
             LetteraWordDictionaries.EnsureFromSettings();
 
-            m_Paragraphs.Clear();
-            m_Runs.Clear();
-            m_ShapedCount = 0;
-            EnsureExtras(length);
+            if (resume == 0)
+            {
+                m_Paragraphs.Clear();
+                m_Runs.Clear();
+                m_ShapedCount = 0;
+            }
+            EnsureExtras(length, resume);
             if (length == 0) return;
             PrepareInlineShaping();
             PrepareShapeSignatures(length);
 
-            int direction = FieldDirection >= 0 ? FieldDirection : m_Attributes.DirectionOverride >= 0 ? m_Attributes.DirectionOverride
-                : data.BaseDirection == LetteraDirection.LeftToRight ? 0 : data.BaseDirection == LetteraDirection.RightToLeft ? 1 : 2;
-            int baseLevel = direction == 2 ? -1 : direction;
-
-            bool parallel = ShapesInParallel(length);
+            bool parallel = resume == 0 && ShapesInParallel(length);
             if (parallel)
             {
                 BaseLevelForSlots = baseLevel;
                 ShapeParagraphsInParallel(length, baseLevel);
             }
-            int start = parallel ? length + 1 : 0;
+            int start = parallel ? length + 1 : resume;
             while (start <= length)
             {
                 int i = start;

@@ -74,7 +74,7 @@ namespace FirstSymbol.Lettera
             if (m_MarqueeScrolling) wrap = false;
             if (m_Attributes.Elides.Count > 0 && !SuspendElide && !m_MarqueeScrolling && !ClipsViewport) ApplyElide(size, width, height, wrap);
 
-            LineStats stats = BreakLines(m_Lines, size, width, wrap, true);
+            LineStats stats = BreakLines(m_Lines, size, width, wrap, true, LayoutResume(size, width, wrap, data));
             m_ContentWidth = stats.MaxWidth;
             m_ContentHeight = stats.Height;
             RunLinesHooks(size, width, wrap);
@@ -296,13 +296,29 @@ namespace FirstSymbol.Lettera
             return here > before ? here - before : 0;
         }
 
-        LineStats BreakLines(List<LetteraLine> lines, float baseSize, float maxWidth, bool wrap, bool emergency)
+        LineStats BreakLines(List<LetteraLine> lines, float baseSize, float maxWidth, bool wrap, bool emergency, int firstParagraph = 0)
         {
-            lines.Clear();
             var stats = new LineStats();
+            if (firstParagraph > 0)
+            {
+                // The lines of the paragraphs before stay, and so does what they add up to.
+                int keep = lines.Count;
+                while (keep > 0 && lines[keep - 1].Paragraph >= firstParagraph) keep--;
+                lines.RemoveRange(keep, lines.Count - keep);
+                for (int l = 0; l < keep; l++)
+                {
+                    LetteraLine kept = lines[l];
+                    if (kept.Width + kept.Margin > stats.MaxWidth) stats.MaxWidth = kept.Width + kept.Margin;
+                    stats.Height += kept.Height + kept.GapBefore;
+                }
+            }
+            else
+            {
+                lines.Clear();
+            }
             m_PendingGap = 0;
-            int previousParagraph = -1;
-            for (int p = 0; p < m_Paragraphs.Count; p++)
+            int previousParagraph = firstParagraph - 1;
+            for (int p = firstParagraph; p < m_Paragraphs.Count; p++)
             {
                 Paragraph paragraph = m_Paragraphs[p];
                 if (m_Removals.Count > 0 && IsWhollyRemoved(paragraph)) continue;

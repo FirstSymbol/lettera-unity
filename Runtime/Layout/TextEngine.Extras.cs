@@ -11,7 +11,7 @@ namespace FirstSymbol.Lettera
         bool[] m_CpKashida = Array.Empty<bool>();
         bool[] m_CpDivider = Array.Empty<bool>();
 
-        void EnsureExtras(int length)
+        void EnsureExtras(int length, int from = 0)
         {
             EnsureSize(ref m_CpExtraEm, length + 1);
             EnsureSize(ref m_CpExtraUnits, length + 1);
@@ -19,12 +19,13 @@ namespace FirstSymbol.Lettera
             EnsureSize(ref m_CpLeadUnits, length + 1);
             EnsureSize(ref m_CpKashida, length + 1);
             EnsureSize(ref m_CpDivider, length + 1);
-            Array.Clear(m_CpDivider, 0, length + 1);
-            Array.Clear(m_CpExtraEm, 0, length + 1);
-            Array.Clear(m_CpExtraUnits, 0, length + 1);
-            Array.Clear(m_CpLeadEm, 0, length + 1);
-            Array.Clear(m_CpLeadUnits, 0, length + 1);
-            Array.Clear(m_CpKashida, 0, length + 1);
+            int count = length + 1 - from;
+            Array.Clear(m_CpDivider, from, count);
+            Array.Clear(m_CpExtraEm, from, count);
+            Array.Clear(m_CpExtraUnits, from, count);
+            Array.Clear(m_CpLeadEm, from, count);
+            Array.Clear(m_CpLeadUnits, from, count);
+            Array.Clear(m_CpKashida, from, count);
         }
 
         /// <summary>A codepoint's share of the line: its shaped advance, and what effects and a fit add.</summary>
