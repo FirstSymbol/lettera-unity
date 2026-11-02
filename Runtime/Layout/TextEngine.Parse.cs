@@ -92,7 +92,7 @@ namespace FirstSymbol.Lettera
             // An edit of a plain text needs only its new characters looked at: the rest was plain before.
             bool edited = m_Resolver == null && FindEdit(source);
             ReadOnlySpan<char> looked = edited ? source.Slice(m_EditPrefix, source.Length - m_EditSuffix - m_EditPrefix) : source;
-            bool markup = looked.IndexOf('<') >= 0 || looked.IndexOf('\\') >= 0;
+            bool markup = looked.IndexOfAny('<', '\\') >= 0;
             LetteraMatchContext context;
             bool plain = !markup && m_ProtectLength == 0 && RevealSource < 0 && OnlyTheDefaultVocabulary();
             if (plain)
@@ -272,6 +272,11 @@ namespace FirstSymbol.Lettera
 
             EnsureSize(ref m_Text, source.Length + 4);
             EnsureSize(ref m_SourceIndex, source.Length + 4);
+            if (claims.Count == 0)
+            {
+                CopyPlain(source);
+                return;
+            }
             int count = 0;
             int at = 0;
             int nextClaim = 0;
@@ -328,6 +333,42 @@ namespace FirstSymbol.Lettera
             }
             m_TextLength = count;
             m_SourceIndex[count] = source.Length;
+        }
+
+        // Text with nothing claimed is its codepoints, each at its own place: one tight pass, pairs joined and lone halves replaced as above.
+        unsafe void CopyPlain(ReadOnlySpan<char> source)
+        {
+            int length = source.Length, count = 0;
+            fixed (char* s = source)
+            fixed (int* text = m_Text, index = m_SourceIndex)
+            {
+                int at = 0;
+                while (at < length)
+                {
+                    int cp = s[at];
+                    if ((cp & 0xF800) != 0xD800)
+                    {
+                        text[count] = cp;
+                        index[count++] = at++;
+                        continue;
+                    }
+                    int width = 1;
+                    if (cp <= 0xDBFF && at + 1 < length && s[at + 1] >= 0xDC00 && s[at + 1] <= 0xDFFF)
+                    {
+                        cp = char.ConvertToUtf32((char)cp, s[at + 1]);
+                        width = 2;
+                    }
+                    else
+                    {
+                        cp = 0xFFFD;
+                    }
+                    text[count] = cp;
+                    index[count++] = at;
+                    at += width;
+                }
+            }
+            m_TextLength = count;
+            m_SourceIndex[count] = length;
         }
 
         // At one position, what ends comes before what starts, so adjacent ranges do not overlap. Longer claims come last,
