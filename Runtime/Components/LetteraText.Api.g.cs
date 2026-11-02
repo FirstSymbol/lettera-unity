@@ -16,7 +16,7 @@ namespace FirstSymbol.Lettera
         string ITextComponent.SourceText { get => Text; set => Text = value; }
 
         // In play a field's edit waits in the engine as characters, and the string is made when something reads Text: a keystroke makes none.
-        void ITextComponent.WriteSource(StringBuilder source)
+        void ITextComponent.WriteSource(ReadOnlySpan<char> source)
         {
             if (Application.isPlaying || TextEngine.PendingSourceInEditMode)
             {
@@ -25,7 +25,7 @@ namespace FirstSymbol.Lettera
             }
             else
             {
-                string value = source.ToString();
+                string value = new string(source);
                 Engine.ClearRuntimeText();
                 if (m_Data.Text == value) return;
                 m_Data.Text = value;

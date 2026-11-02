@@ -113,6 +113,19 @@ namespace FirstSymbol.Lettera
         }
 
         /// <summary>Adds one splice to the step in progress: at a source position, these characters went away and those came.</summary>
+        public void AddSplice(int position, ReadOnlySpan<char> source, int removedLength, string inserted)
+        {
+            var splice = new Splice { Position = position, RemovedStart = m_Chars.Count, RemovedLength = removedLength, InsertedLength = inserted.Length };
+            for (int i = 0; i < removedLength; i++) m_Chars.Add(source[position + i]);
+            splice.InsertedStart = m_Chars.Count;
+            for (int i = 0; i < inserted.Length; i++) m_Chars.Add(inserted[i]);
+            m_Splices.Add(splice);
+            Step last = m_Steps[m_Steps.Count - 1];
+            last.SpliceCount++;
+            m_Steps[m_Steps.Count - 1] = last;
+        }
+
+        /// <summary>Adds one splice to the step in progress: at a source position, these characters went away and those came.</summary>
         public void AddSplice(int position, StringBuilder source, int removedLength, string inserted)
         {
             var splice = new Splice { Position = position, RemovedStart = m_Chars.Count, RemovedLength = removedLength, InsertedLength = inserted.Length };

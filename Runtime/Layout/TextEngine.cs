@@ -13,7 +13,7 @@ namespace FirstSymbol.Lettera
         string SourceText { get; set; }
 
         /// <summary>Writes a field's edited source.</summary>
-        void WriteSource(System.Text.StringBuilder source);
+        void WriteSource(ReadOnlySpan<char> source);
 
         void Dirty(DirtyLevel level);
         event Action SourceWritten;
@@ -182,11 +182,11 @@ namespace FirstSymbol.Lettera
         internal static bool PendingSourceInEditMode;
 
         /// <summary>False when the characters are the source already.</summary>
-        internal bool SetPendingSource(System.Text.StringBuilder source)
+        internal bool SetPendingSource(ReadOnlySpan<char> source)
         {
             int length = source.Length;
             if (m_PendingNext.Length < length) m_PendingNext = new char[Math.Max(length + 64, m_PendingNext.Length * 2)];
-            source.CopyTo(0, new Span<char>(m_PendingNext, 0, length), length);
+            source.CopyTo(new Span<char>(m_PendingNext, 0, length));
             if (new ReadOnlySpan<char>(m_PendingNext, 0, length).SequenceEqual(RawChars)) return false;
             char[] swap = m_PendingChars;
             m_PendingChars = m_PendingNext;
