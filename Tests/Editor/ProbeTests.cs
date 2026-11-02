@@ -310,13 +310,20 @@ return $"parse {t[0] * f / n:0.000} shape {t[1] * f / n:0.000} layout {t[2] * f 
                 yield return null;
                 idle.Add(s_Gc.LastValue);
             }
+            var inserts = new System.Collections.Generic.List<long>();
+            var keys = new string[26];
+            for (int i = 0; i < 26; i++) keys[i] = ((char)('a' + i)).ToString();
             for (int k = 0; k < 60; k++)
             {
-                field.InsertText(((char)('a' + k % 26)).ToString(), "user.type");
+                field.InsertText(keys[k % 26], "user.type");
+                yield return null;
+                inserts.Add(s_Gc.LastValue);
                 Canvas.ForceUpdateCanvases();
                 yield return null;
                 typed.Add(s_Gc.LastValue);
             }
+            inserts.Sort();
+            report.Append($"insert alone median {inserts[inserts.Count / 2]}; ");
             idle.Sort();
             typed.Sort();
             report.Append($"recorder valid {s_Gc.Valid}; idle median {idle[idle.Count / 2]} min {idle[0]}; typed median {typed[typed.Count / 2]} min {typed[0]} max {typed[typed.Count - 1]}");
