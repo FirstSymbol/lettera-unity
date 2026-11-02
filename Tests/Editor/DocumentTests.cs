@@ -411,5 +411,53 @@ namespace FirstSymbol.Lettera.Editor.Tests
             text.GetRangeRects(0, 4, rects);
             Assert.AreNotEqual(0, router.HitTest(rects[0].center, null), "the hit area stayed where the text was");
         }
+
+        [Test]
+        public void AScrollPastTheWholeWindowBuildsALeanOneThatGrowsBackWhenScrollingStops()
+        {
+            LetteraWorldText text = Doc(Lines(20000), 200);
+            int full = text.View.WindowLength;
+            double step = text.View.ViewportHeight * 4;
+            int lean = 0;
+            for (int i = 1; i <= 6; i++)
+            {
+                text.View.ScrollTo(i * step);
+                text.ForceRebuild();
+                Assert.IsTrue(text.View.IsLean, "a scroll past the window leaves no margin worth building");
+                lean = text.View.WindowLength;
+                Assert.Less(lean, full, "a lean window holds less than one with margins");
+                // What shows is placed, from the viewport's top to its bottom, and nothing far past it.
+                float low = float.MaxValue, high = float.MinValue;
+                for (int v = 0; v < text.Engine.VertexCount; v++)
+                {
+                    low = Mathf.Min(low, text.Engine.Vertices[v].y);
+                    high = Mathf.Max(high, text.Engine.Vertices[v].y);
+                }
+                Assert.Greater(high, 100 - 40, "the viewport's top line is drawn");
+                Assert.Less(low, -100 + 40, "the viewport's bottom line is drawn");
+                Assert.Less(high, 100 + 80);
+                Assert.Greater(low, -100 - 80);
+            }
+            int anchor = text.View.Anchor.DocChar;
+            var client = (IMotionClient)text.View;
+            client.TickMotion(0.016f, 0.016f);
+            client.TickMotion(0.016f, 0.016f);
+            text.ForceRebuild();
+            Assert.IsFalse(text.View.IsLean, "two frames with no scroll give the window its margins again");
+            Assert.Greater(text.View.WindowLength, lean);
+            Assert.AreEqual(anchor, text.View.Anchor.DocChar, "the same line stays at the top");
+
+            // A slow scroll from a lean window builds one with margins, and scrolls inside it after that.
+            text.View.ScrollTo(text.View.DocumentY + step);
+            text.ForceRebuild();
+            Assert.IsTrue(text.View.IsLean);
+            text.View.ScrollBy(new Vector2(0, 5));
+            text.ForceRebuild();
+            Assert.IsFalse(text.View.IsLean, "a scroll that stays near the window gets margins");
+            int rebuilds = text.RebuildCount;
+            text.View.ScrollBy(new Vector2(0, 5));
+            text.ForceRebuild();
+            Assert.AreEqual(rebuilds, text.RebuildCount, "and moves inside them as a pose");
+        }
     }
 }

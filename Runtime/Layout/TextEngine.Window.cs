@@ -21,8 +21,9 @@ namespace FirstSymbol.Lettera
         public float WindowOffset => m_WindowOffset;
         internal bool IsWindowLoaded => m_WindowLoaded;
 
-        // A scroll needs no hub, but its quads need owners and rest positions.
-        bool NeedsRestState => IsWindowed || m_PlainScroll;
+        // A scroll needs no hub, but its quads need owners and rest positions. A lean window is built again by any scroll, so it bakes its offset in.
+        bool NeedsRestState => (IsWindowed && !m_WindowLean) || m_PlainScroll;
+        bool m_WindowLean, m_WindowBaked;
 
         public float WindowViewportHeight => Mathf.Max(ComputeBox(m_Host.Data.Padding, m_Host.LayoutRect).height, 0);
         public float WindowViewportWidth => Mathf.Max(ComputeBox(m_Host.Data.Padding, m_Host.LayoutRect).width, 0);
@@ -69,9 +70,10 @@ namespace FirstSymbol.Lettera
         }
 
         // Source is what is open before the window, then the window's own text: open tags give claims with no shown text, so no matcher needs to know.
-        internal void SetWindow(int start, int length, string prelude, float offset, float bandMargin = -1)
+        internal void SetWindow(int start, int length, string prelude, float offset, float bandMargin = -1, bool lean = false)
         {
             if (bandMargin >= 0) m_WindowBandMargin = bandMargin;
+            m_WindowLean = lean;
             LetteraRope rope = m_View.Rope;
             // The window's characters go straight into the runtime text's buffer: a scroll that moves the window makes no garbage.
             int total = prelude.Length + length;
@@ -93,6 +95,7 @@ namespace FirstSymbol.Lettera
         internal void SetWindowOffset(float offset)
         {
             if (offset == m_WindowOffset) return;
+            float was = m_WindowOffset;
             m_WindowOffset = offset;
             // Past the placed lines, the lines that come into view are placed: inside a rebuild at its end, otherwise by the next one.
             if (m_Banded && m_Dirty < DirtyLevel.Positions && !WindowBandCovers())
@@ -106,7 +109,33 @@ namespace FirstSymbol.Lettera
                 m_Host.RequestRebuild(DirtyLevel.Positions);
                 return;
             }
+            if (m_WindowBaked && !m_WantsPose)
+            {
+                ShiftBaked(offset - was);
+                return;
+            }
             PoseForScroll();
+        }
+
+        void BakeWindowOffset()
+        {
+            m_WindowBaked = IsWindowed;
+            if (!m_WindowBaked || m_WindowOffset == 0) return;
+            ShiftVertices(m_WindowOffset);
+        }
+
+        void ShiftBaked(float delta)
+        {
+            if (m_Dirty >= DirtyLevel.Mesh || VertexCount == 0) return;
+            ShiftVertices(delta);
+            PoseStreams |= StreamPositions;
+            m_Host.PoseChanged();
+        }
+
+        void ShiftVertices(float delta)
+        {
+            for (int i = 0; i < VertexCount; i++) Vertices[i].y += delta;
+            m_Bounds.center += new Vector3(0, delta);
         }
 
         bool m_WindowBandStale;
