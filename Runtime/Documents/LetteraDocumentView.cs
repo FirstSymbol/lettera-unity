@@ -280,6 +280,7 @@ namespace FirstSymbol.Lettera
             double margin = (m_Lean ? LeanMargin : m_Settings.MarginViewports) * viewport;
             int first = m_Rope.BlockAtHeight(m_Y - margin, out _);
             int last = m_Rope.BlockAtHeight(m_Y + viewport + margin, out _);
+            int topBlock = first;
             int scanned = 0;
             while (first > 0 && !m_Rope.BlockEndsParagraph(first - 1) && scanned < 32768)
             {
@@ -324,8 +325,14 @@ namespace FirstSymbol.Lettera
             {
                 // Blocks run to thousands of characters, more than a viewport: a lean window takes the paragraphs the heights point at.
                 // It starts inside a block only where that block opens no tag, since what is open is known at block starts.
-                if (!m_Rope.BlockHasMarkup(first)) startChar = ParagraphStartNear(first, m_Y - margin, startChar);
+                bool tags = false;
+                for (int b = first; b <= topBlock; b++) tags |= m_Rope.BlockHasMarkup(b);
+                if (!tags) startChar = ParagraphStartNear(topBlock, m_Y - margin, startChar);
                 endChar = ParagraphEndNear(last, m_Y + viewport + margin, endChar);
+                // Where the window stands is read from the blocks it starts and ends in.
+                int lastChar = Math.Max(m_Rope.Length - 1, 0);
+                m_FirstBlock = m_Rope.BlockAtChar(Math.Min(startChar, lastChar));
+                m_LastBlock = m_Rope.BlockAtChar(Math.Min(Math.Max(endChar - 1, startChar), lastChar));
             }
 
             int startBlock = m_Rope.BlockAtChar(Math.Min(startChar, Math.Max(m_Rope.Length - 1, 0)));
