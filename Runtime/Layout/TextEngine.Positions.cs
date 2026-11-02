@@ -37,6 +37,9 @@ namespace FirstSymbol.Lettera
         }
         public int GlyphCount => m_RealCount;
 
+        /// <summary>How many places the buffer holds. Tests read this.</summary>
+        internal int PlacedCapacity => m_Placed.Length;
+
         /// <summary>How far a glyph is turned, in radians, on curved text.</summary>
         internal float AngleOf(int index) => m_Placed[index].Angle;
 

@@ -507,8 +507,7 @@ public class LetteraCompare : MonoBehaviour
         Clear();
         yield return null;
 
-        // R8, R9: the labels of the rows before leave their garbage, which a long text's row would pay for wherever a collection starts.
-        yield return Settle();
+        // R8, R9
         var page = new StringBuilder();
         foreach (int size in light ? new[] { 10, 100 } : new[] { 10, 100, 1000 })
         {
