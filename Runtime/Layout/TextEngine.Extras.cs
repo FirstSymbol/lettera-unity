@@ -35,6 +35,7 @@ namespace FirstSymbol.Lettera
             if (array.Length < length + 1)
             {
                 array = new T[Math.Max(Math.Max(length + 1, SmallestBuffer), array.Length * 2)];
+                LogAlloc(typeof(T).Name, array.Length); // probe
                 return;
             }
             Array.Clear(array, from, length + 1 - from);

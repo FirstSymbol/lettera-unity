@@ -99,7 +99,7 @@ namespace FirstSymbol.Lettera
             s_MeshMarker = new Unity.Profiling.ProfilerMarker("Lettera.Mesh");
 
         // Where a rebuild's time goes, for a test that splits it: Parse, Shape, Layout, Positions, Mesh.
-        internal static readonly long[] PassTicks = new long[16];
+        internal static readonly long[] PassTicks = new long[24];
         internal static bool TimePasses;
         internal static long PassStart() => TimePasses ? System.Diagnostics.Stopwatch.GetTimestamp() : 0;
 
@@ -347,6 +347,16 @@ namespace FirstSymbol.Lettera
         {
             if (array == null) array = new T[Math.Max(size, SmallestBuffer)];
             else if (array.Length < size) Array.Resize(ref array, Math.Max(Math.Max(size, SmallestBuffer), array.Length * 2));
+            else return;
+            LogAlloc(typeof(T).Name, array.Length); // probe
+        }
+
+        internal static System.Text.StringBuilder AllocLog; // probe
+
+        internal static void LogAlloc(string name, int length) // probe
+        {
+            if (AllocLog != null && length >= 50000) AllocLog.Append(name).Append('[').Append(length).Append("] ").Append(new System.Diagnostics.StackTrace(2, false).GetFrame(0)?.GetMethod()?.Name).Append('
+');
         }
     }
 }
