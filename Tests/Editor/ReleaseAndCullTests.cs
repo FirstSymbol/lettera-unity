@@ -210,14 +210,14 @@ namespace FirstSymbol.Lettera.Editor.Tests
             Assert.IsFalse(edge.canvasRenderer.cull, "ink across the edge draws");
 
             // New text with ink inside the mask must come back without anything moving.
-            below.FontSize = 40;
+            below.Text = "a line above\nwn fox jumps ove";
             Canvas.ForceUpdateCanvases();
             Canvas.ForceUpdateCanvases();
-            Assert.IsFalse(below.canvasRenderer.cull, "its ink reaches in now: " + below.Engine.InkKnown + " " + below.Engine.InkRect + " " + below.Engine.MeshBounds + " " + below.rectTransform.rect + " lines " + below.Lines.Count);
+            Assert.IsFalse(below.canvasRenderer.cull, "its ink reaches in now");
             Assert.Greater(Drawn(below), 0);
 
             // With the mask gone, nothing stays culled.
-            below.FontSize = 18;
+            below.Text = "wn fox jumps ove";
             Canvas.ForceUpdateCanvases();
             Canvas.ForceUpdateCanvases();
             Assert.IsTrue(below.canvasRenderer.cull);
