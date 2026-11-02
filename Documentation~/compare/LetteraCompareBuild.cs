@@ -31,6 +31,7 @@ public static class LetteraCompareBuild
                 ("Glow", new[] { "GLOW_ON" }),
                 ("Inner", new[] { "UNDERLAY_INNER" }),
                 ("All", new[] { "OUTLINE_ON", "UNDERLAY_ON", "GLOW_ON" }),
+                ("StrokeShadow", new[] { "OUTLINE_ON", "UNDERLAY_ON" }),
             })
             {
                 string asset = "Assets/Compare/Resources/Tmp_" + name + ".mat";
