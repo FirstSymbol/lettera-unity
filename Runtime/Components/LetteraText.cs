@@ -56,7 +56,7 @@ namespace FirstSymbol.Lettera
         /// <summary>How this text takes a press.</summary>
         public LetteraRoute Route { get => m_Route; set => m_Route = value; }
 
-        TextEngine Engine => m_Engine ?? (m_Engine = new TextEngine(this));
+        internal TextEngine Engine => m_Engine ?? (m_Engine = new TextEngine(this));
 
         public override Material defaultMaterial => LetteraMaterials.Variant(LetteraMaterials.Ui, Engine.Styled, LetteraBlend.Normal, null);
 

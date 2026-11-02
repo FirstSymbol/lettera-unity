@@ -134,6 +134,60 @@ namespace FirstSymbol.Lettera.Editor.Tests
             Assert.AreEqual(LetteraFontSource.RuntimeBytes, font.LoadedFace.Source);
         }
 
+        // P23: glyph-major text with a stroke and a shadow draws one quad a glyph, and the picture is the three quads' within blend rounding.
+        [Test]
+        public void MergedLayersDrawOneQuadAGlyphAndTheSamePicture()
+        {
+            GlyphAtlas.Clear();
+            var canvasObject = new GameObject("Canvas", typeof(Canvas));
+            m_Roots.Add(canvasObject);
+            var canvas = canvasObject.GetComponent<Canvas>();
+            canvas.renderMode = RenderMode.WorldSpace;
+            ((RectTransform)canvas.transform).sizeDelta = new Vector2(300, 120);
+            LetteraText text = Label(canvas.transform, "<stroke=#3399FF,0.08><shadow=#000000,0.06,-0.06>Kerning AV</shadow></stroke>", new Vector2(280, 100));
+            text.FontSize = 48;
+            text.Styles.Add(LetteraStyle.ForWholeText(new PaintOrderEffect { Order = LetteraPaintOrder.GlyphMajor }));
+            text.MarkStylesDirty();
+            text.ForceRebuild();
+            Canvas.ForceUpdateCanvases();
+            Assert.IsTrue(text.Engine.LayersMerged);
+            Assert.AreEqual(text.GlyphCount * 4, Drawn(text), "one quad a glyph");
+            Texture2D merged = Render(300, 120, new Color(0.2f, 0.22f, 0.26f, 1));
+
+            TextEngine.NoMergedLayersForTests = true;
+            try
+            {
+                text.MarkStylesDirty();
+                text.ForceRebuild();
+                Canvas.ForceUpdateCanvases();
+                Assert.IsFalse(text.Engine.LayersMerged);
+                Assert.AreEqual(text.GlyphCount * 12, Drawn(text), "three quads a glyph");
+                Texture2D separate = Render(300, 120, new Color(0.2f, 0.22f, 0.26f, 1));
+                int differing = 0, inked = 0;
+                float worst = 0;
+                for (int y = 0; y < 120; y++)
+                    for (int x = 0; x < 300; x++)
+                    {
+                        Color a = merged.GetPixel(x, y), b = separate.GetPixel(x, y);
+                        float d = Mathf.Max(Mathf.Abs(a.r - b.r), Mathf.Max(Mathf.Abs(a.g - b.g), Mathf.Abs(a.b - b.b)));
+                        worst = Mathf.Max(worst, d);
+                        if (d > 3 / 255f) differing++;
+                        if (Mathf.Abs(b.b - 0.26f) > 0.05f) inked++;
+                    }
+                Assert.Greater(inked, 2000, "the text drew");
+                Assert.LessOrEqual(differing, inked / 200, "worst " + worst * 255);
+            }
+            finally
+            {
+                TextEngine.NoMergedLayersForTests = false;
+            }
+
+            // A layer order the shader does not compose, or a paint it does not hold, keeps the quads apart.
+            text.Text = "<glow=#FFFF00,0.2><stroke=#3399FF,0.08>Glow</stroke></glow>";
+            text.ForceRebuild();
+            Assert.IsFalse(text.Engine.LayersMerged);
+        }
+
         // The row I3 of the targets: a label that reaches into a mask with only its empty margin draws nothing there.
         [Test]
         public void AMaskCullsALabelWhoseInkLiesOutsideIt()
