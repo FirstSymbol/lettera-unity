@@ -278,9 +278,9 @@ namespace FirstSymbol.Lettera.Editor.Tests
         [Test]
         public void AScrollPastTheWholeWindowBuildsALeanOneThatGrowsBackWhenScrollingStops()
         {
-            LetteraWorldText text = Doc(Lines(20000), 200);
+            LetteraWorldText text = Doc(Lines(20000), 600);
             int full = text.View.WindowLength;
-            double step = text.View.ViewportHeight * 4;
+            double step = text.View.ViewportHeight * 20;
             int lean = 0;
             for (int i = 1; i <= 6; i++)
             {
@@ -296,10 +296,10 @@ namespace FirstSymbol.Lettera.Editor.Tests
                     low = Mathf.Min(low, text.Engine.Vertices[v].y);
                     high = Mathf.Max(high, text.Engine.Vertices[v].y);
                 }
-                Assert.Greater(high, 100 - 40, "the viewport's top line is drawn");
-                Assert.Less(low, -100 + 40, "the viewport's bottom line is drawn");
-                Assert.Less(high, 100 + 80);
-                Assert.Greater(low, -100 - 80);
+                Assert.Greater(high, 300 - 40, "the viewport's top line is drawn");
+                Assert.Less(low, -300 + 40, "the viewport's bottom line is drawn");
+                Assert.Less(high, 300 + 80);
+                Assert.Greater(low, -300 - 80);
             }
             int anchor = text.View.Anchor.DocChar;
             var client = (IMotionClient)text.View;
