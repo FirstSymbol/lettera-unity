@@ -176,6 +176,13 @@ namespace FirstSymbol.Lettera
             EnsureSize(ref m_PlacedReach, quads);
             if (Vertices.Length < quads * 4) GrowVertices(quads * 4);
             if (Indices.Length < quads * 6) Array.Resize(ref Indices, quads * 6);
+            // A window with margins keeps a rest state for its scroll inside it, so that state takes the same room: the window a scroll stops on
+            // is often larger than the first, which starts at the top with no margin above it.
+            EnsureExact(ref m_RestVertices, quads * 4);
+            EnsureExact(ref m_RestColors, quads * 4);
+            EnsureExact(ref m_GlyphPoses, quads);
+            EnsureOwnerSize(quads);
+            EnsureExact(ref m_CpBody, n + 1);
         }
 
         void PlaceWindowAgainIfStale()

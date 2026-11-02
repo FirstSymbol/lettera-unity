@@ -107,7 +107,15 @@ namespace FirstSymbol.Lettera
             // An edit of a plain text needs only its new characters looked at: the rest was plain before.
             bool edited = m_Resolver == null && FindEdit(source);
             ReadOnlySpan<char> looked = edited ? source.Slice(m_EditPrefix, source.Length - m_EditSuffix - m_EditPrefix) : source;
-            bool markup = looked.IndexOfAny('<', '\\') >= 0;
+            // A long source is looked through for markup as it is copied, in one pass over it rather than two. Where markup turns up, it is parsed as ever.
+            bool copied = false, markup;
+            if (!edited && m_Resolver == null && source.Length >= CopyWhileLookingFrom && m_ProtectLength == 0 && RevealSource < 0)
+            {
+                EnsureSize(ref m_Text, source.Length + 4);
+                copied = CopyPlain(source, true);
+                markup = !copied;
+            }
+            else markup = looked.IndexOfAny('<', '\\') >= 0;
             LetteraMatchContext context;
             bool plain = !markup && m_ProtectLength == 0 && RevealSource < 0 && OnlyTheDefaultVocabulary();
             if (plain)
@@ -150,7 +158,7 @@ namespace FirstSymbol.Lettera
             if (!spliced)
             {
                 m_EditParse = -1;
-                BuildRenderedText(source, context);
+                if (!(copied && plain)) BuildRenderedText(source, context);
             }
             RememberSource(source, plain, spliced, kept);
             ResolveRangeEnds(context);
@@ -355,7 +363,10 @@ namespace FirstSymbol.Lettera
 
         // Text with nothing claimed is its codepoints, each at its own place: one tight pass, pairs joined and lone halves replaced as above.
         // Until the first surrogate nothing but the codepoints is written; from there each notes where it came from.
-        unsafe void CopyPlain(ReadOnlySpan<char> source)
+        const int CopyWhileLookingFrom = 1024;
+
+        // With look set, it stops at the first character that can start markup and says so: then nothing it wrote counts.
+        unsafe bool CopyPlain(ReadOnlySpan<char> source, bool look = false)
         {
             int length = source.Length, count = 0, at = 0;
             fixed (char* s = source)
@@ -365,6 +376,7 @@ namespace FirstSymbol.Lettera
                 {
                     int cp = s[at];
                     if ((cp & 0xF800) == 0xD800) break;
+                    if (cp < 0x5D && look && (cp == '<' || cp == '\\')) return false;
                     text[at++] = cp;
                 }
             }
@@ -372,7 +384,7 @@ namespace FirstSymbol.Lettera
             {
                 m_TextLength = length;
                 m_IdentityIndex = true;
-                return;
+                return true;
             }
             m_IdentityIndex = false;
             count = at;
@@ -386,6 +398,7 @@ namespace FirstSymbol.Lettera
                     int cp = s[at];
                     if ((cp & 0xF800) != 0xD800)
                     {
+                        if (cp < 0x5D && look && (cp == '<' || cp == '\\')) return false;
                         text[count] = cp;
                         index[count++] = at++;
                         continue;
@@ -407,6 +420,7 @@ namespace FirstSymbol.Lettera
             }
             m_TextLength = count;
             m_SourceIndex[count] = length;
+            return true;
         }
 
         // At one position, what ends comes before what starts, so adjacent ranges do not overlap. Longer claims come last,
@@ -423,7 +437,8 @@ namespace FirstSymbol.Lettera
         {
             List<LetteraMatchContext.RangeRecord> ranges = context.Ranges;
             LetteraAttributes attributes;
-            if (ranges.Count == 0 && m_Host.Data.Overflow == LetteraOverflow.Visible && m_TextLength <= LetteraAttributes.PlainLength)
+            // A document's window holds its own uniform set: a short window, such as the last of a document, would grow the shared one.
+            if (ranges.Count == 0 && m_Host.Data.Overflow == LetteraOverflow.Visible && m_TextLength <= LetteraAttributes.PlainLength && !IsWindowed)
             {
                 attributes = m_Attributes = LetteraAttributes.Plain;
                 attributes.PreparePlain(m_TextLength);

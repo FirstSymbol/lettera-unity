@@ -160,6 +160,19 @@ namespace FirstSymbol.Lettera
             Grow(ref m_ShapeText, room);
         }
 
+        // Finishing writes to the end of the text, so its first step takes that room at once: growing by halves through every size on the way
+        // leaves about as much garbage again as the text needs, and that is collected in some later frame. Past a megabyte or so, taking it all
+        // in one frame would cost that frame more than its slice, and may start a collection there: the buffers grow as before.
+        const int ReserveAtOnceCodepoints = 1 << 15;
+
+        void ReserveForFinishing()
+        {
+            if (m_TextLength > ReserveAtOnceCodepoints) return;
+            EnsureShapeBuffers(m_TextLength + 1);
+            int glyphs = m_TextLength + (m_TextLength >> 3);
+            if (m_Shaped.Length < glyphs) Array.Resize(ref m_Shaped, glyphs);
+        }
+
         static void Grow<T>(ref T[] array, int size)
         {
             if (array.Length < size) Array.Resize(ref array, size);
@@ -422,6 +435,7 @@ namespace FirstSymbol.Lettera
         internal bool FinishStep(long deadline)
         {
             if (m_PendingCount == 0 || m_Dirty >= DirtyLevel.Layout || m_InPasses) return false;
+            ReserveForFinishing();
             // With workers, a step is one slice for each of them and the main thread.
             int step = LetteraWorkers.ShouldRun(LetteraWorkers.ParallelFromCodepoints) ? Math.Max(StepCodepoints * (LetteraWorkers.WorkerCount + 1), LetteraWorkers.ParallelFromCodepoints) : StepCodepoints;
             do

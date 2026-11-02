@@ -77,6 +77,10 @@ namespace FirstSymbol.Lettera
             m_LaidSize = size;
             m_LaidWidth = width;
             m_LaidWrap = wrap;
+            // A long text has a line at least for each paragraph, and one each while its paragraphs wait: taking that room at once leaves
+            // no list of every size on the way behind.
+            int paragraphs = m_Paragraphs.Count;
+            if (paragraphs > 64 && m_Lines.Capacity < paragraphs) m_Lines.Capacity = paragraphs + (paragraphs >> 3);
             LineStats stats = BreakLines(m_Lines, size, width, wrap, true, LayoutResume(size, width, wrap, data));
             m_ContentWidth = stats.MaxWidth;
             m_ContentHeight = stats.Height;

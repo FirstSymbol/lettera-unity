@@ -37,6 +37,9 @@ namespace FirstSymbol.Lettera
         }
         public int GlyphCount => m_RealCount;
 
+        /// <summary>How many places the buffer holds. Tests read this.</summary>
+        internal int PlacedCapacity => m_Placed.Length;
+
         /// <summary>How far a glyph is turned, in radians, on curved text.</summary>
         internal float AngleOf(int index) => m_Placed[index].Angle;
 
@@ -87,8 +90,9 @@ namespace FirstSymbol.Lettera
                 if (m_Banded) ShapeBand(y);
                 else ProcessParagraphs(0, m_Paragraphs.Count);
             }
-            // Nearly always one placed glyph per shaped one, so a long text does not grow through every size on the way.
-            EnsureSize(ref m_Placed, m_ShapedCount);
+            // Nearly always one placed glyph per shaped one, so a long text does not grow through every size on the way. A banded text places
+            // only its band, and a text still finishing would take a new array of all it has shaped at every slice.
+            if (!m_Banded) EnsureSize(ref m_Placed, m_ShapedCount);
             for (int l = 0; l < m_Lines.Count; l++)
             {
                 LetteraLine line = m_Lines[l];

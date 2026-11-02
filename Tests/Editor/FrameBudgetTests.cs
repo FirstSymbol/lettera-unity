@@ -12,6 +12,7 @@ namespace FirstSymbol.Lettera.Editor.Tests
     public class FrameBudgetTests : TextFixture
     {
         static readonly ProfilerRecorder s_Gc = ProfilerRecorder.StartNew(ProfilerCategory.Memory, "GC Allocated In Frame");
+        static byte[] s_Control;
 
         static string Body(int length)
         {
@@ -134,6 +135,51 @@ namespace FirstSymbol.Lettera.Editor.Tests
             Assert.AreEqual(40, lean, "every window of a fling is lean");
             // A lean window's text is some 10 KB as characters: a frame stays far below that, and the player counts none of it.
             Assert.Less(extra, 1024, "a frame that builds a new window allocates no buffer of it");
+        }
+
+        [UnityTest]
+        public IEnumerator ScrollingADocumentToItsEndGrowsNoBufferOnTheWay()
+        {
+            Assume.That(s_Gc.Valid, "the allocation counter");
+            Transform canvas = Canvas();
+            var view = new GameObject("View", typeof(RectTransform));
+            view.transform.SetParent(canvas, false);
+            ((RectTransform)view.transform).sizeDelta = new Vector2(800, 600);
+            LetteraText label = Label(view.transform, "", 14, new Vector2(800, 600));
+            label.OpenDocument(LetteraRope.FromString(Body(1000 * 1024)), takeOwnership: true);
+            var scroller = view.AddComponent<LetteraDocumentScroller>();
+            scroller.Text = label;
+            label.ForceRebuild();
+            scroller.ScrollToEnd();
+            double end = scroller.Position;
+            scroller.ScrollToStart();
+            for (int i = 0; i < 5; i++)
+            {
+                UnityEngine.Canvas.ForceUpdateCanvases();
+                yield return null;
+            }
+            // The comparison's scroll: the whole document in 240 frames. The last windows are short, and the last one takes its margins again.
+            long control = s_Gc.CurrentValue;
+            s_Control = new byte[40000];
+            control = s_Gc.CurrentValue - control;
+            Assume.That(control, Is.GreaterThanOrEqualTo(40000), "the counter counts inside a frame");
+            long largest = 0;
+            int at = 0;
+            for (int step = 1; step <= 240; step++)
+            {
+                long before = s_Gc.CurrentValue;
+                scroller.Position = step / 240.0 * end;
+                UnityEngine.Canvas.ForceUpdateCanvases();
+                long made = s_Gc.CurrentValue - before;
+                if (made > largest)
+                {
+                    largest = made;
+                    at = step;
+                }
+                yield return null;
+            }
+            Debug.Log($"LETTERA_BUDGET document_scroll_largest={largest} at={at}");
+            Assert.Less(largest, 32 * 1024, "no window on the way, nor the last, grows a buffer");
         }
     }
 }
