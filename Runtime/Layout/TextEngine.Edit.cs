@@ -94,19 +94,19 @@ namespace FirstSymbol.Lettera
         }
 
         /// <summary>Where the source text of a shown codepoint starts.</summary>
-        public int SourceStartOf(int shown) => m_SourceIndex[Math.Min(Math.Max(shown, 0), m_TextLength)];
+        public int SourceStartOf(int shown) => SourceAt(Math.Min(Math.Max(shown, 0), m_TextLength));
 
         /// <summary>Where the source text of a shown codepoint ends.</summary>
         public int SourceEndOf(int shown)
         {
             if (TryGetReplacement(shown, out LetteraMatchContext.Claim claim)) return claim.Start + claim.Length;
-            return m_SourceIndex[shown] + (m_Text[shown] > 0xFFFF ? 2 : 1);
+            return SourceAt(shown) + (m_Text[shown] > 0xFFFF ? 2 : 1);
         }
 
         bool TryGetReplacement(int shown, out LetteraMatchContext.Claim claim)
         {
             List<LetteraMatchContext.Claim> claims = m_MatchContext.Claims;
-            int source = m_SourceIndex[shown];
+            int source = SourceAt(shown);
             for (int i = 0; i < claims.Count; i++)
             {
                 if (claims[i].Start != source || claims[i].Replacement == null || claims[i].Replacement.Length == 0) continue;
@@ -122,7 +122,7 @@ namespace FirstSymbol.Lettera
         {
             start = end = index;
             if (index <= 0 || index >= m_TextLength) return false;
-            if (m_SourceIndex[index] != m_SourceIndex[index - 1]) return false;
+            if (SourceAt(index) != SourceAt(index - 1)) return false;
             if (!TryGetReplacement(index, out LetteraMatchContext.Claim claim)) return false;
             start = RenderedIndexFromSource(claim.Start);
             end = start + claim.Replacement.Length;

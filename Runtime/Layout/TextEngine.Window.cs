@@ -205,11 +205,12 @@ namespace FirstSymbol.Lettera
         }
 
         /// <summary>Where a shown codepoint is in the document.</summary>
-        public int DocCharOf(int shown) => m_WindowStart + m_SourceIndex[Math.Min(Math.Max(shown, 0), m_TextLength)] - m_PreludeLength;
+        public int DocCharOf(int shown) => m_WindowStart + SourceAt(Math.Min(Math.Max(shown, 0), m_TextLength)) - m_PreludeLength;
 
         int ShownOfDocChar(int docChar)
         {
             int source = docChar - m_WindowStart + m_PreludeLength;
+            if (m_IdentityIndex) return Math.Min(Math.Max(source, 0), m_TextLength);
             int low = 0, high = m_TextLength;
             while (low < high)
             {
@@ -425,7 +426,7 @@ namespace FirstSymbol.Lettera
             for (int r = 0; r < ranges.Count; r++)
             {
                 LetteraMatchContext.RangeRecord range = ranges[r];
-                int docChar = m_WindowStart + m_SourceIndex[Math.Min(Math.Max(range.RenderedStart, 0), m_TextLength)] - m_PreludeLength;
+                int docChar = m_WindowStart + SourceAt(Math.Min(Math.Max(range.RenderedStart, 0), m_TextLength)) - m_PreludeLength;
                 long key = DocumentRangeKey(docChar, range.StyleIndex);
                 if (!m_DocumentRangeIds.TryGetValue(key, out int id))
                 {
@@ -474,7 +475,7 @@ namespace FirstSymbol.Lettera
             var engine = new TextEngine(new MeasureHost { Data = copy, Owner = owner.m_Host.Owner });
             engine.EnsureParsed();
             shown = engine.m_Text;
-            sourceIndex = engine.m_SourceIndex;
+            sourceIndex = engine.SourceIndexArray();
             length = engine.m_TextLength;
         }
 

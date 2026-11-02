@@ -11,7 +11,10 @@ namespace FirstSymbol.Lettera
         const int SpliceFromChars = 512;
 
         char[] m_PrevSource = Array.Empty<char>();
+        string m_PrevString;            // The last source, when it was a string: a string never changes, so it is kept, not copied.
         int m_PrevSourceLength = -1;    // -1: the last parse was not one an edit can splice into.
+
+        ReadOnlySpan<char> PrevSource => m_PrevString != null ? m_PrevString.AsSpan(0, m_PrevSourceLength) : new ReadOnlySpan<char>(m_PrevSource, 0, m_PrevSourceLength);
 
         int m_EditParse = -1;           // The parse that found the edit below.
         int m_EditStart;                // The first shown codepoint that may differ.
@@ -48,15 +51,24 @@ namespace FirstSymbol.Lettera
 
         int m_EditPrefix, m_EditSuffix;     // In source chars, found by FindEdit.
 
-        void RememberSource(ReadOnlySpan<char> source, bool plain, bool spliced)
+        void RememberSource(ReadOnlySpan<char> source, bool plain, bool spliced, string kept)
         {
             if (spliced) return;
             if (!plain || source.Length < SpliceFromChars)
             {
                 m_PrevSourceLength = -1;
+                m_PrevString = null;
                 if (m_PrevSource.Length > 0 && source.Length < SpliceFromChars) m_PrevSource = Array.Empty<char>();
                 return;
             }
+            if (kept != null)
+            {
+                m_PrevString = kept;
+                m_PrevSource = Array.Empty<char>();
+                m_PrevSourceLength = kept.Length;
+                return;
+            }
+            m_PrevString = null;
             if (m_PrevSource.Length < source.Length) { m_PrevSource = new char[Math.Max(source.Length, m_PrevSource.Length * 3 / 2)]; LogAlloc("PrevSource", m_PrevSource.Length); } // probe
             source.CopyTo(m_PrevSource);
             m_PrevSourceLength = source.Length;
@@ -83,7 +95,7 @@ namespace FirstSymbol.Lettera
         {
             int oldLength = m_PrevSourceLength;
             if (oldLength < 0 || source.Length < SpliceFromChars) return false;
-            var old = new ReadOnlySpan<char>(m_PrevSource, 0, oldLength);
+            ReadOnlySpan<char> old = PrevSource;
             int limit = Math.Min(oldLength, source.Length);
             int prefix = CommonPrefix(old, source, limit);
             if (prefix == oldLength && prefix == source.Length) return false;
@@ -97,35 +109,47 @@ namespace FirstSymbol.Lettera
         }
 
         // Old and new source are both plain, so shown codepoints are the source's: the stretch that changed is cut out and the new one put in.
-        bool TrySplice(ReadOnlySpan<char> source)
+        bool TrySplice(ReadOnlySpan<char> source, string kept)
         {
             int oldLength = m_PrevSourceLength;
             int prefix = m_EditPrefix, suffix = m_EditSuffix;
             int oldEnd = oldLength - suffix, newEnd = source.Length - suffix;
 
             int cpStart = RenderedIndexFromSource(prefix), cpOldEnd = RenderedIndexFromSource(oldEnd);
-            if (cpStart > m_TextLength || cpOldEnd > m_TextLength || m_SourceIndex[cpStart] != prefix || (cpOldEnd < m_TextLength && m_SourceIndex[cpOldEnd] != oldEnd)) return false;
+            if (cpStart > m_TextLength || cpOldEnd > m_TextLength || SourceAt(cpStart) != prefix || (cpOldEnd < m_TextLength && SourceAt(cpOldEnd) != oldEnd)) return false;
 
             int inserted = 0;
+            bool pairs = false;
             for (int at = prefix; at < newEnd; at++)
             {
+                pairs |= char.IsSurrogate(source[at]);
                 if (char.IsHighSurrogate(source[at]) && at + 1 < source.Length && char.IsLowSurrogate(source[at + 1])) at++;
                 inserted++;
             }
             int tail = m_TextLength - cpOldEnd;
             int newCount = cpStart + inserted + tail;
-            EnsureSize(ref m_Text, Math.Max(source.Length, newCount) + 4);
-            EnsureSize(ref m_SourceIndex, Math.Max(source.Length, newCount) + 4);
             int tailTo = cpStart + inserted;
-            if (tail > 0 && tailTo != cpOldEnd)
+            EnsureSize(ref m_Text, Math.Max(source.Length, newCount) + 4);
+            // A text that was its source stays so while no surrogate comes in, and needs no index moved.
+            bool identity = m_IdentityIndex && !pairs;
+            if (identity)
             {
-                Array.Copy(m_Text, cpOldEnd, m_Text, tailTo, tail);
-                Array.Copy(m_SourceIndex, cpOldEnd, m_SourceIndex, tailTo, tail);
+                if (tail > 0 && tailTo != cpOldEnd) Array.Copy(m_Text, cpOldEnd, m_Text, tailTo, tail);
             }
-            int shift = newEnd - oldEnd;
-            if (shift != 0)
-                for (int i = tailTo; i < newCount; i++)
-                    m_SourceIndex[i] += shift;
+            else
+            {
+                if (m_IdentityIndex) SourceIndexArray();
+                EnsureSize(ref m_SourceIndex, Math.Max(source.Length, newCount) + 4);
+                if (tail > 0 && tailTo != cpOldEnd)
+                {
+                    Array.Copy(m_Text, cpOldEnd, m_Text, tailTo, tail);
+                    Array.Copy(m_SourceIndex, cpOldEnd, m_SourceIndex, tailTo, tail);
+                }
+                int shift = newEnd - oldEnd;
+                if (shift != 0)
+                    for (int i = tailTo; i < newCount; i++)
+                        m_SourceIndex[i] += shift;
+            }
 
             int count = cpStart;
             for (int at = prefix; at < newEnd;)
@@ -142,14 +166,30 @@ namespace FirstSymbol.Lettera
                     cp = 0xFFFD;
                 }
                 m_Text[count] = cp;
-                m_SourceIndex[count] = at;
+                if (!identity) m_SourceIndex[count] = at;
                 count++;
                 at += width;
             }
             m_TextLength = newCount;
-            m_SourceIndex[newCount] = source.Length;
+            if (!identity) m_SourceIndex[newCount] = source.Length;
             m_EditParse = ParseCount;
             m_EditStart = cpStart;
+
+            if (kept != null)
+            {
+                m_PrevString = kept;
+                m_PrevSourceLength = source.Length;
+                return true;
+            }
+            if (m_PrevString != null)
+            {
+                // The last source was a string and this one is not: it is copied once.
+                if (m_PrevSource.Length < source.Length) m_PrevSource = new char[Math.Max(source.Length, m_PrevSource.Length * 3 / 2)];
+                source.CopyTo(m_PrevSource);
+                m_PrevString = null;
+                m_PrevSourceLength = source.Length;
+                return true;
+            }
 
             // The kept source takes the same edit, so nothing but the change is copied.
             if (m_PrevSource.Length < source.Length)
