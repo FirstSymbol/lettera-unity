@@ -83,9 +83,7 @@ namespace FirstSymbol.Lettera
             }
             List<LayerGroup> groups = m_Attributes.SortedGroups();
             Styled = m_Attributes.NeedsStyledShader() || HasInlineSprites;
-            long tq = PassStart(); // probe
             PrepareGlyphs(groups);
-            PassEnd(5, tq); tq = PassStart(); // probe
             // One quad a glyph is the usual case, so a long text does not grow through every size on the way.
             if (m_PlacedCount * 4 > Vertices.Length) GrowVertices(System.Math.Max(System.Math.Max(m_PlacedCount * 4, Vertices.Length * 2), FirstVertices));
             if (m_PlacedCount * 6 > Indices.Length) System.Array.Resize(ref Indices, System.Math.Max(System.Math.Max(m_PlacedCount * 6, Indices.Length * 2), FirstVertices * 3 / 2));
@@ -125,7 +123,6 @@ namespace FirstSymbol.Lettera
             AddDecorationLayer(null, true);
             DrawHighlights(groups, true);
 
-            PassEnd(6, tq); tq = PassStart(); // probe
             DrawInlineSprites();
             DrawSpoilerCovers();
             RunMeshHooks();
@@ -134,7 +131,6 @@ namespace FirstSymbol.Lettera
             DuplicateForMarquee();
             ComputeBounds();
             ApplyBaseColor();
-            PassEnd(7, tq); tq = PassStart(); // probe
             if (m_RecordOwners)
             {
                 PrepareRestState();
@@ -147,7 +143,6 @@ namespace FirstSymbol.Lettera
                 BakeWindowOffset();
             }
             UpdateHubMembership();
-            PassEnd(8, tq); // probe
         }
 
         bool m_RecordOwners;
