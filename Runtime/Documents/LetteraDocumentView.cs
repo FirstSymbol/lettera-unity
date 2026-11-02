@@ -264,7 +264,8 @@ namespace FirstSymbol.Lettera
             double edge = m_Settings.EdgeViewports * viewport;
             bool nearTop = m_FirstBlock > 0 && m_Y - edge < windowTop;
             bool nearBottom = m_LastBlock + 1 < m_Rope.BlockCount && m_Y + viewport + edge > windowBottom;
-            if (!force && !nearTop && !nearBottom && m_Engine.IsWindowLoaded)
+            // A lean window has no margin to scroll into, and may end inside its last block.
+            if (!force && !nearTop && !nearBottom && m_Engine.IsWindowLoaded && !m_Lean)
             {
                 m_Engine.SetWindowOffset((float)(m_Y - windowTop));
                 UpdateAnchor();
@@ -317,12 +318,19 @@ namespace FirstSymbol.Lettera
                 if (startChar > 0 && startChar < m_Rope.Length && char.IsLowSurrogate(CharAt(startChar))) startChar--;
                 if (endChar > 0 && endChar < m_Rope.Length && char.IsLowSurrogate(CharAt(endChar))) endChar--;
             }
+            else if (m_Lean)
+            {
+                // Blocks run to thousands of characters, more than a viewport: a lean window takes the paragraphs the heights point at.
+                // It starts inside a block only where that block opens no tag, since what is open is known at block starts.
+                if (!m_Rope.BlockHasMarkup(first)) startChar = ParagraphStartNear(first, m_Y - margin, startChar);
+                endChar = ParagraphEndNear(last, m_Y + viewport + margin, endChar);
+            }
 
             int startBlock = m_Rope.BlockAtChar(Math.Min(startChar, Math.Max(m_Rope.Length - 1, 0)));
             string prelude = m_Walk.PreludeAt(startBlock, m_Engine);
             m_Prelude = prelude;
             int length = endChar - startChar;
-            m_Engine.SetWindow(startChar, length, prelude, 0, m_Lean ? 0 : TextEngine.WindowBandMargin);
+            m_Engine.SetWindow(startChar, length, prelude, 0, m_Lean ? 0 : TextEngine.WindowBandMargin, m_Lean);
             m_Engine.SetWindowOffset((float)(m_Y - WindowTop()));
             m_WindowMoved = true;
             GeometryChanged?.Invoke();
@@ -341,6 +349,46 @@ namespace FirstSymbol.Lettera
 
         // A clock read from a timestamp: a Stopwatch is an object, and this runs every frame.
         internal static double MillisecondsSince(long started) => (System.Diagnostics.Stopwatch.GetTimestamp() - started) * 1000.0 / System.Diagnostics.Stopwatch.Frequency;
+
+        char[] m_Look = new char[2048];
+
+        // The character a height points at inside a block, by the block's own estimate.
+        int CharAtHeight(int block, double y)
+        {
+            double top = m_Rope.HeightAtBlock(block), height = m_Rope.HeightAtBlock(block + 1) - top;
+            double fraction = height > 0 ? Math.Max(0, Math.Min(1, (y - top) / height)) : 0;
+            return m_Rope.CharOfBlock(block) + (int)(m_Rope.BlockChars(block) * fraction);
+        }
+
+        static bool IsSeparator(char c) => c == '\n' || c == '\r' || c == '\u0085' || c == '\u2029';
+
+        // The start of the paragraph that holds the character a height points at, if it is near; else what was there.
+        int ParagraphStartNear(int block, double y, int fallback)
+        {
+            int at = CharAtHeight(block, y), from = Math.Max(fallback, at - m_Look.Length);
+            if (at <= fallback) return fallback;
+            m_Rope.CopyTo(from, new Span<char>(m_Look, 0, at - from));
+            for (int i = at - from - 1; i >= 0; i--)
+                if (IsSeparator(m_Look[i]))
+                    return from + i + 1;
+            return fallback;
+        }
+
+        // The end of the paragraph that holds the character a height points at, its separator included, if it is near; else what was there.
+        int ParagraphEndNear(int block, double y, int fallback)
+        {
+            int at = CharAtHeight(block, y), to = Math.Min(fallback, at + m_Look.Length);
+            if (at >= fallback) return fallback;
+            m_Rope.CopyTo(at, new Span<char>(m_Look, 0, to - at));
+            for (int i = 0; i < to - at; i++)
+            {
+                if (!IsSeparator(m_Look[i])) continue;
+                // A CR LF pair stays whole.
+                if (m_Look[i] == '\r' && i + 1 < to - at && m_Look[i + 1] == '\n') i++;
+                return at + i + 1;
+            }
+            return fallback;
+        }
 
         char CharAt(int position)
         {

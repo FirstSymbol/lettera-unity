@@ -66,6 +66,7 @@ namespace FirstSymbol.Lettera
             m_SolidBoxes.Clear();
             m_AllTakeBase = true;
             m_RecordOwners = HasPoseConsumers || m_RevealSpans.Count > 0 || (m_Marquee != null && m_MarqueeScrolling) || NeedsRestState;
+            m_WindowBaked = false;
             if (m_StageHooks.Count > 0) m_CoverQuads.Clear();
             m_CurrentOwner = -1;
             m_DrawBase = m_Host.BaseColor;
@@ -143,6 +144,7 @@ namespace FirstSymbol.Lettera
             else
             {
                 m_WantsPose = false;
+                BakeWindowOffset();
             }
             UpdateHubMembership();
             PassEnd(8, tq); // probe
