@@ -80,9 +80,9 @@ namespace FirstSymbol.Lettera.Editor.Tests
             var engine = ((ITextComponent)label).SharedEngine;
             var clientOf = (IMotionClient)engine.View;
             var report = new StringBuilder();
-            long g0 = System.GC.GetAllocatedBytesForCurrentThread();
+            long g0 = System.GC.GetTotalMemory(false);
             var junk = new byte[10000];
-            report.Append($"allocation check: {System.GC.GetAllocatedBytesForCurrentThread() - g0} for {junk.Length}; ");
+            report.Append($"allocation check: {System.GC.GetTotalMemory(false) - g0} for {junk.Length}; ");
             var clock = new Stopwatch();
             for (int round = 0; round < 2; round++)
             {
@@ -93,20 +93,20 @@ namespace FirstSymbol.Lettera.Editor.Tests
                 for (int step = 1; step <= 240; step++)
                 {
                     int startBefore = engine.WindowStart;
-                    long a = System.GC.GetAllocatedBytesForCurrentThread();
+                    long a = System.GC.GetTotalMemory(false);
                     clock.Restart();
                     scroller.Position = step / 240.0 * end;
                     move += clock.Elapsed.TotalMilliseconds;
-                    long b = System.GC.GetAllocatedBytesForCurrentThread();
+                    long b = System.GC.GetTotalMemory(false);
                     clock.Restart();
                     Canvas.ForceUpdateCanvases();
                     GlyphAtlas.Flush();
                     rebuild += clock.Elapsed.TotalMilliseconds;
-                    long c = System.GC.GetAllocatedBytesForCurrentThread();
+                    long c = System.GC.GetTotalMemory(false);
                     clock.Restart();
                     clientOf.TickMotion(0.016f, 0.016f);
                     tick += clock.Elapsed.TotalMilliseconds;
-                    long d = System.GC.GetAllocatedBytesForCurrentThread();
+                    long d = System.GC.GetTotalMemory(false);
                     if (engine.WindowStart != startBefore) windows++;
                     glyphs += engine.GlyphCount;
                     length += engine.WindowLength;
@@ -143,12 +143,12 @@ namespace FirstSymbol.Lettera.Editor.Tests
                     Canvas.ForceUpdateCanvases();
                     StartPasses();
                     int gcs = System.GC.CollectionCount(0);
-                    long a = System.GC.GetAllocatedBytesForCurrentThread();
+                    long a = System.GC.GetTotalMemory(false);
                     var clock = Stopwatch.StartNew();
                     label.Text = page;
                     label.ForceRebuild();
                     double ms = clock.Elapsed.TotalMilliseconds;
-                    long bytes = System.GC.GetAllocatedBytesForCurrentThread() - a;
+                    long bytes = System.GC.GetTotalMemory(false) - a;
                     clock.Restart();
                     Canvas.ForceUpdateCanvases();
                     double frame = clock.Elapsed.TotalMilliseconds;
@@ -188,16 +188,16 @@ namespace FirstSymbol.Lettera.Editor.Tests
                 StartPasses();
                 for (int k = 0; k < 120; k++)
                 {
-                    long a = System.GC.GetAllocatedBytesForCurrentThread();
+                    long a = System.GC.GetTotalMemory(false);
                     clock.Restart();
                     field.InsertText(((char)('a' + k % 26)).ToString(), "user.type");
                     insert += clock.Elapsed.TotalMilliseconds;
-                    long b = System.GC.GetAllocatedBytesForCurrentThread();
+                    long b = System.GC.GetTotalMemory(false);
                     clock.Restart();
                     Canvas.ForceUpdateCanvases();
                     GlyphAtlas.Flush();
                     frame += clock.Elapsed.TotalMilliseconds;
-                    long c = System.GC.GetAllocatedBytesForCurrentThread();
+                    long c = System.GC.GetTotalMemory(false);
                     bytesInsert += b - a;
                     bytesFrame += c - b;
                     if (c - a > largest)
@@ -232,7 +232,7 @@ namespace FirstSymbol.Lettera.Editor.Tests
                 for (int f = 0; f < 240; f++)
                 {
                     tick++;
-                    long a = System.GC.GetAllocatedBytesForCurrentThread();
+                    long a = System.GC.GetTotalMemory(false);
                     clock.Restart();
                     for (int i = 0; i < 64; i++) labels[i].Text = strings[(tick + i) % strings.Length];
                     set += clock.Elapsed.TotalMilliseconds;
@@ -240,7 +240,7 @@ namespace FirstSymbol.Lettera.Editor.Tests
                     Canvas.ForceUpdateCanvases();
                     GlyphAtlas.Flush();
                     frame += clock.Elapsed.TotalMilliseconds;
-                    bytes += System.GC.GetAllocatedBytesForCurrentThread() - a;
+                    bytes += System.GC.GetTotalMemory(false) - a;
                 }
                 TextEngine.TimePasses = false;
                 report.Append($"round {round} per frame ms: set {set / 240:0.000} canvas {frame / 240:0.000}; bytes {bytes / 240}\n  {Passes(240)}\n");
