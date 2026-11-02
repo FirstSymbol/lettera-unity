@@ -470,6 +470,19 @@ namespace FirstSymbol.Lettera
                     s_Batches.Remove(key);
         }
 
+        /// <summary>Lets the merge buffers go; the next merge makes them again.</summary>
+        internal static void ReleaseScratch()
+        {
+            s_Vertices = Array.Empty<Vector3>();
+            s_Normals = Array.Empty<Vector3>();
+            s_Colors = Array.Empty<Color32>();
+            s_Uv0 = Array.Empty<Vector4>();
+            s_Uv1 = Array.Empty<Vector4>();
+            s_Uv2 = Array.Empty<Vector4>();
+            s_Uv3 = Array.Empty<Vector4>();
+            s_Indices = Array.Empty<int>();
+        }
+
         public static void Shutdown()
         {
             foreach (Batch batch in s_Batches.Values)

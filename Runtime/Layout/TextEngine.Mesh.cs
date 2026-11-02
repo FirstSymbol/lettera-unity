@@ -52,6 +52,36 @@ namespace FirstSymbol.Lettera
 
         public Bounds MeshBounds => m_Bounds;
 
+        // Where ink can show, inside the quads' margins, so a mask can cull a text whose ink lies outside it though its quads reach in.
+        // Known only while every quad was counted and nothing moves vertices after the mesh is built.
+        float m_InkMinX, m_InkMinY, m_InkMaxX, m_InkMaxY, m_InkMargin;
+        int m_InkQuads;
+
+        /// <summary>Whether <see cref="InkRect"/> holds for the current mesh.</summary>
+        public bool InkKnown { get; private set; }
+
+        /// <summary>The box outside which this mesh draws nothing, a pixel to spare, in local units.</summary>
+        public Rect InkRect => Rect.MinMaxRect(m_InkMinX, m_InkMinY, m_InkMaxX, m_InkMaxY);
+
+        void AddInk(float left, float bottom, float right, float top)
+        {
+            m_InkQuads++;
+            if (left < m_InkMinX) m_InkMinX = left;
+            if (bottom < m_InkMinY) m_InkMinY = bottom;
+            if (right > m_InkMaxX) m_InkMaxX = right;
+            if (top > m_InkMaxY) m_InkMaxY = top;
+        }
+
+        // A distance quad draws only as far beyond the outline as its edge, softness and anti-aliasing reach, which is less than its margin.
+        void AddDistanceInk(float left, float bottom, float right, float top, in AtlasGlyph atlas, float xUnit, float yUnit, float threshold, float softness)
+        {
+            float inset = atlas.Pad - (0.5f - threshold + softness) * 2 * atlas.Pad;
+            float ix = inset * xUnit - m_InkMargin, iy = inset * yUnit - m_InkMargin;
+            if (ix < 0 || atlas.Pixel || atlas.Kind == AtlasGlyph.Color) ix = 0;
+            if (iy < 0 || atlas.Pixel || atlas.Kind == AtlasGlyph.Color) iy = 0;
+            AddInk(left + ix, bottom + iy, right - ix, top - iy);
+        }
+
         static readonly ResolvedPaint s_NoPaint = new ResolvedPaint { Blend = LetteraBlend.Normal };
 
         void BuildMesh()
@@ -70,6 +100,12 @@ namespace FirstSymbol.Lettera
             if (m_StageHooks.Count > 0) m_CoverQuads.Clear();
             m_CurrentOwner = -1;
             m_DrawBase = m_Host.BaseColor;
+            InkKnown = false;
+            m_InkQuads = 0;
+            m_InkMinX = m_InkMinY = float.MaxValue;
+            m_InkMaxX = m_InkMaxY = float.MinValue;
+            float rasterScale = m_Host.RasterScale;
+            m_InkMargin = rasterScale > 0 ? 1f / rasterScale : 1f;
             GlyphAtlasRegistration.EnsureRegistered();
 
             if (ShowsBars)
@@ -142,6 +178,8 @@ namespace FirstSymbol.Lettera
                 m_WantsPose = false;
                 BakeWindowOffset();
             }
+            InkKnown = VertexCount > 0 && m_InkQuads * 4 == VertexCount && !m_RecordOwners && !m_WindowBaked && m_StageHooks.Count == 0 &&
+                       m_MotionSpans.Count == 0 && m_MarqueeCopies <= 1 && !m_MarqueeScrolling;
             UpdateHubMembership();
         }
 
@@ -426,6 +464,7 @@ namespace FirstSymbol.Lettera
                 Colors[v + 2] = color;
                 Colors[v + 3] = color;
                 m_OwnAlpha[v] = m_OwnAlpha[v + 1] = m_OwnAlpha[v + 2] = m_OwnAlpha[v + 3] = color.a;
+                AddDistanceInk(left, bottom, right, top, atlas, xUnit, g.Unit, 0.5f, 0);
             }
         }
 
@@ -834,6 +873,8 @@ namespace FirstSymbol.Lettera
                 Vertices[v + 1] = new Vector3(g.X + left, g.Y + top);
                 Vertices[v + 2] = new Vector3(g.X + right, g.Y + top);
                 Vertices[v + 3] = new Vector3(g.X + right, g.Y + bottom);
+                if ((mode == ModeSdf || mode == ModeMedian || mode == ModeTrueDistance) && extra.w == 0) AddDistanceInk(g.X + left, g.Y + bottom, g.X + right, g.Y + top, atlas, xUnit, g.Unit, threshold, softness);
+                else AddInk(g.X + left, g.Y + bottom, g.X + right, g.Y + top);
             }
             else
             {
@@ -903,6 +944,7 @@ namespace FirstSymbol.Lettera
             Vertices[v + 2] = new Vector3(right, top);
             Vertices[v + 3] = new Vector3(right, bottom);
             var uv = new Vector4(0, 0, 0, ModeSolid);
+            AddInk(left, bottom, right, top);
             Uv0[v] = Uv0[v + 1] = Uv0[v + 2] = Uv0[v + 3] = uv;
             Uv1[v] = Uv1[v + 1] = Uv1[v + 2] = Uv1[v + 3] = new Vector4(0, 0, 0, m_FilterRow);
             SetColor(v, color);

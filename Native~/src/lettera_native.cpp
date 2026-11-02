@@ -18,7 +18,7 @@
 #define LT_API extern "C" __attribute__((visibility("default")))
 #endif
 
-#define LT_VERSION 3
+#define LT_VERSION 4
 
 struct LtGlyph
 {
@@ -57,6 +57,21 @@ LT_API int lt_face_count(const void* data, int length)
 LT_API hb_face_t* lt_face_create(const void* data, int length, int index)
 {
     hb_blob_t* blob = hb_blob_create((const char*)data, (unsigned)length, HB_MEMORY_MODE_DUPLICATE, nullptr, nullptr);
+    hb_face_t* face = hb_face_create(blob, (unsigned)index);
+    hb_blob_destroy(blob);
+    if (hb_face_get_glyph_count(face) == 0)
+    {
+        hb_face_destroy(face);
+        return nullptr;
+    }
+    hb_face_make_immutable(face);
+    return face;
+}
+
+// The bytes are not copied: the caller keeps them alive and unchanged until the face and every font made from it are destroyed.
+LT_API hb_face_t* lt_face_create_borrowed(const void* data, int length, int index)
+{
+    hb_blob_t* blob = hb_blob_create((const char*)data, (unsigned)length, HB_MEMORY_MODE_READONLY, nullptr, nullptr);
     hb_face_t* face = hb_face_create(blob, (unsigned)index);
     hb_blob_destroy(blob);
     if (hb_face_get_glyph_count(face) == 0)

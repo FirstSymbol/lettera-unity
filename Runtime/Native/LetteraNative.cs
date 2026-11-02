@@ -46,7 +46,7 @@ namespace FirstSymbol.Lettera
         public const int MinimumVersion = 1;
 
         /// <summary>The library this package ships.</summary>
-        public const int CurrentVersion = 3;
+        public const int CurrentVersion = 4;
 
         static int s_Version;
 
@@ -69,6 +69,8 @@ namespace FirstSymbol.Lettera
         [DllImport(Lib)] public static extern int lt_version();
         [DllImport(Lib)] public static extern int lt_face_count(byte* data, int length);
         [DllImport(Lib)] public static extern IntPtr lt_face_create(byte* data, int length, int index);
+        // Version 4.
+        [DllImport(Lib)] public static extern IntPtr lt_face_create_borrowed(byte* data, int length, int index);
         [DllImport(Lib)] public static extern int lt_file_face_count(byte* utf8Path);
         [DllImport(Lib)] public static extern IntPtr lt_face_create_from_file(byte* utf8Path, int index);
         [DllImport(Lib)] public static extern void lt_face_destroy(IntPtr face);

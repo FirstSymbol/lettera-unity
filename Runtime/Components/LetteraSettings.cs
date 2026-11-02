@@ -60,6 +60,7 @@ namespace FirstSymbol.Lettera
         [SerializeField] LetteraDocumentSettings m_Documents = new LetteraDocumentSettings();
         [SerializeField] LetteraPlatformSettings m_Platform = new LetteraPlatformSettings();
         [SerializeField] LetteraFontMemorySettings m_FontMemory = new LetteraFontMemorySettings();
+        [SerializeField] LetteraMemorySettings m_Memory = new LetteraMemorySettings();
         [SerializeField] LetteraMathSettings m_Math = new LetteraMathSettings();
         [SerializeField] LetteraSolidSettings m_Solid3D = new LetteraSolidSettings();
         [Tooltip("Word lists for scripts written without spaces. Empty costs nothing: only what is listed reaches a player.")]
@@ -120,6 +121,9 @@ namespace FirstSymbol.Lettera
 
         /// <summary>What fonts may cost, and how a build carries them.</summary>
         public LetteraFontMemorySettings FontMemory => m_FontMemory ?? (m_FontMemory = new LetteraFontMemorySettings());
+
+        /// <summary>When Lettera gives back what it keeps for speed. See <see cref="LetteraMemory"/>.</summary>
+        public LetteraMemorySettings Memory => m_Memory ?? (m_Memory = new LetteraMemorySettings());
 
         public LetteraPlatformSettings Platform => m_Platform ?? (m_Platform = new LetteraPlatformSettings());
 

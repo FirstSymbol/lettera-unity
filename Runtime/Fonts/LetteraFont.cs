@@ -29,10 +29,11 @@ namespace FirstSymbol.Lettera
         [NonSerialized] FontFace m_Face;
         [NonSerialized] bool m_LoadFailed;
         [NonSerialized] byte[] m_RuntimeBytes;
+        [NonSerialized] string m_RuntimePath;
 
         public int FaceIndex { get => m_FaceIndex; set { m_FaceIndex = value; Unload(); NotifyChanged(); } }
         public bool KeepInline { get => m_KeepInline; set => m_KeepInline = value; }
-        public bool HasData => StoredPayload() != null || m_RuntimeBytes != null || !string.IsNullOrEmpty(m_PayloadHash);
+        public bool HasData => StoredPayload() != null || m_RuntimeBytes != null || m_RuntimePath != null || !string.IsNullOrEmpty(m_PayloadHash);
         public int CompressedSize => StoredPayload()?.Length ?? m_PayloadLength;
         public int OriginalSize => m_OriginalLength;
         public bool LoadFailed => m_LoadFailed;
@@ -60,6 +61,24 @@ namespace FirstSymbol.Lettera
 
         /// <summary>Creates a font at runtime. The array is kept and must not be changed.</summary>
         public static LetteraFont CreateFromBytes(byte[] bytes, int faceIndex = 0) => CreateFromBytes<LetteraFont>(bytes, faceIndex);
+
+        /// <summary>
+        /// Creates a font at runtime from a font file, read when a text first needs it. Where the platform maps files (desktop and mobile players)
+        /// its bytes stay in the file and cost no heap; the file must stay where it is while the font is in use. On the web only files in the
+        /// browser's own file system can be named, so a downloaded font goes through <see cref="CreateFromBytes(byte[], int)"/>.
+        /// </summary>
+        public static T CreateFromFile<T>(string path, int faceIndex = 0) where T : LetteraFont
+        {
+            if (string.IsNullOrEmpty(path)) throw new ArgumentException("A font file's path is needed.", nameof(path));
+            var font = CreateInstance<T>();
+            font.hideFlags = HideFlags.DontSave;
+            font.m_RuntimePath = path;
+            font.m_FaceIndex = faceIndex;
+            return font;
+        }
+
+        /// <summary>Creates a font at runtime from a font file. See <see cref="CreateFromFile{T}(string, int)"/>.</summary>
+        public static LetteraFont CreateFromFile(string path, int faceIndex = 0) => CreateFromFile<LetteraFont>(path, faceIndex);
 
         /// <summary>Stores font file bytes in the asset, compressed.</summary>
         public void SetFontData(byte[] bytes)
@@ -125,6 +144,7 @@ namespace FirstSymbol.Lettera
         internal byte[] ReadBytes()
         {
             if (m_RuntimeBytes != null) return m_RuntimeBytes;
+            if (m_RuntimePath != null) return File.Exists(m_RuntimePath) ? File.ReadAllBytes(m_RuntimePath) : null;
             byte[] payload = StoredPayload();
             if (payload != null) return Inflate(payload);
             if (string.IsNullOrEmpty(m_PayloadHash)) return null;
@@ -163,6 +183,7 @@ namespace FirstSymbol.Lettera
             if (m_LoadFailed) return null;
             m_Face = null;
             if (m_RuntimeBytes != null) m_Face = FontFace.FromBytes(m_RuntimeBytes, m_FaceIndex, LetteraFontSource.RuntimeBytes);
+            else if (m_RuntimePath != null) m_Face = FontFace.FromFile(m_RuntimePath, m_FaceIndex, LetteraFontSource.RuntimeFile);
             else m_Face = MapsItsFile ? LoadThroughCache() : LoadInMemory();
             if (m_Face == null)
             {

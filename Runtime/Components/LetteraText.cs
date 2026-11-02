@@ -159,6 +159,7 @@ namespace FirstSymbol.Lettera
                 m_SegmentMasks.Clear();
             }
             base.OnDisable();
+            m_HasCullClip = m_CulledByInk = false;
             m_RendererEmpty = keep;
             if (keep) return;
             m_LastSegments.Clear();
@@ -272,6 +273,7 @@ namespace FirstSymbol.Lettera
             }
             canvasRenderer.SetMesh(m_Mesh);
             RaiseRebuilt(Engine.LastChanges);
+            if (m_HasCullClip) CullByInkAgain();
         }
 
         // ------------------------------------------------------------- parts of a long text
@@ -521,6 +523,7 @@ namespace FirstSymbol.Lettera
 
         public override void SetClipRect(Rect clipRect, bool validRect)
         {
+            if (!validRect) m_HasCullClip = m_CulledByInk = false;
             m_ParentClip = clipRect;
             m_ParentClipValid = validRect;
             if (m_MarqueeClipOn) ApplyMarqueeClip();
@@ -728,7 +731,12 @@ namespace FirstSymbol.Lettera
             if (m_RendererEmpty && IsActive()) SetVerticesDirty();
         }
 
+        // The last clip a mask gave, so that a text culled by where its ink lies is looked at again when it changes.
+        Rect m_CullClip;
+        bool m_CullValid, m_HasCullClip, m_CulledByInk;
+
         // A mask decides about culling on its own, which must not bring a hidden text back.
+        // A text whose rect reaches into the mask while its ink stays outside draws nothing there, so it is culled by its ink.
         public override void Cull(Rect clipRect, bool validRect)
         {
             if (m_Hidden)
@@ -736,7 +744,57 @@ namespace FirstSymbol.Lettera
                 canvasRenderer.cull = true;
                 return;
             }
+            m_CullClip = clipRect;
+            m_CullValid = validRect;
+            m_HasCullClip = true;
+            m_CulledByInk = false;
+            if (validRect && m_Parts.Count == 0 && Engine.Dirty == DirtyLevel.None && Engine.InkKnown && !clipRect.Overlaps(InkInRootCanvas(Engine.InkRect), true))
+            {
+                m_CulledByInk = true;
+                SetCull(true);
+                return;
+            }
             base.Cull(clipRect, validRect);
+        }
+
+        void SetCull(bool cull)
+        {
+            if (canvasRenderer.cull == cull) return;
+            canvasRenderer.cull = cull;
+            onCullStateChanged.Invoke(cull);
+            OnCullingChanged();
+        }
+
+        Rect InkInRootCanvas(Rect ink)
+        {
+            Canvas own = canvas;
+            Matrix4x4 m = own != null ? own.rootCanvas.transform.worldToLocalMatrix * transform.localToWorldMatrix : transform.localToWorldMatrix;
+            Vector3 a = m.MultiplyPoint(new Vector3(ink.xMin, ink.yMin)), b = m.MultiplyPoint(new Vector3(ink.xMin, ink.yMax));
+            Vector3 c = m.MultiplyPoint(new Vector3(ink.xMax, ink.yMax)), d = m.MultiplyPoint(new Vector3(ink.xMax, ink.yMin));
+            float minX = Mathf.Min(Mathf.Min(a.x, b.x), Mathf.Min(c.x, d.x)), maxX = Mathf.Max(Mathf.Max(a.x, b.x), Mathf.Max(c.x, d.x));
+            float minY = Mathf.Min(Mathf.Min(a.y, b.y), Mathf.Min(c.y, d.y)), maxY = Mathf.Max(Mathf.Max(a.y, b.y), Mathf.Max(c.y, d.y));
+            return Rect.MinMaxRect(minX, minY, maxX, maxY);
+        }
+
+        // A change may bring ink into the mask: the rect decides until the new mesh says where its ink is.
+        public override void SetVerticesDirty()
+        {
+            base.SetVerticesDirty();
+            if (!m_CulledByInk) return;
+            m_CulledByInk = false;
+            if (m_HasCullClip) base.Cull(m_CullClip, m_CullValid);
+        }
+
+        void CullByInkAgain()
+        {
+            if (m_HasCullClip && !m_Hidden && m_CullValid) Cull(m_CullClip, m_CullValid);
+        }
+
+        // A mask that goes away takes its clip with it.
+        public override void RecalculateClipping()
+        {
+            m_HasCullClip = m_CulledByInk = false;
+            base.RecalculateClipping();
         }
 
         /// <summary>Rebuilds now, e.g. before reading results in the same frame.</summary>

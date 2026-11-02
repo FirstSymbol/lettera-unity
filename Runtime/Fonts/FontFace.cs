@@ -148,14 +148,28 @@ namespace FirstSymbol.Lettera
         /// <summary>A face with no font behind it, whose glyphs come from elsewhere.</summary>
         public static FontFace CreateVirtual(int upem, int ascender, int descender) => new FontFace(upem, ascender, descender);
 
+        // Held fixed for as long as the native face reads from the array, so the bytes exist once.
+        System.Runtime.InteropServices.GCHandle m_Pin;
+
         public static FontFace FromBytes(byte[] bytes, int index, LetteraFontSource source = LetteraFontSource.InMemory)
         {
             if (bytes == null || bytes.Length == 0) return null;
+            if (LetteraNative.Version >= 4)
+            {
+                var pin = System.Runtime.InteropServices.GCHandle.Alloc(bytes, System.Runtime.InteropServices.GCHandleType.Pinned);
+                IntPtr borrowed = LetteraNative.lt_face_create_borrowed((byte*)pin.AddrOfPinnedObject(), bytes.Length, index);
+                if (borrowed == IntPtr.Zero)
+                {
+                    pin.Free();
+                    return null;
+                }
+                return new FontFace(borrowed) { Source = source, RetainedBytes = bytes.Length, m_Pin = pin };
+            }
             fixed (byte* p = bytes)
             {
+                // An older library copies them, whatever then happens to this array.
                 IntPtr face = LetteraNative.lt_face_create(p, bytes.Length, index);
                 if (face == IntPtr.Zero) return null;
-                // The library copies them, whatever then happens to this array.
                 return new FontFace(face) { Source = source, RetainedBytes = bytes.Length };
             }
         }
@@ -456,6 +470,7 @@ namespace FirstSymbol.Lettera
             m_Instances.Clear();
             LetteraNative.lt_face_destroy(Face);
             Face = IntPtr.Zero;
+            if (m_Pin.IsAllocated) m_Pin.Free();
             s_All.Remove(this);
         }
 

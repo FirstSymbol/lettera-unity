@@ -82,6 +82,9 @@ namespace FirstSymbol.Lettera
         public LetteraChanges LastChanges { get; private set; }
         public int RebuildCount { get; private set; }
 
+        /// <summary>Rebuilds of every text, for telling a quiet period.</summary>
+        internal static int WorkCounter;
+
         // How often each expensive pass ran, to prove that a change stayed at its level.
         public int ParseCount { get; private set; }
         public int ShapeCount { get; private set; }
@@ -252,6 +255,7 @@ namespace FirstSymbol.Lettera
             if (level == DirtyLevel.None) return false;
             m_EarlyChanges = LetteraChanges.None;
             RebuildCount++;
+            WorkCounter++;
             m_InPasses = true;
             try { RunPasses(level); }
             finally { m_InPasses = false; }

@@ -26,6 +26,9 @@ namespace FirstSymbol.Lettera
 
         /// <summary>How far the distance field of this entry reaches beyond the outline, in em.</summary>
         public float Spread;
+
+        /// <summary>The quad's margin beyond the outline's box, in font units; 0 where it is not known.</summary>
+        public float Pad;
     }
 
     /// <summary>
@@ -117,7 +120,7 @@ namespace FirstSymbol.Lettera
         static int s_Tick;
         // Asked of the engine once per flush, and not once per glyph.
         static int s_Frame;
-        static Texture2DArray s_EmptyColor, s_EmptyMsdf;
+        static Texture2DArray s_EmptyColor, s_EmptyMsdf, s_EmptySdf;
 
         /// <summary>Raised when the atlas was cleared: every text must rebuild its mesh.</summary>
         public static event Action Cleared;
@@ -282,6 +285,7 @@ namespace FirstSymbol.Lettera
                 Left = -offsetX / scale, Bottom = -offsetY / scale,
                 Right = (width - offsetX) / scale, Top = (height - offsetY) / scale,
                 Spread = spread,
+                Pad = spreadPixels / scale,
             };
         }
 
@@ -924,8 +928,14 @@ namespace FirstSymbol.Lettera
 
         static void EnsureBound()
         {
-            if (s_Sdf.Texture == null && s_Sdf.Pixels.Count == 0) AddPage(s_Sdf);
-            if (s_Sdf.Texture == null) RecreateTexture(s_Sdf);
+            if (s_Sdf.Texture == null && s_Sdf.Pixels.Count > 0) RecreateTexture(s_Sdf);
+            if (s_Sdf.Texture == null && s_EmptySdf == null)
+            {
+                // No glyph yet, or none since the pages went back: a tiny placeholder until a glyph needs a page.
+                s_EmptySdf = new Texture2DArray(4, 4, 1, GraphicsFormat.R8_UNorm, TextureCreationFlags.None) { hideFlags = HideFlags.HideAndDontSave };
+                s_EmptySdf.Apply(false, true);
+                s_Rebind = true;
+            }
             if (s_Color.Texture == null && s_Color.Pixels.Count > 0) RecreateTexture(s_Color);
             if (s_Color.Texture == null && s_EmptyColor == null)
             {
@@ -943,7 +953,7 @@ namespace FirstSymbol.Lettera
             }
             if (!s_Rebind) return;
             s_Rebind = false;
-            Shader.SetGlobalTexture(s_SdfAtlasId, s_Sdf.Texture);
+            Shader.SetGlobalTexture(s_SdfAtlasId, s_Sdf.Texture != null ? s_Sdf.Texture : s_EmptySdf);
             Shader.SetGlobalTexture(s_ColorAtlasId, s_Color.Texture != null ? s_Color.Texture : s_EmptyColor);
             Shader.SetGlobalTexture(s_MsdfAtlasId, s_Msdf.Texture != null ? s_Msdf.Texture : s_EmptyMsdf);
         }
@@ -1155,6 +1165,41 @@ namespace FirstSymbol.Lettera
             set.Current = 0;
         }
 
+        /// <summary>
+        /// Gives back what only speeds up new glyphs: the upload textures and the outline buffers. With <paramref name="pages"/>, every glyph
+        /// and page goes too, for when no text is left to show them; texts that come later place their glyphs again.
+        /// </summary>
+        internal static void Release(bool pages)
+        {
+            if (s_Tiles.Count > 0 || s_Uploads.Count > 0 || s_EmojiPending.Count > 0) Flush();
+            DestroyTexture(s_StagingSdf);
+            DestroyTexture(s_StagingColor);
+            DestroyTexture(s_StagingMsdf);
+            s_StagingSdf = s_StagingColor = s_StagingMsdf = null;
+            if (s_Lines.IsCreated) s_Lines.Dispose();
+            if (s_LineColors.IsCreated) s_LineColors.Dispose();
+            if (s_Commands.Length > 4096) s_Commands = new float[4096];
+            s_EmojiPixels = null;
+            if (!pages || (s_Sdf.Pixels.Count == 0 && s_Color.Pixels.Count == 0 && s_Msdf.Pixels.Count == 0)) return;
+            s_Glyphs.Clear();
+            GlyphsChanged();
+            s_Unions.Clear();
+            s_Rules.Clear();
+            s_MinDensity.Clear();
+            foreach (PageSet set in new[] { s_Sdf, s_Color, s_Msdf })
+            {
+                FreePages(set);
+                set.ShelfX = set.ShelfY = set.ShelfHeight = 0;
+                DestroyTexture(set.Texture);
+                set.Texture = null;
+                set.NeedsFullUpload = false;
+            }
+            s_Rebind = true;
+            EnsureBound();
+            // Kept texts that come back later rebuild their meshes, as after any clearing.
+            s_ClearPending = true;
+        }
+
         /// <summary>Re-creates the textures from the CPU pages, e.g. after the graphics context was lost.</summary>
         public static void RestoreTextures()
         {
@@ -1187,8 +1232,10 @@ namespace FirstSymbol.Lettera
             DestroyTexture(s_StagingMsdf);
             DestroyTexture(s_EmptyColor);
             DestroyTexture(s_EmptyMsdf);
+            DestroyTexture(s_EmptySdf);
             s_EmptyColor = null;
             s_EmptyMsdf = null;
+            s_EmptySdf = null;
             s_MinDensity.Clear();
             s_Rebind = false;
             s_ClearPending = false;
