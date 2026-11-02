@@ -255,5 +255,30 @@ return $"parse {t[0] * f / n:0.000} shape {t[1] * f / n:0.000} layout {t[2] * f 
             }
             Debug.Log("LETTERA_PROBE\n" + report);
         }
+        [Test]
+        public void ProbeHarnessLongRows()
+        {
+            GameObject canvas = MakeCanvas();
+            var report = new StringBuilder();
+            var clock = new Stopwatch();
+            for (int round = 0; round < 3; round++)
+            {
+                foreach (int size in new[] { 10, 10, 100, 1000 })
+                {
+                    string page = Page(size * 1024);
+                    LetteraText label = Label(canvas.transform, "", 14, new Vector2(800, 100000));
+                    Canvas.ForceUpdateCanvases();
+                    int gcs = System.GC.CollectionCount(0);
+                    clock.Restart();
+                    label.Text = page;
+                    label.ForceRebuild();
+                    double set = clock.Elapsed.TotalMilliseconds;
+                    Canvas.ForceUpdateCanvases();
+                    report.Append($"round {round} {size} KB: set {set:0.00} ms, with frame {clock.Elapsed.TotalMilliseconds:0.00} ms, collections {System.GC.CollectionCount(0) - gcs}\n");
+                    Object.DestroyImmediate(label.gameObject);
+                }
+            }
+            Debug.Log("LETTERA_PROBE\n" + report);
+        }
     }
 }
