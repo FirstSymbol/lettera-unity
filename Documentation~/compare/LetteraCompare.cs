@@ -714,6 +714,50 @@ public class LetteraCompare : MonoBehaviour
         });
         Clear();
         yield return null;
+
+        // R27: 200 labels with a stroke and a shadow, standing still, against the same 200 plain: what the layers cost the GPU.
+        // Each engine by its own route: Lettera by tags, TextMesh Pro by one shared material. An engine with neither skips the second row.
+        yield return Layered("R27_200_plain_frame", false);
+        if (m_Name == "lettera" || m_Engine is TmpEngine || m_Engine is ILayers) yield return Layered("R27_200_stroke_shadow_frame", true);
+    }
+
+    // Another engine joins the layered row by this, from its own script.
+    public interface ILayers
+    {
+        void StrokeAndShadow(Component label);
+    }
+
+    IEnumerator Layered(string row, bool layers)
+    {
+        Material shared = null;
+        for (int i = 0; i < 200; i++)
+        {
+            string text = Sentence(i);
+            if (layers && m_Name == "lettera") text = "<stroke=#3399FF,0.08><shadow=#000000,0.06,-0.06>" + text + "</shadow></stroke>";
+            Component label = m_Engine.Label(m_Canvas.transform, text, 28, new Vector2(600, 40));
+            ((RectTransform)label.transform).anchoredPosition = new Vector2(-450 + i % 4 * 300, 330 - i / 4 * 13.5f);
+            m_Engine.Color(label, UnityEngine.Color.white);
+            if (!layers || m_Name == "lettera") continue;
+            if (m_Engine is ILayers own) own.StrokeAndShadow(label);
+            else
+            {
+                var tmp = (TMP_Text)label;
+                if (shared == null)
+                {
+                    TmpMaterial(tmp, "StrokeShadow");
+                    shared = tmp.fontSharedMaterial;
+                }
+                else
+                {
+                    tmp.extraPadding = true;
+                    tmp.fontSharedMaterial = shared;
+                }
+            }
+        }
+        for (int i = 0; i < 10; i++) yield return null;
+        yield return FrameTime(row, 240, null);
+        Clear();
+        yield return null;
     }
 
     // Asks nothing of any earlier text: this is the first a process draws.
@@ -1161,14 +1205,14 @@ public class LetteraCompare : MonoBehaviour
         var material = new Material(text.fontSharedMaterial) { shader = keep.shader };
         foreach (string keyword in keep.shaderKeywords) material.EnableKeyword(keyword);
         material.SetFloat(ShaderUtilities.ID_FaceDilate, 0);
-        if (name == "Outline" || name == "All")
+        if (name == "Outline" || name == "All" || name == "StrokeShadow")
         {
             // Outside the face, as a project would set it: a width alone also eats into the letter.
             material.SetFloat(ShaderUtilities.ID_FaceDilate, 0.3f);
             material.SetColor(ShaderUtilities.ID_OutlineColor, new Color(0.2f, 0.6f, 1));
             material.SetFloat(ShaderUtilities.ID_OutlineWidth, 0.3f);
         }
-        if (name == "Underlay" || name == "Inner" || name == "All")
+        if (name == "Underlay" || name == "Inner" || name == "All" || name == "StrokeShadow")
         {
             material.SetColor(ShaderUtilities.ID_UnderlayColor, UnityEngine.Color.black);
             material.SetFloat(ShaderUtilities.ID_UnderlayOffsetX, 0.5f);
