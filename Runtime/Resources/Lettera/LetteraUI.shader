@@ -49,6 +49,10 @@ Shader "Lettera/UI"
 
             #include "UnityCG.cginc"
             #include "UnityUI.cginc"
+
+            int _UIVertexColorAlwaysGammaSpace;
+            // A merged quad's layer colors come in texture coordinates, so they take the conversion its vertex color takes.
+            #define LETTERA_LAYER_RGB(rgb) ((_UIVertexColorAlwaysGammaSpace && !IsGammaSpace()) ? UIGammaToLinear(rgb) : (rgb))
             #include "LetteraGlyph.cginc"
 
             struct appdata
@@ -83,7 +87,6 @@ Shader "Lettera/UI"
             float4 _ClipRect;
             float _UIMaskSoftnessX;
             float _UIMaskSoftnessY;
-            int _UIVertexColorAlwaysGammaSpace;
 
             v2f vert(appdata v)
             {

@@ -18,7 +18,7 @@ namespace FirstSymbol.Lettera
     internal sealed partial class TextEngine
     {
         const float ModeSdf = 0, ModeColor = 1, ModeColorSilhouette = 2, ModeSolid = 3, ModeInnerShadow = 4, ModeColorHalo = 5;
-        const float ModeMedian = 8, ModeTrueDistance = 9, ModeInnerShadowMulti = 10, ModePixel = 11, ModeInnerShadowPixel = 12;
+        const float ModeMedian = 8, ModeTrueDistance = 9, ModeInnerShadowMulti = 10, ModePixel = 11, ModeInnerShadowPixel = 12, ModeMerged = 13;
 
         // How far a softness of 1 reaches, in em.
         const float SoftnessEm = GlyphAtlas.SpreadEm;
@@ -132,10 +132,12 @@ namespace FirstSymbol.Lettera
                     m_Faces.Add(group);
 
             DrawHighlights(groups, false);
+            LayersMerged = false;
             if (m_Attributes.PaintOrder == LetteraPaintOrder.GlyphMajor)
             {
                 ReserveExtraQuads();
-                DrawGlyphMajor(groups);
+                if (CanMergeLayers(groups)) DrawMerged();
+                else DrawGlyphMajor(groups);
                 AddDecorationLayer(null);
             }
             else
@@ -543,6 +545,151 @@ namespace FirstSymbol.Lettera
                 }
                 count += stretch;
                 at += reverse ? -stretch : stretch;
+            }
+        }
+
+        // ---------------------------------------------------------------- merged layers
+
+        // Glyph-major text on a Canvas with a stroke and a shadow draws each glyph as one quad: the shader composes the face over the stroke over
+        // the shadow, as three quads blended in that order would. Only where that holds: plain distance-field glyphs, solid paints, normal blend,
+        // a shadow that lies inside the glyph's quad and reads nothing of its neighbours in the atlas, and nothing else on the text.
+        LayerGroup m_MergeStroke, m_MergeShadow;
+
+        /// <summary>The last mesh drew its layers merged.</summary>
+        internal bool LayersMerged { get; private set; }
+
+        /// <summary>Draws layers as separate quads, for a test that compares the two.</summary>
+        internal static bool NoMergedLayersForTests;
+
+        bool CanMergeLayers(List<LayerGroup> groups)
+        {
+            if (NoMergedLayersForTests || !(m_Host is LetteraText) || m_Faces.Count > 0 || m_Attributes.Filters.Count > 0 || m_Attributes.Warps.Count > 0 || m_Attributes.Decorations.Count > 0 ||
+                m_FadeActive || m_RecordOwners || m_MotionSpans.Count > 0 || m_StageHooks.Count > 0 || HasInlineSprites || m_Host.Data.RenderMode == LetteraRenderMode.MSDF)
+                return false;
+            m_MergeStroke = m_MergeShadow = null;
+            foreach (LayerGroup group in groups)
+            {
+                if (group.Layer == LayerKind.Stroke && group.Band == LetteraLayerBand.Rim && m_MergeStroke == null) m_MergeStroke = group;
+                else if (group.Layer == LayerKind.Shadow && group.Band == LetteraLayerBand.Back && m_MergeShadow == null) m_MergeShadow = group;
+                else return false;
+            }
+            if (m_MergeStroke == null && m_MergeShadow == null) return false;
+            List<LayerRecord> records = m_Attributes.Layers;
+            for (int i = 0; i < m_PlacedCount; i++)
+            {
+                ref PlacedGlyph g = ref m_Placed[i];
+                ref AtlasGlyph atlas = ref m_PlacedAtlas[i];
+                if (atlas.Kind == AtlasGlyph.Empty) continue;
+                if (atlas.Kind != AtlasGlyph.Sdf || atlas.Pixel || atlas.Pad <= 0 || g.Special != 0 || g.Angle != 0 || g.Size <= 0) return false;
+                if (i > 0 && IsConnected(m_Placed[i - 1].Cluster, g.Cluster)) return false;
+                int stroke = m_MergeStroke != null ? m_MergeStroke.Cover[g.Cluster] - 1 : -1;
+                if (stroke >= 0 && (!MergeablePaint(records[stroke]) || records[stroke].Align < 1)) return false;
+                int shadow = m_MergeShadow != null ? m_MergeShadow.Cover[g.Cluster] - 1 : -1;
+                if (shadow >= 0 && (!MergeablePaint(records[shadow]) || !ShadowFits(g, atlas, records[shadow]))) return false;
+            }
+            Styled = true;
+            LayersMerged = true;
+            return true;
+        }
+
+        static bool MergeablePaint(in LayerRecord record) =>
+            record.Paint.IsSolid && record.Custom == null && (record.Paint.Blend == LetteraBlend.Normal || record.Paint.Blend == LetteraBlend.Inherit);
+
+        // What the shadow shows lies inside the glyph's quad, and where it reads past the tile's edge every neighbour is too far from its outline to show.
+        bool ShadowFits(in PlacedGlyph g, in AtlasGlyph atlas, in LayerRecord record)
+        {
+            float size = MeasureSize(record, g);
+            float toEm = 1f / g.Size, toSdf = 1f / (2f * atlas.Spread);
+            float offset = Mathf.Max(Mathf.Abs(SnappedOffset(g, record.OffsetX.Of(size))), Mathf.Abs(SnappedOffset(g, record.OffsetY.Of(size)))) * toEm;
+            float threshold = Mathf.Max(0.002f, 0.5f - record.Dilate.Of(size) * toEm * toSdf);
+            float softness = record.Softness * SoftnessEm * toSdf;
+            return offset + (0.5f - threshold + softness) * 2 * atlas.Spread <= atlas.Spread && offset * toSdf < threshold - softness - 0.25f;
+        }
+
+        // Two bytes in one float, exact through interpolation: the shader rounds it back.
+        static float Pack(byte high, byte low) => high + low / 256f;
+
+        Color32 LayerColor(in LayerRecord record, in LetteraAttributes.Cp attr)
+        {
+            Color32 color = record.Paint.Color;
+            if (record.Paint.UsesGlyphColor)
+            {
+                Color32 baseColor = m_DrawBase;
+                color = attr.HasColor ? attr.Color : new Color32(baseColor.r, baseColor.g, baseColor.b, 255);
+            }
+            color.a = (byte)(color.a * attr.Alpha);
+            return color;
+        }
+
+        // uv1: face edge, stroke edge (0 none), shadow edge (0 none), shadow softness. uv2: stroke and shadow colors, two bytes a float.
+        // uv3: the shadow's offset in the atlas, the stroke's softness, the face's alpha. The vertex alpha is the text's own, as on every quad.
+        void DrawMerged()
+        {
+            UseSegment(s_NoPaint);
+            m_FilterRow = 0;
+            List<LayerRecord> records = m_Attributes.Layers;
+            bool reverse = m_Attributes.PaintReverse;
+            Color32 baseColor = m_DrawBase;
+            for (int n = 0; n < m_PlacedCount; n++)
+            {
+                int i = reverse ? m_PlacedCount - 1 - n : n;
+                ref PlacedGlyph g = ref m_Placed[i];
+                ref AtlasGlyph atlas = ref m_PlacedAtlas[i];
+                if (atlas.Kind == AtlasGlyph.Empty) continue;
+                m_CurrentOwner = i;
+                ref LetteraAttributes.Cp attr = ref m_Attributes.At(g.Cluster);
+                Color32 face = attr.HasColor ? attr.Color : new Color32(baseColor.r, baseColor.g, baseColor.b, 255);
+                byte faceAlpha = (byte)(face.a * attr.Alpha);
+                float toEm = 1f / g.Size, toSdf = 1f / (2f * atlas.Spread);
+                float xUnit = g.Unit * (1 + g.XScale);
+                float left = g.X + atlas.Left * xUnit, right = g.X + atlas.Right * xUnit;
+                float bottom = g.Y + atlas.Bottom * g.Unit, top = g.Y + atlas.Top * g.Unit;
+                var parameters = new Vector4(0.5f, 0, 0, 0);
+                var colors = new Vector4();
+                var extra = new Vector4(0, 0, 0, faceAlpha / 255f);
+                int stroke = m_MergeStroke != null ? m_MergeStroke.Cover[g.Cluster] - 1 : -1;
+                if (stroke >= 0)
+                {
+                    LayerRecord record = records[stroke];
+                    float width = record.Width.Of(MeasureSize(record, g)) * toEm;
+                    if (width > 0)
+                    {
+                        Color32 c = LayerColor(record, attr);
+                        parameters.y = Mathf.Max(0.002f, 0.5f - width * toSdf);
+                        extra.z = record.Softness * SoftnessEm * toSdf;
+                        colors.x = Pack(c.r, c.g);
+                        colors.y = Pack(c.b, c.a);
+                    }
+                }
+                int shadow = m_MergeShadow != null ? m_MergeShadow.Cover[g.Cluster] - 1 : -1;
+                if (shadow >= 0)
+                {
+                    LayerRecord record = records[shadow];
+                    float size = MeasureSize(record, g);
+                    Color32 c = LayerColor(record, attr);
+                    parameters.z = Mathf.Max(0.002f, 0.5f - record.Dilate.Of(size) * toEm * toSdf);
+                    parameters.w = record.Softness * SoftnessEm * toSdf;
+                    colors.z = Pack(c.r, c.g);
+                    colors.w = Pack(c.b, c.a);
+                    extra.x = SnappedOffset(g, record.OffsetX.Of(size)) / (right - left) * (atlas.U1 - atlas.U0);
+                    extra.y = SnappedOffset(g, record.OffsetY.Of(size)) / (top - bottom) * (atlas.V1 - atlas.V0);
+                }
+                int v = Reserve();
+                Vertices[v] = new Vector3(left, bottom);
+                Vertices[v + 1] = new Vector3(left, top);
+                Vertices[v + 2] = new Vector3(right, top);
+                Vertices[v + 3] = new Vector3(right, bottom);
+                Uv0[v] = new Vector4(atlas.U0, atlas.V0, atlas.Page, ModeMerged);
+                Uv0[v + 1] = new Vector4(atlas.U0, atlas.V1, atlas.Page, ModeMerged);
+                Uv0[v + 2] = new Vector4(atlas.U1, atlas.V1, atlas.Page, ModeMerged);
+                Uv0[v + 3] = new Vector4(atlas.U1, atlas.V0, atlas.Page, ModeMerged);
+                Uv1[v] = Uv1[v + 1] = Uv1[v + 2] = Uv1[v + 3] = parameters;
+                Uv2[v] = Uv2[v + 1] = Uv2[v + 2] = Uv2[v + 3] = colors;
+                Uv3[v] = Uv3[v + 1] = Uv3[v + 2] = Uv3[v + 3] = extra;
+                m_QuadTakesBase = !attr.HasColor;
+                SetColor(v, new Color32(face.r, face.g, face.b, 255));
+                m_QuadTakesBase = false;
+                AddInk(left, bottom, right, top);
             }
         }
 

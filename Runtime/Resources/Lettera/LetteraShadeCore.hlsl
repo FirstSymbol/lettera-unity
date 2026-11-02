@@ -270,8 +270,45 @@ LETTERA_COLOR4 LetteraShadeGlyph(float4 uv0, float4 params, LETTERA_COLOR4 color
     return LetteraApplyPaint(paint, color, screen);
 }
 
+#ifndef LETTERA_LAYER_RGB
+#define LETTERA_LAYER_RGB(rgb) (rgb)
+#endif
+
+// Two bytes packed in one float as high + low / 256.
+float2 LetteraUnpackBytes(float packed)
+{
+    float t = round(packed * 256.0);
+    float high = floor(t / 256.0);
+    return float2(high, t - high * 256.0) / 255.0;
+}
+
+// A glyph's face, stroke and shadow in one quad, composed as three quads blended in that order would be.
+// uv1: face edge, stroke edge (0 none), shadow edge (0 none), shadow softness. paint: stroke and shadow colors packed.
+// extra: the shadow's offset in the atlas, the stroke's softness, the face's alpha. The vertex alpha is the text's.
+LETTERA_COLOR4 LetteraShadeMerged(float4 uv0, float4 params, LETTERA_COLOR4 color, float4 paint, float4 extra)
+{
+    float d = LETTERA_SAMPLE_SDF(uv0.xy, uv0.z).r;
+    float moved = LETTERA_SAMPLE_SDF(uv0.xy - extra.xy, uv0.z).r;
+    float faceEdge = LetteraEdge(d, params.x, 0);
+    float strokeEdge = LetteraEdge(d, max(params.y, 0.001), extra.z);
+    float shadowEdge = LetteraEdge(moved, max(params.z, 0.001), params.w);
+    float4 stroke = float4(LetteraUnpackBytes(paint.x), LetteraUnpackBytes(paint.y));
+    float4 shadow = float4(LetteraUnpackBytes(paint.z), LetteraUnpackBytes(paint.w));
+    float face = faceEdge * extra.w * color.a;
+    float strokeAlpha = params.y > 0 ? strokeEdge * stroke.a * color.a : 0;
+    float shadowAlpha = params.z > 0 ? shadowEdge * shadow.a * color.a : 0;
+    float3 rgb = color.rgb * face;
+    float alpha = face;
+    rgb += LETTERA_LAYER_RGB(stroke.rgb) * strokeAlpha * (1 - alpha);
+    alpha += strokeAlpha * (1 - alpha);
+    rgb += LETTERA_LAYER_RGB(shadow.rgb) * shadowAlpha * (1 - alpha);
+    alpha += shadowAlpha * (1 - alpha);
+    return LETTERA_COLOR4(alpha > 0 ? rgb / alpha : rgb, alpha);
+}
+
 LETTERA_COLOR4 LetteraShadeStyled(float4 uv0, float4 params, LETTERA_COLOR4 color, float4 paint, float4 extra, float2 screen)
 {
+    if (uv0.w > 12.5) return LetteraShadeMerged(uv0, params, color, paint, extra);
     return LetteraApplyFilter(LetteraShadeGlyph(uv0, params, color, paint, extra, screen), params.w);
 }
 
