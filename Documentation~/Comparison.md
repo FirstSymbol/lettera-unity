@@ -11,6 +11,7 @@ Every figure below comes from a script: [compare/](compare/) runs both engines a
 - The work is forced inside the clock (`ForceMeshUpdate`, `ForceRebuild`), and rows named "a frame" time the whole frame, so that no row is won by moving work out of it.
 - Allocation comes from a development player, with a deliberate allocation showing that the counter counts.
 - Since 1.0's third optimization batch, the rows that follow the long texts (scrolling a document, mixed labels, 5000 world texts, 3000 Han) start after a collection and ten idle frames, the same for every engine, so that none pays for the garbage of the row before it. Earlier figures had no such pause.
+- Since the fifth, each long text of R8 (10 KB, 100 KB, 1 MB) starts the same way. The players keep Unity's default, the incremental collector, and a cycle started by the labels or the text before a long text ran its slices in that row's frames in some runs and not in others: the 100 KB row moved between 1.7 and 7 ms on code that had not changed. A row after the pause pays, as it allocates, for sweeping what the collection freed, on every engine.
 - A text whose paragraphs are partly left for later frames (Lettera's long texts) is timed on the frame it is set; the finishing in the frames after is the frame time of whatever row comes next.
 
 ## Time
