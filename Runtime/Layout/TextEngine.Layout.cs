@@ -74,6 +74,9 @@ namespace FirstSymbol.Lettera
             if (m_MarqueeScrolling) wrap = false;
             if (m_Attributes.Elides.Count > 0 && !SuspendElide && !m_MarqueeScrolling && !ClipsViewport) ApplyElide(size, width, height, wrap);
 
+            m_LaidSize = size;
+            m_LaidWidth = width;
+            m_LaidWrap = wrap;
             LineStats stats = BreakLines(m_Lines, size, width, wrap, true, LayoutResume(size, width, wrap, data));
             m_ContentWidth = stats.MaxWidth;
             m_ContentHeight = stats.Height;
@@ -316,15 +319,29 @@ namespace FirstSymbol.Lettera
             {
                 lines.Clear();
             }
+            BreakParagraphs(lines, ref stats, baseSize, maxWidth, wrap, emergency, firstParagraph, m_Paragraphs.Count);
+            if (m_Attributes.TrimTop != LetteraTrimTop.None || m_Attributes.TrimBottom != LetteraTrimBottom.None) ApplyTrim(lines, ref stats, baseSize);
+            else m_TrimTop = 0;
+            return stats;
+        }
+
+        void BreakParagraphs(List<LetteraLine> lines, ref LineStats stats, float baseSize, float maxWidth, bool wrap, bool emergency, int firstParagraph, int endParagraph)
+        {
             m_PendingGap = 0;
             bool simple = m_Removals.Count == 0 && !m_Attributes.HasLayout;
             int sizedRun = -1;
             float runSize = 0;
             int previousParagraph = firstParagraph - 1;
-            for (int p = firstParagraph; p < m_Paragraphs.Count; p++)
+            for (int p = firstParagraph; p < endParagraph; p++)
             {
                 Paragraph paragraph = m_Paragraphs[p];
+                if (paragraph.Pending)
+                {
+                    AddEstimatedLine(lines, ref stats, paragraph, p, baseSize, maxWidth, wrap);
+                    continue;
+                }
                 if (m_Removals.Count > 0 && IsWhollyRemoved(paragraph)) continue;
+                int firstLine = lines.Count;
 
                 if (previousParagraph >= 0 && m_Attributes.ParagraphSpacings.Count > 0)
                     m_PendingGap += ParagraphGap(m_Paragraphs[previousParagraph], paragraph, baseSize);
@@ -413,10 +430,8 @@ namespace FirstSymbol.Lettera
                     }
                 }
                 AddLine(lines, ref stats, baseSize, lineStart, paragraph.End, visibleBefore(paragraph.ContentEnd, paragraph), p, true, margin);
+                if (m_Deferring) LearnLines(lines, firstLine, baseSize, maxWidth, wrap);
             }
-            if (m_Attributes.TrimTop != LetteraTrimTop.None || m_Attributes.TrimBottom != LetteraTrimBottom.None) ApplyTrim(lines, ref stats, baseSize);
-            else m_TrimTop = 0;
-            return stats;
         }
 
         bool IsWhollyRemoved(in Paragraph paragraph)
@@ -671,7 +686,8 @@ namespace FirstSymbol.Lettera
         /// <summary>The height of the text at a width, excluding padding.</summary>
         public float GetHeightForWidth(float width)
         {
-            EnsureMeasured();
+            // A layout asking at the text's own width gets the estimate while paragraphs wait; any other question waits for all of them.
+            EnsureMeasured(false);
             LetteraTextData data = m_Host.Data;
             // Asked for the width the text has, the layout it is about to run answers, so a layout group's question costs no second line breaking.
             if (!data.AutoSize && width > 0 && m_Attributes.Elides.Count == 0 && m_Marquee == null && m_StageHooks.Count == 0 && m_RevealSpans.Count == 0 &&
@@ -685,6 +701,7 @@ namespace FirstSymbol.Lettera
                 }
                 if (m_Removals.Count == 0 && m_FitGlyphScale == 1 && m_FitTracking == 0 && m_FitLineHeight == 1) return m_ContentHeight;
             }
+            if (m_PendingCount > 0) FinishForQuery();
             float size = data.AutoSize ? CurrentFontSize > 0 ? CurrentFontSize : data.FontSize : data.FontSize;
             return BreakLines(m_MeasureLines, size, width, data.WordWrap && width > 0, true).Height;
         }

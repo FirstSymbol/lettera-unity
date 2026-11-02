@@ -396,6 +396,11 @@ namespace FirstSymbol.Lettera
 
         internal Cp[] Chars = System.Array.Empty<Cp>();
         internal int Length;
+
+        // A long text with no range holds one set of defaults for all its characters, not one per character.
+        internal bool Uniform;
+
+        internal ref Cp At(int i) => ref Chars[Uniform ? 0 : i];
         internal readonly System.Collections.Generic.List<string> FamilyRequests = new System.Collections.Generic.List<string>();
         internal readonly System.Collections.Generic.List<string> Languages = new System.Collections.Generic.List<string>();
         internal readonly System.Collections.Generic.List<DecorationSpec> Decorations = new System.Collections.Generic.List<DecorationSpec>();
@@ -426,6 +431,7 @@ namespace FirstSymbol.Lettera
         internal void PreparePlain(int length)
         {
             Length = length;
+            Uniform = false;
             if (Chars.Length >= length) return;
             int capacity = Mathf.Min(Mathf.Max(Mathf.Max(length, 64), Chars.Length * 2), PlainLength);
             var chars = new Cp[capacity];
@@ -437,18 +443,20 @@ namespace FirstSymbol.Lettera
         // How many leading characters still hold their defaults: no effect has written since they were filled, so a plain text that grows fills only what is new.
         int m_CleanUpTo;
 
-        internal void Reset(int length)
+        internal void Reset(int length, bool uniform = false)
         {
             Extras.Clear();
-            if (Chars.Length < length || Chars.Length == 0)
+            Uniform = uniform;
+            int filled = uniform ? 1 : length;
+            if (Chars.Length < filled || Chars.Length == 0)
             {
-                Chars = new Cp[Mathf.Max(Mathf.Max(length, 16), Chars.Length * 2)];
+                Chars = new Cp[Mathf.Max(Mathf.Max(filled, 16), Chars.Length * 2)];
                 m_CleanUpTo = 0;
             }
             Length = length;
-            for (int i = Mathf.Min(m_CleanUpTo, length); i < length; i++)
+            for (int i = Mathf.Min(m_CleanUpTo, filled); i < filled; i++)
                 Chars[i] = new Cp { SizeMul = 1, Weight = 0, Alpha = 1, Family = -1, Language = -1, Slant = -1, Features = -1, Axes = -1, Warp = -1 };
-            if (length > m_CleanUpTo) m_CleanUpTo = length;
+            if (filled > m_CleanUpTo) m_CleanUpTo = filled;
             Filters.Clear();
             Warps.Clear();
             MotionRequests.Clear();

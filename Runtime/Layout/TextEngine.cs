@@ -194,7 +194,17 @@ namespace FirstSymbol.Lettera
             if (level == DirtyLevel.None) return false;
             m_EarlyChanges = LetteraChanges.None;
             RebuildCount++;
+            m_InPasses = true;
+            try { RunPasses(level); }
+            finally { m_InPasses = false; }
+            return true;
+        }
 
+        // Inside a rebuild a query finishes nothing: what it reads is what the passes are making.
+        bool m_InPasses;
+
+        void RunPasses(DirtyLevel level)
+        {
             if (level >= DirtyLevel.Parse)
             {
                 using (s_ParseMarker.Auto()) { long t = PassStart(); Parse(); PassEnd(0, t); }
@@ -235,7 +245,6 @@ namespace FirstSymbol.Lettera
                 m_SemanticsStale = false;
                 SemanticsChanged?.Invoke();
             }
-            return true;
         }
 
         // What passes run ahead of the frame's rebuild changed, for the rebuild to report.
@@ -244,6 +253,7 @@ namespace FirstSymbol.Lettera
         /// <summary>Makes glyph positions current, for caret and selection queries before the frame's rebuild. The mesh waits for it.</summary>
         public void EnsurePositioned()
         {
+            if (m_PendingCount > 0 && m_Dirty < DirtyLevel.Shape && !m_InPasses) FinishForQuery();
             if (m_Dirty < DirtyLevel.Positions) return;
             EnsureMeasured();
             if (m_Dirty >= DirtyLevel.Layout)
@@ -257,7 +267,9 @@ namespace FirstSymbol.Lettera
         }
 
         /// <summary>Makes parsing and shaping current, for queries before the frame's rebuild.</summary>
-        public void EnsureMeasured()
+        public void EnsureMeasured() => EnsureMeasured(true);
+
+        void EnsureMeasured(bool exact)
         {
             if (m_Dirty >= DirtyLevel.Parse)
             {
@@ -274,6 +286,7 @@ namespace FirstSymbol.Lettera
                 ShapeText();
                 m_Dirty = DirtyLevel.Layout;
             }
+            if (exact && m_PendingCount > 0 && !m_InPasses) FinishForQuery();
         }
 
         public bool HasElideRequests => m_Attributes.Elides.Count > 0;

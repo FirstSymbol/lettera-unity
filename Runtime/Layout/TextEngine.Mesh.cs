@@ -196,7 +196,7 @@ namespace FirstSymbol.Lettera
             {
                 ref PlacedGlyph g = ref m_Placed[i];
                 int density = PixelsPerEm(g.Size, rasterScale);
-                byte boost = m_Attributes.Chars[g.Cluster].Boost;
+                byte boost = m_Attributes.At(g.Cluster).Boost;
                 if (boost > 0) density = GlyphAtlas.Boost(g.Instance, g.Glyph, density << boost);
                 if (g.Special == SpecialRule)
                 {
@@ -245,7 +245,7 @@ namespace FirstSymbol.Lettera
             while (i < m_RealCount)
             {
                 ref PlacedGlyph g = ref m_Placed[i];
-                if (!m_Attributes.Chars[g.Cluster].Union || !m_PlacedAtlas[i].HasDistance || m_PlacedAtlas[i].Pixel)
+                if (!m_Attributes.At(g.Cluster).Union || !m_PlacedAtlas[i].HasDistance || m_PlacedAtlas[i].Pixel)
                 {
                     i++;
                     continue;
@@ -256,7 +256,7 @@ namespace FirstSymbol.Lettera
                 while (end < m_RealCount)
                 {
                     ref PlacedGlyph next = ref m_Placed[end];
-                    if (next.Line != g.Line || next.Instance != g.Instance || next.Size != g.Size || !m_Attributes.Chars[next.Cluster].Union || !m_PlacedAtlas[end].HasDistance) break;
+                    if (next.Line != g.Line || next.Instance != g.Instance || next.Size != g.Size || !m_Attributes.At(next.Cluster).Union || !m_PlacedAtlas[end].HasDistance) break;
                     if (LetteraNative.lt_glyph_extents(next.Instance.Font, next.Glyph, second) == 0 || second[2] == 0) break;
                     float inkLeft = next.X + second[0] * next.Unit;
                     if (inkLeft > inkRight + 0.01f * next.Size) break;
@@ -307,7 +307,7 @@ namespace FirstSymbol.Lettera
             for (int i = 0; i < m_RealCount; i++)
             {
                 ref PlacedGlyph g = ref m_Placed[i];
-                ref LetteraAttributes.Cp attr = ref m_Attributes.Chars[g.Cluster];
+                ref LetteraAttributes.Cp attr = ref m_Attributes.At(g.Cluster);
                 LetteraLine line = m_Lines[g.Line];
                 for (int pass = 0; pass < 2; pass++)
                 {
@@ -379,7 +379,7 @@ namespace FirstSymbol.Lettera
                 DrawLayer(i, m_Attributes.Layers[record]);
                 return;
             }
-            ref LetteraAttributes.Cp attr = ref m_Attributes.Chars[g.Cluster];
+            ref LetteraAttributes.Cp attr = ref m_Attributes.At(g.Cluster);
             Color32 baseColor = m_Host.BaseColor;
             UseSegment(s_NoPaint);
             // The face lies below every filter in the list.
@@ -478,7 +478,7 @@ namespace FirstSymbol.Lettera
         // A warp reads the field a little to the side per pixel; uv3 carries how far and how fine, in the tile's own uv.
         Vector4 WarpOf(in PlacedGlyph g, in AtlasGlyph atlas)
         {
-            short index = m_Attributes.Chars[g.Cluster].Warp;
+            short index = m_Attributes.At(g.Cluster).Warp;
             if (index < 0 || !atlas.HasDistance || atlas.Pixel) return default;
             WarpSpec warp = m_Attributes.Warps[index];
             float height = atlas.Top - atlas.Bottom;
@@ -527,7 +527,7 @@ namespace FirstSymbol.Lettera
             bool colorGlyph = atlas.Kind == AtlasGlyph.Color;
             if (colorGlyph && !record.OnColorGlyphs) return;
 
-            ref LetteraAttributes.Cp attr = ref m_Attributes.Chars[g.Cluster];
+            ref LetteraAttributes.Cp attr = ref m_Attributes.At(g.Cluster);
             m_FilterRow = FilterFor(g.Cluster, record.Style);
             Color32 color = record.Paint.Color;
             if (record.Paint.UsesGlyphColor)

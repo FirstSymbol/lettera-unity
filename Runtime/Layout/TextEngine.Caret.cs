@@ -120,6 +120,7 @@ namespace FirstSymbol.Lettera
 
         public int LineOf(int index, LetteraCaretBias bias)
         {
+            Exact();
             int count = m_Lines.Count;
             if (count == 0) return 0;
             int low = 0, high = count - 1;
@@ -220,6 +221,7 @@ namespace FirstSymbol.Lettera
 
         public bool TryGetCaretRect(int index, LetteraCaretBias bias, out Rect rect)
         {
+            Exact();
             EnsureSegments();
             index = SnapOutOfRemoved(Math.Min(Math.Max(index, 0), m_TextLength));
             float x, baseline, ascent, descent;
@@ -293,6 +295,7 @@ namespace FirstSymbol.Lettera
 
         public void GetRangeRects(int start, int end, List<Rect> rects)
         {
+            Exact();
             int first = rects.Count;
             ContentRangeRects(start, end, rects);
             if (m_WindowOffset == 0) return;
@@ -386,6 +389,7 @@ namespace FirstSymbol.Lettera
 
         public bool TryGetRangeBounds(int start, int end, out Rect bounds)
         {
+            Exact();
             m_RangeScratch.Clear();
             GetRangeRects(start, end, m_RangeScratch);
             bounds = default;
@@ -404,6 +408,7 @@ namespace FirstSymbol.Lettera
 
         public int HitTestCaret(Vector2 point, out LetteraCaretBias bias)
         {
+            Exact();
             bias = LetteraCaretBias.Forward;
             if (m_Lines.Count == 0) return 0;
             point = MapToContent(point);
@@ -424,6 +429,7 @@ namespace FirstSymbol.Lettera
         /// <summary>The caret on a given line nearest a horizontal position.</summary>
         public int HitTestLine(int lineIndex, float x, out LetteraCaretBias bias)
         {
+            Exact();
             EnsureSegments();
             bias = LetteraCaretBias.Forward;
             if (m_Lines.Count == 0) return 0;
@@ -543,6 +549,7 @@ namespace FirstSymbol.Lettera
         /// <summary>Whether a local point lies on a line's box, where an I-beam belongs.</summary>
         public bool IsOverLine(Vector2 point)
         {
+            Exact();
             point = MapToContent(point);
             foreach (LetteraLine line in m_Lines)
             {
@@ -558,6 +565,7 @@ namespace FirstSymbol.Lettera
         /// <summary>The direction of the paragraph holding an index. Current after EnsurePositioned.</summary>
         public bool ParagraphIsRtlAt(int index)
         {
+            Exact();
             if (m_Paragraphs.Count == 0) return m_Attributes.DirectionOverride == 1 || (m_Attributes.DirectionOverride < 0 && m_Host.Data.BaseDirection == LetteraDirection.RightToLeft);
             for (int p = m_Paragraphs.Count - 1; p >= 0; p--)
                 if (m_Paragraphs[p].Start <= index)

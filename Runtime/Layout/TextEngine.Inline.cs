@@ -279,9 +279,9 @@ namespace FirstSymbol.Lettera
                 Sprite sprite = item.Entry?.Sprite;
                 if (sprite == null || !TryInlineBox(item.Cp, out Rect box, out int glyph)) continue;
                 if (m_RecordOwners) m_CurrentOwner = glyph;
-                Color32 tint = new Color32(255, 255, 255, (byte)(m_Attributes.Chars[item.Cp].Alpha * 255f));
+                Color32 tint = new Color32(255, 255, 255, (byte)(m_Attributes.At(item.Cp).Alpha * 255f));
                 if (item.InheritColor) tint = TextColorOf(item.Cp);
-                else if (item.Tinted) tint = new Color32(item.Tint.r, item.Tint.g, item.Tint.b, (byte)(item.Tint.a * m_Attributes.Chars[item.Cp].Alpha));
+                else if (item.Tinted) tint = new Color32(item.Tint.r, item.Tint.g, item.Tint.b, (byte)(item.Tint.a * m_Attributes.At(item.Cp).Alpha));
                 AddSpriteQuad(box, sprite, tint);
                 m_CurrentOwner = -1;
             }
@@ -289,7 +289,7 @@ namespace FirstSymbol.Lettera
 
         Color32 TextColorOf(int cp)
         {
-            LetteraAttributes.Cp attr = m_Attributes.Chars[cp];
+            LetteraAttributes.Cp attr = m_Attributes.At(cp);
             Color32 color = attr.HasColor ? attr.Color : new Color32(255, 255, 255, 255);
             color.a = (byte)(color.a * attr.Alpha);
             return color;

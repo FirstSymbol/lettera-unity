@@ -352,7 +352,7 @@ namespace FirstSymbol.Lettera
             else
             {
                 attributes = m_Attributes = m_OwnAttributes ?? (m_OwnAttributes = new LetteraAttributes());
-                attributes.Reset(m_TextLength);
+                attributes.Reset(m_TextLength, ranges.Count == 0 && m_Host.Data.Overflow == LetteraOverflow.Visible);
             }
             ClearStageHooks();
 

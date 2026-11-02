@@ -54,7 +54,7 @@ namespace FirstSymbol.Lettera
         internal Color32 SolidColorOf(int glyph)
         {
             ref PlacedGlyph g = ref m_Placed[glyph];
-            LetteraAttributes.Cp attr = m_Attributes.Chars[g.Cluster];
+            LetteraAttributes.Cp attr = m_Attributes.At(g.Cluster);
             Color32 color = attr.HasColor ? attr.Color : m_Host.BaseColor;
             if (g.Special != 0 && m_MathSpecials[g.SpecialIndex].HasColor) color = m_MathSpecials[g.SpecialIndex].Color;
             color.a = (byte)(color.a * attr.Alpha * (attr.HasColor ? m_Host.BaseColor.a / 255f : 1));

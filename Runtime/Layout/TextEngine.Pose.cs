@@ -325,6 +325,14 @@ namespace FirstSymbol.Lettera
 
         void RunPosePass()
         {
+            bool inPasses = m_InPasses;
+            m_InPasses = true;
+            try { PoseAll(); }
+            finally { m_InPasses = inPasses; }
+        }
+
+        void PoseAll()
+        {
             PoseCount++;
             int glyphs = m_PlacedCount;
             LetteraGlyphPose identity = LetteraGlyphPose.Identity;

@@ -409,7 +409,7 @@ namespace FirstSymbol.Lettera
                 m_Shaped[m_ShapedCount + g] = glyph;
             }
             // A run's language and features are indices of this text's own lists: the same values, by the check above, at maybe other places.
-            LetteraAttributes.Cp[] chars = m_Attributes.Chars;
+            LetteraAttributes chars = m_Attributes;
             StoredRun* runs = RunsOf(entry);
             for (int r = 0; r < entry->RunCount; r++)
             {
@@ -420,7 +420,7 @@ namespace FirstSymbol.Lettera
                     Start = runStart, End = stored.End + start, GlyphStart = stored.GlyphStart + m_ShapedCount, GlyphCount = stored.GlyphCount,
                     Instance = s_StoredInstances[stored.Instance], Level = stored.Level, UnitEm = stored.UnitEm,
                     SizeAbsolute = stored.SizeAbsolute, SizeMul = stored.SizeMul, SizeAdd = stored.SizeAdd, Script = stored.Script, FaceFeature = stored.FaceFeature,
-                    BaselineShift = stored.BaselineShift, Language = chars[runStart].Language, Features = chars[runStart].Features,
+                    BaselineShift = stored.BaselineShift, Language = chars.At(runStart).Language, Features = chars.At(runStart).Features,
                 });
             }
             m_ShapedCount += glyphCount;
