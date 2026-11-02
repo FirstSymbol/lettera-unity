@@ -121,7 +121,7 @@ namespace FirstSymbol.Lettera
             public byte Level, FaceFeature;
         }
 
-        const int ParagraphCacheMinimum = 8;
+        const int ParagraphCacheMinimum = 1;
         // What the system's allocator keeps beside each block, counted against the budget too.
         const int BlockOverhead = 16;
         static readonly int EntryHead = (sizeof(ParagraphEntry) + 15) & ~15;
