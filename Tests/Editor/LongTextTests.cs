@@ -450,32 +450,39 @@ namespace FirstSymbol.Lettera.Editor.Tests
             return text;
         }
 
-        // The line that stands in the middle of the viewport is drawn when the text is set, and after finishing every line is where a whole build puts it.
-        void MiddleLineIsDrawn(LetteraText text, string what)
+        // What stands in the middle of the viewport is drawn when the text is set, and once finished, every line is where a whole build puts it.
+        void MiddleIsDrawn(RenderMode mode, bool stencil, float angle, float scale, string what)
         {
-            TextEngine engine = EngineOf(text);
+            LetteraLongText.FinishLater = false;
+            LetteraText whole = MakeUnder(mode, stencil, angle, scale, out _);
+            LetteraLongText.FinishLater = true;
+            Vector2 local = whole.transform.InverseTransformPoint(whole.transform.parent.position);
+            int middle = whole.HitTestCaret(local, out _);
+
+            LetteraText part = MakeUnder(mode, stencil, angle, scale, out _);
+            TextEngine engine = EngineOf(part);
+            what += " (" + engine.BandReport + ")";
+            Assert.Greater(engine.PendingParagraphs, 0, what + ": paragraphs wait");
             Assert.Greater(engine.VertexCount, 0, what + ": something is drawn");
-            Vector3 middle = text.transform.parent.position;
-            Vector2 local = text.transform.InverseTransformPoint(middle);
-            int first = engine.BandFirstLine, end = engine.BandEndLine;
-            what += " (" + engine.BandReport + ", middle at " + local + ")";
-            FinishBySlices(text, out _);
-            int line = text.GetLineIndex(text.HitTestCaret(local, out _), LetteraCaretBias.Forward);
-            Assert.GreaterOrEqual(line, first, what + ": the middle line was placed when set");
-            Assert.Less(line, end, what + ": the middle line was placed when set");
-            Assert.LessOrEqual(engine.BandFirstLine, line, what + ": and is placed after finishing");
-            Assert.Greater(engine.BandEndLine, line, what + ": and is placed after finishing");
+            bool drawn = false;
+            for (int i = 0; i < part.GlyphCount && !drawn; i++) drawn = System.Math.Abs(part.GetGlyph(i).Cluster - middle) < 200;
+            Assert.IsTrue(drawn, what + ": what stands in the middle is drawn when set");
+            FinishBySlices(part, out _);
+            LetteraLongText.FinishLater = false;
+            LetteraText again = MakeUnder(mode, stencil, angle, scale, out _);
+            LetteraLongText.FinishLater = true;
+            SameAsWhole(again, part, what);
         }
 
         [Test]
         public void TheLinesInViewAreDrawnUnderAStencilMaskACameraCanvasAndATurnedScaledViewport()
         {
             LetteraLongText.VisibleLinesOnly = true;
-            MiddleLineIsDrawn(MakeUnder(RenderMode.ScreenSpaceOverlay, true, 0, 1, out _), "stencil mask on an overlay canvas");
-            MiddleLineIsDrawn(MakeUnder(RenderMode.ScreenSpaceCamera, false, 0, 1, out _), "camera canvas");
-            MiddleLineIsDrawn(MakeUnder(RenderMode.ScreenSpaceCamera, true, 0, 1, out _), "stencil mask on a camera canvas");
-            MiddleLineIsDrawn(MakeUnder(RenderMode.WorldSpace, false, 30, 0.5f, out _), "a viewport turned and scaled down");
-            MiddleLineIsDrawn(MakeUnder(RenderMode.ScreenSpaceOverlay, false, 90, 2, out _), "a viewport turned on its side and scaled up");
+            MiddleIsDrawn(RenderMode.ScreenSpaceOverlay, true, 0, 1, "stencil mask on an overlay canvas");
+            MiddleIsDrawn(RenderMode.ScreenSpaceCamera, false, 0, 1, "camera canvas");
+            MiddleIsDrawn(RenderMode.ScreenSpaceCamera, true, 0, 1, "stencil mask on a camera canvas");
+            MiddleIsDrawn(RenderMode.WorldSpace, false, 30, 0.5f, "a viewport turned and scaled down");
+            MiddleIsDrawn(RenderMode.ScreenSpaceOverlay, false, 90, 2, "a viewport turned on its side and scaled up");
         }
     }
 }
