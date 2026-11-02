@@ -196,7 +196,14 @@ namespace FirstSymbol.Lettera
 
         /// <summary>The parsed ranges of the current text, as editing sees them.</summary>
         internal IReadOnlyList<LetteraMatchContext.RangeRecord> ParsedRanges => m_MatchContext.Ranges;
-        internal IReadOnlyList<LetteraStyle> EffectiveStyles => m_EffectiveStyles;
+        internal IReadOnlyList<LetteraStyle> EffectiveStyles
+        {
+            get
+            {
+                if (m_StylesUncollected) CollectStyles();
+                return m_EffectiveStyles;
+            }
+        }
 
         internal bool TryGetDelimiters(int range, out int openStart, out int openLength, out int closeStart, out int closeLength)
         {

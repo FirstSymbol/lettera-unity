@@ -18,8 +18,12 @@ namespace FirstSymbol.Lettera
         int[] m_SourceIndex = Array.Empty<int>();
         int m_TextLength;
 
+        // A plain text's parse asks no style, so the list is gathered only when something reads it, such as a formatting tool.
+        bool m_StylesUncollected;
+
         void CollectStyles()
         {
+            m_StylesUncollected = false;
             m_EffectiveStyles.Clear();
             if (Literal) return;
             LetteraTextData data = m_Host.Data;
@@ -91,6 +95,7 @@ namespace FirstSymbol.Lettera
             {
                 context = m_MatchContext = s_PlainContext;
                 m_EffectiveStyles.Clear();
+                m_StylesUncollected = true;
             }
             else
             {
