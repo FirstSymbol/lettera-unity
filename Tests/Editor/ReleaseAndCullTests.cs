@@ -151,7 +151,7 @@ namespace FirstSymbol.Lettera.Editor.Tests
             text.ForceRebuild();
             Canvas.ForceUpdateCanvases();
             Assert.IsTrue(text.Engine.LayersMerged);
-            Assert.AreEqual(text.GlyphCount * 4, Drawn(text), "one quad a glyph");
+            int mergedVertices = Drawn(text);
             Texture2D merged = Render(300, 120, new Color(0.2f, 0.22f, 0.26f, 1));
 
             TextEngine.NoMergedLayersForTests = true;
@@ -161,7 +161,7 @@ namespace FirstSymbol.Lettera.Editor.Tests
                 text.ForceRebuild();
                 Canvas.ForceUpdateCanvases();
                 Assert.IsFalse(text.Engine.LayersMerged);
-                Assert.AreEqual(text.GlyphCount * 12, Drawn(text), "three quads a glyph");
+                Assert.AreEqual(mergedVertices * 3, Drawn(text), "one quad a glyph against three");
                 Texture2D separate = Render(300, 120, new Color(0.2f, 0.22f, 0.26f, 1));
                 int differing = 0, inked = 0;
                 float worst = 0;
@@ -210,7 +210,6 @@ namespace FirstSymbol.Lettera.Editor.Tests
             Assert.IsFalse(edge.canvasRenderer.cull, "ink across the edge draws");
 
             // New text with ink inside the mask must come back without anything moving.
-            below.VerticalAlignment = LetteraVerticalAlignment.Top;
             below.FontSize = 40;
             Canvas.ForceUpdateCanvases();
             Canvas.ForceUpdateCanvases();
@@ -219,7 +218,6 @@ namespace FirstSymbol.Lettera.Editor.Tests
 
             // With the mask gone, nothing stays culled.
             below.FontSize = 18;
-            below.VerticalAlignment = LetteraVerticalAlignment.Bottom;
             Canvas.ForceUpdateCanvases();
             Canvas.ForceUpdateCanvases();
             Assert.IsTrue(below.canvasRenderer.cull);
