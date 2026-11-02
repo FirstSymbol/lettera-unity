@@ -271,6 +271,13 @@ namespace FirstSymbol.Lettera
             m_Lines.InsertRange(at, m_SpliceLines);
             m_ContentHeight += stats.Height - old;
             if (stats.MaxWidth > m_ContentWidth) m_ContentWidth = stats.MaxWidth;
+            if (m_PendingCount == 0)
+            {
+                // Added up in reading order, as breaking all of it at once does, so the last bit is the same too.
+                float height = 0;
+                for (int l = 0; l < m_Lines.Count; l++) height += m_Lines[l].Height + m_Lines[l].GapBefore;
+                m_ContentHeight = height;
+            }
             int shift = m_SpliceLines.Count - count;
             m_SpliceLines.Clear();
             m_EstimateVersion++;
@@ -375,6 +382,8 @@ namespace FirstSymbol.Lettera
                 m_FirstPending = end;
             } while (m_PendingCount > 0 && System.Diagnostics.Stopwatch.GetTimestamp() < deadline);
             LayoutBounds = new Rect(LayoutBounds.x, m_Box.yMax - m_ContentHeight, LayoutBounds.width, m_ContentHeight);
+            // Done, every line gets its place, as a whole build gives it.
+            if (m_PendingCount == 0) return true;
             if (!m_PlacedOnEstimates) return false;
             if (m_BandFirst < m_BandEnd && m_BandFirst < m_Lines.Count && PendingBefore(m_Lines[m_BandFirst].Paragraph)) return false;
             m_PlacedOnEstimates = false;
