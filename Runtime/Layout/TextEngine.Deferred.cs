@@ -142,6 +142,18 @@ namespace FirstSymbol.Lettera
 
         // ------------------------------------------------------------- shaping what waits
 
+        // What shaping writes per codepoint, up to a codepoint. A long text left for later grows these as it is shaped, not all at once.
+        void EnsureShapeBuffers(int size)
+        {
+            EnsureSize(ref m_Levels, size);
+            EnsureSize(ref m_Boundaries, size + 1);
+            EnsureSize(ref m_Breaks, size);
+            EnsureSize(ref m_Scripts, size);
+            EnsureSize(ref m_CpRun, size);
+            EnsureSize(ref m_CpAdvanceEm, size);
+            EnsureSize(ref m_ShapeText, size);
+        }
+
         // The first run that starts at or after a codepoint, among the first runs.
         int RunAtOrAfter(int cp, int limit)
         {
@@ -172,6 +184,7 @@ namespace FirstSymbol.Lettera
         // Many codepoints at once go across the workers, as a whole text does; the result is the same either way.
         void ShapePending(int first, int end)
         {
+            EnsureShapeBuffers(m_Paragraphs[end - 1].End + 1);
             int runs = m_Runs.Count, glyphs = m_ShapedCount;
             int insertRun = RunAtOrAfter(m_Paragraphs[first].Start, runs);
             LetteraAttributes attributes = m_Attributes;
