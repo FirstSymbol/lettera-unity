@@ -371,7 +371,7 @@ namespace FirstSymbol.Lettera
                                 runSize = SizeOf(m_Runs[run], baseSize);
                             }
                             width += CpWidth(c, runSize);
-                            space &= LetteraUnicode.IsWhiteSpace(m_Text[c]) || m_CpDivider[c];
+                            space &= LetteraUnicode.IsWhiteSpace(m_Text[c]) || (!m_NoExtras && m_CpDivider[c]);
                         }
                     }
                     else
@@ -383,7 +383,7 @@ namespace FirstSymbol.Lettera
                             if (IsRemoved(c)) { space &= false; continue; }
                             width += CpWidth(c, SizeOf(m_Runs[m_CpRun[c]], baseSize));
                             // A divider never forces a break by itself: it hangs out of a line it ends, like a space.
-                            space &= LetteraUnicode.IsWhiteSpace(m_Text[c]) || m_CpDivider[c];
+                            space &= LetteraUnicode.IsWhiteSpace(m_Text[c]) || (!m_NoExtras && m_CpDivider[c]);
                         }
                     }
 

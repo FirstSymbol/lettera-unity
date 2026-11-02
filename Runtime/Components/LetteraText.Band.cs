@@ -105,11 +105,13 @@ namespace FirstSymbol.Lettera
 
         static readonly List<LetteraText> s_Finishing = new List<LetteraText>();
         [System.NonSerialized] bool m_InFinishing;
-        [System.NonSerialized] int m_SeenEstimate;
+        [System.NonSerialized] int m_SeenEstimate, m_JoinedFrame = -1;
 
         void JoinFinishing()
         {
-            if (m_InFinishing || Engine.PendingParagraphs == 0 || !isActiveAndEnabled) return;
+            if (Engine.PendingParagraphs == 0 || !isActiveAndEnabled) return;
+            if ((Engine.LastChanges & LetteraChanges.Text) != 0 && Engine.ShapedAfresh) m_JoinedFrame = Time.frameCount;
+            if (m_InFinishing) return;
             m_InFinishing = true;
             m_SeenEstimate = Engine.EstimateVersion;
             s_Finishing.Add(this);
@@ -153,7 +155,9 @@ namespace FirstSymbol.Lettera
                     continue;
                 }
                 TextEngine e = text.Engine;
-                if (e.PendingParagraphs > 0 && (first || System.Diagnostics.Stopwatch.GetTimestamp() < deadline))
+                // The frame a text was set in has paid for what shows: finishing starts with the next one.
+                bool fresh = Application.isPlaying && text.m_JoinedFrame == Time.frameCount;
+                if (!fresh && e.PendingParagraphs > 0 && (first || System.Diagnostics.Stopwatch.GetTimestamp() < deadline))
                 {
                     first = false;
                     if (e.FinishStep(deadline)) text.MarkDirty(DirtyLevel.Positions);
@@ -185,7 +189,8 @@ namespace FirstSymbol.Lettera
                     continue;
                 }
                 TextEngine e = text.Engine;
-                if (!e.IsBanded || e.Dirty >= DirtyLevel.Positions) continue;
+                // A document's window follows its own offset.
+                if (!e.IsBanded || e.IsWindowed || e.Dirty >= DirtyLevel.Positions) continue;
                 bool has = text.VisibleBand(out float low, out float high);
                 if (has && e.BandCovers(low, high)) continue;
                 text.MarkDirty(DirtyLevel.Positions);

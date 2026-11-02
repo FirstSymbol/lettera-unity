@@ -40,7 +40,9 @@ namespace FirstSymbol.Lettera
         public void OpenDocument(LetteraRope rope, bool takeOwnership, LetteraDocumentSettings settings)
         {
             CloseDocument();
-            m_View = new LetteraDocumentView(this, rope, takeOwnership, settings ?? new LetteraDocumentSettings());
+            settings = settings ?? new LetteraDocumentSettings();
+            ReserveFor(settings.MaxWindowCodepoints + 512);
+            m_View = new LetteraDocumentView(this, rope, takeOwnership, settings);
             m_WindowLoaded = false;
             m_ViewWidth = WindowViewportWidth;
             m_View.Open();
@@ -91,7 +93,60 @@ namespace FirstSymbol.Lettera
         {
             if (offset == m_WindowOffset) return;
             m_WindowOffset = offset;
+            // Past the placed lines, the lines that come into view are placed: inside a rebuild at its end, otherwise by the next one.
+            if (m_Banded && m_Dirty < DirtyLevel.Positions && !WindowBandCovers())
+            {
+                if (m_InPasses)
+                {
+                    m_WindowBandStale = true;
+                    return;
+                }
+                SetDirty(DirtyLevel.Positions);
+                m_Host.RequestRebuild(DirtyLevel.Positions);
+                return;
+            }
             PoseForScroll();
+        }
+
+        bool m_WindowBandStale;
+
+        // A window holds at most so many codepoints: its buffers take that room when the document opens, so no scroll grows them.
+        void ReserveFor(int codepoints)
+        {
+            int n = Math.Max(codepoints, SmallestBuffer);
+            EnsureSize(ref m_Text, n + 4);
+            EnsureSize(ref m_SourceIndex, n + 4);
+            if (m_RuntimeChars.Length < n) m_RuntimeChars = new char[n];
+            if (m_PrevSource.Length < n) m_PrevSource = new char[n];
+            EnsureSize(ref m_Levels, n + 1);
+            EnsureSize(ref m_Boundaries, n + 2);
+            EnsureSize(ref m_Breaks, n + 1);
+            EnsureSize(ref m_Scripts, n + 1);
+            EnsureSize(ref m_CpRun, n + 1);
+            EnsureSize(ref m_CpAdvanceEm, n + 1);
+            EnsureSize(ref m_ShapeText, n + 1);
+            Cleared(ref m_CpDivider, n, 0);
+            Cleared(ref m_CpExtraEm, n, 0);
+            Cleared(ref m_CpExtraUnits, n, 0);
+            Cleared(ref m_CpLeadEm, n, 0);
+            Cleared(ref m_CpLeadUnits, n, 0);
+            Cleared(ref m_CpKashida, n, 0);
+            EnsureSize(ref m_Shaped, n);
+            EnsureSize(ref m_Placed, n);
+            EnsureSize(ref m_PlacedAtlas, n);
+            EnsureSize(ref m_PlacedReach, n);
+            if (Vertices.Length < n * 4) GrowVertices(n * 4);
+            if (Indices.Length < n * 6) Array.Resize(ref Indices, n * 6);
+        }
+
+        void PlaceWindowAgainIfStale()
+        {
+            if (!m_WindowBandStale) return;
+            m_WindowBandStale = false;
+            if (!m_Banded || WindowBandCovers()) return;
+            PositionGlyphs();
+            BuildMesh();
+            m_WindowPlaced = false;
         }
 
         void PoseForScroll()

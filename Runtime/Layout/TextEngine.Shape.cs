@@ -85,6 +85,7 @@ namespace FirstSymbol.Lettera
             int resume = ShapeResume(baseLevel, data);
             m_Deferring = DeferApplies(length, data);
             m_DeferBaseLevel = baseLevel;
+            ShapedAfresh = resume == 0;
             if (resume == 0) ForgetEstimates();
 
             // A paragraph left for later prepares its own characters when it is shaped.
@@ -129,7 +130,7 @@ namespace FirstSymbol.Lettera
             int start = parallel ? length + 1 : resume;
             while (start <= length)
             {
-                int i = start;
+                int i = m_Deferring ? NextSeparator(start, length) : start;
                 int separator = 0;
                 while (i < length && !IsParagraphSeparator(i, out separator)) i++;
                 if (i >= length) separator = 0;

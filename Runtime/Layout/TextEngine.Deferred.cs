@@ -37,6 +37,9 @@ namespace FirstSymbol.Lettera
         /// <summary>How many paragraphs wait to be shaped.</summary>
         internal int PendingParagraphs => m_PendingCount;
 
+        /// <summary>The last shaping started from the first paragraph, not from an edit.</summary>
+        internal bool ShapedAfresh { get; private set; }
+
         /// <summary>How many glyphs are shaped so far. Tests read this.</summary>
         internal int ShapedGlyphCount => m_ShapedCount;
 
@@ -77,6 +80,22 @@ namespace FirstSymbol.Lettera
                 if (m_Paragraphs[p].Pending)
                     return true;
             return false;
+        }
+
+        // The first codepoint from here that may separate paragraphs, found with no call per codepoint. The caller checks it.
+        unsafe int NextSeparator(int from, int length)
+        {
+            fixed (int* text = m_Text)
+            {
+                int i = from;
+                while (i < length)
+                {
+                    int c = text[i];
+                    if (c <= 0x2029 && (c == '\n' || c == '\r' || c == 0x85 || c == 0x2029)) return i;
+                    i++;
+                }
+                return length;
+            }
         }
 
         void ShapeSample()
