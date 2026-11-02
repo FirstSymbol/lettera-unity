@@ -260,7 +260,9 @@ namespace FirstSymbol.Lettera
                 return;
             }
             float viewport = Math.Max(ViewportHeight, 1);
-            double windowTop = WindowTop(), windowBottom = m_Rope.HeightAtBlock(m_LastBlock + 1);
+            // A laid out window says where its text ends: a lean or capped one ends inside a block.
+            double windowTop = WindowTop();
+            double windowBottom = m_Engine.IsWindowLoaded && m_Engine.Dirty < DirtyLevel.Layout ? windowTop + m_Engine.PlainExtent : m_Rope.HeightAtBlock(m_LastBlock + 1);
             double edge = m_Settings.EdgeViewports * viewport;
             bool nearTop = m_FirstBlock > 0 && m_Y - edge < windowTop;
             bool nearBottom = m_LastBlock + 1 < m_Rope.BlockCount && m_Y + viewport + edge > windowBottom;
