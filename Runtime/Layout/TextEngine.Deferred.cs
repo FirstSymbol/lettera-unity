@@ -143,15 +143,26 @@ namespace FirstSymbol.Lettera
         // ------------------------------------------------------------- shaping what waits
 
         // What shaping writes per codepoint, up to a codepoint. A long text left for later grows these as it is shaped, not all at once.
+        // They grow a quarter past what is asked: shaping near what shows asks a little more each round, and doubling seven arrays of a long text
+        // for that is megabytes. A text left for later never takes much more than its length.
         void EnsureShapeBuffers(int size)
         {
-            EnsureSize(ref m_Levels, size);
-            EnsureSize(ref m_Boundaries, size + 1);
-            EnsureSize(ref m_Breaks, size);
-            EnsureSize(ref m_Scripts, size);
-            EnsureSize(ref m_CpRun, size);
-            EnsureSize(ref m_CpAdvanceEm, size);
-            EnsureSize(ref m_ShapeText, size);
+            if (m_Levels.Length >= size && m_Boundaries.Length >= size + 1 && m_Breaks.Length >= size && m_Scripts.Length >= size && m_CpRun.Length >= size &&
+                m_CpAdvanceEm.Length >= size && m_ShapeText.Length >= size) return;
+            int room = Math.Max(Math.Max(size + size / 4, m_Levels.Length * 2), SmallestBuffer);
+            if (m_Deferring) room = Math.Min(room, Math.Max(size, m_TextLength + 1 + (m_TextLength >> 3)));
+            Grow(ref m_Levels, room);
+            Grow(ref m_Boundaries, room + 1);
+            Grow(ref m_Breaks, room);
+            Grow(ref m_Scripts, room);
+            Grow(ref m_CpRun, room);
+            Grow(ref m_CpAdvanceEm, room);
+            Grow(ref m_ShapeText, room);
+        }
+
+        static void Grow<T>(ref T[] array, int size)
+        {
+            if (array.Length < size) Array.Resize(ref array, size);
         }
 
         // The first run that starts at or after a codepoint, among the first runs.
