@@ -164,6 +164,8 @@ namespace FirstSymbol.Lettera.Editor.Tests
             {
                 var before = Lengths(engine, "e.", new Dictionary<string, int>());
                 Lengths(engine.View, "v.", before);
+                Lengths(label, "l.", before);
+                Lengths(scroller, "s.", before);
                 long a0 = TextEngine.ProbeAllocated();
                 scroller.Position = step / 240.0 * end;
                 long a1 = TextEngine.ProbeAllocated();
@@ -171,6 +173,8 @@ namespace FirstSymbol.Lettera.Editor.Tests
                 long a2 = TextEngine.ProbeAllocated();
                 var after = Lengths(engine, "e.", new Dictionary<string, int>());
                 Lengths(engine.View, "v.", after);
+                Lengths(label, "l.", after);
+                Lengths(scroller, "s.", after);
                 yield return null;
                 long frame = s_Frame.LastValue;
                 if (frame > 20000 || a2 - a0 > 20000)
