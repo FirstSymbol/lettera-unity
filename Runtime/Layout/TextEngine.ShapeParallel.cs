@@ -216,6 +216,86 @@ namespace FirstSymbol.Lettera
             }
         }
 
+        // Paragraphs a long text left for later, shaped side by side as a whole text is, at the end of the runs and glyphs. The caller moves them into place.
+        void ShapePendingInParallel(int first, int end, int runs, int glyphs)
+        {
+            int baseLevel = m_DeferBaseLevel;
+            m_Slots.Clear();
+            for (int p = first; p < end; p++)
+            {
+                Paragraph paragraph = m_Paragraphs[p];
+                AddSlot(paragraph.Start, paragraph.ContentEnd, paragraph.End, baseLevel);
+            }
+            BaseLevelForSlots = baseLevel;
+            LetteraWorkers.Run(m_Slots.Count, m_AnalyzeOne ?? (m_AnalyzeOne = AnalyzeSlot));
+
+            m_DeferShaping = true;
+            m_Deferred.Clear();
+            string language = LanguageOf(-1);
+            for (int s = 0; s < m_Slots.Count; s++)
+            {
+                ParagraphSlot slot = m_Slots[s];
+                var paragraph = new Paragraph { Start = slot.Start, ContentEnd = slot.ContentEnd, End = slot.End, Level = slot.Level };
+                slot.FirstRun = m_Runs.Count;
+                if (slot.Hit)
+                {
+                    TryRestoreParagraph(slot.Hash, ref paragraph, slot.Start, slot.End - slot.Start, baseLevel, language);
+                }
+                else if (slot.End > slot.Start)
+                {
+                    m_DeferParagraphStart = slot.Start;
+                    m_DeferParagraphLength = slot.End - slot.Start;
+                    BuildRuns(paragraph);
+                }
+                slot.RunCount = m_Runs.Count - slot.FirstRun;
+                m_Slots[s] = slot;
+                int p = first + s;
+                if (slot.ContentEnd == slot.Start && baseLevel < 0 && p > 0) paragraph.Level = m_Paragraphs[p - 1].Level;
+                m_Paragraphs[p] = paragraph;
+            }
+            m_DeferShaping = false;
+            LetteraWorkers.Run(m_Deferred.Count, m_ShapeOne ?? (m_ShapeOne = ShapeDeferred));
+
+            // Restored runs went in as they came, and shaped ones wait in their own buffers: all of them in reading order after the glyphs before.
+            int total = m_ShapedCount - glyphs;
+            foreach (DeferredRun deferred in m_Deferred) total += deferred.Count;
+            EnsureSize(ref m_ShapedMerged, total);
+            int at = 0, next = 0;
+            for (int r = runs; r < m_Runs.Count; r++)
+            {
+                Run run = m_Runs[r];
+                int count;
+                if (next < m_Deferred.Count && m_Deferred[next].RunIndex == r)
+                {
+                    DeferredRun deferred = m_Deferred[next++];
+                    Array.Copy(deferred.Glyphs, 0, m_ShapedMerged, at, deferred.Count);
+                    count = deferred.Count;
+                    ArrayPool<ShapedGlyph>.Shared.Return(deferred.Glyphs);
+                }
+                else
+                {
+                    Array.Copy(m_Shaped, run.GlyphStart, m_ShapedMerged, at, run.GlyphCount);
+                    count = run.GlyphCount;
+                }
+                run.GlyphStart = glyphs + at;
+                run.GlyphCount = count;
+                m_Runs[r] = run;
+                at += count;
+            }
+            m_Deferred.Clear();
+            EnsureSize(ref m_Shaped, glyphs + at);
+            Array.Copy(m_ShapedMerged, 0, m_Shaped, glyphs, at);
+            m_ShapedCount = glyphs + at;
+
+            for (int s = 0; s < m_Slots.Count; s++)
+            {
+                ParagraphSlot slot = m_Slots[s];
+                if (!slot.Cacheable || slot.Hit || slot.RunCount == 0) continue;
+                StoreParagraph(slot.Hash, m_Paragraphs[first + s], slot.Start, slot.End - slot.Start, baseLevel, language, slot.FirstRun, m_Runs[slot.FirstRun].GlyphStart,
+                    slot.FirstRun + slot.RunCount);
+            }
+        }
+
         // Where a run would shape now, with a paragraph-relative start: it waits, and what workers need from the main thread is ready for it.
         void DeferShaping(ref Run run)
         {

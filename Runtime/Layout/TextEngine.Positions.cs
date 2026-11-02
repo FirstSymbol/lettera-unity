@@ -63,6 +63,8 @@ namespace FirstSymbol.Lettera
             m_PlacedCount = 0;
             m_SegmentsValid = false;
             m_VirtualGlyphs.Clear();
+            // A box that only grew taller asks no new lines, only new places.
+            if (m_Banded && !IsWindowed) m_Box = ComputeBox(data.Padding, m_Host.LayoutRect);
 
             float top = m_Box.yMax;
             bool clips = m_Host.ClipsOverflow || m_MarqueeScrolling || ClipsViewport;
