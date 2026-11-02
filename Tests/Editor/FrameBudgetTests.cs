@@ -12,6 +12,7 @@ namespace FirstSymbol.Lettera.Editor.Tests
     public class FrameBudgetTests : TextFixture
     {
         static readonly ProfilerRecorder s_Gc = ProfilerRecorder.StartNew(ProfilerCategory.Memory, "GC Allocated In Frame");
+        static byte[] s_Control;
 
         static string Body(int length)
         {
@@ -158,6 +159,10 @@ namespace FirstSymbol.Lettera.Editor.Tests
                 yield return null;
             }
             // The comparison's scroll: the whole document in 240 frames. The last windows are short, and the last one takes its margins again.
+            long control = s_Gc.CurrentValue;
+            s_Control = new byte[40000];
+            control = s_Gc.CurrentValue - control;
+            Assume.That(control, Is.GreaterThanOrEqualTo(40000), "the counter counts inside a frame");
             long largest = 0;
             int at = 0;
             for (int step = 1; step <= 240; step++)
