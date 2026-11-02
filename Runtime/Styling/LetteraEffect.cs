@@ -434,13 +434,21 @@ namespace FirstSymbol.Lettera
             Chars = chars;
         }
 
+        // How many leading characters still hold their defaults: no effect has written since they were filled, so a plain text that grows fills only what is new.
+        int m_CleanUpTo;
+
         internal void Reset(int length)
         {
             Extras.Clear();
-            if (Chars.Length < length || Chars.Length == 0) Chars = new Cp[Mathf.Max(Mathf.Max(length, 16), Chars.Length * 2)];
+            if (Chars.Length < length || Chars.Length == 0)
+            {
+                Chars = new Cp[Mathf.Max(Mathf.Max(length, 16), Chars.Length * 2)];
+                m_CleanUpTo = 0;
+            }
             Length = length;
-            for (int i = 0; i < length; i++)
+            for (int i = Mathf.Min(m_CleanUpTo, length); i < length; i++)
                 Chars[i] = new Cp { SizeMul = 1, Weight = 0, Alpha = 1, Family = -1, Language = -1, Slant = -1, Features = -1, Axes = -1, Warp = -1 };
+            if (length > m_CleanUpTo) m_CleanUpTo = length;
             Filters.Clear();
             Warps.Clear();
             MotionRequests.Clear();
@@ -962,6 +970,7 @@ namespace FirstSymbol.Lettera
         /// <summary>Called before an effect applies a range: its layers belong to this effect.</summary>
         internal void BeginEffect(object effect, int style)
         {
+            m_CleanUpTo = 0;
             m_CurrentEffect = effect;
             m_CurrentStyle = style;
         }
