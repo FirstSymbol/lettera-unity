@@ -11,6 +11,7 @@ namespace FirstSymbol.Lettera.Editor.Tests
     // Probe (temporary): what a label costs at birth, whether a destroyed one is let go, and what a long text allocates per pass.
     public class ProbeHeapTests : TextFixture
     {
+        static readonly Unity.Profiling.ProfilerRecorder s_Frame = Unity.Profiling.ProfilerRecorder.StartNew(Unity.Profiling.ProfilerCategory.Memory, "GC Allocated In Frame");
         static string Sentence(int i)
         {
             const string Words = "The quick brown fox jumps over a lazy dog and then runs back home again ";
@@ -27,19 +28,19 @@ namespace FirstSymbol.Lettera.Editor.Tests
 
         LetteraText Label(Transform parent, string text, float size, Vector2 box, long[] steps = null)
         {
-            long t0 = GC.GetAllocatedBytesForCurrentThread();
+            long t0 = TextEngine.ProbeAllocated();
             var go = new GameObject("Label", typeof(RectTransform));
             go.transform.SetParent(parent, false);
             ((RectTransform)go.transform).sizeDelta = box;
-            long t1 = GC.GetAllocatedBytesForCurrentThread();
+            long t1 = TextEngine.ProbeAllocated();
             var label = go.AddComponent<LetteraText>();
-            long t2 = GC.GetAllocatedBytesForCurrentThread();
+            long t2 = TextEngine.ProbeAllocated();
             label.raycastTarget = false;
             label.Font = Latin;
             label.FontSize = size;
-            long t3 = GC.GetAllocatedBytesForCurrentThread();
+            long t3 = TextEngine.ProbeAllocated();
             label.Text = text;
-            long t4 = GC.GetAllocatedBytesForCurrentThread();
+            long t4 = TextEngine.ProbeAllocated();
             if (steps != null)
             {
                 steps[0] += t1 - t0; steps[1] += t2 - t1; steps[2] += t3 - t2; steps[3] += t4 - t3;
@@ -60,20 +61,19 @@ namespace FirstSymbol.Lettera.Editor.Tests
             labels.Clear();
             GC.Collect();
             for (int i = 0; i < 1000; i++) labels.Add(Label(canvas, Sentence(i), 18, new Vector2(400, 30), steps));
-            long before = GC.GetAllocatedBytesForCurrentThread();
+            long before = TextEngine.ProbeAllocated();
             foreach (LetteraText l in labels) l.ForceRebuild();
-            steps[4] = GC.GetAllocatedBytesForCurrentThread() - before;
-            before = GC.GetAllocatedBytesForCurrentThread();
+            steps[4] = TextEngine.ProbeAllocated() - before;
             UnityEngine.Canvas.ForceUpdateCanvases();
             yield return null;
-            steps[5] = GC.GetAllocatedBytesForCurrentThread() - before;
+            steps[5] = s_Frame.LastValue;
             Debug.Log($"LETTERA_PROBE per label: go {steps[0] / 1000} add {steps[1] / 1000} font {steps[2] / 1000} text {steps[3] / 1000} rebuild {steps[4] / 1000} frame {steps[5] / 1000}");
             var weak = new List<WeakReference>();
             foreach (LetteraText l in labels) weak.Add(new WeakReference(((ITextComponent)l).SharedEngine));
             var weakLabels = new List<WeakReference>();
             foreach (LetteraText l in labels) weakLabels.Add(new WeakReference(l));
             long heapBefore = GC.GetTotalMemory(true);
-            foreach (LetteraText l in labels) UnityEngine.Object.Destroy(l.gameObject);
+            foreach (LetteraText l in labels) UnityEngine.Object.DestroyImmediate(l.gameObject);
             labels.Clear();
             yield return null;
             yield return null;
@@ -103,20 +103,18 @@ namespace FirstSymbol.Lettera.Editor.Tests
                 TextEngine.TimePasses = true;
                 Array.Clear(TextEngine.PassTicks, 0, TextEngine.PassTicks.Length);
                 Array.Clear(TextEngine.PassBytes, 0, TextEngine.PassBytes.Length);
-                long before = GC.GetAllocatedBytesForCurrentThread();
+                long before = TextEngine.ProbeAllocated();
                 big.Text = text;
                 big.ForceRebuild();
-                long set = GC.GetAllocatedBytesForCurrentThread() - before;
+                long set = TextEngine.ProbeAllocated() - before;
                 string passes = string.Join(" ", TextEngine.PassBytes);
                 Array.Clear(TextEngine.PassBytes, 0, TextEngine.PassBytes.Length);
                 var frames = new List<long>();
                 for (int f = 0; f < 8; f++)
                 {
-                    before = GC.GetAllocatedBytesForCurrentThread();
                     UnityEngine.Canvas.ForceUpdateCanvases();
-                    LetteraMotionHubTick();
                     yield return null;
-                    frames.Add(GC.GetAllocatedBytesForCurrentThread() - before);
+                    frames.Add(s_Frame.LastValue);
                 }
                 TextEngine.TimePasses = false;
                 Debug.Log($"LETTERA_PROBE long {size} KB: set {set / 1024} KB passes [{passes}] then frames KB {string.Join(" ", frames.ConvertAll(x => x / 1024))} later passes [{string.Join(" ", TextEngine.PassBytes)}] pending {((ITextComponent)big).SharedEngine.PendingParagraphs}");
