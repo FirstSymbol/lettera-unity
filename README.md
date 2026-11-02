@@ -177,6 +177,7 @@ text.View.ScrollToParagraph(1000);
 - Only what is near the view is laid out, and a scroll inside that is no rebuild. A file is mapped and decoded only as read.
 - A `LetteraEditable` on the same text edits the document. `LetteraDocumentSearch` finds text a slice at a time.
 - Thai, Lao, Khmer and Myanmar break by words once a `LetteraWordDictionary` is listed in the project settings. Nothing is listed by default, so nothing is added to a build.
+- **A long text without a document** is still broken into lines whole, so `Lines`, its preferred height, carets, selection and links are exact anywhere in it, but its glyphs are placed and drawn only on the lines near what its canvas and masks let show. A scroll past them places the new lines before that frame draws. An edit of a plain text redoes only the paragraphs from the one it touched. `GlyphCount`, `GetGlyph` and `InkBounds` cover the placed lines. `LetteraLongText` turns this off or sets where it starts.
 
 ## Formulas
 
