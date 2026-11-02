@@ -70,15 +70,19 @@ namespace FirstSymbol.Lettera
         internal void SetWindow(int start, int length, string prelude, float offset)
         {
             LetteraRope rope = m_View.Rope;
-            var chars = new char[prelude.Length + length];
-            prelude.CopyTo(0, chars, 0, prelude.Length);
-            if (length > 0) rope.CopyTo(start, new Span<char>(chars, prelude.Length, length));
+            // The window's characters go straight into the runtime text's buffer: a scroll that moves the window makes no garbage.
+            int total = prelude.Length + length;
+            if (m_RuntimeChars.Length < total) m_RuntimeChars = new char[Math.Max(total, m_RuntimeChars.Length * 2)];
+            prelude.CopyTo(0, m_RuntimeChars, 0, prelude.Length);
+            if (length > 0) rope.CopyTo(start, new Span<char>(m_RuntimeChars, prelude.Length, length));
+            m_RuntimeLength = total;
+            m_RuntimeText = null;
+            m_HasRuntimeText = true;
             m_WindowStart = start;
             m_WindowLength = length;
             m_PreludeLength = prelude.Length;
             m_WindowOffset = offset;
             m_WindowLoaded = true;
-            SetRuntimeText(chars);
             SetDirty(DirtyLevel.Parse);
             m_Host.RequestRebuild(DirtyLevel.Parse);
         }
@@ -177,7 +181,23 @@ namespace FirstSymbol.Lettera
 
         internal bool CanMeasureBlocks => m_Dirty < DirtyLevel.Shape && !SuspendElide;
 
-        internal float MeasureBlockHeight(string source) => MeasureWith(m_Host.Owner, m_Host.Data, source, m_Host.Data.FontSize, WindowViewportWidth, 0, m_Host.Data.WordWrap, false, 0, 0).y;
+        TextEngine m_BlockMeasure;
+        MeasureHost m_BlockHost;
+
+        // One engine measures every block, so measuring in the background makes no garbage once its buffers have grown.
+        internal float MeasureBlockHeight(ReadOnlySpan<char> source)
+        {
+            if (m_BlockMeasure == null)
+            {
+                m_BlockHost = new MeasureHost { Owner = m_Host.Owner };
+                m_BlockMeasure = new TextEngine(m_BlockHost);
+            }
+            LetteraTextData data = m_Host.Data;
+            m_BlockHost.Data = data;
+            m_BlockMeasure.SetRuntimeText(source);
+            m_BlockMeasure.SetDirty(DirtyLevel.Parse);
+            return m_BlockMeasure.Measure(data.FontSize, WindowViewportWidth, 0, data.WordWrap, false, 0, 0).y;
+        }
 
         internal void CollectTagNames(List<string> names)
         {
