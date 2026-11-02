@@ -6,10 +6,11 @@ namespace FirstSymbol.Lettera.Unicode
     /// <summary>What a search borrows between calls, so it allocates nothing once warm. One per thread.</summary>
     public sealed class LetteraSegmenterScratch
     {
-        internal long[] Cost = new long[256];
-        internal int[] Back = new int[256];
-        internal bool[] Unknown = new bool[256];
-        internal bool[] Graphemes = new bool[256];
+        // Every text has one, and few ever segment, so it holds nothing until asked.
+        internal long[] Cost = Array.Empty<long>();
+        internal int[] Back = Array.Empty<int>();
+        internal bool[] Unknown = Array.Empty<bool>();
+        internal bool[] Graphemes = Array.Empty<bool>();
 
         internal void Ensure(int length)
         {

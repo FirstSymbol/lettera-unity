@@ -25,9 +25,9 @@ namespace FirstSymbol.Lettera
         List<RevealSpan> m_RevealSpans = Rare<RevealSpan>.List;
         List<RevealEffect> m_RevealListening = Rare<RevealEffect>.List;
         List<RevealBody> m_RevealBodies = Rare<RevealBody>.List;
-        int[] m_CpReveal = new int[0], m_CpUnit = new int[0];
-        float[] m_CpVisible = new float[0], m_CpTarget = new float[0];
-        bool[] m_CpShownEvent = new bool[0];
+        int[] m_CpReveal = System.Array.Empty<int>(), m_CpUnit = System.Array.Empty<int>();
+        float[] m_CpVisible = System.Array.Empty<float>(), m_CpTarget = System.Array.Empty<float>();
+        bool[] m_CpShownEvent = System.Array.Empty<bool>();
         bool m_RevealSettled = true, m_RevealInitialized, m_RevealRemovalsDirty;
 
         bool HasRevealOrMarquee => (m_RevealSpans.Count > 0 && !m_RevealSettled) || m_Marquee != null && m_MarqueeScrolling;

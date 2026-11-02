@@ -971,7 +971,7 @@ namespace FirstSymbol.Lettera
             }
         }
 
-        bool[] m_TakesBase = new bool[0];
+        bool[] m_TakesBase = System.Array.Empty<bool>();
         bool m_TrackBase, m_QuadTakesBase;
 
         // Nearly always every quad takes the text's color, and then there is nothing to note per quad, so the first change needs no pass and no array either.

@@ -26,7 +26,7 @@ namespace FirstSymbol.Lettera
         readonly List<Rect> m_ActiveRects = new List<Rect>();
         List<OldRange> m_OldRanges = Rare<OldRange>.List;
         List<int> m_RangeIds = Rare<int>.List;
-        int[] m_OldText = new int[0];
+        int[] m_OldText = System.Array.Empty<int>();
         int m_OldLength = -1, m_NextRangeId = 1;
         bool m_ActiveRectsValid;
 
@@ -160,8 +160,8 @@ namespace FirstSymbol.Lettera
         }
 
         // Each range's box, kept apart from the range so a hit test rejects most of them with four comparisons and no copy of anything.
-        float[] m_ActiveBoxes = new float[0];
-        LetteraRangeEffect[] m_ActiveEffects = new LetteraRangeEffect[0];
+        float[] m_ActiveBoxes = System.Array.Empty<float>();
+        LetteraRangeEffect[] m_ActiveEffects = System.Array.Empty<LetteraRangeEffect>();
 
         void EnsureActiveRects()
         {

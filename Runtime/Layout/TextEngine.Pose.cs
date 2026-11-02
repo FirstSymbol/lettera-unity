@@ -40,12 +40,12 @@ namespace FirstSymbol.Lettera
         List<MotionPhase> m_Phases = Rare<MotionPhase>.List;
         List<PoseLink> m_PoseLinks = Rare<PoseLink>.List;
         List<PoseBody> m_PoseBodies = Rare<PoseBody>.List;
-        LetteraGlyphPose[] m_GlyphPoses = new LetteraGlyphPose[0];
-        LetteraGlyphPose[] m_BodyPoses = new LetteraGlyphPose[0];
-        Vector3[] m_RestVertices = new Vector3[0];
-        Color32[] m_RestColors = new Color32[0];
-        int[] m_QuadOwner = new int[0];
-        int[] m_CpBody = new int[0];
+        LetteraGlyphPose[] m_GlyphPoses = System.Array.Empty<LetteraGlyphPose>();
+        LetteraGlyphPose[] m_BodyPoses = System.Array.Empty<LetteraGlyphPose>();
+        Vector3[] m_RestVertices = System.Array.Empty<Vector3>();
+        Color32[] m_RestColors = System.Array.Empty<Color32>();
+        int[] m_QuadOwner = System.Array.Empty<int>();
+        int[] m_CpBody = System.Array.Empty<int>();
         int m_CurrentOwner = -1;
         bool m_WantsPose, m_InHub, m_PoseDirty;
 
