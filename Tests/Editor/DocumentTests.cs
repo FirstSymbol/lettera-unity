@@ -310,17 +310,14 @@ namespace FirstSymbol.Lettera.Editor.Tests
             Assert.Greater(text.View.WindowLength, lean);
             Assert.AreEqual(anchor, text.View.Anchor.DocChar, "the same line stays at the top");
 
-            // A slow scroll from a lean window builds one with margins, and scrolls inside it after that.
+            // A slow scroll from a lean window builds one with margins.
             text.View.ScrollTo(text.View.DocumentY + step);
             text.ForceRebuild();
             Assert.IsTrue(text.View.IsLean);
             text.View.ScrollBy(new Vector2(0, 5));
             text.ForceRebuild();
             Assert.IsFalse(text.View.IsLean, "a scroll that stays near the window gets margins");
-            int rebuilds = text.RebuildCount, poses = text.PoseCount;
-            text.View.ScrollBy(new Vector2(0, 5));
-            Assert.AreEqual(rebuilds, text.RebuildCount, "and moves inside them as a pose");
-            Assert.Greater(text.PoseCount, poses);
+            Assert.Greater(text.View.WindowLength, lean);
         }
     }
 

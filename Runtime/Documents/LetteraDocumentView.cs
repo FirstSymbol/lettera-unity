@@ -629,6 +629,7 @@ namespace FirstSymbol.Lettera
     {
         readonly LetteraRope m_Rope;
         readonly List<string> m_Ends = new List<string>();
+        char[] m_Chars = Array.Empty<char>();
         readonly List<(string name, string raw)> m_Open = new List<(string, string)>();
         readonly List<string> m_Names = new List<string>();
         int m_NextBlock;
@@ -702,7 +703,9 @@ namespace FirstSymbol.Lettera
             if (m_Rope.BlockHasMarkup(block))
             {
                 int start = m_Rope.CharOfBlock(block), chars = m_Rope.BlockChars(block);
-                var text = new char[chars];
+                // One buffer for every block: a walk runs through the whole document in its first frames.
+                if (m_Chars.Length < chars) m_Chars = new char[Math.Max(chars, LetteraRope.TargetChars * 2)];
+                var text = new Span<char>(m_Chars, 0, chars);
                 m_Rope.CopyTo(start, text);
                 Scan(text);
                 string joined = "";

@@ -218,7 +218,7 @@ namespace FirstSymbol.Lettera
         internal int HookFailureCount => m_HookFailed?.Count ?? 0;
         internal Unicode.LineBreakOpportunity BreakAfterForTests(int cp) => m_Breaks[cp];
         internal int MotionBodiesForTests(int span) => m_MotionSpans[span].BodyCount;
-        internal int DocCharOfLineForTests(int line) => m_SourceIndex[m_Lines[line].Start];
+        internal int DocCharOfLineForTests(int line) => SourceAt(m_Lines[line].Start);
         internal FontChain ChainForTests => m_Chain;
         internal LetteraAttributes AttributesForTests => m_Attributes;
         internal int HoldCount => m_Holds.Count;
@@ -229,7 +229,7 @@ namespace FirstSymbol.Lettera
             if (m_WantsPose) RunPosePass();
             return m_MotionSpans[span].Effective[slot];
         }
-        internal int SourceOfRenderedForTests(int cp) => m_SourceIndex[cp];
+        internal int SourceOfRenderedForTests(int cp) => SourceAt(cp);
         internal uint ShapedGlyphIdForTests(int i) => m_Shaped[i].Glyph;
     }
 

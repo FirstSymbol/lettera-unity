@@ -18,6 +18,21 @@ namespace FirstSymbol.Lettera
         int[] m_SourceIndex = Array.Empty<int>();
         int m_TextLength;
 
+        // A plain text with no surrogate pair is its source, codepoint for char: then no index is written, and each codepoint is at its own place.
+        bool m_IdentityIndex;
+
+        int SourceAt(int shown) => m_IdentityIndex ? shown : m_SourceIndex[shown];
+
+        // The index as an array, for what reads it whole.
+        int[] SourceIndexArray()
+        {
+            if (!m_IdentityIndex) return m_SourceIndex;
+            EnsureSize(ref m_SourceIndex, m_TextLength + 4);
+            for (int i = 0; i <= m_TextLength; i++) m_SourceIndex[i] = i;
+            m_IdentityIndex = false;
+            return m_SourceIndex;
+        }
+
         // A plain text's parse asks no style, so the list is gathered only when something reads it, such as a formatting tool.
         bool m_StylesUncollected;
 
@@ -131,14 +146,16 @@ namespace FirstSymbol.Lettera
             PassEnd(16, tq); tq = PassStart(); // probe
             if (RevealSource >= 0) RevealRangesAt(context, RevealSource);
             plain &= m_Resolver == null;
-            bool spliced = plain && edited && TrySplice(source);
+            // A source that is a string is remembered by reference.
+            string kept = m_Resolver == null && !m_HasRuntimeText ? m_Host.Data.Text ?? "" : null;
+            bool spliced = plain && edited && TrySplice(source, kept);
             if (!spliced)
             {
                 m_EditParse = -1;
                 BuildRenderedText(source, context);
             }
             PassEnd(17, tq); tq = PassStart(); // probe
-            RememberSource(source, plain, spliced);
+            RememberSource(source, plain, spliced, kept);
             PassEnd(18, tq); tq = PassStart(); // probe
             ResolveRangeEnds(context);
             AssignRangeIds(context);
@@ -276,12 +293,13 @@ namespace FirstSymbol.Lettera
             if (claims.Count > 1) claims.Sort(s_ByStart);
 
             EnsureSize(ref m_Text, source.Length + 4);
-            EnsureSize(ref m_SourceIndex, source.Length + 4);
             if (claims.Count == 0)
             {
                 CopyPlain(source);
                 return;
             }
+            m_IdentityIndex = false;
+            EnsureSize(ref m_SourceIndex, source.Length + 4);
             int count = 0;
             int at = 0;
             int nextClaim = 0;
@@ -341,13 +359,33 @@ namespace FirstSymbol.Lettera
         }
 
         // Text with nothing claimed is its codepoints, each at its own place: one tight pass, pairs joined and lone halves replaced as above.
+        // Until the first surrogate nothing but the codepoints is written; from there each notes where it came from.
         unsafe void CopyPlain(ReadOnlySpan<char> source)
         {
-            int length = source.Length, count = 0;
+            int length = source.Length, count = 0, at = 0;
+            fixed (char* s = source)
+            fixed (int* text = m_Text)
+            {
+                while (at < length)
+                {
+                    int cp = s[at];
+                    if ((cp & 0xF800) == 0xD800) break;
+                    text[at++] = cp;
+                }
+            }
+            if (at == length)
+            {
+                m_TextLength = length;
+                m_IdentityIndex = true;
+                return;
+            }
+            m_IdentityIndex = false;
+            count = at;
+            EnsureSize(ref m_SourceIndex, length + 4);
             fixed (char* s = source)
             fixed (int* text = m_Text, index = m_SourceIndex)
             {
-                int at = 0;
+                for (int i = 0; i < count; i++) index[i] = i;
                 while (at < length)
                 {
                     int cp = s[at];
@@ -466,11 +504,12 @@ namespace FirstSymbol.Lettera
         public int SourceIndexFromRendered(int rendered)
         {
             if (m_TextLength == 0) return 0;
-            return m_SourceIndex[Math.Min(Math.Max(rendered, 0), m_TextLength)];
+            return SourceAt(Math.Min(Math.Max(rendered, 0), m_TextLength));
         }
 
         public int RenderedIndexFromSource(int source)
         {
+            if (m_IdentityIndex) return Math.Min(Math.Max(source, 0), m_TextLength);
             int low = 0, high = m_TextLength;
             while (low < high)
             {
