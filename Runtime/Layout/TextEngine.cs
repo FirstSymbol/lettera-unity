@@ -114,10 +114,12 @@ namespace FirstSymbol.Lettera
         internal static readonly long[] PassBytes = new long[5]; // probe
         static long s_PassBytesAt; // probe
         static Unity.Profiling.ProfilerRecorder s_ProbeRecorder; // probe
+        static bool s_ProbeTried; // probe
         internal static long ProbeAllocated() // probe
         {
-            if (!s_ProbeRecorder.Valid) s_ProbeRecorder = Unity.Profiling.ProfilerRecorder.StartNew(Unity.Profiling.ProfilerCategory.Memory, "GC Allocated In Frame");
-            return s_ProbeRecorder.CurrentValue;
+            if (!s_ProbeTried) s_ProbeRecorder = Unity.Profiling.ProfilerRecorder.StartNew(Unity.Profiling.ProfilerCategory.Memory, "GC Allocated In Frame");
+            s_ProbeTried = true;
+            return s_ProbeRecorder.Valid ? s_ProbeRecorder.CurrentValue : 0;
         }
 
         static void PassEnd(int pass, long start)

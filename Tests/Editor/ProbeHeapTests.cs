@@ -126,6 +126,66 @@ namespace FirstSymbol.Lettera.Editor.Tests
             }
         }
 
-        static void LetteraMotionHubTick() { }
+
+        static Dictionary<string, int> Lengths(object o, string prefix, Dictionary<string, int> into)
+        {
+            if (o == null) return into;
+            foreach (var f in o.GetType().GetFields(System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Public))
+            {
+                object v = f.GetValue(o);
+                if (v is Array a) into[prefix + f.Name] = a.Length;
+                else if (v is System.Collections.ICollection c && v.GetType().GetProperty("Capacity") != null) into[prefix + f.Name] = (int)v.GetType().GetProperty("Capacity").GetValue(v);
+            }
+            return into;
+        }
+
+        [UnityTest]
+        public IEnumerator ProbeScroll()
+        {
+            Transform canvas = Canvas();
+            var page = new StringBuilder();
+            int n = 0;
+            while (page.Length < 1000 * 1024) page.Append(Sentence(n++)).Append(n % 8 == 0 ? "
+" : " ");
+            var view = new GameObject("View", typeof(RectTransform));
+            view.transform.SetParent(canvas, false);
+            ((RectTransform)view.transform).sizeDelta = new Vector2(800, 600);
+            LetteraText label = Label(view.transform, "", 14, new Vector2(800, 600));
+            label.OpenDocument(LetteraRope.FromString(page.ToString()), takeOwnership: true);
+            var scroller = view.AddComponent<LetteraDocumentScroller>();
+            scroller.Text = label;
+            label.ForceRebuild();
+            scroller.ScrollToEnd();
+            double end = scroller.Position;
+            scroller.ScrollToStart();
+            for (int i = 0; i < 5; i++) { UnityEngine.Canvas.ForceUpdateCanvases(); yield return null; }
+            TextEngine engine = ((ITextComponent)label).SharedEngine;
+            var log = new StringBuilder();
+            for (int step = 1; step <= 240; step++)
+            {
+                var before = Lengths(engine, "e.", new Dictionary<string, int>());
+                Lengths(engine.View, "v.", before);
+                long a0 = TextEngine.ProbeAllocated();
+                scroller.Position = step / 240.0 * end;
+                long a1 = TextEngine.ProbeAllocated();
+                UnityEngine.Canvas.ForceUpdateCanvases();
+                long a2 = TextEngine.ProbeAllocated();
+                var after = Lengths(engine, "e.", new Dictionary<string, int>());
+                Lengths(engine.View, "v.", after);
+                yield return null;
+                long frame = s_Frame.LastValue;
+                if (frame > 20000 || a2 - a0 > 20000)
+                {
+                    log.Append($"step {step} frame {frame} move {a1 - a0} canvas {a2 - a1} lean {engine.View.IsLean} window {engine.WindowStart}+{engine.WindowLength}:");
+                    foreach (var kv in after)
+                        if (!before.TryGetValue(kv.Key, out int was) || was != kv.Value) log.Append($" {kv.Key} {was}->{kv.Value}");
+                    log.Append('
+');
+                }
+            }
+            Debug.Log("LETTERA_PROBE scroll
+" + log);
+        }
+
     }
 }
