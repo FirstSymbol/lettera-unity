@@ -151,7 +151,11 @@ namespace FirstSymbol.Lettera
                 entry = glyph == UnitBoxGlyph ? BuildBox(key) : BuildGlyph(key, instance, glyph, recipe);
                 s_Entries[key] = entry;
                 s_Bytes += entry.Bytes;
+                // Held before the cache trims, or a full cache gives back the solid it was just asked for.
+                entry.References++;
+                entry.LastUse = ++s_Clock;
                 Trim();
+                return entry;
             }
             entry.References++;
             entry.LastUse = ++s_Clock;
