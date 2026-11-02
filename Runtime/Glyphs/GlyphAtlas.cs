@@ -92,6 +92,19 @@ namespace FirstSymbol.Lettera
         static readonly PageSet s_Color = new PageSet(GraphicsFormat.R8G8B8A8_SRGB, 4, DefaultColorPages, s_ColorAtlasId);
         static readonly PageSet s_Msdf = new PageSet(GraphicsFormat.R8G8B8A8_UNorm, 4, DefaultMsdfPages, s_MsdfAtlasId);
         static readonly Dictionary<ulong, AtlasGlyph> s_Glyphs = new Dictionary<ulong, AtlasGlyph>();
+
+        // The last entry seen at each of a few slots, so a mesh's repeated letters skip the dictionary. Any change of the dictionary makes every slot old.
+        struct Memo
+        {
+            public ulong Key;
+            public int Version;
+            public AtlasGlyph Entry;
+        }
+
+        static readonly Memo[] s_Memo = new Memo[1024];
+        static int s_MemoVersion = 1;
+
+        static void GlyphsChanged() => s_MemoVersion++;
         static readonly List<PendingUpload> s_Uploads = new List<PendingUpload>();
         static readonly List<SdfTile> s_Tiles = new List<SdfTile>();
         static NativeList<float4> s_Lines;
@@ -153,7 +166,17 @@ namespace FirstSymbol.Lettera
             else if (s_MinDensity.Count > 0 && s_MinDensity.TryGetValue(((ulong)(uint)instance.Id << 32) | glyph, out int raised) && raised > pixelsPerEm)
                 pixelsPerEm = raised;
             ulong key = ((ulong)(uint)instance.Id << 36) | ((ulong)glyph << 8) | (uint)(pixelsPerEm >> 2 & 0x7F) | (multi ? 0x80u : 0);
-            if (s_Glyphs.TryGetValue(key, out AtlasGlyph entry))
+            ref Memo memo = ref s_Memo[(int)(key ^ key >> 13 ^ key >> 36) & (s_Memo.Length - 1)];
+            AtlasGlyph entry;
+            bool known = memo.Key == key && memo.Version == s_MemoVersion;
+            if (known) entry = memo.Entry;
+            else if (known = s_Glyphs.TryGetValue(key, out entry))
+            {
+                memo.Key = key;
+                memo.Version = s_MemoVersion;
+                memo.Entry = entry;
+            }
+            if (known)
             {
                 if (entry.HasDistance)
                 {
@@ -163,6 +186,7 @@ namespace FirstSymbol.Lettera
                         if (wider.HasDistance)
                         {
                             s_Glyphs[key] = wider;
+                            GlyphsChanged();
                             return wider;
                         }
                     }
@@ -173,6 +197,7 @@ namespace FirstSymbol.Lettera
             }
             entry = grid > 0 ? CreatePixel(instance, glyph, grid, SpreadFor(reach)) : Create(instance, glyph, pixelsPerEm, SpreadFor(reach), multi);
             s_Glyphs[key] = entry;
+            GlyphsChanged();
             return entry;
         }
 
@@ -798,6 +823,7 @@ namespace FirstSymbol.Lettera
                 if (pair.Value.Page == oldest && pair.Value.Kind == (set == s_Sdf ? AtlasGlyph.Sdf : set == s_Msdf ? AtlasGlyph.Msdf : AtlasGlyph.Color))
                     s_Evicted.Add(pair.Key);
             foreach (ulong key in s_Evicted) s_Glyphs.Remove(key);
+            GlyphsChanged();
             s_Evicted.Clear();
             foreach (KeyValuePair<ulong, AtlasGlyph> pair in s_Unions)
                 if (pair.Value.Page == oldest && pair.Value.Kind == (set == s_Sdf ? AtlasGlyph.Sdf : set == s_Msdf ? AtlasGlyph.Msdf : AtlasGlyph.Color))
@@ -1098,6 +1124,7 @@ namespace FirstSymbol.Lettera
             s_Uploads.Clear();
             s_EmojiPending.Clear();
             s_Glyphs.Clear();
+            GlyphsChanged();
             s_Unions.Clear();
             s_Rules.Clear();
             ResetSet(s_Sdf);
@@ -1143,6 +1170,7 @@ namespace FirstSymbol.Lettera
             s_Tiles.Clear();
             s_Uploads.Clear();
             s_Glyphs.Clear();
+            GlyphsChanged();
             s_Unions.Clear();
             FreePages(s_Sdf);
             FreePages(s_Color);

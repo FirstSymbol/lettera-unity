@@ -373,7 +373,65 @@ namespace FirstSymbol.Lettera
 
         void DrawFaces()
         {
-            for (int i = 0; i < m_PlacedCount; i++) DrawFace(i);
+            if (PlainFaces()) DrawPlainFaces();
+            else
+                for (int i = 0; i < m_PlacedCount; i++) DrawFace(i);
+        }
+
+        // Faces with nothing on them but a colour: no fill to replace them, no filter, warp, paint, fade or motion. Most text is this.
+        bool PlainFaces() => m_Faces.Count == 0 && m_Attributes.Filters.Count == 0 && m_Attributes.Warps.Count == 0 && !Styled && !m_FadeActive && !m_TrackBase &&
+                             m_MotionSpans.Count == 0;
+
+        // What DrawFace and AddQuad write for such a face, in one loop with nothing asked per glyph that the text answers once.
+        // A formula's part, a colour glyph and a turned glyph take the usual way.
+        [Unity.IL2CPP.CompilerServices.Il2CppSetOption(Unity.IL2CPP.CompilerServices.Option.ArrayBoundsChecks, false), Unity.IL2CPP.CompilerServices.Il2CppSetOption(Unity.IL2CPP.CompilerServices.Option.NullChecks, false)]
+        void DrawPlainFaces()
+        {
+            UseSegment(s_NoPaint);
+            m_FilterRow = 0;
+            Color32 baseColor = m_DrawBase;
+            var noColor = new Color32(baseColor.r, baseColor.g, baseColor.b, 255);
+            PlacedGlyph[] placed = m_Placed;
+            AtlasGlyph[] atlases = m_PlacedAtlas;
+            for (int i = 0; i < m_PlacedCount; i++)
+            {
+                ref PlacedGlyph g = ref placed[i];
+                ref AtlasGlyph atlas = ref atlases[i];
+                if (atlas.Kind == AtlasGlyph.Empty) continue;
+                if (g.Special != 0 || g.Angle != 0 || atlas.Kind == AtlasGlyph.Color)
+                {
+                    DrawFace(i);
+                    continue;
+                }
+                m_CurrentOwner = i;
+                ref LetteraAttributes.Cp attr = ref m_Attributes.At(g.Cluster);
+                Color32 color = attr.HasColor ? attr.Color : noColor;
+                color.a = (byte)(color.a * attr.Alpha);
+                m_AllTakeBase &= !attr.HasColor;
+                float mode = atlas.Pixel ? ModePixel : atlas.Kind == AtlasGlyph.Msdf ? ModeMedian : ModeSdf;
+                float xUnit = g.Unit * (1 + g.XScale);
+                float left = g.X + atlas.Left * xUnit, right = g.X + atlas.Right * xUnit;
+                float bottom = g.Y + atlas.Bottom * g.Unit, top = g.Y + atlas.Top * g.Unit;
+                int v = Reserve();
+                Vertices[v] = new Vector3(left, bottom);
+                Vertices[v + 1] = new Vector3(left, top);
+                Vertices[v + 2] = new Vector3(right, top);
+                Vertices[v + 3] = new Vector3(right, bottom);
+                Uv0[v] = new Vector4(atlas.U0, atlas.V0, atlas.Page, mode);
+                Uv0[v + 1] = new Vector4(atlas.U0, atlas.V1, atlas.Page, mode);
+                Uv0[v + 2] = new Vector4(atlas.U1, atlas.V1, atlas.Page, mode);
+                Uv0[v + 3] = new Vector4(atlas.U1, atlas.V0, atlas.Page, mode);
+                var parameters = new Vector4(0.5f, 0, 0, 0);
+                Uv1[v] = parameters;
+                Uv1[v + 1] = parameters;
+                Uv1[v + 2] = parameters;
+                Uv1[v + 3] = parameters;
+                Colors[v] = color;
+                Colors[v + 1] = color;
+                Colors[v + 2] = color;
+                Colors[v + 3] = color;
+                m_OwnAlpha[v] = m_OwnAlpha[v + 1] = m_OwnAlpha[v + 2] = m_OwnAlpha[v + 3] = color.a;
+            }
         }
 
         // Called per glyph, over indices the same pass has just sized; the tests run these with every check on.

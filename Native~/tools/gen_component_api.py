@@ -25,7 +25,7 @@ namespace FirstSymbol.Lettera
         // In play a field's edit waits in the engine as characters, and the string is made when something reads Text: a keystroke makes none.
         void ITextComponent.WriteSource(StringBuilder source)
         {
-            if (Application.isPlaying)
+            if (Application.isPlaying || TextEngine.PendingSourceInEditMode)
             {
                 Engine.ClearRuntimeText();
                 if (!Engine.SetPendingSource(source)) return;

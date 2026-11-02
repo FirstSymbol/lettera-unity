@@ -178,6 +178,9 @@ namespace FirstSymbol.Lettera
         int m_PendingLength;
         bool m_SourcePending;
 
+        /// <summary>Lets a test see in edit mode what a field does in play.</summary>
+        internal static bool PendingSourceInEditMode;
+
         /// <summary>False when the characters are the source already.</summary>
         internal bool SetPendingSource(System.Text.StringBuilder source)
         {
