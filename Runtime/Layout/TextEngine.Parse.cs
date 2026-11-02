@@ -147,7 +147,7 @@ namespace FirstSymbol.Lettera
             if (RevealSource >= 0) RevealRangesAt(context, RevealSource);
             plain &= m_Resolver == null;
             // A source that is a string is remembered by reference.
-            string kept = m_Resolver == null && !m_HasRuntimeText ? m_Host.Data.Text ?? "" : null;
+            string kept = m_Resolver == null && !m_HasRuntimeText && !m_SourcePending ? m_Host.Data.Text ?? "" : null;
             bool spliced = plain && edited && TrySplice(source, kept);
             if (!spliced)
             {

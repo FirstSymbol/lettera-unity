@@ -355,6 +355,21 @@ namespace FirstSymbol.Lettera
             if (Engine.IsWindowed) Engine.WriteWindowSource(value);
             else Host.SourceText = value;
             m_Writing = false;
+            AfterWrite();
+        }
+
+        // The source an edit built: a field in play hands over its characters, and no string is made for them.
+        void WriteBuilt()
+        {
+            m_Writing = true;
+            if (Engine.IsWindowed) Engine.WriteWindowSource(m_Builder.ToString());
+            else Host.WriteSource(m_Builder);
+            m_Writing = false;
+            AfterWrite();
+        }
+
+        void AfterWrite()
+        {
             KeepHistoryOnWindow();
             Engine.EnsureParsed();
             m_ShownChanged = true;
@@ -544,7 +559,7 @@ namespace FirstSymbol.Lettera
         void ApplyEdit(int start, int end, string text, string reason, int caretAfter, List<LetteraPastedSpan> pasted)
         {
             if (end > start && EditReachesOutOfWindow()) return;
-            string source = Engine.RawText;
+            ReadOnlySpan<char> source = Engine.SourceChars;
             bool typing = reason.StartsWith("user.type", StringComparison.Ordinal);
             LetteraSelectionRange before = Selectable.Selection;
 
@@ -565,10 +580,10 @@ namespace FirstSymbol.Lettera
 
             ClassifyEdit(reason, text, out LetteraEditHistory.Kind kind, out LetteraEditHistory.TokenClass token);
             m_History.BeginEdit(kind, token, before, LetteraEditClock.Now, LetteraSettings.Instance.Editing.UndoMergeWindow);
-            string value = ApplySplices(source);
+            ApplySplices(source);
 
-            WriteSource(value);
-            if (end > start) value = RemoveEmptiedRanges(value, ref caretSource);
+            WriteBuilt();
+            if (end > start) RemoveEmptiedRanges(ref caretSource);
             if (HasPendingStyles)
             {
                 caretAfter = start + CountCodepoints(text);
@@ -629,7 +644,7 @@ namespace FirstSymbol.Lettera
         }
 
         // What is inserted goes where the first removed character stood, so later splices never move the caret.
-        string ApplySplices(string source)
+        void ApplySplices(ReadOnlySpan<char> source)
         {
             m_Builder.Clear();
             m_Builder.Append(source);
@@ -642,31 +657,26 @@ namespace FirstSymbol.Lettera
                 m_Builder.Insert(splice.Position + shift, inserted);
                 shift += inserted.Length - splice.Removed;
             }
-            return m_Builder.ToString();
         }
 
-        // Taking a range's last character takes its delimiters too.
-        string RemoveEmptiedRanges(string value, ref int caretSource)
+        // Taking a range's last character takes its delimiters too. The builder holds the source as last written.
+        void RemoveEmptiedRanges(ref int caretSource)
         {
             for (int guard = 0; guard < 16; guard++)
             {
                 m_Spans.Clear();
                 int at = Engine.RenderedIndexFromSource(caretSource);
                 Engine.EmptyRangeDelimiters(at, m_Spans);
-                if (m_Spans.Count == 0) return value;
+                if (m_Spans.Count == 0) return;
                 m_Spans.Sort((a, b) => b.x.CompareTo(a.x));
-                m_Builder.Clear();
-                m_Builder.Append(value);
                 foreach (Vector2Int span in m_Spans)
                 {
                     m_History.AddSplice(span.x, m_Builder, span.y - span.x, "");
                     m_Builder.Remove(span.x, span.y - span.x);
-                    value = value.Remove(span.x, span.y - span.x);
                     if (span.x < caretSource) caretSource -= Mathf.Min(span.y - span.x, caretSource - span.x);
                 }
-                WriteSource(value);
+                WriteBuilt();
             }
-            return value;
         }
 
         void ClassifyEdit(string reason, string text, out LetteraEditHistory.Kind kind, out LetteraEditHistory.TokenClass token)

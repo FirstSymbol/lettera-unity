@@ -20,7 +20,26 @@ namespace FirstSymbol.Lettera
         TextEngine ITextComponent.SharedEngine => Engine;
         RectTransform ITextComponent.TextRect => (RectTransform)transform;
         void ITextComponent.Dirty(DirtyLevel level) => MarkDirty(level);
-        string ITextComponent.SourceText { get => m_Data.Text; set => Text = value; }
+        string ITextComponent.SourceText { get => Text; set => Text = value; }
+
+        // In play a field's edit waits in the engine as characters, and the string is made when something reads Text: a keystroke makes none.
+        void ITextComponent.WriteSource(StringBuilder source)
+        {
+            if (Application.isPlaying)
+            {
+                Engine.ClearRuntimeText();
+                if (!Engine.SetPendingSource(source)) return;
+            }
+            else
+            {
+                string value = source.ToString();
+                Engine.ClearRuntimeText();
+                if (m_Data.Text == value) return;
+                m_Data.Text = value;
+            }
+            MarkDirty(DirtyLevel.Parse);
+            m_SourceWritten?.Invoke();
+        }
         event Action ITextComponent.SourceWritten { add => m_SourceWritten += value; remove => m_SourceWritten -= value; }
         Action m_SourceWritten;
 
@@ -32,12 +51,17 @@ namespace FirstSymbol.Lettera
         /// <summary>The serialized source text, including markup. Setting it clears any runtime text.</summary>
         public string Text
         {
-            get => m_Data.Text;
+            get
+            {
+                m_Engine?.FlushPendingSource();
+                return m_Data.Text;
+            }
             set
             {
                 value = value ?? "";
                 Engine.ClearRuntimeText();
-                if (m_Data.Text == value) return;
+                bool pending = Engine.DropPendingSource();
+                if (m_Data.Text == value && !pending) return;
                 m_Data.Text = value;
                 MarkDirty(DirtyLevel.Parse);
                 m_SourceWritten?.Invoke();

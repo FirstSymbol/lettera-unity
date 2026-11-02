@@ -97,14 +97,24 @@ namespace FirstSymbol.Lettera
     public partial class LetteraText : ILetteraStamped, ISerializationCallbackReceiver
     {
         int ILetteraStamped.Version { get => LetteraSerializedVersion; set => LetteraSerializedVersion = value; }
-        void ISerializationCallbackReceiver.OnBeforeSerialize() => LetteraStamps.Save(this, ref LetteraSerializedVersion);
+        void ISerializationCallbackReceiver.OnBeforeSerialize()
+        {
+            // A field's edit in play is written out before anything reads the saved text.
+            m_Engine?.FlushPendingSource();
+            LetteraStamps.Save(this, ref LetteraSerializedVersion);
+        }
         void ISerializationCallbackReceiver.OnAfterDeserialize() => LetteraStamps.Load(this, LetteraSerializedVersion);
     }
 
     public partial class LetteraWorldText : ILetteraStamped, ISerializationCallbackReceiver
     {
         int ILetteraStamped.Version { get => LetteraSerializedVersion; set => LetteraSerializedVersion = value; }
-        void ISerializationCallbackReceiver.OnBeforeSerialize() => LetteraStamps.Save(this, ref LetteraSerializedVersion);
+        void ISerializationCallbackReceiver.OnBeforeSerialize()
+        {
+            // A field's edit in play is written out before anything reads the saved text.
+            m_Engine?.FlushPendingSource();
+            LetteraStamps.Save(this, ref LetteraSerializedVersion);
+        }
         void ISerializationCallbackReceiver.OnAfterDeserialize() => LetteraStamps.Load(this, LetteraSerializedVersion);
     }
 
