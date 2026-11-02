@@ -11,6 +11,10 @@ namespace FirstSymbol.Lettera
         RectTransform TextRect { get; }
         bool IsVisible { get; }
         string SourceText { get; set; }
+
+        /// <summary>Writes a field's edited source.</summary>
+        void WriteSource(System.Text.StringBuilder source);
+
         void Dirty(DirtyLevel level);
         event Action SourceWritten;
         event Action<LetteraChanges> Rebuilt;
@@ -152,10 +156,60 @@ namespace FirstSymbol.Lettera
             return true;
         }
 
-        public string RawText => m_HasRuntimeText ? m_RuntimeText ?? (m_RuntimeText = new string(m_RuntimeChars, 0, m_RuntimeLength)) : m_Host.Data.Text ?? "";
+        public string RawText
+        {
+            get
+            {
+                if (m_HasRuntimeText) return m_RuntimeText ?? (m_RuntimeText = new string(m_RuntimeChars, 0, m_RuntimeLength));
+                FlushPendingSource();
+                return m_Host.Data.Text ?? "";
+            }
+        }
 
-        // What gets parsed, without building a string for runtime text.
-        ReadOnlySpan<char> RawChars => m_HasRuntimeText ? new ReadOnlySpan<char>(m_RuntimeChars, 0, m_RuntimeLength) : (m_Host.Data.Text ?? "").AsSpan();
+        // What gets parsed, without building a string for runtime text or a field's edit.
+        ReadOnlySpan<char> RawChars => m_HasRuntimeText ? new ReadOnlySpan<char>(m_RuntimeChars, 0, m_RuntimeLength) :
+            m_SourcePending ? new ReadOnlySpan<char>(m_PendingChars, 0, m_PendingLength) : (m_Host.Data.Text ?? "").AsSpan();
+
+        /// <summary>The source as it stands, with nothing made for it.</summary>
+        internal ReadOnlySpan<char> SourceChars => RawChars;
+
+        // A field's edit in play, standing for the host's serialized text until something reads that. Two buffers, so the next edit is compared with this one.
+        char[] m_PendingChars = Array.Empty<char>(), m_PendingNext = Array.Empty<char>();
+        int m_PendingLength;
+        bool m_SourcePending;
+
+        /// <summary>False when the characters are the source already.</summary>
+        internal bool SetPendingSource(System.Text.StringBuilder source)
+        {
+            int length = source.Length;
+            if (m_PendingNext.Length < length) m_PendingNext = new char[Math.Max(length + 64, m_PendingNext.Length * 2)];
+            source.CopyTo(0, new Span<char>(m_PendingNext, 0, length), length);
+            if (new ReadOnlySpan<char>(m_PendingNext, 0, length).SequenceEqual(RawChars)) return false;
+            char[] swap = m_PendingChars;
+            m_PendingChars = m_PendingNext;
+            m_PendingNext = swap;
+            m_PendingLength = length;
+            m_SourcePending = true;
+            return true;
+        }
+
+        /// <summary>Makes the host's string from a waiting edit.</summary>
+        internal void FlushPendingSource()
+        {
+            if (!m_SourcePending) return;
+            m_SourcePending = false;
+            string text = new string(m_PendingChars, 0, m_PendingLength);
+            m_Host.Data.Text = text;
+            // What the last rebuild saw is this text: a check of serialized fields finds no change in it.
+            m_Snapshot.Text = text;
+        }
+
+        internal bool DropPendingSource()
+        {
+            bool was = m_SourcePending;
+            m_SourcePending = false;
+            return was;
+        }
         public string ResolvedText => m_Resolver != null ? m_ResolvedText : RawText;
         public string RenderedSourceText => ResolvedText;
 
