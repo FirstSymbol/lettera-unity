@@ -392,6 +392,15 @@ public class LetteraCompare : MonoBehaviour
         return Words.Substring(i % 20, length);
     }
 
+    // Between rows that each leave much garbage, the same pause for every engine: a collection and a few frames, so that a row does not pay for the one before it.
+    static IEnumerator Settle()
+    {
+        GC.Collect();
+        GC.WaitForPendingFinalizers();
+        GC.Collect();
+        for (int i = 0; i < 10; i++) yield return null;
+    }
+
     // A frame's whole time, since each engine does its work at a different moment, and a row must not be won by moving work out of the clock.
     IEnumerator FrameTime(string row, int frames, Action each, string note = "")
     {
@@ -550,6 +559,7 @@ public class LetteraCompare : MonoBehaviour
         // R10, on the 1 MB page the last turn left
         if (!light)
         {
+            yield return Settle();
             clock.Restart();
             Action<float> move = m_Engine.Scroll(parent, page.ToString());
             yield return null;
@@ -561,6 +571,7 @@ public class LetteraCompare : MonoBehaviour
         }
 
         // R12
+        yield return Settle();
         var mixed = new List<Component>();
         clock.Restart();
         for (int i = 0; i < 100; i++) mixed.Add(m_Engine.Label(parent, "مرحبا بالعالم Hello " + i, 18, new Vector2(400, 30)));
@@ -574,6 +585,7 @@ public class LetteraCompare : MonoBehaviour
         // R11
         if (!light)
         {
+            yield return Settle();
             clock.Restart();
             for (int i = 0; i < 5000; i++)
             {
@@ -594,6 +606,7 @@ public class LetteraCompare : MonoBehaviour
             if (m_Engine is TmpEngine) s_TmpFont.fallbackFontAssetTable = new List<TMP_FontAsset> { TMP_FontAsset.CreateFontAsset("Microsoft YaHei", "Regular") };
             var cjk = new StringBuilder();
             for (int i = 0; i < 3000; i++) cjk.Append((char)(0x4E00 + i));
+            yield return Settle();
             clock.Restart();
             Component han = m_Engine.Label(parent, cjk.ToString(), 18, new Vector2(1160, 680));
             m_Engine.Force(han);

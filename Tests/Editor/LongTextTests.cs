@@ -402,5 +402,79 @@ namespace FirstSymbol.Lettera.Editor.Tests
             FinishBySlices(part, out _);
             SameAsWhole(MakeWhole(part.Text), part, "typed while finishing");
         }
+
+        // ------------------------------------------------------------- what decides the band
+
+        // A canvas of its own kind, a viewport in its middle, and a long text whose lines run through it from far above.
+        LetteraText MakeUnder(RenderMode mode, bool stencil, float angle, float scale, out Canvas canvas)
+        {
+            var root = new GameObject("Canvas", typeof(RectTransform), typeof(Canvas));
+            Track(root);
+            canvas = root.GetComponent<Canvas>();
+            canvas.renderMode = mode;
+            if (mode == RenderMode.ScreenSpaceCamera)
+            {
+                var eye = new GameObject("Camera", typeof(Camera));
+                Track(eye);
+                eye.transform.position = new Vector3(0, 0, -100);
+                canvas.worldCamera = eye.GetComponent<Camera>();
+                canvas.planeDistance = 50;
+            }
+            if (mode == RenderMode.WorldSpace) ((RectTransform)root.transform).sizeDelta = new Vector2(4000, 4000);
+            var view = new GameObject("Viewport", typeof(RectTransform));
+            view.transform.SetParent(root.transform, false);
+            ((RectTransform)view.transform).sizeDelta = new Vector2(600, 300);
+            view.transform.localRotation = Quaternion.Euler(0, 0, angle);
+            view.transform.localScale = Vector3.one * scale;
+            if (stencil)
+            {
+                view.AddComponent<Image>();
+                view.AddComponent<Mask>().showMaskGraphic = false;
+            }
+            else
+            {
+                view.AddComponent<RectMask2D>();
+            }
+            var go = new GameObject("Text", typeof(RectTransform));
+            go.transform.SetParent(view.transform, false);
+            var rect = (RectTransform)go.transform;
+            rect.anchorMin = rect.anchorMax = rect.pivot = new Vector2(0.5f, 1);
+            rect.sizeDelta = new Vector2(600, 100000);
+            rect.anchoredPosition = new Vector2(0, 150 + 12000);
+            var text = go.AddComponent<LetteraText>();
+            text.Font = Latin;
+            text.FontSize = 14;
+            text.Text = Page(200 * 1024);
+            Canvas.ForceUpdateCanvases();
+            text.ForceRebuild();
+            return text;
+        }
+
+        // The line that stands in the middle of the viewport is drawn when the text is set, and after finishing every line is where a whole build puts it.
+        void MiddleLineIsDrawn(LetteraText text, string what)
+        {
+            TextEngine engine = EngineOf(text);
+            Assert.Greater(engine.VertexCount, 0, what + ": something is drawn");
+            Vector3 middle = text.transform.parent.position;
+            Vector2 local = text.transform.InverseTransformPoint(middle);
+            int first = engine.BandFirstLine, end = engine.BandEndLine;
+            FinishBySlices(text, out _);
+            int line = text.GetLineIndex(text.HitTestCaret(local, out _), LetteraCaretBias.Forward);
+            Assert.GreaterOrEqual(line, first, what + ": the middle line was placed when set");
+            Assert.Less(line, end, what + ": the middle line was placed when set");
+            Assert.LessOrEqual(engine.BandFirstLine, line, what + ": and is placed after finishing");
+            Assert.Greater(engine.BandEndLine, line, what + ": and is placed after finishing");
+        }
+
+        [Test]
+        public void TheLinesInViewAreDrawnUnderAStencilMaskACameraCanvasAndATurnedScaledViewport()
+        {
+            LetteraLongText.VisibleLinesOnly = true;
+            MiddleLineIsDrawn(MakeUnder(RenderMode.ScreenSpaceOverlay, true, 0, 1, out _), "stencil mask on an overlay canvas");
+            MiddleLineIsDrawn(MakeUnder(RenderMode.ScreenSpaceCamera, false, 0, 1, out _), "camera canvas");
+            MiddleLineIsDrawn(MakeUnder(RenderMode.ScreenSpaceCamera, true, 0, 1, out _), "stencil mask on a camera canvas");
+            MiddleLineIsDrawn(MakeUnder(RenderMode.WorldSpace, false, 30, 0.5f, out _), "a viewport turned and scaled down");
+            MiddleLineIsDrawn(MakeUnder(RenderMode.ScreenSpaceOverlay, false, 90, 2, out _), "a viewport turned on its side and scaled up");
+        }
     }
 }
