@@ -154,13 +154,39 @@ namespace FirstSymbol.Lettera.Editor.Tests
             Assert.IsFalse(text.Engine.LayersMerged);
         }
 
-        // Layer order, the usual one, keeps its quads apart: joining a glyph's layers there saves a third of the quads and costs two more streams on all.
+        // Layer order, the usual one, keeps every shadow under every stroke under every face, and stores each glyph's corners once for the three passes.
         [Test]
-        public void LayerOrderKeepsItsQuadsApart()
+        public void LayerOrderSharesEachGlyphsVerticesAndKeepsThePicture()
         {
             LetteraText text = LayeredLabel("<stroke=#3399FF,0.08><shadow=#000000,0.06,-0.06>Kerning AV wavy fox</shadow></stroke>");
             Assert.IsFalse(text.Engine.LayersMerged);
-            Assert.AreEqual(0, Drawn(text) % 12);
+            Assert.IsTrue(text.Engine.LayersShared);
+            int glyphs = Drawn(text) / 4;
+            Assert.AreEqual(glyphs * 18, text.Engine.IndexCount, "three passes over the same corners");
+            int separate = SamePictureMergedAndApart(text, true);
+            Assert.AreEqual(glyphs * 3 * 4, separate, "a third of the vertices");
+
+            // A stroke over part of the text leaves the rest out of the stroke pass, and the picture holds.
+            text.Text = "<shadow=#000000,0.06,-0.06>Part <stroke=#FF3300,0.1>of it</stroke> stroked</shadow>";
+            text.ForceRebuild();
+            Canvas.ForceUpdateCanvases();
+            Assert.IsTrue(text.Engine.LayersShared);
+            SamePictureMergedAndApart(text, true);
+
+            // A layer the passes do not hold keeps the quads apart.
+            text.Text = "<glow=#FFFF00,0.2><stroke=#3399FF,0.08>Glow</stroke></glow>";
+            text.ForceRebuild();
+            Assert.IsFalse(text.Engine.LayersShared);
+        }
+
+        [Test]
+        public void SharedLayersTakeTheCanvasTint()
+        {
+            LetteraText text = LayeredLabel("<stroke=#3399FF,0.08><shadow=#000000,0.06,-0.06>Tinted label</shadow></stroke>");
+            text.canvasRenderer.SetColor(new Color(1f, 0.4f, 0.6f, 0.8f));
+            Canvas.ForceUpdateCanvases();
+            Assert.IsTrue(text.Engine.LayersShared);
+            SamePictureMergedAndApart(text, true);
         }
 
         // A tint a canvas multiplies into the vertices, as a button's transition does, reaches the merged layers as it reaches separate ones.
@@ -192,18 +218,20 @@ namespace FirstSymbol.Lettera.Editor.Tests
             return text;
         }
 
-        // Renders the text merged, then apart, and holds the two pictures together. Returns the vertices drawn apart.
-        int SamePictureMergedAndApart(LetteraText text)
+        // Renders the text merged or shared, then apart, and holds the two pictures together. Returns the vertices drawn apart.
+        int SamePictureMergedAndApart(LetteraText text, bool shared = false)
         {
             var background = new Color(0.2f, 0.22f, 0.26f, 1);
             Texture2D merged = Render(300, 120, background);
-            TextEngine.NoMergedLayersForTests = true;
+            if (shared) TextEngine.NoSharedLayersForTests = true;
+            else TextEngine.NoMergedLayersForTests = true;
             try
             {
                 text.MarkStylesDirty();
                 text.ForceRebuild();
                 Canvas.ForceUpdateCanvases();
                 Assert.IsFalse(text.Engine.LayersMerged);
+                Assert.IsFalse(text.Engine.LayersShared);
                 int separate = Drawn(text);
                 Texture2D apart = Render(300, 120, background);
                 int differing = 0, inked = 0;
@@ -224,6 +252,7 @@ namespace FirstSymbol.Lettera.Editor.Tests
             finally
             {
                 TextEngine.NoMergedLayersForTests = false;
+                TextEngine.NoSharedLayersForTests = false;
                 text.MarkStylesDirty();
                 text.ForceRebuild();
             }

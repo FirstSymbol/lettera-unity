@@ -50,15 +50,18 @@ namespace FirstSymbol.Lettera
         /// a blend and a paint texture. Variants are shared across texts.
         /// </summary>
         // Merged layers take a variant of their own: plain glyphs and merged quads, with none of the styled path's weight on the rest.
-        internal static Material Variant(Material source, bool styled, LetteraBlend blend, Texture2D texture, bool merged = false)
+        // Shared layers take another: plain glyphs whose colour and edge are flat, read from the corner that leads each triangle.
+        internal static Material Variant(Material source, bool styled, LetteraBlend blend, Texture2D texture, bool merged = false, bool shared = false)
         {
             if (blend == LetteraBlend.Inherit) blend = LetteraBlend.Normal;
-            if (!styled && blend == LetteraBlend.Normal && texture == null) return source;
+            shared &= !styled && blend == LetteraBlend.Normal && texture == null;
+            if (!styled && blend == LetteraBlend.Normal && texture == null && !shared) return source;
             merged &= styled && blend == LetteraBlend.Normal && texture == null;
-            var key = (source, styled, blend, texture, merged);
+            var key = (source, styled, blend, texture, merged || shared);
             if (s_Variants.TryGetValue(key, out Material variant) && variant != null) return variant;
-            variant = new Material(source) { hideFlags = HideFlags.HideAndDontSave, name = source.name + (merged ? " Merged" : " Variant") };
-            if (merged) variant.EnableKeyword("LETTERA_MERGED");
+            variant = new Material(source) { hideFlags = HideFlags.HideAndDontSave, name = source.name + (merged ? " Merged" : shared ? " Shared" : " Variant") };
+            if (shared) variant.EnableKeyword("LETTERA_LAYERED");
+            else if (merged) variant.EnableKeyword("LETTERA_MERGED");
             else if (styled) variant.EnableKeyword("LETTERA_STYLED");
             if (texture != null) variant.SetTexture(s_PaintTex, texture);
             SetBlend(variant, blend);

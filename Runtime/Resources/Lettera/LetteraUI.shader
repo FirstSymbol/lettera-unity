@@ -45,7 +45,7 @@ Shader "Lettera/UI"
             #pragma require 2darray
             #pragma multi_compile_local _ UNITY_UI_CLIP_RECT
             #pragma multi_compile_local _ UNITY_UI_ALPHACLIP
-            #pragma multi_compile_local _ LETTERA_STYLED LETTERA_MERGED
+            #pragma multi_compile_local _ LETTERA_STYLED LETTERA_MERGED LETTERA_LAYERED
 
             #include "UnityCG.cginc"
             #include "UnityUI.cginc"
@@ -68,14 +68,22 @@ Shader "Lettera/UI"
                 UNITY_VERTEX_INPUT_INSTANCE_ID
             };
 
+            // Shared layers read colour and edge from the corner that leads each triangle.
+            #ifdef LETTERA_LAYERED
+            #define LETTERA_FLAT nointerpolation
+            #else
+            #define LETTERA_FLAT
+            #endif
+
             struct v2f
             {
                 float4 vertex : SV_POSITION;
-                fixed4 color : COLOR;
+                LETTERA_FLAT fixed4 color : COLOR;
                 float4 uv0 : TEXCOORD0;
-                float4 params : TEXCOORD1;
-                float4 world : TEXCOORD2;
+                LETTERA_FLAT float4 params : TEXCOORD1;
+                #ifdef UNITY_UI_CLIP_RECT
                 float4 mask : TEXCOORD3;
+                #endif
                 #if defined(LETTERA_STYLED) || defined(LETTERA_MERGED)
                 float4 paint : TEXCOORD4;
                 float4 extra : TEXCOORD5;
@@ -93,7 +101,6 @@ Shader "Lettera/UI"
                 v2f o;
                 UNITY_SETUP_INSTANCE_ID(v);
                 UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(o);
-                o.world = v.vertex;
                 o.vertex = UnityObjectToClipPos(v.vertex);
                 o.uv0 = v.uv0;
                 o.params = v.uv1;
@@ -102,11 +109,13 @@ Shader "Lettera/UI"
                 o.extra = v.uv3;
                 #endif
 
+                #ifdef UNITY_UI_CLIP_RECT
                 float2 pixelSize = o.vertex.w;
                 pixelSize /= float2(1, 1) * abs(mul((float2x2)UNITY_MATRIX_P, _ScreenParams.xy));
                 float4 clampedRect = clamp(_ClipRect, -2e10, 2e10);
                 o.mask = float4(v.vertex.xy * 2 - clampedRect.xy - clampedRect.zw,
                     0.25 / (0.25 * half2(_UIMaskSoftnessX, _UIMaskSoftnessY) + abs(pixelSize.xy)));
+                #endif
 
                 if (_UIVertexColorAlwaysGammaSpace && !IsGammaSpace())
                     v.color.rgb = UIGammaToLinear(v.color.rgb);
@@ -122,6 +131,10 @@ Shader "Lettera/UI"
                 UNITY_BRANCH
                 if (i.uv0.w > 12.5) color = LetteraShadeMerged(i.uv0, i.params, i.color, i.paint, i.extra);
                 else color = LetteraShadePlain(i.uv0, i.params.xy, i.color);
+                #elif defined(LETTERA_LAYERED)
+                // Distance glyphs only; a shadow's corner also says how far its field lies from the quad.
+                fixed4 color = i.color;
+                color.a *= LetteraEdge(LETTERA_SAMPLE_SDF(i.uv0.xy - i.params.zw, i.uv0.z).r, i.params.x, i.params.y);
                 #elif defined(LETTERA_STYLED)
                 fixed4 color = LetteraShadeStyled(i.uv0, i.params, i.color, i.paint, i.extra, i.vertex.xy);
                 #else

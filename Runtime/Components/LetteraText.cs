@@ -58,7 +58,7 @@ namespace FirstSymbol.Lettera
 
         internal TextEngine Engine => m_Engine ?? (m_Engine = new TextEngine(this));
 
-        public override Material defaultMaterial => LetteraMaterials.Variant(LetteraMaterials.Ui, Engine.Styled, LetteraBlend.Normal, null, Engine.LayersMerged);
+        public override Material defaultMaterial => LetteraMaterials.Variant(LetteraMaterials.Ui, Engine.Styled, LetteraBlend.Normal, null, Engine.LayersMerged, Engine.LayersShared);
 
         /// <summary>No material of the user's own: the merged-layer variant of the default shader can draw it.</summary>
         internal bool UsesDefaultMaterial => m_Material == null;
@@ -404,7 +404,7 @@ namespace FirstSymbol.Lettera
                 {
                     MeshSegment segment = e.Segments[i];
                     if (Mathf.Max(segment.IndexStart, start) >= Mathf.Min(segment.IndexStart + segment.IndexCount, end)) continue;
-                    Material material = segment.Custom != null ? segment.Custom : LetteraMaterials.Variant(source, e.Styled, segment.Blend, segment.Texture, e.LayersMerged);
+                    Material material = segment.Custom != null ? segment.Custom : LetteraMaterials.Variant(source, e.Styled, segment.Blend, segment.Texture, e.LayersMerged, e.LayersShared);
                     if (maskable && m_StencilValue > 0)
                     {
                         int bits = (1 << m_StencilValue) - 1;
@@ -638,17 +638,18 @@ namespace FirstSymbol.Lettera
         // The materials of the last rebuild's stretches, to see when the renderer needs new ones.
         readonly System.Collections.Generic.List<MeshSegment> m_LastSegments = new System.Collections.Generic.List<MeshSegment>();
         readonly System.Collections.Generic.List<Material> m_SegmentMasks = new System.Collections.Generic.List<Material>();
-        bool m_LastStyled, m_LastMerged;
+        bool m_LastStyled, m_LastMerged, m_LastShared;
 
         bool MaterialsChanged()
         {
             TextEngine e = Engine;
-            bool changed = m_LastStyled != e.Styled || m_LastMerged != e.LayersMerged || m_LastSegments.Count != e.Segments.Count;
+            bool changed = m_LastStyled != e.Styled || m_LastMerged != e.LayersMerged || m_LastShared != e.LayersShared || m_LastSegments.Count != e.Segments.Count;
             for (int i = 0; !changed && i < e.Segments.Count; i++)
                 changed = m_LastSegments[i].Blend != e.Segments[i].Blend || m_LastSegments[i].Texture != e.Segments[i].Texture || m_LastSegments[i].Custom != e.Segments[i].Custom;
             if (!changed) return false;
             m_LastStyled = e.Styled;
             m_LastMerged = e.LayersMerged;
+            m_LastShared = e.LayersShared;
             m_LastSegments.Clear();
             m_LastSegments.AddRange(e.Segments);
             return true;
@@ -675,7 +676,7 @@ namespace FirstSymbol.Lettera
             for (int i = 0; i < count; i++)
             {
                 MeshSegment segment = e.Segments[i];
-                Material material = segment.Custom != null ? segment.Custom : LetteraMaterials.Variant(source, e.Styled, segment.Blend, segment.Texture, e.LayersMerged);
+                Material material = segment.Custom != null ? segment.Custom : LetteraMaterials.Variant(source, e.Styled, segment.Blend, segment.Texture, e.LayersMerged, e.LayersShared);
                 if (maskable && m_StencilValue > 0)
                 {
                     int bits = (1 << m_StencilValue) - 1;
@@ -765,6 +766,19 @@ namespace FirstSymbol.Lettera
 
         /// <summary>A mask has culled this text, so its mesh notes where its ink lies; no other text pays for that.</summary>
         internal bool TracksInk => m_UnderRectMask;
+
+        /// <summary>How long a screen pixel is in this text's units, or 0 where that is not known: in world space a camera can come as near or go as far as it likes.</summary>
+        internal float PixelLength()
+        {
+            Canvas own = canvas;
+            if (own == null) return 0;
+            Canvas root = own.rootCanvas;
+            if (root.renderMode == UnityEngine.RenderMode.WorldSpace || root.scaleFactor <= 0) return 0;
+            Vector3 mine = transform.lossyScale, rootScale = root.transform.lossyScale;
+            if (rootScale.x == 0 || rootScale.y == 0) return 0;
+            float relative = Mathf.Min(Mathf.Abs(mine.x / rootScale.x), Mathf.Abs(mine.y / rootScale.y));
+            return relative > 0 ? 1f / (root.scaleFactor * relative) : 0;
+        }
 
         // A mask decides about culling on its own, which must not bring a hidden text back.
         // A text whose rect reaches into the mask while its ink stays outside draws nothing there, so it is culled by its ink.

@@ -89,6 +89,57 @@ namespace FirstSymbol.Lettera
             AddInk(left + ix, bottom + iy, right - ix, top - iy);
         }
 
+        // Two screen pixels in the text's units, or 0 where a pixel's size is not known.
+        float m_QuadMargin;
+
+        /// <summary>Draws every distance quad as its whole tile, for a test that compares the two.</summary>
+        internal static bool WholeTilesForTests;
+
+        // A distance quad's tile reaches Spread em beyond the outline, so that any layer fits; a quad that shows less is cut to what it shows,
+        // its edge, softness and anti-aliasing, and the GPU shades none of the rest. Its uv keeps the same mapping, so every pixel left reads what it read.
+        bool CropToReach(in AtlasGlyph atlas, float xUnit, float yUnit, float size, float threshold, float softness, ref float left, ref float bottom, ref float right, ref float top,
+                         ref float u0, ref float v0, ref float u1, ref float v1)
+        {
+            if (m_QuadMargin <= 0 || atlas.Pixel || atlas.Spread <= 0 || size <= 0 || yUnit <= 0) return false;
+            float reach = (0.5f - threshold + softness) * 2 * atlas.Spread;
+            float emX = size / yUnit * Mathf.Abs(xUnit);
+            return CropSides(atlas, emX, size, reach * emX, reach * size, reach * emX, reach * size, ref left, ref bottom, ref right, ref top, ref u0, ref v0, ref u1, ref v1);
+        }
+
+        // The same with a reach of its own on each side, in the text's units, for a quad whose layers lie off center.
+        bool CropSides(in AtlasGlyph atlas, float emX, float emY, float reachLeft, float reachBottom, float reachRight, float reachTop, ref float left, ref float bottom, ref float right, ref float top,
+                       ref float u0, ref float v0, ref float u1, ref float v1)
+        {
+            float padX = atlas.Spread * emX, padY = atlas.Spread * emY;
+            float l = padX - reachLeft - m_QuadMargin, r = padX - reachRight - m_QuadMargin;
+            float b = padY - reachBottom - m_QuadMargin, t = padY - reachTop - m_QuadMargin;
+            if (l < 0) l = 0;
+            if (r < 0) r = 0;
+            if (b < 0) b = 0;
+            if (t < 0) t = 0;
+            float width = right - left, height = top - bottom;
+            bool any = false;
+            if ((l > 0 || r > 0) && l + r < width)
+            {
+                float du = (u1 - u0) / width;
+                left += l;
+                right -= r;
+                u0 += du * l;
+                u1 -= du * r;
+                any = true;
+            }
+            if ((b > 0 || t > 0) && b + t < height)
+            {
+                float dv = (v1 - v0) / height;
+                bottom += b;
+                top -= t;
+                v0 += dv * b;
+                v1 -= dv * t;
+                any = true;
+            }
+            return any;
+        }
+
         static readonly ResolvedPaint s_NoPaint = new ResolvedPaint { Blend = LetteraBlend.Normal };
 
         void BuildMesh()
@@ -107,6 +158,7 @@ namespace FirstSymbol.Lettera
             if (m_Aside.StageHooks.Count > 0) Empty(m_Aside.CoverQuads);
             m_CurrentOwner = -1;
             m_DrawBase = m_Host.BaseColor;
+            m_QuadMargin = m_Host is LetteraText pixelled && !WholeTilesForTests ? 2f * pixelled.PixelLength() : 0;
             InkKnown = false;
             m_TrackInk = m_Host is LetteraText inked && inked.TracksInk;
             m_InkQuads = 0;
@@ -148,12 +200,17 @@ namespace FirstSymbol.Lettera
 
             DrawHighlights(groups, false);
             LayersMerged = false;
+            LayersShared = false;
             if (m_Attributes.PaintOrder == LetteraPaintOrder.GlyphMajor)
             {
                 ReserveExtraQuads();
                 if (CanMergeLayers(groups)) DrawMerged();
                 else DrawGlyphMajor(groups);
                 AddDecorationLayer(null);
+            }
+            else if (CanShareLayers(groups))
+            {
+                DrawSharedLayers();
             }
             else
             {
@@ -480,15 +537,17 @@ namespace FirstSymbol.Lettera
                 float xUnit = g.Unit * (1 + g.XScale);
                 float left = g.X + atlas.Left * xUnit, right = g.X + atlas.Right * xUnit;
                 float bottom = g.Y + atlas.Bottom * g.Unit, top = g.Y + atlas.Top * g.Unit;
+                float u0 = atlas.U0, v0 = atlas.V0, u1 = atlas.U1, v1 = atlas.V1;
+                bool cropped = mode == ModeSdf && CropToReach(atlas, xUnit, g.Unit, g.Size, 0.5f, 0, ref left, ref bottom, ref right, ref top, ref u0, ref v0, ref u1, ref v1);
                 int v = Reserve();
                 Vertices[v] = new Vector3(left, bottom);
                 Vertices[v + 1] = new Vector3(left, top);
                 Vertices[v + 2] = new Vector3(right, top);
                 Vertices[v + 3] = new Vector3(right, bottom);
-                Uv0[v] = new Vector4(atlas.U0, atlas.V0, atlas.Page, mode);
-                Uv0[v + 1] = new Vector4(atlas.U0, atlas.V1, atlas.Page, mode);
-                Uv0[v + 2] = new Vector4(atlas.U1, atlas.V1, atlas.Page, mode);
-                Uv0[v + 3] = new Vector4(atlas.U1, atlas.V0, atlas.Page, mode);
+                Uv0[v] = new Vector4(u0, v0, atlas.Page, mode);
+                Uv0[v + 1] = new Vector4(u0, v1, atlas.Page, mode);
+                Uv0[v + 2] = new Vector4(u1, v1, atlas.Page, mode);
+                Uv0[v + 3] = new Vector4(u1, v0, atlas.Page, mode);
                 var parameters = new Vector4(0.5f, 0, 0, 0);
                 Uv1[v] = parameters;
                 Uv1[v + 1] = parameters;
@@ -499,7 +558,9 @@ namespace FirstSymbol.Lettera
                 Colors[v + 2] = color;
                 Colors[v + 3] = color;
                 m_OwnAlpha[v] = m_OwnAlpha[v + 1] = m_OwnAlpha[v + 2] = m_OwnAlpha[v + 3] = color.a;
-                if (m_TrackInk) AddDistanceInk(left, bottom, right, top, atlas, xUnit, g.Unit, g.Size, 0.5f, 0);
+                if (!m_TrackInk) continue;
+                if (cropped) AddInk(left, bottom, right, top);
+                else AddDistanceInk(left, bottom, right, top, atlas, xUnit, g.Unit, g.Size, 0.5f, 0);
             }
         }
 
@@ -698,6 +759,7 @@ namespace FirstSymbol.Lettera
                 var parameters = new Vector4(Pack(face.r, face.g), 0, 0, 0);
                 var colors = new Vector4();
                 var extra = new Vector4(0, 0, 0, Pack(face.b, face.a));
+                float offsetX = 0, offsetY = 0;
                 int stroke = m_Aside.MergeStroke != null ? m_Aside.MergeStroke.Cover[g.Cluster] - 1 : -1;
                 if (stroke >= 0)
                 {
@@ -722,18 +784,37 @@ namespace FirstSymbol.Lettera
                     parameters.w = record.Softness * SoftnessEm * toSdf;
                     colors.z = Pack(c.r, c.g);
                     colors.w = Pack(c.b, c.a);
-                    extra.x = SnappedOffset(g, record.OffsetX.Of(size)) / (right - left) * (atlas.U1 - atlas.U0);
-                    extra.y = SnappedOffset(g, record.OffsetY.Of(size)) / (top - bottom) * (atlas.V1 - atlas.V0);
+                    offsetX = SnappedOffset(g, record.OffsetX.Of(size));
+                    offsetY = SnappedOffset(g, record.OffsetY.Of(size));
+                    extra.x = offsetX / (right - left) * (atlas.U1 - atlas.U0);
+                    extra.y = offsetY / (top - bottom) * (atlas.V1 - atlas.V0);
+                }
+                float u0 = atlas.U0, v0 = atlas.V0, u1 = atlas.U1, v1 = atlas.V1;
+                if (m_QuadMargin > 0)
+                {
+                    float emX = g.Size / g.Unit * Mathf.Abs(xUnit), emY = g.Size;
+                    float strokeReach = parameters.y > 0 ? (0.5f - parameters.y + extra.z) * 2 * atlas.Spread : 0;
+                    float sx = strokeReach * emX, sy = strokeReach * emY;
+                    float rl = sx, rr = sx, rb = sy, rt = sy;
+                    if (parameters.z > 0)
+                    {
+                        float shadowReach = (0.5f - parameters.z + parameters.w) * 2 * atlas.Spread;
+                        rl = Mathf.Max(rl, shadowReach * emX - offsetX);
+                        rr = Mathf.Max(rr, shadowReach * emX + offsetX);
+                        rb = Mathf.Max(rb, shadowReach * emY - offsetY);
+                        rt = Mathf.Max(rt, shadowReach * emY + offsetY);
+                    }
+                    CropSides(atlas, emX, emY, rl, rb, rr, rt, ref left, ref bottom, ref right, ref top, ref u0, ref v0, ref u1, ref v1);
                 }
                 int v = Reserve();
                 Vertices[v] = new Vector3(left, bottom);
                 Vertices[v + 1] = new Vector3(left, top);
                 Vertices[v + 2] = new Vector3(right, top);
                 Vertices[v + 3] = new Vector3(right, bottom);
-                Uv0[v] = new Vector4(atlas.U0, atlas.V0, atlas.Page, ModeMerged);
-                Uv0[v + 1] = new Vector4(atlas.U0, atlas.V1, atlas.Page, ModeMerged);
-                Uv0[v + 2] = new Vector4(atlas.U1, atlas.V1, atlas.Page, ModeMerged);
-                Uv0[v + 3] = new Vector4(atlas.U1, atlas.V0, atlas.Page, ModeMerged);
+                Uv0[v] = new Vector4(u0, v0, atlas.Page, ModeMerged);
+                Uv0[v + 1] = new Vector4(u0, v1, atlas.Page, ModeMerged);
+                Uv0[v + 2] = new Vector4(u1, v1, atlas.Page, ModeMerged);
+                Uv0[v + 3] = new Vector4(u1, v0, atlas.Page, ModeMerged);
                 Uv1[v] = Uv1[v + 1] = Uv1[v + 2] = Uv1[v + 3] = parameters;
                 Uv2[v] = Uv2[v + 1] = Uv2[v + 2] = Uv2[v + 3] = colors;
                 Uv3[v] = Uv3[v + 1] = Uv3[v + 2] = Uv3[v + 3] = extra;
@@ -741,6 +822,193 @@ namespace FirstSymbol.Lettera
                 SetColor(v, white);
                 AddInk(left, bottom, right, top);
             }
+        }
+
+        // ---------------------------------------------------------------- shared layers
+
+        // Layer-order Canvas text with a stroke and a shadow keeps its order, every shadow under every stroke under every face, and stores each glyph once:
+        // four vertices, which the index buffer names three times, for the shadows, the strokes and the faces. A triangle's flat attributes come from
+        // its provoking vertex, so each pass leads with a corner of its own and reads that corner's colour, edge, softness and shift. The quad covers all
+        // three layers, and the shadow pass reads the field where the shadow's own quad would have read it. A frame then moves a third of the vertices.
+
+        /// <summary>The last mesh drew its layers from one set of vertices a glyph.</summary>
+        internal bool LayersShared { get; private set; }
+
+        /// <summary>Draws layer order as separate quads, for a test that compares the two.</summary>
+        internal static bool NoSharedLayersForTests;
+
+        // Direct3D, Vulkan and Metal take flat attributes from a triangle's first vertex, OpenGL ES and WebGL from its last.
+        // Desktop OpenGL can be set either way, so there the quads stay apart.
+        static int s_Provoking = -1;
+
+        static int Provoking
+        {
+            get
+            {
+                if (s_Provoking < 0)
+                {
+                    UnityEngine.Rendering.GraphicsDeviceType device = SystemInfo.graphicsDeviceType;
+                    s_Provoking = device == UnityEngine.Rendering.GraphicsDeviceType.OpenGLES3 ? 1 : device == UnityEngine.Rendering.GraphicsDeviceType.OpenGLCore ? 2 : 0;
+                }
+                return s_Provoking;
+            }
+        }
+
+        bool CanShareLayers(List<LayerGroup> groups)
+        {
+            if (NoSharedLayersForTests || Styled || !(m_Host is LetteraText host) || !host.UsesDefaultMaterial || m_Faces.Count > 0 || m_Attributes.Filters.Count > 0 ||
+                m_Attributes.Warps.Count > 0 || m_Attributes.Decorations.Count > 0 || m_FadeActive || m_RecordOwners || m_Aside.MotionSpans.Count > 0 ||
+                m_Aside.StageHooks.Count > 0 || HasInlineSprites || HasSpoilers || m_Aside.Marquee != null || m_Host.Data.RenderMode == LetteraRenderMode.MSDF ||
+                m_PlacedCount == 0 || m_PlacedCount * 4 > LetteraText.MaxPartVertices || groups.Count == 0 || Provoking == 2)
+                return false;
+            m_Aside.MergeStroke = m_Aside.MergeShadow = null;
+            foreach (LayerGroup group in groups)
+            {
+                if (group.Layer == LayerKind.Stroke && group.Band == LetteraLayerBand.Rim && m_Aside.MergeStroke == null) m_Aside.MergeStroke = group;
+                else if (group.Layer == LayerKind.Shadow && group.Band == LetteraLayerBand.Back && m_Aside.MergeShadow == null) m_Aside.MergeShadow = group;
+                else return false;
+            }
+            List<LayerRecord> records = m_Attributes.Layers;
+            for (int i = 0; i < m_PlacedCount; i++)
+            {
+                ref PlacedGlyph g = ref m_Placed[i];
+                ref AtlasGlyph atlas = ref m_PlacedAtlas[i];
+                if (atlas.Kind == AtlasGlyph.Empty) continue;
+                if (atlas.Kind != AtlasGlyph.Sdf || atlas.Pixel || atlas.Spread <= 0 || g.Special != 0 || g.Angle != 0 || g.Size <= 0) return false;
+                int stroke = m_Aside.MergeStroke != null ? m_Aside.MergeStroke.Cover[g.Cluster] - 1 : -1;
+                if (stroke >= 0 && (!MergeablePaint(records[stroke]) || records[stroke].Align != 1)) return false;
+                int shadow = m_Aside.MergeShadow != null ? m_Aside.MergeShadow.Cover[g.Cluster] - 1 : -1;
+                if (shadow >= 0 && (!MergeablePaint(records[shadow]) || !ShadowFits(g, atlas, records[shadow]))) return false;
+            }
+            return true;
+        }
+
+        // Each pass's two triangles over the quad, both led by that pass's corner: 0 the shadow's, 1 the stroke's, 2 the face's.
+        static readonly int[] s_FirstProvokes = { 0, 1, 2, 0, 2, 3, 1, 2, 3, 1, 3, 0, 2, 3, 0, 2, 0, 1 };
+        static readonly int[] s_LastProvokes = { 1, 2, 0, 2, 3, 0, 2, 3, 1, 3, 0, 1, 3, 0, 2, 0, 1, 2 };
+
+        // uv1 per corner: edge, softness, and for the shadow its shift in the atlas. An edge of 1 marks a layer this glyph does not have.
+        void DrawSharedLayers()
+        {
+            List<LayerRecord> records = m_Attributes.Layers;
+            UseSegment(s_NoPaint);
+            m_FilterRow = 0;
+            Color32 baseColor = m_DrawBase;
+            var noColor = new Color32(baseColor.r, baseColor.g, baseColor.b, 255);
+            int first = VertexCount;
+            int quads = 0;
+            for (int i = 0; i < m_PlacedCount; i++)
+                if (m_PlacedAtlas[i].Kind != AtlasGlyph.Empty) quads++;
+            if (first + quads * 4 > Vertices.Length) GrowVertices(System.Math.Max(first + quads * 4, Vertices.Length * 2));
+            if (IndexCount + quads * 18 > Indices.Length) System.Array.Resize(ref Indices, System.Math.Max(IndexCount + quads * 18, Indices.Length * 2));
+            if (m_TrackBase && m_TakesBase.Length < Vertices.Length) System.Array.Resize(ref m_TakesBase, Vertices.Length);
+            var none = new Vector4(1, 0, 0, 0);
+            var faceParams = new Vector4(0.5f, 0, 0, 0);
+            int strokes = 0, shadows = 0;
+            int v = first;
+            for (int i = 0; i < m_PlacedCount; i++)
+            {
+                ref PlacedGlyph g = ref m_Placed[i];
+                ref AtlasGlyph atlas = ref m_PlacedAtlas[i];
+                if (atlas.Kind == AtlasGlyph.Empty) continue;
+                m_CurrentOwner = i;
+                ref LetteraAttributes.Cp attr = ref m_Attributes.At(g.Cluster);
+                Color32 face = attr.HasColor ? attr.Color : noColor;
+                face.a = (byte)(face.a * attr.Alpha);
+                float toEm = 1f / g.Size, toSdf = 1f / (2f * atlas.Spread);
+                float xUnit = g.Unit * (1 + g.XScale);
+                float left = g.X + atlas.Left * xUnit, right = g.X + atlas.Right * xUnit;
+                float bottom = g.Y + atlas.Bottom * g.Unit, top = g.Y + atlas.Top * g.Unit;
+                Vector4 shadowParams = none, strokeParams = none;
+                Color32 shadowColor = default, strokeColor = default;
+                float offsetX = 0, offsetY = 0, strokeEdge = 0, shadowEdge = 0, shadowSoft = 0, strokeSoft = 0;
+                int stroke = m_Aside.MergeStroke != null ? m_Aside.MergeStroke.Cover[g.Cluster] - 1 : -1;
+                if (stroke >= 0)
+                {
+                    LayerRecord record = records[stroke];
+                    float width = record.Width.Of(MeasureSize(record, g)) * toEm;
+                    if (width > 0)
+                    {
+                        strokeColor = LayerColor(record, attr);
+                        strokeEdge = Mathf.Max(0.002f, 0.5f - width * toSdf);
+                        strokeSoft = record.Softness * SoftnessEm * toSdf;
+                        strokeParams = new Vector4(strokeEdge, strokeSoft, 0, 0);
+                        strokes++;
+                    }
+                }
+                int shadow = m_Aside.MergeShadow != null ? m_Aside.MergeShadow.Cover[g.Cluster] - 1 : -1;
+                if (shadow >= 0)
+                {
+                    LayerRecord record = records[shadow];
+                    float size = MeasureSize(record, g);
+                    shadowColor = LayerColor(record, attr);
+                    shadowEdge = Mathf.Max(0.002f, 0.5f - record.Dilate.Of(size) * toEm * toSdf);
+                    shadowSoft = record.Softness * SoftnessEm * toSdf;
+                    offsetX = SnappedOffset(g, record.OffsetX.Of(size));
+                    offsetY = SnappedOffset(g, record.OffsetY.Of(size));
+                    shadowParams = new Vector4(shadowEdge, shadowSoft, offsetX / (right - left) * (atlas.U1 - atlas.U0), offsetY / (top - bottom) * (atlas.V1 - atlas.V0));
+                    shadows++;
+                }
+                float u0 = atlas.U0, v0 = atlas.V0, u1 = atlas.U1, v1 = atlas.V1;
+                if (m_QuadMargin > 0)
+                {
+                    float emX = g.Size / g.Unit * Mathf.Abs(xUnit), emY = g.Size;
+                    float strokeReach = strokeEdge > 0 ? (0.5f - strokeEdge + strokeSoft) * 2 * atlas.Spread : 0;
+                    float sx = strokeReach * emX, sy = strokeReach * emY;
+                    float rl = sx, rr = sx, rb = sy, rt = sy;
+                    if (shadowEdge > 0)
+                    {
+                        float shadowReach = (0.5f - shadowEdge + shadowSoft) * 2 * atlas.Spread;
+                        rl = Mathf.Max(rl, shadowReach * emX - offsetX);
+                        rr = Mathf.Max(rr, shadowReach * emX + offsetX);
+                        rb = Mathf.Max(rb, shadowReach * emY - offsetY);
+                        rt = Mathf.Max(rt, shadowReach * emY + offsetY);
+                    }
+                    CropSides(atlas, emX, emY, rl, rb, rr, rt, ref left, ref bottom, ref right, ref top, ref u0, ref v0, ref u1, ref v1);
+                }
+                Vertices[v] = new Vector3(left, bottom);
+                Vertices[v + 1] = new Vector3(left, top);
+                Vertices[v + 2] = new Vector3(right, top);
+                Vertices[v + 3] = new Vector3(right, bottom);
+                Uv0[v] = new Vector4(u0, v0, atlas.Page, ModeSdf);
+                Uv0[v + 1] = new Vector4(u0, v1, atlas.Page, ModeSdf);
+                Uv0[v + 2] = new Vector4(u1, v1, atlas.Page, ModeSdf);
+                Uv0[v + 3] = new Vector4(u1, v0, atlas.Page, ModeSdf);
+                Uv1[v] = shadowParams;
+                Uv1[v + 1] = strokeParams;
+                Uv1[v + 2] = faceParams;
+                Uv1[v + 3] = faceParams;
+                SetCorner(v, shadowColor, false);
+                SetCorner(v + 1, strokeColor, false);
+                SetCorner(v + 2, face, !attr.HasColor);
+                SetCorner(v + 3, face, !attr.HasColor);
+                AddInk(left, bottom, right, top);
+                v += 4;
+            }
+            VertexCount = v;
+            int[] pattern = Provoking == 1 ? s_LastProvokes : s_FirstProvokes;
+            int index = IndexCount;
+            for (int pass = 0; pass < 3; pass++)
+            {
+                if ((pass == 0 && shadows == 0) || (pass == 1 && strokes == 0)) continue;
+                for (int q = first; q < v; q += 4)
+                {
+                    // A glyph outside a layer's range is left out of that pass.
+                    if (pass < 2 && Uv1[q + pass].x >= 1) continue;
+                    for (int k = 0; k < 6; k++) Indices[index + k] = q + pattern[pass * 6 + k];
+                    index += 6;
+                }
+            }
+            IndexCount = index;
+            LayersShared = true;
+        }
+
+        void SetCorner(int v, Color32 color, bool takesBase)
+        {
+            Colors[v] = color;
+            m_OwnAlpha[v] = color.a;
+            m_AllTakeBase = false;
+            if (m_TrackBase) m_TakesBase[v] = takesBase;
         }
 
         bool IsConnected(int a, int b)
@@ -1063,6 +1331,10 @@ namespace FirstSymbol.Lettera
             float xUnit = g.Unit * (1 + g.XScale);
             float left = atlas.Left * xUnit, right = atlas.Right * xUnit;
             float bottom = atlas.Bottom * g.Unit, top = atlas.Top * g.Unit;
+            float u0 = atlas.U0, v0 = atlas.V0, u1 = atlas.U1, v1 = atlas.V1;
+            bool distance = (mode == ModeSdf || mode == ModeMedian || mode == ModeTrueDistance) && extra.w == 0;
+            // A median keeps corners sharp, and beyond the edge it does not fall off as the distance does.
+            bool cropped = distance && mode != ModeMedian && m_FilterRow == 0 && CropToReach(atlas, xUnit, g.Unit, g.Size, threshold, softness, ref left, ref bottom, ref right, ref top, ref u0, ref v0, ref u1, ref v1);
             int v = Reserve();
             if (g.Angle == 0)
             {
@@ -1072,7 +1344,7 @@ namespace FirstSymbol.Lettera
                 Vertices[v + 3] = new Vector3(g.X + right, g.Y + bottom);
                 if (m_TrackInk)
                 {
-                    if ((mode == ModeSdf || mode == ModeMedian || mode == ModeTrueDistance) && extra.w == 0) AddDistanceInk(g.X + left, g.Y + bottom, g.X + right, g.Y + top, atlas, xUnit, g.Unit, g.Size, threshold, softness);
+                    if (distance && !cropped) AddDistanceInk(g.X + left, g.Y + bottom, g.X + right, g.Y + top, atlas, xUnit, g.Unit, g.Size, threshold, softness);
                     else AddInk(g.X + left, g.Y + bottom, g.X + right, g.Y + top);
                 }
             }
@@ -1084,10 +1356,10 @@ namespace FirstSymbol.Lettera
                 Vertices[v + 2] = new Vector3(g.X + right * cos - top * sin, g.Y + right * sin + top * cos);
                 Vertices[v + 3] = new Vector3(g.X + right * cos - bottom * sin, g.Y + right * sin + bottom * cos);
             }
-            Uv0[v] = new Vector4(atlas.U0, atlas.V0, atlas.Page, mode);
-            Uv0[v + 1] = new Vector4(atlas.U0, atlas.V1, atlas.Page, mode);
-            Uv0[v + 2] = new Vector4(atlas.U1, atlas.V1, atlas.Page, mode);
-            Uv0[v + 3] = new Vector4(atlas.U1, atlas.V0, atlas.Page, mode);
+            Uv0[v] = new Vector4(u0, v0, atlas.Page, mode);
+            Uv0[v + 1] = new Vector4(u0, v1, atlas.Page, mode);
+            Uv0[v + 2] = new Vector4(u1, v1, atlas.Page, mode);
+            Uv0[v + 3] = new Vector4(u1, v0, atlas.Page, mode);
             var parameters = new Vector4(threshold, softness, upper, m_FilterRow);
             Uv1[v] = Uv1[v + 1] = Uv1[v + 2] = Uv1[v + 3] = parameters;
             SetColor(v, color);
