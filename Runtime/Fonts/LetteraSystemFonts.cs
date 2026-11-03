@@ -61,10 +61,10 @@ namespace FirstSymbol.Lettera
             }
         }
 
-        static string[] Directories()
+        static string[] Directories(Os os)
         {
             string home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-            switch (Host())
+            switch (os)
             {
                 case Os.Windows:
                     return new[]
@@ -86,9 +86,9 @@ namespace FirstSymbol.Lettera
         }
 
         // File name stems tried first, in order, before any other file in the font folders.
-        static string[] FallbackPriority()
+        static string[] FallbackPriority(Os os)
         {
-            switch (Host())
+            switch (os)
             {
                 case Os.Windows:
                     return new[]
@@ -141,52 +141,103 @@ namespace FirstSymbol.Lettera
             return order.ToArray();
         }
 
+        // What the font folders hold, found once: the files in name order, each one's stem, the first file of each stem, and the order fallbacks try them in.
         static List<string> s_Files;
+        static string[] s_Stems;
+        static Dictionary<string, string> s_ByStem;
+        static List<string> s_Order;
+        static readonly object s_Discovery = new object();
 
         static List<string> AllFiles()
         {
-            if (s_Files != null) return s_Files;
-            s_Files = new List<string>();
-            foreach (string directory in Directories())
+            lock (s_Discovery)
+            {
+                if (s_Files == null) Discover(Host());
+                return s_Files;
+            }
+        }
+
+        /// <summary>
+        /// What finds the system fonts, for a player's start-up thread: none of it touches Unity, and the first text that needs a fallback
+        /// then only opens a file. Null where nothing would be found or fallbacks are off. The main thread waits for it only if it asks first.
+        /// </summary>
+        internal static Action DiscoveryAside()
+        {
+            Os os = Host();
+            if (os == Os.None || LetteraSettings.Instance.DisableSystemFontFallback) return null;
+            return () =>
+            {
+                lock (s_Discovery)
+                    if (s_Files == null)
+                        Discover(os);
+            };
+        }
+
+        static void Discover(Os os)
+        {
+            var files = new List<string>();
+            foreach (string directory in Directories(os))
             {
                 try
                 {
                     if (!Directory.Exists(directory)) continue;
                     foreach (string file in Directory.GetFiles(directory, "*", SearchOption.AllDirectories))
-                    {
-                        string extension = Path.GetExtension(file).ToLowerInvariant();
-                        if (extension == ".ttf" || extension == ".otf" || extension == ".ttc" || extension == ".otc") s_Files.Add(file);
-                    }
+                        if (file.EndsWith(".ttf", StringComparison.OrdinalIgnoreCase) || file.EndsWith(".otf", StringComparison.OrdinalIgnoreCase) ||
+                            file.EndsWith(".ttc", StringComparison.OrdinalIgnoreCase) || file.EndsWith(".otc", StringComparison.OrdinalIgnoreCase))
+                            files.Add(file);
                 }
                 catch (Exception) { } // A sandbox may hide a folder; the rest still count.
             }
-            s_Files.Sort(StringComparer.OrdinalIgnoreCase);
-            return s_Files;
+            files.Sort(StringComparer.OrdinalIgnoreCase);
+
+            var stems = new string[files.Count];
+            var byStem = new Dictionary<string, string>(files.Count, StringComparer.OrdinalIgnoreCase);
+            for (int i = 0; i < files.Count; i++)
+            {
+                stems[i] = Path.GetFileNameWithoutExtension(files[i]);
+                if (!byStem.ContainsKey(stems[i])) byStem[stems[i]] = files[i];
+            }
+
+            // Files whose stem begins with a priority stem come first, by the first such stem, in name order within it; then all the others.
+            string[] priority = FallbackPriority(os);
+            var first = new int[files.Count];
+            var counts = new int[priority.Length + 1];
+            for (int i = 0; i < files.Count; i++)
+            {
+                int p = 0;
+                while (p < priority.Length && !stems[i].StartsWith(priority[p], StringComparison.OrdinalIgnoreCase)) p++;
+                first[i] = p;
+                counts[p]++;
+            }
+            var order = new List<string>(files.Count);
+            for (int p = 0; p <= priority.Length; p++)
+            {
+                if (counts[p] == 0) continue;
+                for (int i = 0; i < files.Count; i++)
+                {
+                    if (first[i] != p) continue;
+                    string name = Path.GetFileName(files[i]);
+                    // Bold and italic cuts are never better fallbacks than the regular cut.
+                    if (name.IndexOf("Bold", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                        name.IndexOf("Italic", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                        name.IndexOf("Oblique", StringComparison.OrdinalIgnoreCase) >= 0) continue;
+                    order.Add(files[i]);
+                }
+            }
+
+            s_Stems = stems;
+            s_ByStem = byStem;
+            s_Order = order;
+            s_Files = files;
         }
 
         static void EnsureEntries()
         {
             if (s_Entries != null) return;
-            s_Entries = new List<Entry>();
-            List<string> files = AllFiles();
-            var added = new HashSet<string>();
-            foreach (string stem in FallbackPriority())
-                foreach (string file in files)
-                    if (Path.GetFileNameWithoutExtension(file).StartsWith(stem, StringComparison.OrdinalIgnoreCase) && added.Add(file))
-                        AddEntry(file);
-            foreach (string file in files)
-                if (added.Add(file))
-                    AddEntry(file);
-        }
-
-        static void AddEntry(string file)
-        {
-            string name = Path.GetFileName(file);
-            // Bold and italic cuts are never better fallbacks than the regular cut.
-            if (name.IndexOf("Bold", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                name.IndexOf("Italic", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                name.IndexOf("Oblique", StringComparison.OrdinalIgnoreCase) >= 0) return;
-            s_Entries.Add(GetEntry(file, 0));
+            AllFiles();
+            var entries = new List<Entry>(s_Order.Count);
+            foreach (string file in s_Order) entries.Add(GetEntry(file, 0));
+            s_Entries = entries;
         }
 
         static Entry GetEntry(string path, int index)
@@ -220,10 +271,8 @@ namespace FirstSymbol.Lettera
 
         static string FindFile(string stem)
         {
-            foreach (string file in AllFiles())
-                if (string.Equals(Path.GetFileNameWithoutExtension(file), stem, StringComparison.OrdinalIgnoreCase))
-                    return file;
-            return null;
+            AllFiles();
+            return s_ByStem.TryGetValue(stem, out string file) ? file : null;
         }
 
         /// <summary>The OS default UI family; the first face is the regular cut. Empty when there are no OS fonts.</summary>
@@ -295,10 +344,11 @@ namespace FirstSymbol.Lettera
             if (file != null) found = GetEntry(file, 0).Load();
             if (found == null)
             {
-                foreach (string candidate in AllFiles())
+                List<string> files = AllFiles();
+                for (int i = 0; i < files.Count; i++)
                 {
-                    if (Path.GetFileNameWithoutExtension(candidate).IndexOf(compact, StringComparison.OrdinalIgnoreCase) < 0) continue;
-                    found = GetEntry(candidate, 0).Load();
+                    if (s_Stems[i].IndexOf(compact, StringComparison.OrdinalIgnoreCase) < 0) continue;
+                    found = GetEntry(files[i], 0).Load();
                     if (found != null) break;
                 }
             }
@@ -373,7 +423,13 @@ namespace FirstSymbol.Lettera
         internal static void Reset()
         {
             s_Entries = null;
-            s_Files = null;
+            lock (s_Discovery)
+            {
+                s_Files = null;
+                s_Stems = null;
+                s_ByStem = null;
+                s_Order = null;
+            }
             s_ByKey.Clear();
             s_Fallback.Clear();
             s_Named.Clear();

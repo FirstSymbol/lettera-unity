@@ -499,9 +499,13 @@ namespace FirstSymbol.Lettera
         static void PrepareTypesAside()
         {
             if (Application.isEditor || LetteraWorkers.Mode == LetteraWorkerMode.Inline || SystemInfo.processorCount <= 2) return;
+            // The system's font files are listed there too, so the first character no font of the project has opens a file and lists no folder.
+            Action discover = LetteraSystemFonts.DiscoveryAside();
             var thread = new System.Threading.Thread(() =>
             {
                 try { PrepareTypes(); }
+                catch (Exception) { }
+                try { discover?.Invoke(); }
                 catch (Exception) { }
             }) { IsBackground = true, Name = "Lettera types" };
             thread.Start();
