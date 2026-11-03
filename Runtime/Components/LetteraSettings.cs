@@ -68,27 +68,13 @@ namespace FirstSymbol.Lettera
         [SerializeField] System.Collections.Generic.List<LetteraWordDictionary> m_Dictionaries = new System.Collections.Generic.List<LetteraWordDictionary>();
 
         static LetteraSettings s_Instance;
-        static ResourceRequest s_Ahead;
-
-        // A player reads the settings with its first text. Asked for as it starts, they load on Unity's loading thread meanwhile, and the
-        // first text finds them there rather than reading them on the main thread.
-        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
-        static void LoadAhead()
-        {
-            if (Application.isEditor || s_Instance != null) return;
-            s_Ahead = Resources.LoadAsync<LetteraSettings>(ResourceName);
-            LetteraMaterials.LoadAhead();
-        }
 
         public static LetteraSettings Instance
         {
             get
             {
                 if (s_Instance != null) return s_Instance;
-                // Reading the asset of a request still loading waits for it, as a load would.
-                if (s_Ahead != null) s_Instance = s_Ahead.asset as LetteraSettings;
-                s_Ahead = null;
-                if (s_Instance == null) s_Instance = Resources.Load<LetteraSettings>(ResourceName);
+                s_Instance = Resources.Load<LetteraSettings>(ResourceName);
                 if (s_Instance == null)
                 {
                     s_Instance = CreateInstance<LetteraSettings>();
