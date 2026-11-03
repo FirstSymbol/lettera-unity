@@ -829,7 +829,9 @@ namespace FirstSymbol.Lettera
             }
             if (set.ShelfY + height > set.Size)
             {
-                if (set.Pixels.Count < set.MaxPages) AddPage(set);
+                // The limit is in pages of the default size, so smaller pages hold as many glyphs before the oldest is recycled.
+                int perPage = DefaultPageSize / set.Size;
+                if (set.Pixels.Count < set.MaxPages * perPage * perPage) AddPage(set);
                 else RecycleOldestPage(set);
                 set.ShelfX = set.ShelfY = set.ShelfHeight = 0;
             }
