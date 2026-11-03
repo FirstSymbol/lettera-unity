@@ -7,7 +7,7 @@ namespace FirstSymbol.Lettera.Editor.Tests
 {
     /// <summary>
     /// Objects every text makes stay under 2 KB. Past that the collector of IL2CPP and Mono makes each as a large block of its own, several times
-    /// slower than a small object: one engine of 2072 bytes cost 5000 world texts 14 ms of their first frame.
+    /// slower than a small object. The engine had grown to 2072 bytes.
     /// </summary>
     public class ObjectSizeTests
     {
