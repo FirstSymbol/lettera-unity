@@ -81,6 +81,8 @@ namespace FirstSymbol.Lettera.Editor.Tests
             Assert.Greater(engine.PendingParagraphs, 0, "most of it waits");
             Assert.Greater(engine.BandFirstLine, 100, "the view is deep in the text");
             Assert.AreEqual(engine.BandFirstLine, EngineOf(other).BandFirstLine, "both views show the same lines");
+            // The band's places are taken at once, about one a codepoint of its lines, not doubled up to them.
+            Assert.LessOrEqual(engine.PlacedRoomForTests, engine.GlyphCount + engine.GlyphCount / 16 + 16, "room for " + engine.GlyphCount + " placed glyphs");
             // As managed arrays, the codepoints alone were 4 bytes each: 2 MB more for the longer text. Its paragraphs stay, under a byte each.
             int more = longer.Length - source.Length;
             Assert.Less(allocatedLonger - allocated, more, $"{allocated} bytes for {source.Length} characters, {allocatedLonger} for {longer.Length}");

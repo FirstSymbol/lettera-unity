@@ -209,6 +209,7 @@ namespace FirstSymbol.Lettera
         internal int HookFailureCount => m_Aside.HookFailed?.Count ?? 0;
         internal Unicode.LineBreakOpportunity BreakAfterForTests(int cp) => m_Breaks[cp];
         internal int MotionBodiesForTests(int span) => m_Aside.MotionSpans[span].BodyCount;
+        internal int PlacedRoomForTests => m_Placed.Length;
         internal int DocCharOfLineForTests(int line) => SourceAt(m_Lines[line].Start);
         internal FontChain ChainForTests => m_Chain;
         internal LetteraAttributes AttributesForTests => m_Attributes;
