@@ -14,6 +14,9 @@ namespace FirstSymbol.Lettera
             public int Start, ContentEnd, End, Level, FirstRun, RunCount;
             public long Hash;
             public bool Cacheable, Hit;
+            // The entry a hit found: nothing changes the cache between finding it and restoring it.
+            public ParagraphEntry* Entry;
+            public RestoreCopy Copy;
         }
 
         struct DeferredRun
@@ -39,18 +42,25 @@ namespace FirstSymbol.Lettera
                 int separator = 0;
                 while (i < length && !IsParagraphSeparator(i, out separator)) i++;
                 if (i >= length) separator = 0;
-                AddSlot(start, i, i + separator, baseLevel);
+                AddSlot(start, i, i + separator, baseLevel, false);
                 if (i >= length) break;
                 start = i + separator;
                 if (start == length)
                 {
-                    AddSlot(length, length, length, baseLevel);
+                    AddSlot(length, length, length, baseLevel, false);
                     break;
                 }
             }
+            // Each paragraph's hash and its entry, side by side: the cache is only read here.
+            m_Aside.SlotLanguage = LanguageOf(-1);
+            BaseLevelForSlots = baseLevel;
+            LetteraWorkers.Run(m_Aside.Slots.Count, m_Aside.LookOne ?? (m_Aside.LookOne = LookUpSlot));
+            for (int s = 0; s < m_Aside.Slots.Count; s++)
+                if (m_Aside.Slots[s].Cacheable && !m_Aside.Slots[s].Hit)
+                    LetteraCaches.s_Stats.Misses++;
 
-            // Every paragraph no cache had is analyzed, side by side.
-            LetteraWorkers.Run(m_Aside.Slots.Count, m_Aside.AnalyzeOne ?? (m_Aside.AnalyzeOne = AnalyzeSlot));
+            // Every paragraph no cache had is analyzed, side by side. When the caches had them all, no thread is woken for nothing.
+            if (AnySlotToAnalyze()) LetteraWorkers.Run(m_Aside.Slots.Count, m_Aside.AnalyzeOne ?? (m_Aside.AnalyzeOne = AnalyzeSlot));
 
             // Faces are found in order, and hits go in where they belong.
             m_Aside.DeferShaping = true;
@@ -63,7 +73,7 @@ namespace FirstSymbol.Lettera
                 slot.FirstRun = m_Runs.Count;
                 if (slot.Hit)
                 {
-                    TryRestoreParagraph(slot.Hash, ref paragraph, slot.Start, slot.End - slot.Start, baseLevel, language);
+                    slot.Copy = RestoreHead(slot.Entry, ref paragraph, slot.Start, slot.End - slot.Start);
                 }
                 else if (slot.End > slot.Start)
                 {
@@ -78,6 +88,9 @@ namespace FirstSymbol.Lettera
             }
             m_Aside.DeferShaping = false;
 
+            // What hits copy into the text's cells, side by side: each writes only its own paragraph's cells and glyphs.
+            LetteraWorkers.Run(m_Aside.Slots.Count, m_Aside.RestoreOne ?? (m_Aside.RestoreOne = RestoreSlot));
+
             // Runs shape side by side, each into its own buffer.
             LetteraWorkers.Run(m_Aside.Deferred.Count, m_Aside.ShapeOne ?? (m_Aside.ShapeOne = ShapeDeferred));
 
@@ -86,15 +99,48 @@ namespace FirstSymbol.Lettera
             StoreMissedParagraphs(baseLevel, language);
         }
 
-        void AddSlot(int start, int contentEnd, int end, int baseLevel)
+        void RestoreSlot(int index)
+        {
+            ParagraphSlot slot = m_Aside.Slots[index];
+            if (slot.Hit) RestoreCells(slot.Copy);
+        }
+
+        bool AnySlotToAnalyze()
+        {
+            for (int s = 0; s < m_Aside.Slots.Count; s++)
+            {
+                ParagraphSlot slot = m_Aside.Slots[s];
+                if (!slot.Hit && slot.End > slot.Start) return true;
+            }
+            return false;
+        }
+
+        void LookUpSlot(int index)
+        {
+            ParagraphSlot slot = m_Aside.Slots[index];
+            if (!slot.Cacheable) return;
+            int count = slot.End - slot.Start;
+            slot.Hash = HashParagraph(slot.Start, count, BaseLevelForSlots, m_Aside.SlotLanguage);
+            slot.Entry = FindParagraph(slot.Hash, slot.Start, count, BaseLevelForSlots, m_Aside.SlotLanguage);
+            slot.Hit = slot.Entry != null;
+            lock (m_Aside.Slots) m_Aside.Slots[index] = slot;
+        }
+
+        void AddSlot(int start, int contentEnd, int end, int baseLevel, bool lookNow = true)
         {
             int count = end - start;
             var slot = new ParagraphSlot { Start = start, ContentEnd = contentEnd, End = end, Level = baseLevel == 1 ? 1 : 0 };
             if (count > 0 && ParagraphCacheApplies(count))
             {
                 slot.Cacheable = true;
+                if (!lookNow)
+                {
+                    m_Aside.Slots.Add(slot);
+                    return;
+                }
                 slot.Hash = HashParagraph(start, count, baseLevel, LanguageOf(-1));
-                slot.Hit = ParagraphIsCached(slot.Hash, start, count, baseLevel, LanguageOf(-1));
+                slot.Entry = FindParagraph(slot.Hash, start, count, baseLevel, LanguageOf(-1));
+                slot.Hit = slot.Entry != null;
                 if (!slot.Hit) LetteraCaches.s_Stats.Misses++;
             }
             m_Aside.Slots.Add(slot);
@@ -233,7 +279,7 @@ namespace FirstSymbol.Lettera
                 slot.FirstRun = m_Runs.Count;
                 if (slot.Hit)
                 {
-                    TryRestoreParagraph(slot.Hash, ref paragraph, slot.Start, slot.End - slot.Start, baseLevel, language);
+                    RestoreCells(RestoreHead(slot.Entry, ref paragraph, slot.Start, slot.End - slot.Start));
                 }
                 else if (slot.End > slot.Start)
                 {

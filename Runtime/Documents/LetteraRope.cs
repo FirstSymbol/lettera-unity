@@ -1000,6 +1000,11 @@ namespace FirstSymbol.Lettera
             c.InTag = false;
         }
 
+        /// <summary>Takes every character through Step, for a test that holds the stretches to it.</summary>
+        internal static bool NoPlainStretches;
+
+        static bool IsPlainAscii(char c) => c != '<' && c != '>' && c != '\n' && c != '\r';
+
         internal static List<LetteraRope.Block> SplitChars(ReadOnlySpan<char> text, LetteraMarkupTriggers triggers)
         {
             var blocks = new List<LetteraRope.Block>(text.Length / LetteraRope.TargetChars + 1);
@@ -1016,6 +1021,44 @@ namespace FirstSymbol.Lettera
             while (i < text.Length)
             {
                 char first = text[i];
+                // A stretch of letters and spaces with nothing else Step looks at: each one starts a cluster and counts one, a space outside a tag
+                // is a place to cut, and the block's limit is the only cut that can come.
+                if (first < 128 && !NoPlainStretches && !c.InTag && IsPlainAscii(first))
+                {
+                    int limit = Math.Min(text.Length, i + LetteraRope.LimitChars - c.Chars);
+                    int j = i, afterSpace = -1;
+                    bool trigger = triggers == null;
+                    while (j < limit)
+                    {
+                        char next = text[j];
+                        if (next >= 128 || !IsPlainAscii(next)) break;
+                        if (!trigger && triggers.Contains(next)) trigger = true;
+                        j++;
+                        if (next == ' ' || next == '\t') afterSpace = j;
+                    }
+                    if (j > i)
+                    {
+                        int n = j - i;
+                        if (afterSpace >= 0)
+                        {
+                            int upTo = afterSpace - i;
+                            c.AtBreak = new Mark { Position = afterSpace, Chars = c.Chars + upTo, Codepoints = c.Codepoints + upTo, Paragraphs = c.Paragraphs, Set = true };
+                        }
+                        c.AtCluster = new Mark { Position = j - 1, Chars = c.Chars + n - 1, Codepoints = c.Codepoints + n - 1, Paragraphs = c.Paragraphs, Set = c.Chars + n - 1 > 0 };
+                        c.Chars += n;
+                        c.Codepoints += n;
+                        if (trigger) c.Flags |= RopeBlockFlags.HasMarkupTrigger;
+                        i = j;
+                        if (c.Chars >= LetteraRope.LimitChars)
+                        {
+                            Mark cut = ChooseCut(ref c, i);
+                            Emit(text, start, (int)cut.Position, cut.Codepoints, cut.Paragraphs, c.Flags & ~RopeBlockFlags.EndsParagraph);
+                            start = (int)cut.Position;
+                            Rest(ref c, cut, c.Flags);
+                        }
+                        continue;
+                    }
+                }
                 int cp = first, units = 1;
                 if (char.IsHighSurrogate(first) && i + 1 < text.Length && char.IsLowSurrogate(text[i + 1]))
                 {

@@ -122,5 +122,38 @@ namespace FirstSymbol.Lettera.Editor.Tests
             }
             AssertFrames(frame => rect.anchoredPosition = new Vector2(0, Mathf.PingPong((frame + 1) * 12f, 5600)), 240, 256);
         }
+
+        // The row R10 of the targets: a 1 MB document scrolled a new viewport each frame, across the threads as a player does.
+        [TestCase(LetteraWorkerMode.Parallel)]
+        [TestCase(LetteraWorkerMode.Inline)]
+        public void AFastScrollThroughALongDocumentAllocatesNothingInAnyFrame(LetteraWorkerMode workers)
+        {
+            LetteraWorkerMode mode = LetteraWorkers.Mode;
+            LetteraWorkers.Mode = workers;
+            try
+            {
+                Transform canvas = MakeCanvas();
+                var view = new GameObject("View", typeof(RectTransform));
+                view.transform.SetParent(canvas, false);
+                ((RectTransform)view.transform).sizeDelta = new Vector2(800, 600);
+                LetteraText label = Label(view.transform, "", new Vector2(800, 600));
+                label.FontSize = 14;
+                const string Words = "The quick brown fox jumps over a lazy dog and then runs back home again ";
+                var page = new StringBuilder();
+                for (int i = 0; page.Length < 1000 * 1024; ) page.Append(Words.Substring(i % 20, 12 + i * 7 % 29)).Append(++i % 8 == 0 ? '\n' : ' ');
+                label.OpenDocument(LetteraRope.FromString(page.ToString()), true);
+                var scroller = view.AddComponent<LetteraDocumentScroller>();
+                scroller.Text = label;
+                label.ForceRebuild();
+                scroller.ScrollToEnd();
+                double end = scroller.Position;
+                scroller.ScrollToStart();
+                AssertFrames(frame => scroller.Position = (frame + 1) / 240.0 * end, 240, 4096);
+            }
+            finally
+            {
+                LetteraWorkers.Mode = mode;
+            }
+        }
     }
 }

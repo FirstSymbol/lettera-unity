@@ -373,8 +373,6 @@ namespace FirstSymbol.Lettera
         }
 
         // The hash only finds a candidate. Only equal characters and attributes may use it, so a collision can never draw the wrong text.
-        bool ParagraphIsCached(long hash, int start, int count, int baseLevel, string language) => FindParagraph(hash, start, count, baseLevel, language) != null;
-
         ParagraphEntry* FindParagraph(long hash, int start, int count, int baseLevel, string language)
         {
             ParagraphEntry* entry = Lookup(hash);
@@ -391,7 +389,20 @@ namespace FirstSymbol.Lettera
         {
             ParagraphEntry* entry = FindParagraph(hash, start, count, baseLevel, language);
             if (entry == null) return false;
+            RestoreCells(RestoreHead(entry, ref paragraph, start, count));
+            return true;
+        }
 
+        // What a restored paragraph copies into the text's cells: its own codepoints and glyphs only, so restores can go side by side.
+        struct RestoreCopy
+        {
+            public ParagraphEntry* Entry;
+            public int Start, Count, RunBase, GlyphAt;
+        }
+
+        // The part of a restore that touches what is shared or kept in order: the cache's order of use, the runs, and where the glyphs go.
+        RestoreCopy RestoreHead(ParagraphEntry* entry, ref Paragraph paragraph, int start, int count)
+        {
             if (m_BatchWorker)
             {
                 (m_BatchTouched ?? (m_BatchTouched = new List<IntPtr>())).Add((IntPtr)entry);
@@ -402,27 +413,10 @@ namespace FirstSymbol.Lettera
                 Unlink(entry);
                 LinkNewest(entry);
             }
-
-            new ReadOnlySpan<int>(ShapeOf(entry), count).CopyTo(m_ShapeText.Slice(start, count));
-            new ReadOnlySpan<byte>(LevelsOf(entry), count).CopyTo(m_Levels.Slice(start, count));
-            new ReadOnlySpan<bool>(BoundariesOf(entry), count + 1).CopyTo(m_Boundaries.Slice(start, count + 1));
-            new ReadOnlySpan<LineBreakOpportunity>(BreaksOf(entry), count).CopyTo(m_Breaks.Slice(start, count));
-            new ReadOnlySpan<UnicodeScript>(ScriptsOf(entry), count).CopyTo(m_Scripts.Slice(start, count));
-            new ReadOnlySpan<float>(AdvancesOf(entry), count).CopyTo(m_CpAdvanceEm.Slice(start, count));
             paragraph.Level = entry->Level;
-
             int runBase = m_Runs.Count;
-            int* cpRun = CpRunOf(entry);
-            for (int i = 0; i < count; i++) m_CpRun[start + i] = runBase + cpRun[i];
             int glyphCount = entry->GlyphCount;
             EnsureSize(ref m_Shaped, m_ShapedCount + glyphCount);
-            ShapedGlyph* glyphs = GlyphsOf(entry);
-            for (int g = 0; g < glyphCount; g++)
-            {
-                ShapedGlyph glyph = glyphs[g];
-                glyph.Cluster += start;
-                m_Shaped[m_ShapedCount + g] = glyph;
-            }
             // A run's language and features are indices of this text's own lists: the same values, by the check above, at maybe other places.
             LetteraAttributes chars = m_Attributes;
             StoredRun* runs = RunsOf(entry);
@@ -438,9 +432,35 @@ namespace FirstSymbol.Lettera
                     BaselineShift = stored.BaselineShift, Language = chars.At(runStart).Language, Features = chars.At(runStart).Features,
                 });
             }
+            var copy = new RestoreCopy { Entry = entry, Start = start, Count = count, RunBase = runBase, GlyphAt = m_ShapedCount };
             m_ShapedCount += glyphCount;
             if (!m_BatchWorker) LetteraCaches.s_Stats.Hits++;
-            return true;
+            return copy;
+        }
+
+        void RestoreCells(in RestoreCopy copy)
+        {
+            ParagraphEntry* entry = copy.Entry;
+            int start = copy.Start, count = copy.Count;
+            new ReadOnlySpan<int>(ShapeOf(entry), count).CopyTo(m_ShapeText.Slice(start, count));
+            new ReadOnlySpan<byte>(LevelsOf(entry), count).CopyTo(m_Levels.Slice(start, count));
+            new ReadOnlySpan<bool>(BoundariesOf(entry), count + 1).CopyTo(m_Boundaries.Slice(start, count + 1));
+            new ReadOnlySpan<LineBreakOpportunity>(BreaksOf(entry), count).CopyTo(m_Breaks.Slice(start, count));
+            new ReadOnlySpan<UnicodeScript>(ScriptsOf(entry), count).CopyTo(m_Scripts.Slice(start, count));
+            new ReadOnlySpan<float>(AdvancesOf(entry), count).CopyTo(m_CpAdvanceEm.Slice(start, count));
+            int runBase = copy.RunBase;
+            int* cpRun = CpRunOf(entry);
+            Cells<int> cells = m_CpRun;
+            for (int i = 0; i < count; i++) cells[start + i] = runBase + cpRun[i];
+            int glyphCount = entry->GlyphCount, at = copy.GlyphAt;
+            ShapedGlyph* glyphs = GlyphsOf(entry);
+            ShapedGlyph[] shaped = m_Shaped;
+            for (int g = 0; g < glyphCount; g++)
+            {
+                ShapedGlyph glyph = glyphs[g];
+                glyph.Cluster += start;
+                shaped[at + g] = glyph;
+            }
         }
 
         void StoreParagraph(long hash, in Paragraph paragraph, int start, int count, int baseLevel, string language, int firstRun, int firstGlyph, int endRun = -1)

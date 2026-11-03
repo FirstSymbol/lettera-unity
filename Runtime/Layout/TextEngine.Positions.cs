@@ -111,6 +111,8 @@ namespace FirstSymbol.Lettera
             // only its band, and a text still finishing would take a new array of all it has shaped at every slice.
             if (!m_Banded) EnsureSize(ref m_Placed, m_ShapedCount);
             else EnsureSize(ref m_Placed, m_PlacedCount + BandCodepoints(y));
+            bool split = PlacesInParallel;
+            m_Aside.PlaceItemCount = 0;
             for (int l = 0; l < m_Lines.Count; l++)
             {
                 LetteraLine line = m_Lines[l];
@@ -126,9 +128,14 @@ namespace FirstSymbol.Lettera
                     if (x < left) left = x;
                     if (x + line.Width > right) right = x + line.Width;
                 }
-                if (!paragraph.Pending && LineInBand(y, y - line.Height, l)) PlaceLine(line, l, paragraph, x, baseline, stretch);
+                if (!paragraph.Pending && LineInBand(y, y - line.Height, l))
+                {
+                    if (split) AddPlaceItem(l, x, baseline, stretch);
+                    else PlaceLine(line, l, paragraph, x, baseline, stretch, null);
+                }
                 y -= line.Height;
             }
+            if (split) PlaceItems();
             m_RealCount = m_PlacedCount;
             if (m_Aside.ListItems.Count > 0) PlaceListMarkers();
             if (m_Aside.RubyItems.Count > 0) PlaceRubies();
@@ -268,7 +275,8 @@ namespace FirstSymbol.Lettera
             return true;
         }
 
-        void PlaceLine(in LetteraLine line, int lineIndex, in Paragraph paragraph, float x, float baseline, in LineStretch stretch)
+        // A sink is where a worker's line puts its glyphs; null is the text's own buffer.
+        void PlaceLine(in LetteraLine line, int lineIndex, in Paragraph paragraph, float x, float baseline, in LineStretch stretch, PlaceSink sink)
         {
             int count = line.VisibleEnd - line.Start;
             if (count <= 0)
@@ -276,19 +284,47 @@ namespace FirstSymbol.Lettera
                 PlaceMarkersIn(line.Start, line.End + 1, ref x, baseline, lineIndex);
                 return;
             }
-            EnsureSize(ref m_LineLevels, count);
-            EnsureSize(ref m_VisualOrder, count);
-            ReadOnlySpan<int> paragraphText = m_Text.Slice(paragraph.Start, paragraph.End - paragraph.Start);
-            Bidi.ResolveLineLevels(paragraphText, m_Levels.Slice(paragraph.Start, paragraph.End - paragraph.Start),
-                line.Start - paragraph.Start, line.VisibleEnd - paragraph.Start, paragraph.Level, new Span<byte>(m_LineLevels, 0, count));
-            Bidi.ReorderLine(new ReadOnlySpan<byte>(m_LineLevels, 0, count), new Span<int>(m_VisualOrder, 0, count));
-
             float size = CurrentFontSize;
+            // A line all left to right is in logical order, and its fragments are its runs: its levels need no lookup per character.
+            if (paragraph.Level == 0 && m_Aside.Removals.Count == 0 && !m_Attributes.HasLayout && AllZero(m_Levels, line.Start, line.VisibleEnd))
+            {
+                for (int c = line.Start; c < line.VisibleEnd;)
+                {
+                    int runIndex = m_CpRun[c];
+                    int stop = c + 1;
+                    while (stop < line.VisibleEnd && m_CpRun[stop] == runIndex) stop++;
+                    x = PlaceFragment(runIndex, c, stop, x, baseline, lineIndex, size, stretch, line, sink);
+                    c = stop;
+                }
+                return;
+            }
+            byte[] lineLevels = sink != null ? sink.Levels : m_LineLevels;
+            int[] visualOrder = sink != null ? sink.Order : m_VisualOrder;
+            if (lineLevels.Length < count || visualOrder.Length < count)
+            {
+                EnsureSize(ref lineLevels, count);
+                EnsureSize(ref visualOrder, count);
+                if (sink != null)
+                {
+                    sink.Levels = lineLevels;
+                    sink.Order = visualOrder;
+                }
+                else
+                {
+                    m_LineLevels = lineLevels;
+                    m_VisualOrder = visualOrder;
+                }
+            }
+            var paragraphText = m_Text.Slice(paragraph.Start, paragraph.End - paragraph.Start);
+            Bidi.ResolveLineLevels(paragraphText, m_Levels.Slice(paragraph.Start, paragraph.End - paragraph.Start),
+                line.Start - paragraph.Start, line.VisibleEnd - paragraph.Start, paragraph.Level, new Span<byte>(lineLevels, 0, count));
+            Bidi.ReorderLine(new ReadOnlySpan<byte>(lineLevels, 0, count), new Span<int>(visualOrder, 0, count));
+
             int v = 0;
             int markersPlaced = 0;
             while (v < count)
             {
-                int logical = m_VisualOrder[v] + line.Start;
+                int logical = visualOrder[v] + line.Start;
                 int removal = RemovalOf(logical);
                 if (removal >= 0)
                 {
@@ -303,13 +339,13 @@ namespace FirstSymbol.Lettera
 
                 // A fragment: consecutive logical codepoints of one run at one level.
                 int runIndex = m_CpRun[logical];
-                byte level = m_LineLevels[m_VisualOrder[v]];
+                byte level = lineLevels[visualOrder[v]];
                 int low = logical, high = logical;
                 int w = v + 1;
                 while (w < count)
                 {
-                    int next = m_VisualOrder[w] + line.Start;
-                    if (IsRemoved(next) || m_CpRun[next] != runIndex || m_LineLevels[m_VisualOrder[w]] != level) break;
+                    int next = visualOrder[w] + line.Start;
+                    if (IsRemoved(next) || m_CpRun[next] != runIndex || lineLevels[visualOrder[w]] != level) break;
                     if (m_Attributes.HasLayout && IndentRiseAt(next, line.Start, size) > 0) break;
                     if (next == high + 1) high = next;
                     else if (next == low - 1) low = next;
@@ -317,7 +353,7 @@ namespace FirstSymbol.Lettera
                     w++;
                 }
                 if (m_Attributes.HasLayout) x += IndentRiseAt(low, line.Start, size);
-                x = PlaceFragment(runIndex, low, high + 1, x, baseline, lineIndex, size, stretch, line);
+                x = PlaceFragment(runIndex, low, high + 1, x, baseline, lineIndex, size, stretch, line, sink);
                 v = w;
             }
             for (int r = 0; r < m_Aside.Removals.Count; r++)
@@ -326,6 +362,14 @@ namespace FirstSymbol.Lettera
                 int start = m_Aside.Removals[r].Start;
                 if (start >= line.VisibleEnd && start < line.End) PlaceMarker(m_Aside.Removals[r], ref x, baseline, lineIndex);
             }
+        }
+
+        static bool AllZero(Cells<byte> levels, int start, int end)
+        {
+            for (int i = start; i < end; i++)
+                if (levels[i] != 0)
+                    return false;
+            return true;
         }
 
         int RemovalOf(int cp)
@@ -345,7 +389,7 @@ namespace FirstSymbol.Lettera
 
         // Called per fragment over indices the same pass sized; the tests run it with every check on.
         [Unity.IL2CPP.CompilerServices.Il2CppSetOption(Unity.IL2CPP.CompilerServices.Option.ArrayBoundsChecks, false), Unity.IL2CPP.CompilerServices.Il2CppSetOption(Unity.IL2CPP.CompilerServices.Option.NullChecks, false)]
-        float PlaceFragment(int runIndex, int low, int high, float x, float baseline, int lineIndex, float baseSize, in LineStretch stretch, in LetteraLine line)
+        float PlaceFragment(int runIndex, int low, int high, float x, float baseline, int lineIndex, float baseSize, in LineStretch stretch, in LetteraLine line, PlaceSink sink)
         {
             Run run = m_Runs[runIndex];
             if (run.Instance == null) return x;
@@ -379,7 +423,6 @@ namespace FirstSymbol.Lettera
                 }
                 x += before;
 
-                EnsureSize(ref m_Placed, m_PlacedCount + 1);
                 // A pixel font is not scaled to fit a line: its pixels stay square.
                 FontFace face = run.Instance.Face;
                 bool pixel = face.PixelGrid > 0;
@@ -391,12 +434,22 @@ namespace FirstSymbol.Lettera
                     placedX = SnapToGrid(placedX, size, face.PixelGrid);
                     placedY = SnapToGrid(placedY, size, face.PixelGrid);
                 }
-                m_Placed[m_PlacedCount++] = new PlacedGlyph
+                var placed = new PlacedGlyph
                 {
                     Glyph = g.Glyph, Instance = run.Instance, Cluster = g.Cluster, Line = lineIndex,
                     X = placedX, Y = placedY, Advance = advance + after, Unit = unit, Size = size,
                     XScale = scaleHere - 1, Pen = x,
                 };
+                if (sink == null)
+                {
+                    EnsureSize(ref m_Placed, m_PlacedCount + 1);
+                    m_Placed[m_PlacedCount++] = placed;
+                }
+                else
+                {
+                    EnsureSize(ref sink.Placed, sink.Count + 1);
+                    sink.Placed[sink.Count++] = placed;
+                }
                 x += advance;
                 if (extras && lastOfCluster && !rtl && after > 0 && m_CpKashida[g.Cluster]) AddKashida(run, x + (after - TrailOnly(g.Cluster, size)), TrailOnly(g.Cluster, size), baseline, lineIndex, g.Cluster, unit);
                 x += after;

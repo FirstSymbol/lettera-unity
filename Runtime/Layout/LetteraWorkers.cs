@@ -55,18 +55,22 @@ namespace FirstSymbol.Lettera
         }
         internal static void Close() => s_Body = null;
         internal static void Shutdown() { }
+        internal static void Prewake() { }
 #else
         static readonly object s_Gate = new object();
         static Thread[] s_Threads;
         static Action<int> s_Body;
         // Items below Ready may run; Next is the first not yet taken, Done counts those finished. Closed says no more will come.
-        static int s_Next, s_Ready, s_Done, s_Generation, s_Active;
+        static int s_Next, s_Ready, s_Done, s_Generation, s_Active, s_Wake;
         static volatile bool s_Closed;
         static bool s_Stopping;
         static Exception s_Failure;
         static int s_RequestedWorkers = -1;
         // How long a thread stays awake waiting for the main thread to publish more of a batch, before leaving the rest to it.
         static readonly long s_AwakeTicks = System.Diagnostics.Stopwatch.Frequency / 2000;
+        // A rebuild runs its batches a few hundredths of a millisecond apart: a thread done with one stays awake this long for the next,
+        // and the main thread waits awake this long for a batch's last share. Waking a sleeping thread costs more than that.
+        static readonly long s_SpinTicks = System.Diagnostics.Stopwatch.Frequency / 5000;
 
         /// <summary>How many threads help the main one. Setting it takes effect at the next batch.</summary>
         public static int WorkerCount
@@ -121,19 +125,28 @@ namespace FirstSymbol.Lettera
 
         static void Loop()
         {
-            int seen = 0;
+            int seen = 0, seenWake = 0;
             while (true)
             {
+                long until = System.Diagnostics.Stopwatch.GetTimestamp() + s_SpinTicks;
+                while (!s_Stopping && Volatile.Read(ref s_Generation) == seen && System.Diagnostics.Stopwatch.GetTimestamp() < until) Thread.SpinWait(32);
                 Action<int> body;
                 lock (s_Gate)
                 {
                     // A batch that ended before this thread woke is past: it waits for the next.
-                    while (!s_Stopping && (s_Generation == seen || s_Body == null))
+                    while (!s_Stopping && (s_Generation == seen || s_Body == null) && s_Wake == seenWake)
                     {
                         seen = s_Generation;
                         Monitor.Wait(s_Gate);
                     }
                     if (s_Stopping) return;
+                    seenWake = s_Wake;
+                    // Woken ahead of a batch, or after one ended: it stays awake for the next.
+                    if (s_Generation == seen || s_Body == null)
+                    {
+                        seen = s_Generation;
+                        continue;
+                    }
                     seen = s_Generation;
                     body = s_Body;
                     s_Active++;
@@ -232,6 +245,9 @@ namespace FirstSymbol.Lettera
             }
             // The main thread does its share, so a batch never waits on a thread that has not woken yet.
             if (body != null) MainItems += Work(body);
+            long until = System.Diagnostics.Stopwatch.GetTimestamp() + s_SpinTicks;
+            while ((Volatile.Read(ref s_Done) < Volatile.Read(ref s_Ready) || Volatile.Read(ref s_Active) > 0) && System.Diagnostics.Stopwatch.GetTimestamp() < until)
+                Thread.SpinWait(32);
             lock (s_Gate)
             {
                 while (Volatile.Read(ref s_Done) < s_Ready) Monitor.Wait(s_Gate);
@@ -244,6 +260,17 @@ namespace FirstSymbol.Lettera
                     s_Failure = null;
                     throw new InvalidOperationException("A Lettera worker failed: " + failure.Message, failure);
                 }
+            }
+        }
+
+        /// <summary>Wakes the threads ahead of batches that are about to come, so the first of them does not wait for a thread to wake.</summary>
+        internal static void Prewake()
+        {
+            if (s_Threads == null) return;
+            lock (s_Gate)
+            {
+                s_Wake++;
+                Monitor.PulseAll(s_Gate);
             }
         }
 

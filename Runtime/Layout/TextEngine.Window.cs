@@ -85,6 +85,26 @@ namespace FirstSymbol.Lettera
             m_Host.RequestRebuild(DirtyLevel.Parse);
         }
 
+        /// <summary>Takes more of the document onto the window's end inside its own rebuild, which then runs its passes again. Nothing is asked of the host.</summary>
+        /// <summary>How often a lean window took more in its own rebuild. Tests read this.</summary>
+        internal static int WindowExtensions;
+
+        internal void ExtendWindowNow(int length)
+        {
+            int added = length - m_Aside.WindowLength;
+            if (added <= 0) return;
+            LetteraRope rope = m_Aside.View.Rope;
+            int at = m_Aside.PreludeLength + m_Aside.WindowLength;
+            if (m_RuntimeChars.Length < at + added) Array.Resize(ref m_RuntimeChars, Math.Max(at + added, m_RuntimeChars.Length * 2));
+            rope.CopyTo(m_Aside.WindowStart + m_Aside.WindowLength, new Span<char>(m_RuntimeChars, at, added));
+            m_RuntimeLength = at + added;
+            m_RuntimeText = null;
+            m_Aside.WindowLength = length;
+            m_Aside.WindowExtended = true;
+            WindowExtensions++;
+            SetDirty(DirtyLevel.Parse);
+        }
+
         internal void SetWindowOffset(float offset)
         {
             if (offset == m_Aside.WindowOffset) return;
@@ -125,6 +145,7 @@ namespace FirstSymbol.Lettera
             m_Host.PoseChanged();
         }
 
+        [Unity.IL2CPP.CompilerServices.Il2CppSetOption(Unity.IL2CPP.CompilerServices.Option.ArrayBoundsChecks, false), Unity.IL2CPP.CompilerServices.Il2CppSetOption(Unity.IL2CPP.CompilerServices.Option.NullChecks, false)]
         void ShiftVertices(float delta)
         {
             for (int i = 0; i < VertexCount; i++) Vertices[i].y += delta;
@@ -140,9 +161,13 @@ namespace FirstSymbol.Lettera
             return (int)Mathf.Clamp(lines * perLine * 1.25f, 2048, settings.MaxWindowCodepoints + 512);
         }
 
+        /// <summary>How many characters of the document the window's buffers hold without growing, past what is open before it.</summary>
+        internal int WindowRoom => m_Aside.WindowRoom - m_Aside.PreludeLength;
+
         void ReserveFor(int codepoints)
         {
             int n = Math.Max(codepoints, SmallestBuffer);
+            m_Aside.WindowRoom = n;
             EnsureText(n + 4);
             if (m_RuntimeChars.Length < n) m_RuntimeChars = new char[n];
             if (m_PrevSource.Length < n) m_PrevSource = new char[n];
@@ -163,6 +188,7 @@ namespace FirstSymbol.Lettera
             EnsureExact(ref m_Aside.GlyphPoses, quads);
             EnsureOwnerSize(quads);
             EnsureExact(ref m_Aside.CpBody, n + 1);
+            ReserveStretches();
         }
 
         void PlaceWindowAgainIfStale()

@@ -145,6 +145,9 @@ namespace FirstSymbol.Lettera
         static int s_MemoVersion = 1;
 
         static void GlyphsChanged() => s_MemoVersion++;
+
+        /// <summary>Changes whenever an entry is made, widened or let go, so what was read from Get before still holds while it stays.</summary>
+        internal static int Version => s_MemoVersion;
         static readonly ValueList<PendingUpload> s_Uploads = new ValueList<PendingUpload>();
         static readonly ValueList<SdfTile> s_Tiles = new ValueList<SdfTile>();
         static NativeList<float4> s_Lines;

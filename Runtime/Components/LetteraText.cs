@@ -477,7 +477,11 @@ namespace FirstSymbol.Lettera
                 if ((streams & TextEngine.StreamPositions) != 0) m_Mesh.SetVertexBufferData(e.Vertices, 0, 0, count, 0, QuietUpload);
                 if ((streams & TextEngine.StreamColors) != 0) m_Mesh.SetVertexBufferData(e.Colors, 0, 0, count, 1, QuietUpload);
                 if ((streams & TextEngine.StreamUv0) != 0) m_Mesh.SetVertexBufferData(e.Uv0, 0, 0, count, 2, QuietUpload);
-                if ((streams & TextEngine.StreamUv1) != 0) m_Mesh.SetVertexBufferData(e.Uv1, 0, 0, count, 3, QuietUpload);
+                if ((streams & TextEngine.StreamUv1) != 0)
+                {
+                    m_Mesh.SetVertexBufferData(e.Uv1, 0, 0, count, 3, QuietUpload);
+                    m_PlainParams = 0;
+                }
                 canvasRenderer.SetMesh(m_Mesh);
                 return;
             }
@@ -601,6 +605,7 @@ namespace FirstSymbol.Lettera
                 m_Mesh.Clear(false);
                 m_MeshInStreams = true;
                 m_StreamRoom = m_StreamIndices = -1;
+                m_PlainParams = 0;
             }
             // Sizing the buffer is what costs, not writing it: the same count keeps it, and a long text keeps some room, so a scroll that changes
             // its count a little each frame writes vertices only. What lies past the count is no quad's, since no index reaches it.
@@ -608,13 +613,38 @@ namespace FirstSymbol.Lettera
             {
                 m_StreamRoom = count + StreamSlack(count) / 2;
                 m_Mesh.SetVertexBufferParams(m_StreamRoom, s_Streams);
+                m_PlainParams = 0;
             }
             m_Mesh.SetVertexBufferData(e.Vertices, 0, 0, count, 0, QuietUpload);
             m_Mesh.SetVertexBufferData(e.Colors, 0, 0, count, 1, QuietUpload);
             m_Mesh.SetVertexBufferData(e.Uv0, 0, 0, count, 2, QuietUpload);
-            m_Mesh.SetVertexBufferData(e.Uv1, 0, 0, count, 3, QuietUpload);
+            // Plain faces all shade with the same parameters: what the buffer already holds of them stays, and only new room is written.
+            if (e.UniformParams)
+            {
+                if (count > m_PlainParams) m_Mesh.SetVertexBufferData(e.Uv1, m_PlainParams, m_PlainParams, count - m_PlainParams, 3, QuietUpload);
+                m_PlainParams = System.Math.Max(m_PlainParams, count);
+            }
+            else
+            {
+                m_Mesh.SetVertexBufferData(e.Uv1, 0, 0, count, 3, QuietUpload);
+                m_PlainParams = 0;
+            }
             int segments = e.Segments.Count;
-            if (segments <= 1)
+            if (segments <= 1 && e.IndexCount * 2 == count * 3 && m_StreamRoom >= LongStreams && m_StreamRoom <= 65536)
+            {
+                // Quads written in order have the same indices for any count: a long text's buffer holds them for all its room once,
+                // and each frame says only how many of them draw.
+                if (m_StreamIndices != -2 - m_StreamRoom)
+                {
+                    int room = m_StreamRoom / 4 * 6;
+                    m_Mesh.subMeshCount = 1;
+                    m_Mesh.SetIndexBufferParams(room, UnityEngine.Rendering.IndexFormat.UInt16);
+                    m_Mesh.SetIndexBufferData(QuadIndices(room), 0, 0, room, QuietUpload);
+                    m_StreamIndices = -2 - m_StreamRoom;
+                }
+                m_Mesh.SetSubMesh(0, new UnityEngine.Rendering.SubMeshDescriptor(0, e.IndexCount) { vertexCount = count, bounds = e.MeshBounds }, QuietUpload);
+            }
+            else if (segments <= 1)
             {
                 // Quads written in order have the same indices for the same count, and those are already there.
                 if (e.IndexCount != m_StreamIndices || e.IndexCount * 2 != count * 3)
@@ -635,6 +665,31 @@ namespace FirstSymbol.Lettera
         }
 
         int m_StreamRoom = -1, m_StreamIndices = -1;
+
+        // How many vertices from the start of the buffer hold a plain face's shading parameters.
+        int m_PlainParams;
+
+        // Past this many vertices a text's indices stay in its buffer for all its room.
+        const int LongStreams = 2048;
+        static ushort[] s_QuadIndices = System.Array.Empty<ushort>();
+
+        // Every quad's six indices in vertex order, as far as asked; shared by every long text.
+        static ushort[] QuadIndices(int count)
+        {
+            if (s_QuadIndices.Length >= count) return s_QuadIndices;
+            var indices = new ushort[System.Math.Max(count, 6 * 4096)];
+            for (int q = 0; q * 6 + 5 < indices.Length; q++)
+            {
+                int v = q * 4;
+                indices[q * 6] = (ushort)v;
+                indices[q * 6 + 1] = (ushort)(v + 1);
+                indices[q * 6 + 2] = (ushort)(v + 2);
+                indices[q * 6 + 3] = (ushort)(v + 2);
+                indices[q * 6 + 4] = (ushort)(v + 3);
+                indices[q * 6 + 5] = (ushort)v;
+            }
+            return s_QuadIndices = indices;
+        }
 
         // A short text's buffer is exact; a long one keeps an eighth to spare.
         static int StreamSlack(int vertices) => vertices >= 2048 ? vertices / 8 & ~3 : 0;

@@ -319,6 +319,39 @@ namespace FirstSymbol.Lettera.Editor.Tests
             Assert.IsFalse(text.View.IsLean, "a scroll that stays near the window gets margins");
             Assert.Greater(text.View.WindowLength, lean);
         }
+
+        // A lean window sized by sparse text it came from lands in text far denser: in the same rebuild it takes what it lacked, so the viewport's
+        // bottom is drawn in the frame of the scroll.
+        [Test]
+        public void ALeanWindowShortOfTheViewportTakesMoreInTheSameRebuild()
+        {
+            var body = new StringBuilder();
+            for (int i = 0; i < 4000; i++) body.Append("a\n");
+            string dense = "Dense words fill every line of this paragraph from one edge of the viewport to the other one and on ";
+            for (int p = 0; p < 400; p++)
+            {
+                for (int i = 0; i < 12; i++) body.Append(dense);
+                body.Append('\n');
+            }
+            LetteraWorldText text = Doc(body.ToString(), 600);
+            // Near the end of the sparse part, so the window's density is a line of one letter.
+            text.View.ScrollToChar(7800);
+            text.ForceRebuild();
+            // Far down, into the dense part, faster than any margin reaches.
+            double step = text.View.ViewportHeight * 4;
+            double y = text.View.MaxDocumentY * 0.6 - step;
+            for (int i = 1; i <= 8; i++)
+            {
+                y += step;
+                text.View.ScrollTo(y);
+                text.ForceRebuild();
+                string state = $"step {i}: lean {text.View.IsLean}, at {text.View.DocumentY:0} of {text.View.MaxDocumentY:0}, window {text.View.WindowStart} + {text.View.WindowLength}";
+                Assert.IsTrue(text.View.IsLean, state);
+                float low = float.MaxValue;
+                for (int v = 0; v < text.Engine.VertexCount; v++) low = Mathf.Min(low, text.Engine.Vertices[v].y);
+                Assert.Less(low, -300 + 40, "the viewport's bottom line is drawn, " + state);
+            }
+        }
     }
 
     /// <summary>The scroller on a Canvas text, on the fixture's fake clock.</summary>
