@@ -399,6 +399,69 @@ namespace FirstSymbol.Lettera
             public static readonly Dictionary<TKey, TValue> Map = new Dictionary<TKey, TValue>();
         }
 
+        /// <summary>
+        /// Sets up what the first engine of a session needs whatever its text: some fifty generic types of its own and of its attributes, 10 ms of the
+        /// first text on IL2CPP, and the native library. None of it touches Unity, so a player with spare cores does it on a thread of its own as it starts.
+        /// The engine's own statics are left to the main thread: a type whose set-up failed on another thread would stay failed.
+        /// </summary>
+        internal static void PrepareTypes()
+        {
+            _ = LetteraAttributes.Plain;
+            _ = Rare<(LetteraEffect effect, int start, int end)>.List;
+            _ = Rare<ActiveRange>.List;
+            _ = Rare<CoverQuad>.List;
+            _ = Rare<ExtraLine>.List;
+            _ = Rare<ExtraQuad>.List;
+            _ = Rare<IHoldSource>.List;
+            _ = Rare<InlineItem>.List;
+            _ = Rare<LetteraStyle, LetteraStyle>.Map;
+            _ = Rare<ListItem>.List;
+            _ = Rare<MathSpecial>.List;
+            _ = Rare<MotionPhase>.List;
+            _ = Rare<MotionSpan>.List;
+            _ = Rare<OldRange>.List;
+            _ = Rare<PlacedGlyph>.List;
+            _ = Rare<PoseBody>.List;
+            _ = Rare<PoseLink>.List;
+            _ = Rare<Rect>.List;
+            _ = Rare<Removal>.List;
+            _ = Rare<RevealBody>.List;
+            _ = Rare<RevealEffect>.List;
+            _ = Rare<RevealSpan>.List;
+            _ = Rare<RubyItem>.List;
+            _ = Rare<ShapedGlyph>.List;
+            _ = Rare<SolidBox>.List;
+            _ = Rare<SymbolSet>.List;
+            _ = Rare<Vector2Int>.List;
+            _ = Rare<int, bool>.Map;
+            _ = Rare<int, float>.Map;
+            _ = Rare<int, int>.Map;
+            _ = Rare<int>.List;
+            _ = Rare<long, int>.Map;
+            _ = Rare<long>.List;
+            _ = new List<LetteraLine>();
+            _ = new List<LayerGroup>();
+            _ = new List<Paragraph>();
+            _ = new List<Run>();
+            _ = new List<MeshSegment>();
+            _ = LetteraNative.Version;
+        }
+
+#if !UNITY_WEBGL || UNITY_EDITOR
+        // Before the first scene, so that a project can still set LetteraWorkers.Mode to Inline from its own subsystem registration and keep threads out.
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
+        static void PrepareTypesAside()
+        {
+            if (Application.isEditor || LetteraWorkers.Mode == LetteraWorkerMode.Inline || SystemInfo.processorCount <= 2) return;
+            var thread = new System.Threading.Thread(() =>
+            {
+                try { PrepareTypes(); }
+                catch (Exception) { }
+            }) { IsBackground = true, Name = "Lettera types" };
+            thread.Start();
+        }
+#endif
+
         static List<T> Own<T>(ref List<T> list) => ReferenceEquals(list, Rare<T>.List) ? list = new List<T>() : list;
         static Dictionary<K, V> Own<K, V>(ref Dictionary<K, V> map) => ReferenceEquals(map, Rare<K, V>.Map) ? map = new Dictionary<K, V>() : map;
 
