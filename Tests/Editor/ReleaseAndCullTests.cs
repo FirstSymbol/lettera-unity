@@ -138,22 +138,79 @@ namespace FirstSymbol.Lettera.Editor.Tests
         [Test]
         public void MergedLayersDrawOneQuadAGlyphAndTheSamePicture()
         {
+            LetteraText text = LayeredLabel("<stroke=#3399FF,0.08><shadow=#000000,0.06,-0.06>Kerning AV</shadow></stroke>");
+            text.Styles.Add(LetteraStyle.ForWholeText(new PaintOrderEffect { Order = LetteraPaintOrder.GlyphMajor }));
+            text.MarkStylesDirty();
+            text.ForceRebuild();
+            Canvas.ForceUpdateCanvases();
+            Assert.IsTrue(text.Engine.LayersMerged);
+            int glyphs = Drawn(text) / 4;
+            int separate = SamePictureMergedAndApart(text);
+            Assert.AreEqual(glyphs * 3 * 4, separate, "one quad a glyph against three");
+
+            // A layer order the shader does not compose, or a paint it does not hold, keeps the quads apart.
+            text.Text = "<glow=#FFFF00,0.2><stroke=#3399FF,0.08>Glow</stroke></glow>";
+            text.ForceRebuild();
+            Assert.IsFalse(text.Engine.LayersMerged);
+        }
+
+        // Layer-major, the usual order: a glyph's stroke and shadow join in one quad under every face, and a shadow that reaches an earlier stroke goes first.
+        [Test]
+        public void MergedLayersInLayerOrderKeepThePicture()
+        {
+            foreach (string body in new[]
+            {
+                "<stroke=#3399FF,0.08><shadow=#000000,0.06,-0.06>Kerning AV wavy fox</shadow></stroke>",
+                "<stroke=#3399FF,0.08><shadow=#200000,-0.08,-0.04>To AVA, rt ff\nsecond line</shadow></stroke>",
+            })
+            {
+                LetteraText text = LayeredLabel(body);
+                Assert.IsTrue(text.Engine.LayersMerged, body);
+                int hoisted = text.Engine.LayersHoisted;
+                int merged = Drawn(text);
+                int separate = SamePictureMergedAndApart(text);
+                Assert.AreEqual(0, separate % 12, body);
+                Assert.AreEqual(separate / 3 * 2 + hoisted * 4, merged, body);
+                if (body.Contains("-0.08")) Assert.Greater(hoisted, 0, "a shadow to the left reaches the stroke before it");
+                foreach (GameObject root in m_Roots) Object.DestroyImmediate(root);
+                m_Roots.Clear();
+            }
+
+            // A shadow alone has nothing to join in this order, and keeps its quads.
+            LetteraText alone = LayeredLabel("<shadow=#000000C0,0.05,-0.05>Shadow alone</shadow>");
+            Assert.IsFalse(alone.Engine.LayersMerged);
+        }
+
+        // A tint a canvas multiplies into the vertices, as a button's transition does, reaches the merged layers as it reaches separate ones.
+        [Test]
+        public void MergedLayersTakeTheCanvasTint()
+        {
+            LetteraText text = LayeredLabel("<stroke=#3399FF,0.08><shadow=#000000,0.06,-0.06>Tinted label</shadow></stroke>");
+            text.canvasRenderer.SetColor(new Color(1f, 0.4f, 0.6f, 0.8f));
+            Assert.IsTrue(text.Engine.LayersMerged);
+            SamePictureMergedAndApart(text);
+        }
+
+        LetteraText LayeredLabel(string body)
+        {
             GlyphAtlas.Clear();
             var canvasObject = new GameObject("Canvas", typeof(Canvas));
             m_Roots.Add(canvasObject);
             var canvas = canvasObject.GetComponent<Canvas>();
             canvas.renderMode = RenderMode.WorldSpace;
             ((RectTransform)canvas.transform).sizeDelta = new Vector2(300, 120);
-            LetteraText text = Label(canvas.transform, "<stroke=#3399FF,0.08><shadow=#000000,0.06,-0.06>Kerning AV</shadow></stroke>", new Vector2(280, 100));
-            text.FontSize = 48;
-            text.Styles.Add(LetteraStyle.ForWholeText(new PaintOrderEffect { Order = LetteraPaintOrder.GlyphMajor }));
-            text.MarkStylesDirty();
+            LetteraText text = Label(canvas.transform, body, new Vector2(280, 100));
+            text.FontSize = 40;
             text.ForceRebuild();
             Canvas.ForceUpdateCanvases();
-            Assert.IsTrue(text.Engine.LayersMerged);
-            int mergedVertices = Drawn(text);
-            Texture2D merged = Render(300, 120, new Color(0.2f, 0.22f, 0.26f, 1));
+            return text;
+        }
 
+        // Renders the text merged, then apart, and holds the two pictures together. Returns the vertices drawn apart.
+        int SamePictureMergedAndApart(LetteraText text)
+        {
+            var background = new Color(0.2f, 0.22f, 0.26f, 1);
+            Texture2D merged = Render(300, 120, background);
             TextEngine.NoMergedLayersForTests = true;
             try
             {
@@ -161,31 +218,29 @@ namespace FirstSymbol.Lettera.Editor.Tests
                 text.ForceRebuild();
                 Canvas.ForceUpdateCanvases();
                 Assert.IsFalse(text.Engine.LayersMerged);
-                Assert.AreEqual(mergedVertices * 3, Drawn(text), "one quad a glyph against three");
-                Texture2D separate = Render(300, 120, new Color(0.2f, 0.22f, 0.26f, 1));
+                int separate = Drawn(text);
+                Texture2D apart = Render(300, 120, background);
                 int differing = 0, inked = 0;
                 float worst = 0;
                 for (int y = 0; y < 120; y++)
                     for (int x = 0; x < 300; x++)
                     {
-                        Color a = merged.GetPixel(x, y), b = separate.GetPixel(x, y);
+                        Color a = merged.GetPixel(x, y), b = apart.GetPixel(x, y);
                         float d = Mathf.Max(Mathf.Abs(a.r - b.r), Mathf.Max(Mathf.Abs(a.g - b.g), Mathf.Abs(a.b - b.b)));
                         worst = Mathf.Max(worst, d);
                         if (d > 3 / 255f) differing++;
-                        if (Mathf.Abs(b.b - 0.26f) > 0.05f) inked++;
+                        if (Mathf.Abs(b.b - background.b) > 0.05f) inked++;
                     }
-                Assert.Greater(inked, 2000, "the text drew");
-                Assert.LessOrEqual(differing, inked / 200, "worst " + worst * 255);
+                Assert.Greater(inked, 1500, "the text drew");
+                Assert.LessOrEqual(differing, inked / 200, "worst " + worst * 255 + " in " + differing + " of " + inked);
+                return separate;
             }
             finally
             {
                 TextEngine.NoMergedLayersForTests = false;
+                text.MarkStylesDirty();
+                text.ForceRebuild();
             }
-
-            // A layer order the shader does not compose, or a paint it does not hold, keeps the quads apart.
-            text.Text = "<glow=#FFFF00,0.2><stroke=#3399FF,0.08>Glow</stroke></glow>";
-            text.ForceRebuild();
-            Assert.IsFalse(text.Engine.LayersMerged);
         }
 
         // The row I3 of the targets: a label that reaches into a mask with only its empty margin draws nothing there.

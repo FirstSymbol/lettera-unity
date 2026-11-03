@@ -38,12 +38,15 @@ namespace FirstSymbol.Lettera
         /// </summary>
         public static void Release() => Release(false);
 
-        static void Release(bool lowMemory)
+        static void Release(bool lowMemory) => Release(lowMemory, true);
+
+        static void Release(bool lowMemory, bool pages)
         {
             TextEngine.ClearParagraphCache();
             bool noText = LetteraTextListeners.Count == 0;
-            GlyphAtlas.Release(noText);
+            GlyphAtlas.Release(noText && pages);
             if (noText) LetteraWorldBatcher.ReleaseScratch();
+            if (noText && pages) s_TextSeen = false;
             ReleaseCount++;
             Released?.Invoke(lowMemory);
         }
@@ -60,9 +63,16 @@ namespace FirstSymbol.Lettera
             if (LetteraSettings.Instance.Memory.ReleaseOnLowMemory) Release(true);
         }
 
+        // A text has been shown since the pages last went: glyphs readied with no text yet, as by a warm-up on a loading screen, stay.
+        static bool s_TextSeen;
+
         // Once a frame in play: any rebuild or new glyph starts the quiet period over.
         internal static void Tick()
         {
+#if UNITY_EDITOR
+            if (!Application.isPlaying) return;
+#endif
+            if (LetteraTextListeners.Count > 0) s_TextSeen = true;
             int work = Work();
             float now = Time.realtimeSinceStartup;
             if (work != s_SeenWork)
@@ -76,7 +86,7 @@ namespace FirstSymbol.Lettera
             float seconds = LetteraSettings.Instance.Memory.IdleReleaseSeconds;
             if (seconds <= 0 || now - s_LastWork < seconds) return;
             s_Idle = true;
-            Release(false);
+            Release(false, s_TextSeen);
             // What the release itself changed is not work.
             s_SeenWork = Work();
         }
