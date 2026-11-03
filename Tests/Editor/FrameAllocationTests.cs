@@ -124,11 +124,12 @@ namespace FirstSymbol.Lettera.Editor.Tests
         }
 
         // The row R10 of the targets: a 1 MB document scrolled a new viewport each frame, across the threads as a player does.
-        [Test]
-        public void AFastScrollThroughALongDocumentAllocatesNothingInAnyFrame()
+        [TestCase(LetteraWorkerMode.Parallel)]
+        [TestCase(LetteraWorkerMode.Inline)]
+        public void AFastScrollThroughALongDocumentAllocatesNothingInAnyFrame(LetteraWorkerMode workers)
         {
             LetteraWorkerMode mode = LetteraWorkers.Mode;
-            LetteraWorkers.Mode = LetteraWorkerMode.Parallel;
+            LetteraWorkers.Mode = workers;
             try
             {
                 Transform canvas = MakeCanvas();

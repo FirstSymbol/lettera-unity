@@ -86,6 +86,9 @@ namespace FirstSymbol.Lettera
         }
 
         /// <summary>Takes more of the document onto the window's end inside its own rebuild, which then runs its passes again. Nothing is asked of the host.</summary>
+        /// <summary>How often a lean window took more in its own rebuild. Tests read this.</summary>
+        internal static int WindowExtensions;
+
         internal void ExtendWindowNow(int length)
         {
             int added = length - m_Aside.WindowLength;
@@ -98,6 +101,7 @@ namespace FirstSymbol.Lettera
             m_RuntimeText = null;
             m_Aside.WindowLength = length;
             m_Aside.WindowExtended = true;
+            WindowExtensions++;
             SetDirty(DirtyLevel.Parse);
         }
 

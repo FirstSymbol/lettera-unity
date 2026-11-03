@@ -357,9 +357,10 @@ namespace FirstSymbol.Lettera
         // and places only what shows. Two frames after the scroll stops, it takes its margins again.
         const float LeanMargin = 0.125f;
 
-        // How much more text than the last window's density asks a lean window takes. A window that still falls short of what shows takes
-        // more of its document inside the same rebuild, so this is only what saves that second round when the text ahead is a little denser.
-        const double LeanSlack = 1.05;
+        // How much more text than the last window's density asks a lean window takes, for denser text ahead. A window that still falls short
+        // of what shows takes more of its document inside the same rebuild. A twentieth was tried: the second rounds it brought grew buffers
+        // in some frames of the comparison's fast scroll.
+        const double LeanSlack = 1.25;
         bool m_Extended;
         double m_CharsPerPixel, m_LastStep;
         bool m_Lean;
