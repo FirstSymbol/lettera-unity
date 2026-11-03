@@ -26,9 +26,6 @@ namespace FirstSymbol.Lettera
 
         /// <summary>How far the distance field of this entry reaches beyond the outline, in em.</summary>
         public float Spread;
-
-        /// <summary>The quad's margin beyond the outline's box, in font units; 0 where it is not known.</summary>
-        public float Pad;
     }
 
     /// <summary>
@@ -313,7 +310,6 @@ namespace FirstSymbol.Lettera
                 Left = -offsetX / scale, Bottom = -offsetY / scale,
                 Right = (width - offsetX) / scale, Top = (height - offsetY) / scale,
                 Spread = spread,
-                Pad = spreadPixels / scale,
             };
         }
 
@@ -412,7 +408,6 @@ namespace FirstSymbol.Lettera
                 Left = -offsetX / scale, Bottom = -offsetY / scale,
                 Right = (width - offsetX) / scale, Top = (height - offsetY) / scale,
                 Spread = spread,
-                Pad = spreadPixels / scale,
             };
             s_Unions[key] = entry;
             return entry;
@@ -740,7 +735,6 @@ namespace FirstSymbol.Lettera
                 Left = -offsetX / scale, Bottom = -offsetY / scale,
                 Right = (width - offsetX) / scale, Top = (height - offsetY) / scale,
                 Spread = spread,
-                Pad = spreadPixels / scale,
             };
         }
 

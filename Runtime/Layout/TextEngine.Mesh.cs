@@ -77,10 +77,12 @@ namespace FirstSymbol.Lettera
         }
 
         // A distance quad draws only as far beyond the outline as its edge, softness and anti-aliasing reach, which is less than its margin.
-        void AddDistanceInk(float left, float bottom, float right, float top, in AtlasGlyph atlas, float xUnit, float yUnit, float threshold, float softness)
+        void AddDistanceInk(float left, float bottom, float right, float top, in AtlasGlyph atlas, float xUnit, float yUnit, float size, float threshold, float softness)
         {
             if (!m_TrackInk) return;
-            float inset = atlas.Pad - (0.5f - threshold + softness) * 2 * atlas.Pad;
+            // The quad's margin is the field's reach, Spread em, which is Spread * upem in font units.
+            float pad = yUnit > 0 ? atlas.Spread * size / yUnit : 0;
+            float inset = pad - (0.5f - threshold + softness) * 2 * pad;
             float ix = inset * xUnit - m_InkMargin, iy = inset * yUnit - m_InkMargin;
             if (ix < 0 || atlas.Pixel || atlas.Kind == AtlasGlyph.Color) ix = 0;
             if (iy < 0 || atlas.Pixel || atlas.Kind == AtlasGlyph.Color) iy = 0;
@@ -475,7 +477,7 @@ namespace FirstSymbol.Lettera
                 Colors[v + 2] = color;
                 Colors[v + 3] = color;
                 m_OwnAlpha[v] = m_OwnAlpha[v + 1] = m_OwnAlpha[v + 2] = m_OwnAlpha[v + 3] = color.a;
-                if (m_TrackInk) AddDistanceInk(left, bottom, right, top, atlas, xUnit, g.Unit, 0.5f, 0);
+                if (m_TrackInk) AddDistanceInk(left, bottom, right, top, atlas, xUnit, g.Unit, g.Size, 0.5f, 0);
             }
         }
 
@@ -605,7 +607,7 @@ namespace FirstSymbol.Lettera
                 ref PlacedGlyph g = ref m_Placed[i];
                 ref AtlasGlyph atlas = ref m_PlacedAtlas[i];
                 if (atlas.Kind == AtlasGlyph.Empty) continue;
-                if (atlas.Kind != AtlasGlyph.Sdf || atlas.Pixel || atlas.Pad <= 0 || g.Special != 0 || g.Angle != 0 || g.Size <= 0) return Refuse("glyph", i);
+                if (atlas.Kind != AtlasGlyph.Sdf || atlas.Pixel || atlas.Spread <= 0 || g.Special != 0 || g.Angle != 0 || g.Size <= 0) return Refuse("glyph", i);
                 if (i > 0 && IsConnected(m_Placed[i - 1].Cluster, g.Cluster)) return Refuse("joined");
                 int stroke = m_MergeStroke != null ? m_MergeStroke.Cover[g.Cluster] - 1 : -1;
                 if (stroke >= 0 && (!MergeablePaint(records[stroke]) || records[stroke].Align != 1)) return Refuse("stroke", i);
@@ -1049,7 +1051,7 @@ namespace FirstSymbol.Lettera
                 Vertices[v + 3] = new Vector3(g.X + right, g.Y + bottom);
                 if (m_TrackInk)
                 {
-                    if ((mode == ModeSdf || mode == ModeMedian || mode == ModeTrueDistance) && extra.w == 0) AddDistanceInk(g.X + left, g.Y + bottom, g.X + right, g.Y + top, atlas, xUnit, g.Unit, threshold, softness);
+                    if ((mode == ModeSdf || mode == ModeMedian || mode == ModeTrueDistance) && extra.w == 0) AddDistanceInk(g.X + left, g.Y + bottom, g.X + right, g.Y + top, atlas, xUnit, g.Unit, g.Size, threshold, softness);
                     else AddInk(g.X + left, g.Y + bottom, g.X + right, g.Y + top);
                 }
             }
