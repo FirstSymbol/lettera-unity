@@ -85,6 +85,48 @@ LETTERA_COLOR4 LetteraShadePlain(float4 uv0, float2 params, LETTERA_COLOR4 color
     return color;
 }
 
+#ifndef LETTERA_LAYER_RGB
+#define LETTERA_LAYER_RGB(rgb) (rgb)
+#endif
+
+// Two bytes packed in one float as high + low / 256.
+float2 LetteraUnpackBytes(float packed)
+{
+    float t = round(packed * 256.0);
+    float high = floor(t / 256.0);
+    return float2(high, t - high * 256.0) / 255.0;
+}
+
+// A glyph's face, stroke and shadow in one quad, composed as three quads blended in that order would be.
+// params: face red and green, stroke edge (0 none), shadow edge (0 none), shadow softness. paint: stroke and shadow colors.
+// extra: the shadow's offset in the atlas, the stroke's softness, face blue and alpha (alpha 0: layers only). Two bytes a float.
+// The vertex color is white times what the canvas multiplies in, so it tints every part.
+LETTERA_COLOR4 LetteraShadeMerged(float4 uv0, float4 params, LETTERA_COLOR4 color, float4 paint, float4 extra)
+{
+    float d = LETTERA_SAMPLE_SDF(uv0.xy, uv0.z).r;
+    float moved = LETTERA_SAMPLE_SDF(uv0.xy - extra.xy, uv0.z).r;
+    // One rate of change serves all three edges: the moved sample is the same field at the same scale.
+    float aa = fwidth(d) * 0.75 + 1e-5;
+    float faceEdge = smoothstep(0.5 - aa, 0.5 + aa, d);
+    float ws = max(aa, extra.z), wh = max(aa, params.w);
+    float strokeEdge = smoothstep(params.y - ws, params.y + ws, d);
+    float shadowEdge = smoothstep(params.z - wh, params.z + wh, moved);
+    float4 faceColor = float4(LetteraUnpackBytes(params.x), LetteraUnpackBytes(extra.w));
+    float4 stroke = float4(LetteraUnpackBytes(paint.x), LetteraUnpackBytes(paint.y));
+    float4 shadow = float4(LetteraUnpackBytes(paint.z), LetteraUnpackBytes(paint.w));
+    float face = faceEdge * faceColor.a * color.a;
+    float strokeAlpha = params.y > 0 ? strokeEdge * stroke.a * color.a : 0;
+    float shadowAlpha = params.z > 0 ? shadowEdge * shadow.a * color.a : 0;
+    float3 rgb = LETTERA_LAYER_RGB(faceColor.rgb) * face;
+    float alpha = face;
+    rgb += LETTERA_LAYER_RGB(stroke.rgb) * strokeAlpha * (1 - alpha);
+    alpha += strokeAlpha * (1 - alpha);
+    rgb += LETTERA_LAYER_RGB(shadow.rgb) * shadowAlpha * (1 - alpha);
+    alpha += shadowAlpha * (1 - alpha);
+    rgb *= color.rgb;
+    return LETTERA_COLOR4(alpha > 0 ? rgb / alpha : rgb, alpha);
+}
+
 #ifdef LETTERA_STYLED
 
 // Interleaved gradient noise, so slow gradients do not show bands at 8 bits.
@@ -271,48 +313,6 @@ LETTERA_COLOR4 LetteraShadeGlyph(float4 uv0, float4 params, LETTERA_COLOR4 color
         return LetteraApplyPaint(paint, color, screen);
     }
     return LetteraApplyPaint(paint, color, screen);
-}
-
-#ifndef LETTERA_LAYER_RGB
-#define LETTERA_LAYER_RGB(rgb) (rgb)
-#endif
-
-// Two bytes packed in one float as high + low / 256.
-float2 LetteraUnpackBytes(float packed)
-{
-    float t = round(packed * 256.0);
-    float high = floor(t / 256.0);
-    return float2(high, t - high * 256.0) / 255.0;
-}
-
-// A glyph's face, stroke and shadow in one quad, composed as three quads blended in that order would be.
-// params: face red and green, stroke edge (0 none), shadow edge (0 none), shadow softness. paint: stroke and shadow colors.
-// extra: the shadow's offset in the atlas, the stroke's softness, face blue and alpha (alpha 0: layers only). Two bytes a float.
-// The vertex color is white times what the canvas multiplies in, so it tints every part.
-LETTERA_COLOR4 LetteraShadeMerged(float4 uv0, float4 params, LETTERA_COLOR4 color, float4 paint, float4 extra)
-{
-    float d = LETTERA_SAMPLE_SDF(uv0.xy, uv0.z).r;
-    float moved = LETTERA_SAMPLE_SDF(uv0.xy - extra.xy, uv0.z).r;
-    // One rate of change serves all three edges: the moved sample is the same field at the same scale.
-    float aa = fwidth(d) * 0.75 + 1e-5;
-    float faceEdge = smoothstep(0.5 - aa, 0.5 + aa, d);
-    float ws = max(aa, extra.z), wh = max(aa, params.w);
-    float strokeEdge = smoothstep(params.y - ws, params.y + ws, d);
-    float shadowEdge = smoothstep(params.z - wh, params.z + wh, moved);
-    float4 faceColor = float4(LetteraUnpackBytes(params.x), LetteraUnpackBytes(extra.w));
-    float4 stroke = float4(LetteraUnpackBytes(paint.x), LetteraUnpackBytes(paint.y));
-    float4 shadow = float4(LetteraUnpackBytes(paint.z), LetteraUnpackBytes(paint.w));
-    float face = faceEdge * faceColor.a * color.a;
-    float strokeAlpha = params.y > 0 ? strokeEdge * stroke.a * color.a : 0;
-    float shadowAlpha = params.z > 0 ? shadowEdge * shadow.a * color.a : 0;
-    float3 rgb = LETTERA_LAYER_RGB(faceColor.rgb) * face;
-    float alpha = face;
-    rgb += LETTERA_LAYER_RGB(stroke.rgb) * strokeAlpha * (1 - alpha);
-    alpha += strokeAlpha * (1 - alpha);
-    rgb += LETTERA_LAYER_RGB(shadow.rgb) * shadowAlpha * (1 - alpha);
-    alpha += shadowAlpha * (1 - alpha);
-    rgb *= color.rgb;
-    return LETTERA_COLOR4(alpha > 0 ? rgb / alpha : rgb, alpha);
 }
 
 LETTERA_COLOR4 LetteraShadeStyled(float4 uv0, float4 params, LETTERA_COLOR4 color, float4 paint, float4 extra, float2 screen)
