@@ -881,6 +881,8 @@ namespace FirstSymbol.Lettera
             }
             texture.Apply(false, true);
             set.Texture = texture;
+            // Bound at once: a canvas can draw before the next flush, which may run before it in the frame.
+            Shader.SetGlobalTexture(set.PropertyId, texture);
             s_Rebind = true;
         }
 
