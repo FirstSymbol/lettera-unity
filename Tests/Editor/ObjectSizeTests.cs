@@ -37,5 +37,20 @@ namespace FirstSymbol.Lettera.Editor.Tests
             Assert.Less(InstanceSize(typeof(LetteraText)), 1800);
             Assert.Less(InstanceSize(typeof(LetteraWorldText)), 1800);
         }
+
+        // A player prepares these on a thread of its own as it starts, so nothing in them may ask Unity for anything.
+        [Test]
+        public void TypesPrepareOffTheMainThread()
+        {
+            Exception failure = null;
+            var thread = new System.Threading.Thread(() =>
+            {
+                try { TextEngine.PrepareTypes(); }
+                catch (Exception e) { failure = e; }
+            });
+            thread.Start();
+            Assert.IsTrue(thread.Join(10000));
+            Assert.IsNull(failure, failure?.ToString());
+        }
     }
 }
