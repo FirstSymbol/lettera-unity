@@ -165,7 +165,7 @@ namespace FirstSymbol.Lettera.Editor.Tests
             })
             {
                 LetteraText text = LayeredLabel(body);
-                Assert.IsTrue(text.Engine.LayersMerged, body);
+                Assert.IsTrue(text.Engine.LayersMerged, body + ": " + text.Engine.LayersRefused + " " + text.Engine.LayersRefusedAt);
                 int hoisted = text.Engine.LayersHoisted;
                 int merged = Drawn(text);
                 int separate = SamePictureMergedAndApart(text);

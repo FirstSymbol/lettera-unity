@@ -572,37 +572,51 @@ namespace FirstSymbol.Lettera
         /// <summary>Draws layers as separate quads, for a test that compares the two.</summary>
         internal static bool NoMergedLayersForTests;
 
+        /// <summary>Why the last mesh drew its layers apart, for tests.</summary>
+        internal string LayersRefused { get; private set; }
+
+        /// <summary>The glyph that made it so, or -1.</summary>
+        internal int LayersRefusedAt { get; private set; }
+
+        bool Refuse(string why, int at = -1)
+        {
+            LayersRefused = why;
+            LayersRefusedAt = at;
+            return false;
+        }
+
         bool CanMergeLayers(List<LayerGroup> groups, bool glyphMajor)
         {
             if (NoMergedLayersForTests || !(m_Host is LetteraText) || m_Faces.Count > 0 || m_Attributes.Filters.Count > 0 || m_Attributes.Warps.Count > 0 || m_Attributes.Decorations.Count > 0 ||
                 m_FadeActive || m_RecordOwners || m_MotionSpans.Count > 0 || m_StageHooks.Count > 0 || HasInlineSprites || m_Host.Data.RenderMode == LetteraRenderMode.MSDF ||
                 m_PlacedCount == 0)
-                return false;
+                return Refuse("text");
             m_MergeStroke = m_MergeShadow = null;
             foreach (LayerGroup group in groups)
             {
                 if (group.Layer == LayerKind.Stroke && group.Band == LetteraLayerBand.Rim && m_MergeStroke == null) m_MergeStroke = group;
                 else if (group.Layer == LayerKind.Shadow && group.Band == LetteraLayerBand.Back && m_MergeShadow == null) m_MergeShadow = group;
-                else return false;
+                else return Refuse("layer");
             }
-            if (m_MergeStroke == null && m_MergeShadow == null) return false;
+            if (m_MergeStroke == null && m_MergeShadow == null) return Refuse("none");
             // In layer order a lone layer has nothing to join: its quad and the face's are two either way.
-            if (!glyphMajor && (m_MergeStroke == null || m_MergeShadow == null)) return false;
+            if (!glyphMajor && (m_MergeStroke == null || m_MergeShadow == null)) return Refuse("one layer");
             List<LayerRecord> records = m_Attributes.Layers;
             for (int i = 0; i < m_PlacedCount; i++)
             {
                 ref PlacedGlyph g = ref m_Placed[i];
                 ref AtlasGlyph atlas = ref m_PlacedAtlas[i];
                 if (atlas.Kind == AtlasGlyph.Empty) continue;
-                if (atlas.Kind != AtlasGlyph.Sdf || atlas.Pixel || atlas.Pad <= 0 || g.Special != 0 || g.Angle != 0 || g.Size <= 0) return false;
-                if (glyphMajor && i > 0 && IsConnected(m_Placed[i - 1].Cluster, g.Cluster)) return false;
+                if (atlas.Kind != AtlasGlyph.Sdf || atlas.Pixel || atlas.Pad <= 0 || g.Special != 0 || g.Angle != 0 || g.Size <= 0) return Refuse("glyph", i);
+                if (glyphMajor && i > 0 && IsConnected(m_Placed[i - 1].Cluster, g.Cluster)) return Refuse("joined");
                 int stroke = m_MergeStroke != null ? m_MergeStroke.Cover[g.Cluster] - 1 : -1;
-                if (stroke >= 0 && (!MergeablePaint(records[stroke]) || records[stroke].Align != 1)) return false;
+                if (stroke >= 0 && (!MergeablePaint(records[stroke]) || records[stroke].Align != 1)) return Refuse("stroke", i);
                 int shadow = m_MergeShadow != null ? m_MergeShadow.Cover[g.Cluster] - 1 : -1;
-                if (shadow >= 0 && (!MergeablePaint(records[shadow]) || !ShadowFits(g, atlas, records[shadow]))) return false;
+                if (shadow >= 0 && (!MergeablePaint(records[shadow]) || !ShadowFits(g, atlas, records[shadow]))) return Refuse("shadow", i);
             }
             m_MergeHoisted = 0;
-            if (!glyphMajor && !FindHoistedShadows()) return false;
+            if (!glyphMajor && !FindHoistedShadows()) return Refuse("colours");
+            LayersRefused = null;
             Styled = true;
             LayersMerged = true;
             return true;
