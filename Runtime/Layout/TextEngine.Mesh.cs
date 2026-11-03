@@ -158,7 +158,7 @@ namespace FirstSymbol.Lettera
             if (m_Aside.StageHooks.Count > 0) Empty(m_Aside.CoverQuads);
             m_CurrentOwner = -1;
             m_DrawBase = m_Host.BaseColor;
-            m_QuadMargin = m_Host is LetteraText pixelled && !WholeTilesForTests ? 2f * pixelled.PixelLength() : 0;
+            m_QuadMargin = m_RectFrozen ? m_FrozenQuadMargin : QuadMargin();
             InkKnown = false;
             m_TrackInk = m_Host is LetteraText inked && inked.TracksInk;
             m_InkQuads = 0;
@@ -1451,6 +1451,8 @@ namespace FirstSymbol.Lettera
                 m_TakesBase[v] = m_TakesBase[v + 1] = m_TakesBase[v + 2] = m_TakesBase[v + 3] = m_QuadTakesBase;
             }
         }
+
+        float QuadMargin() => m_Host is LetteraText pixelled && !WholeTilesForTests ? 2f * pixelled.PixelLength() : 0;
 
         // A label's first mesh takes room for sixteen glyphs, so a counter going from one digit to three does not grow its buffers in the frame it changes.
         const int FirstVertices = 64, FirstWorldVertices = 16;

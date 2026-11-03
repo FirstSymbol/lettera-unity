@@ -18,7 +18,7 @@ namespace FirstSymbol.Lettera
 
         bool m_BatchWorker, m_BatchMissed, m_BatchDone, m_BatchMeshMissed, m_BatchMeshDone, m_MeshReady;
         int m_DirtyStamp, m_BatchStamp;
-        float m_FrozenScale;
+        float m_FrozenScale, m_FrozenQuadMargin;
         int m_BatchHits;
         List<IntPtr> m_BatchTouched;
         Rect m_FrozenRect;
@@ -87,6 +87,8 @@ namespace FirstSymbol.Lettera
             m_Attributes.SortedGroups();
             m_FrozenRect = rect;
             m_FrozenScale = rasterScale;
+            // A pixel's length asks the canvas, which only the main thread may.
+            m_FrozenQuadMargin = QuadMargin();
             m_RectFrozen = m_BatchWorker = true;
             m_BatchMissed = m_BatchDone = m_BatchMeshMissed = m_BatchMeshDone = false;
             m_BatchHits = 0;
