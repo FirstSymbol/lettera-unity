@@ -259,7 +259,18 @@ namespace FirstSymbol.Lettera
             RebuildCount++;
             WorkCounter++;
             m_InPasses = true;
-            try { RunPasses(level); }
+            try
+            {
+                RunPasses(level);
+                // A lean window found short of what shows took more of its document: its passes run again before anything is drawn.
+                if (m_Aside.WindowExtended)
+                {
+                    m_Aside.WindowExtended = false;
+                    DirtyLevel again = m_Dirty;
+                    m_Dirty = DirtyLevel.None;
+                    if (again != DirtyLevel.None) RunPasses(again);
+                }
+            }
             finally
             {
                 m_InPasses = false;

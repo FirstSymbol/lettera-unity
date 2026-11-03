@@ -344,6 +344,7 @@ namespace FirstSymbol.Lettera
             m_Prelude = prelude;
             int length = endChar - startChar;
             m_Engine.SetWindow(startChar, length, prelude, 0, m_Lean ? 0 : TextEngine.WindowBandMargin, m_Lean);
+            m_Extended = false;
             m_Engine.SetWindowOffset((float)(m_Y - WindowTop()));
             m_WindowMoved = true;
             GeometryChanged?.Invoke();
@@ -356,8 +357,10 @@ namespace FirstSymbol.Lettera
         // and places only what shows. Two frames after the scroll stops, it takes its margins again.
         const float LeanMargin = 0.125f;
 
-        // How much more text than the last window's density asks a lean window takes, for denser text ahead.
-        const double LeanSlack = 1.25;
+        // How much more text than the last window's density asks a lean window takes. A window that still falls short of what shows takes
+        // more of its document inside the same rebuild, so this is only what saves that second round when the text ahead is a little denser.
+        const double LeanSlack = 1.05;
+        bool m_Extended;
         double m_CharsPerPixel, m_LastStep;
         bool m_Lean;
         int m_TicksSinceScroll;
@@ -435,6 +438,7 @@ namespace FirstSymbol.Lettera
             if (m_FirstBlock >= m_Rope.BlockCount) return;
             float laid = m_Engine.PlainExtent;
             if (laid > 1 && m_Engine.WindowLength > 0) m_CharsPerPixel = m_Engine.WindowLength / (double)laid;
+            if (m_Lean && !m_Extended && ExtendLeanWindow(laid)) return;
             int startChar = m_Rope.CharOfBlock(m_FirstBlock);
             for (int b = m_FirstBlock; b <= m_LastBlock && b < m_Rope.BlockCount; b++)
             {
@@ -462,6 +466,26 @@ namespace FirstSymbol.Lettera
             m_Engine.SetWindowOffset((float)(m_Y - WindowTop()));
             UpdateAnchor();
             GeometryChanged?.Invoke();
+        }
+
+        // A lean window whose text ends above the viewport's bottom takes what is missing, as this window's own density says, with an eighth of a
+        // viewport to spare. Its rebuild runs again at once, and this is called once more from there.
+        bool ExtendLeanWindow(float laid)
+        {
+            int windowEnd = m_Engine.WindowStart + m_Engine.WindowLength;
+            if (windowEnd >= m_Rope.Length || m_CharsPerPixel <= 0) return false;
+            float viewport = Math.Max(ViewportHeight, 1);
+            double missing = m_Y + viewport - (WindowTop() + laid);
+            if (missing <= 0) return false;
+            double margin = LeanMargin * viewport;
+            int wanted = (int)Math.Min(m_Rope.Length, windowEnd + Math.Ceiling((missing + margin) * m_CharsPerPixel * LeanSlack));
+            int end = ParagraphEndAfter(Math.Min(wanted, m_Engine.WindowStart + m_Settings.MaxWindowCodepoints));
+            if (end <= windowEnd) return false;
+            m_Extended = true;
+            int lastChar = Math.Max(m_Rope.Length - 1, 0);
+            m_LastBlock = m_Rope.BlockAtChar(Math.Min(Math.Max(end - 1, m_Engine.WindowStart), lastChar));
+            m_Engine.ExtendWindowNow(end - m_Engine.WindowStart);
+            return true;
         }
 
         void UpdateAnchor()
