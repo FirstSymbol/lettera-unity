@@ -110,8 +110,11 @@ namespace FirstSymbol.Lettera
             m_InkQuads = 0;
             m_InkMinX = m_InkMinY = float.MaxValue;
             m_InkMaxX = m_InkMaxY = float.MinValue;
-            float rasterScale = m_Host.RasterScale;
-            m_InkMargin = rasterScale > 0 ? 1f / rasterScale : 1f;
+            if (m_TrackInk)
+            {
+                float rasterScale = m_Host.RasterScale;
+                m_InkMargin = rasterScale > 0 ? 1f / rasterScale : 1f;
+            }
             GlyphAtlasRegistration.EnsureRegistered();
 
             if (ShowsBars)
