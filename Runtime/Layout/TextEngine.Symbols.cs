@@ -31,42 +31,35 @@ namespace FirstSymbol.Lettera
             public bool Second;
         }
 
-        List<SymbolSet> m_SymbolSets = Rare<SymbolSet>.List;
-        List<ExtraQuad> m_ExtraQuads = Rare<ExtraQuad>.List;
-        int[] m_FaceQuad = System.Array.Empty<int>();
-        SymbolSet[] m_GlyphSymbols = System.Array.Empty<SymbolSet>();
-        Vector4[] m_RestUv0 = System.Array.Empty<Vector4>();
-        bool m_UsesRestUv0;
-
         // Before the first quad of a mesh.
         void PrepareExtraMotions()
         {
-            m_ExtraQuads.Clear();
-            m_UsesRestUv0 = false;
-            if (m_MotionSpans.Count == 0) return;
-            EnsureExact(ref m_FaceQuad, m_PlacedCount);
-            for (int i = 0; i < m_PlacedCount; i++) m_FaceQuad[i] = -1;
-            for (int s = 0; s < m_MotionSpans.Count; s++) m_MotionSpans[s].Effect.ReserveQuads(this, m_MotionSpans[s]);
+            m_Aside.ExtraQuads.Clear();
+            m_Aside.UsesRestUv0 = false;
+            if (m_Aside.MotionSpans.Count == 0) return;
+            EnsureExact(ref m_Aside.FaceQuad, m_PlacedCount);
+            for (int i = 0; i < m_PlacedCount; i++) m_Aside.FaceQuad[i] = -1;
+            for (int s = 0; s < m_Aside.MotionSpans.Count; s++) m_Aside.MotionSpans[s].Effect.ReserveQuads(this, m_Aside.MotionSpans[s]);
         }
 
         internal void PrepareSymbols(in MotionSpan span, string alphabet)
         {
-            m_UsesRestUv0 = true;
-            EnsureExact(ref m_GlyphSymbols, m_PlacedCount);
+            m_Aside.UsesRestUv0 = true;
+            EnsureExact(ref m_Aside.GlyphSymbols, m_PlacedCount);
             float rasterScale = m_Host.RasterScale;
             bool multi = m_Host.Data.RenderMode == LetteraRenderMode.MSDF;
             for (int i = 0; i < m_PlacedCount; i++)
             {
                 ref PlacedGlyph g = ref m_Placed[i];
                 if (g.Cluster < span.Start || g.Cluster >= span.End) continue;
-                m_GlyphSymbols[i] = SymbolsFor(g.Instance, PixelsPerEm(g.Size, rasterScale), m_PlacedReach[i], alphabet ?? "", multi);
+                m_Aside.GlyphSymbols[i] = SymbolsFor(g.Instance, PixelsPerEm(g.Size, rasterScale), m_PlacedReach[i], alphabet ?? "", multi);
             }
         }
 
         // A symbol costs the atlas only once.
         SymbolSet SymbolsFor(FontInstance instance, int density, float reach, string alphabet, bool multi)
         {
-            foreach (SymbolSet known in m_SymbolSets)
+            foreach (SymbolSet known in m_Aside.SymbolSets)
                 if (known.Instance == instance && known.Density == density && known.Reach == reach && known.Alphabet == alphabet)
                     return known;
             var list = new List<SymbolGlyph>();
@@ -80,18 +73,18 @@ namespace FirstSymbol.Lettera
                 list.Add(new SymbolGlyph { Atlas = atlas, AdvanceEm = LetteraNative.lt_glyph_advance(instance.Font, glyph), Codepoint = cp });
             }
             var set = new SymbolSet { Instance = instance, Density = density, Reach = reach, Alphabet = alphabet, Glyphs = list.ToArray() };
-            Own(ref m_SymbolSets).Add(set);
+            Own(ref m_Aside.SymbolSets).Add(set);
             return set;
         }
 
         void ReserveExtraQuads()
         {
-            for (int s = 0; s < m_MotionSpans.Count; s++)
+            for (int s = 0; s < m_Aside.MotionSpans.Count; s++)
             {
-                MotionSpan span = m_MotionSpans[s];
+                MotionSpan span = m_Aside.MotionSpans[s];
                 bool fringes = span.Effect is GlitchMotion, roll = span.Effect is RollMotion;
                 if (!fringes && !roll) continue;
-                EnsureExact(ref m_CpBody, m_TextLength + 1);
+                EnsureExact(ref m_Aside.CpBody, m_TextLength + 1);
                 NumberBodies(span);
                 for (int i = 0; i < m_PlacedCount; i++)
                 {
@@ -101,12 +94,12 @@ namespace FirstSymbol.Lettera
                     if (atlas.Kind == AtlasGlyph.Empty || atlas.Kind == AtlasGlyph.Color) continue;
                     if (roll)
                     {
-                        AddExtra(i, s, m_CpBody[g.Cluster], true, new Color32(255, 255, 255, 255));
+                        AddExtra(i, s, m_Aside.CpBody[g.Cluster], true, new Color32(255, 255, 255, 255));
                         continue;
                     }
                     var glitch = (GlitchMotion)span.Effect;
-                    AddExtra(i, s, m_CpBody[g.Cluster], false, glitch.FringeA);
-                    AddExtra(i, s, m_CpBody[g.Cluster], true, glitch.FringeB);
+                    AddExtra(i, s, m_Aside.CpBody[g.Cluster], false, glitch.FringeA);
+                    AddExtra(i, s, m_Aside.CpBody[g.Cluster], true, glitch.FringeB);
                 }
             }
         }
@@ -116,7 +109,7 @@ namespace FirstSymbol.Lettera
             ref PlacedGlyph g = ref m_Placed[glyph];
             ref AtlasGlyph atlas = ref m_PlacedAtlas[glyph];
             ref LetteraAttributes.Cp attr = ref m_Attributes.At(g.Cluster);
-            if (span < m_MotionSpans.Count && m_MotionSpans[span].Effect is RollMotion)
+            if (span < m_Aside.MotionSpans.Count && m_Aside.MotionSpans[span].Effect is RollMotion)
             {
                 Color32 baseColor = m_Host.BaseColor;
                 color = attr.HasColor ? attr.Color : new Color32(baseColor.r, baseColor.g, baseColor.b, 255);
@@ -127,20 +120,20 @@ namespace FirstSymbol.Lettera
             m_FilterRow = 0;
             int quad = VertexCount / 4;
             AddQuad(g, atlas, color, atlas.Pixel ? ModePixel : atlas.Kind == AtlasGlyph.Msdf ? ModeMedian : ModeSdf, 0.5f, 0, 0, s_NoPaint, default, 0, 0);
-            Own(ref m_ExtraQuads).Add(new ExtraQuad { Quad = quad, Glyph = glyph, Body = body, Span = span, Second = second });
+            Own(ref m_Aside.ExtraQuads).Add(new ExtraQuad { Quad = quad, Glyph = glyph, Body = body, Span = span, Second = second });
         }
 
         void CollapseExtraQuads()
         {
-            if (m_UsesRestUv0)
+            if (m_Aside.UsesRestUv0)
             {
-                EnsureExact(ref m_RestUv0, VertexCount);
-                Array.Copy(Uv0, m_RestUv0, VertexCount);
+                EnsureExact(ref m_Aside.RestUv0, VertexCount);
+                Array.Copy(Uv0, m_Aside.RestUv0, VertexCount);
             }
-            foreach (ExtraQuad extra in m_ExtraQuads)
+            foreach (ExtraQuad extra in m_Aside.ExtraQuads)
             {
                 int v = extra.Quad * 4;
-                for (int i = 0; i < 4; i++) m_RestVertices[v + i] = Vertices[v + i];
+                for (int i = 0; i < 4; i++) m_Aside.RestVertices[v + i] = Vertices[v + i];
                 Collapse(extra.Quad);
             }
         }
@@ -158,9 +151,9 @@ namespace FirstSymbol.Lettera
         {
             int k = Mathf.FloorToInt(t * span.Effective.V1);
             bool any = false;
-            foreach (ExtraQuad extra in m_ExtraQuads)
+            foreach (ExtraQuad extra in m_Aside.ExtraQuads)
             {
-                if (extra.Span < 0 || extra.Span >= m_MotionSpans.Count || m_MotionSpans[extra.Span].Effect != effect) continue;
+                if (extra.Span < 0 || extra.Span >= m_Aside.MotionSpans.Count || m_Aside.MotionSpans[extra.Span].Effect != effect) continue;
                 int v = extra.Quad * 4;
                 any = true;
                 if (!GlitchMotion.Burst(effect.Seed, extra.Body, k, span.Effective.V2) || span.Effective.V0 == 0)
@@ -169,10 +162,10 @@ namespace FirstSymbol.Lettera
                     continue;
                 }
                 float shift = (extra.Second ? 1 : -1) * span.Effective.V0 * m_Placed[extra.Glyph].Size;
-                LetteraGlyphPose pose = m_GlyphPoses[extra.Glyph];
+                LetteraGlyphPose pose = m_Aside.GlyphPoses[extra.Glyph];
                 for (int i = 0; i < 4; i++)
                 {
-                    Vector3 r = m_RestVertices[v + i];
+                    Vector3 r = m_Aside.RestVertices[v + i];
                     Vertices[v + i] = new Vector3(pose.A * r.x + pose.C * r.y + pose.Tx + shift, pose.B * r.x + pose.D * r.y + pose.Ty);
                 }
             }
@@ -183,7 +176,7 @@ namespace FirstSymbol.Lettera
 
         internal void WriteScramble(ScrambleMotion effect, in MotionSpan span, float t)
         {
-            if (m_GlyphSymbols.Length < m_PlacedCount) return;
+            if (m_Aside.GlyphSymbols.Length < m_PlacedCount) return;
             int end = Math.Min(span.End, m_TextLength);
             int clusters = 0;
             for (int c = span.Start; c < end; c++)
@@ -195,29 +188,29 @@ namespace FirstSymbol.Lettera
             int quads = VertexCount / 4;
             int order = -1, lastCluster = -1;
             // Clusters in logical order: count them apart from the glyph order, which a right-to-left run reverses.
-            EnsureExact(ref m_CpBody, m_TextLength + 1);
+            EnsureExact(ref m_Aside.CpBody, m_TextLength + 1);
             int number = 0;
             for (int c = span.Start; c < end; c++)
             {
                 if (m_Boundaries[c] && !LetteraUnicode.IsWhiteSpace(m_Text[c])) number++;
-                m_CpBody[c] = LetteraUnicode.IsWhiteSpace(m_Text[c]) ? -1 : number - 1;
+                m_Aside.CpBody[c] = LetteraUnicode.IsWhiteSpace(m_Text[c]) ? -1 : number - 1;
             }
             for (int q = 0; q < quads; q++)
             {
-                int owner = m_QuadOwner[q];
+                int owner = m_Aside.QuadOwner[q];
                 if (owner < 0 || owner >= m_PlacedCount) continue;
                 ref PlacedGlyph g = ref m_Placed[owner];
                 if (g.Cluster < span.Start || g.Cluster >= span.End) continue;
                 int v = q * 4;
-                order = m_CpBody[g.Cluster];
+                order = m_Aside.CpBody[g.Cluster];
                 bool show = order < 0 || order < settledCount || m_PlacedAtlas[owner].Kind == AtlasGlyph.Color;
                 if (show)
                 {
                     RestoreUv0(v);
                     continue;
                 }
-                bool face = q == m_FaceQuad[owner] && (lastCluster != g.Cluster || FirstGlyphOfClusterIs(owner));
-                SymbolSet set = m_GlyphSymbols[owner];
+                bool face = q == m_Aside.FaceQuad[owner] && (lastCluster != g.Cluster || FirstGlyphOfClusterIs(owner));
+                SymbolSet set = m_Aside.GlyphSymbols[owner];
                 if (!face || set == null || set.Glyphs.Length == 0)
                 {
                     RestoreUv0(v);
@@ -227,7 +220,7 @@ namespace FirstSymbol.Lettera
                 lastCluster = g.Cluster;
                 int pick = (int)(LetteraMotionNoise.Hash(effect.Seed, order, k) % (uint)set.Glyphs.Length);
                 ref SymbolGlyph symbol = ref set.Glyphs[pick];
-                PlaceSymbol(v, g, symbol, m_GlyphPoses[owner], 0, 1);
+                PlaceSymbol(v, g, symbol, m_Aside.GlyphPoses[owner], 0, 1);
             }
             m_ExtraStreams |= StreamPositions | StreamUv0;
         }
@@ -243,11 +236,11 @@ namespace FirstSymbol.Lettera
 
         void RestoreUv0(int v)
         {
-            if (m_RestUv0.Length < v + 4) return;
-            Uv0[v] = m_RestUv0[v];
-            Uv0[v + 1] = m_RestUv0[v + 1];
-            Uv0[v + 2] = m_RestUv0[v + 2];
-            Uv0[v + 3] = m_RestUv0[v + 3];
+            if (m_Aside.RestUv0.Length < v + 4) return;
+            Uv0[v] = m_Aside.RestUv0[v];
+            Uv0[v + 1] = m_Aside.RestUv0[v + 1];
+            Uv0[v + 2] = m_Aside.RestUv0[v + 2];
+            Uv0[v + 3] = m_Aside.RestUv0[v + 3];
         }
 
         // A symbol centered in the cluster's cell, cut to a band of it so a wheel can show two at once.
@@ -299,30 +292,30 @@ namespace FirstSymbol.Lettera
         internal void WriteRoll(RollMotion effect, in MotionSpan span, float t)
         {
             string wheel = effect.Wheel ?? "";
-            if (wheel.Length == 0 || m_GlyphSymbols.Length < m_PlacedCount) return;
+            if (wheel.Length == 0 || m_Aside.GlyphSymbols.Length < m_PlacedCount) return;
             float roll = LetteraAccessibility.ReducedMotion && effect.ReducedMotionPolicy == LetteraReducedMotion.Rest ? 0 : effect.RollAt(span.Effective, t);
             float lag = span.Effective.V2;
             // Clusters on the wheel count in reading order.
             int end = Math.Min(span.End, m_TextLength);
             int number = 0;
-            EnsureExact(ref m_CpBody, m_TextLength + 1);
-            for (int c = span.Start; c < end; c++) m_CpBody[c] = c < m_Text.Length && wheel.IndexOf((char)m_Text[c]) >= 0 ? number++ : -1;
+            EnsureExact(ref m_Aside.CpBody, m_TextLength + 1);
+            for (int c = span.Start; c < end; c++) m_Aside.CpBody[c] = c < m_Text.Length && wheel.IndexOf((char)m_Text[c]) >= 0 ? number++ : -1;
 
-            foreach (ExtraQuad extra in m_ExtraQuads)
+            foreach (ExtraQuad extra in m_Aside.ExtraQuads)
             {
-                if (extra.Span < 0 || extra.Span >= m_MotionSpans.Count || m_MotionSpans[extra.Span].Effect != effect) continue;
+                if (extra.Span < 0 || extra.Span >= m_Aside.MotionSpans.Count || m_Aside.MotionSpans[extra.Span].Effect != effect) continue;
                 ref PlacedGlyph g = ref m_Placed[extra.Glyph];
                 int second = extra.Quad * 4;
-                int face = m_FaceQuad[extra.Glyph];
+                int face = m_Aside.FaceQuad[extra.Glyph];
                 int first = face * 4;
-                int order = m_CpBody[g.Cluster];
-                SymbolSet set = m_GlyphSymbols[extra.Glyph];
+                int order = m_Aside.CpBody[g.Cluster];
+                SymbolSet set = m_Aside.GlyphSymbols[extra.Glyph];
                 float r = order < 0 ? 0 : Mathf.Max(0, roll - order * lag);
                 if (r <= 0 || set == null || set.Glyphs.Length != wheel.Length)
                 {
                     RestoreUv0(first);
                     RestoreUv0(second);
-                    Vertices[second] = Vertices[second + 1] = Vertices[second + 2] = Vertices[second + 3] = m_RestVertices[second];
+                    Vertices[second] = Vertices[second + 1] = Vertices[second + 2] = Vertices[second + 3] = m_Aside.RestVertices[second];
                     continue;
                 }
                 int index = wheel.IndexOf((char)m_Text[g.Cluster]);
@@ -333,7 +326,7 @@ namespace FirstSymbol.Lettera
                 int a = ((low % length) + length) % length, b = (a + 1) % length;
                 FontFace fontFace = g.Instance.Face;
                 float cell = (fontFace.Metrics.Ascender - fontFace.Metrics.Descender) * g.Unit;
-                LetteraGlyphPose pose = m_GlyphPoses[extra.Glyph];
+                LetteraGlyphPose pose = m_Aside.GlyphPoses[extra.Glyph];
                 PlaceSymbol(first, g, set.Glyphs[a], pose, f * cell, 0);
                 PlaceSymbol(second, g, set.Glyphs[b], pose, (f - 1) * cell, 0);
             }

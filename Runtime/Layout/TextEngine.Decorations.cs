@@ -22,22 +22,22 @@ namespace FirstSymbol.Lettera
 
         bool IsPosedByCluster(int cluster)
         {
-            for (int s = 0; s < m_MotionSpans.Count; s++)
+            for (int s = 0; s < m_Aside.MotionSpans.Count; s++)
             {
-                MotionSpan span = m_MotionSpans[s];
+                MotionSpan span = m_Aside.MotionSpans[s];
                 if (cluster >= span.Start && cluster < span.End && (span.Effect.Unit == LetteraMotionUnit.Cluster || span.Effect.Unit == LetteraMotionUnit.Word)) return true;
             }
-            return m_RevealSpans.Count > 0 && m_CpReveal[cluster] >= 0;
+            return m_Aside.RevealSpans.Count > 0 && m_Aside.CpReveal[cluster] >= 0;
         }
 
         bool IsPosed(int cluster)
         {
-            for (int s = 0; s < m_MotionSpans.Count; s++)
+            for (int s = 0; s < m_Aside.MotionSpans.Count; s++)
             {
-                MotionSpan span = m_MotionSpans[s];
+                MotionSpan span = m_Aside.MotionSpans[s];
                 if (cluster >= span.Start && cluster < span.End) return true;
             }
-            return m_RevealSpans.Count > 0 && m_CpReveal[cluster] >= 0;
+            return m_Aside.RevealSpans.Count > 0 && m_Aside.CpReveal[cluster] >= 0;
         }
 
         void AddLinesOf(LayerGroup group, bool strike, bool overlay)
@@ -176,7 +176,7 @@ namespace FirstSymbol.Lettera
             {
                 // A line on a solid text is a box with the text's depth. Its style stays flat paper's.
                 float bar = thickness * 0.5f + grow;
-                Own(ref m_SolidBoxes).Add(new SolidBox { Rect = Rect.MinMaxRect(left - grow, y - bar, right + grow, y + bar), Color = color, Em = m_Host.Data.FontSize, Glyph = m_CurrentOwner });
+                Own(ref m_Aside.SolidBoxes).Add(new SolidBox { Rect = Rect.MinMaxRect(left - grow, y - bar, right + grow, y + bar), Color = color, Em = m_Host.Data.FontSize, Glyph = m_CurrentOwner });
                 return;
             }
             if (style == LetteraLineStyle.Solid && soft <= 0 && !Styled)
@@ -215,9 +215,6 @@ namespace FirstSymbol.Lettera
         }
 
         // ------------------------------------------------------------- highlights
-
-        List<Rect> m_RowRects = Rare<Rect>.List;
-        List<int> m_RowLines = Rare<int>.List;
 
         void DrawHighlights(List<LayerGroup> groups, bool above)
         {
@@ -297,8 +294,8 @@ namespace FirstSymbol.Lettera
         // All lines of one range merge into one contour: each row touches its neighbours where they overlap, and only exposed corners round.
         int DrawBlock(LayerGroup group, int cover, in LayerRecord record, in HighlightSpec spec, int start)
         {
-            m_RowRects.Clear();
-            m_RowLines.Clear();
+            m_Aside.RowRects.Clear();
+            m_Aside.RowLines.Clear();
             int i = start;
             while (i < m_RealCount && group.Cover[m_Placed[i].Cluster] == cover)
             {
@@ -306,41 +303,41 @@ namespace FirstSymbol.Lettera
                 int j = i + 1;
                 while (j < m_RealCount && group.Cover[m_Placed[j].Cluster] == cover && m_Placed[j].Line == line) j++;
                 Rect row = FragmentRect(i, j, spec);
-                if (m_RowLines.Count > 0 && m_RowLines[m_RowLines.Count - 1] == line)
+                if (m_Aside.RowLines.Count > 0 && m_Aside.RowLines[m_Aside.RowLines.Count - 1] == line)
                 {
-                    Rect last = m_RowRects[m_RowRects.Count - 1];
-                    m_RowRects[m_RowRects.Count - 1] = Union(last, row.xMin, row.yMin, row.xMax, row.yMax);
+                    Rect last = m_Aside.RowRects[m_Aside.RowRects.Count - 1];
+                    m_Aside.RowRects[m_Aside.RowRects.Count - 1] = Union(last, row.xMin, row.yMin, row.xMax, row.yMax);
                 }
                 else
                 {
-                    Own(ref m_RowRects).Add(row);
-                    Own(ref m_RowLines).Add(line);
+                    Own(ref m_Aside.RowRects).Add(row);
+                    Own(ref m_Aside.RowLines).Add(line);
                 }
                 i = j;
             }
 
             float radius = spec.Radius.Of(m_Placed[start].Size);
-            for (int r = 0; r < m_RowRects.Count; r++)
+            for (int r = 0; r < m_Aside.RowRects.Count; r++)
             {
-                Rect row = m_RowRects[r];
-                bool hasAbove = r > 0 && Overlap(row, m_RowRects[r - 1]);
-                bool hasBelow = r + 1 < m_RowRects.Count && Overlap(row, m_RowRects[r + 1]);
+                Rect row = m_Aside.RowRects[r];
+                bool hasAbove = r > 0 && Overlap(row, m_Aside.RowRects[r - 1]);
+                bool hasBelow = r + 1 < m_Aside.RowRects.Count && Overlap(row, m_Aside.RowRects[r + 1]);
                 Rect quad = row;
                 // Rows meet halfway across any space between them, so no seam or double blend shows.
                 if (hasBelow)
                 {
-                    Rect below = m_RowRects[r + 1];
+                    Rect below = m_Aside.RowRects[r + 1];
                     float middle = (row.yMin + below.yMax) * 0.5f;
                     quad.yMin = middle;
                 }
                 if (hasAbove)
                 {
-                    Rect aboveRow = m_RowRects[r - 1];
+                    Rect aboveRow = m_Aside.RowRects[r - 1];
                     float middle = (aboveRow.yMin + row.yMax) * 0.5f;
                     quad.yMax = middle;
                 }
-                Rect above = hasAbove ? m_RowRects[r - 1] : default;
-                Rect below2 = hasBelow ? m_RowRects[r + 1] : default;
+                Rect above = hasAbove ? m_Aside.RowRects[r - 1] : default;
+                Rect below2 = hasBelow ? m_Aside.RowRects[r + 1] : default;
                 // tl, tr, br, bl
                 var radii = new Vector4(
                     !hasAbove || row.xMin < above.xMin - Epsilon ? radius : 0,

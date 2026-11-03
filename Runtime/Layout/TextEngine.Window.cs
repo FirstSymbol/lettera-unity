@@ -8,22 +8,15 @@ namespace FirstSymbol.Lettera
     // a scroll inside the window is only an offset on the pose path.
     internal sealed partial class TextEngine
     {
-        LetteraDocumentView m_View;
-        int m_WindowStart, m_WindowLength, m_PreludeLength;
-        float m_WindowOffset;
-        bool m_WindowOffsetWas, m_WindowLoaded;
-        float m_ViewWidth = -1;
-
-        public bool IsWindowed => m_View != null;
-        public LetteraDocumentView View => m_View;
-        public int WindowStart => m_WindowStart;
-        public int WindowLength => m_WindowLength;
-        public float WindowOffset => m_WindowOffset;
-        internal bool IsWindowLoaded => m_WindowLoaded;
+        public bool IsWindowed => m_Aside.View != null;
+        public LetteraDocumentView View => m_Aside.View;
+        public int WindowStart => m_Aside.WindowStart;
+        public int WindowLength => m_Aside.WindowLength;
+        public float WindowOffset => m_Aside.WindowOffset;
+        internal bool IsWindowLoaded => m_Aside.WindowLoaded;
 
         // A scroll needs no hub, but its quads need owners and rest positions. A lean window is built again by any scroll, so it bakes its offset in.
-        bool NeedsRestState => (IsWindowed && !m_WindowLean) || m_PlainScroll;
-        bool m_WindowLean, m_WindowBaked;
+        bool NeedsRestState => (IsWindowed && !m_Aside.WindowLean) || m_Aside.PlainScroll;
 
         public float WindowViewportHeight => Mathf.Max(ComputeBox(m_Host.Data.Padding, m_Host.LayoutRect).height, 0);
         public float WindowViewportWidth => Mathf.Max(ComputeBox(m_Host.Data.Padding, m_Host.LayoutRect).width, 0);
@@ -43,20 +36,20 @@ namespace FirstSymbol.Lettera
             CloseDocument();
             settings = settings ?? new LetteraDocumentSettings();
             ReserveFor(EstimatedWindowCodepoints(settings));
-            m_View = new LetteraDocumentView(this, rope, takeOwnership, settings);
-            m_WindowLoaded = false;
-            m_ViewWidth = WindowViewportWidth;
-            m_View.Open();
+            m_Aside.View = new LetteraDocumentView(this, rope, takeOwnership, settings);
+            m_Aside.WindowLoaded = false;
+            m_Aside.ViewWidth = WindowViewportWidth;
+            m_Aside.View.Open();
         }
 
         public void CloseDocument()
         {
-            if (m_View == null) return;
-            m_View.Close();
-            m_View = null;
-            m_WindowStart = m_WindowLength = m_PreludeLength = 0;
-            m_WindowOffset = 0;
-            m_WindowLoaded = false;
+            if (m_Aside.View == null) return;
+            m_Aside.View.Close();
+            m_Aside.View = null;
+            m_Aside.WindowStart = m_Aside.WindowLength = m_Aside.PreludeLength = 0;
+            m_Aside.WindowOffset = 0;
+            m_Aside.WindowLoaded = false;
             ClearRuntimeText();
             SetDirty(DirtyLevel.Parse);
             m_Host.RequestRebuild(DirtyLevel.Parse);
@@ -65,16 +58,16 @@ namespace FirstSymbol.Lettera
         // The text is going away: the view leaves the hub and lets go of its file, and nothing asks the host for anything more.
         internal void AbandonDocument()
         {
-            m_View?.Close();
-            m_View = null;
+            m_Aside.View?.Close();
+            m_Aside.View = null;
         }
 
         // Source is what is open before the window, then the window's own text: open tags give claims with no shown text, so no matcher needs to know.
         internal void SetWindow(int start, int length, string prelude, float offset, float bandMargin = -1, bool lean = false)
         {
-            if (bandMargin >= 0) m_WindowBandMargin = bandMargin;
-            m_WindowLean = lean;
-            LetteraRope rope = m_View.Rope;
+            if (bandMargin >= 0) m_Aside.WindowBandMargin = bandMargin;
+            m_Aside.WindowLean = lean;
+            LetteraRope rope = m_Aside.View.Rope;
             // The window's characters go straight into the runtime text's buffer: a scroll that moves the window makes no garbage.
             int total = prelude.Length + length;
             if (m_RuntimeChars.Length < total) m_RuntimeChars = new char[Math.Max(total, m_RuntimeChars.Length * 2)];
@@ -83,33 +76,33 @@ namespace FirstSymbol.Lettera
             m_RuntimeLength = total;
             m_RuntimeText = null;
             m_HasRuntimeText = true;
-            m_WindowStart = start;
-            m_WindowLength = length;
-            m_PreludeLength = prelude.Length;
-            m_WindowOffset = offset;
-            m_WindowLoaded = true;
+            m_Aside.WindowStart = start;
+            m_Aside.WindowLength = length;
+            m_Aside.PreludeLength = prelude.Length;
+            m_Aside.WindowOffset = offset;
+            m_Aside.WindowLoaded = true;
             SetDirty(DirtyLevel.Parse);
             m_Host.RequestRebuild(DirtyLevel.Parse);
         }
 
         internal void SetWindowOffset(float offset)
         {
-            if (offset == m_WindowOffset) return;
-            float was = m_WindowOffset;
-            m_WindowOffset = offset;
+            if (offset == m_Aside.WindowOffset) return;
+            float was = m_Aside.WindowOffset;
+            m_Aside.WindowOffset = offset;
             // Past the placed lines, the lines that come into view are placed: inside a rebuild at its end, otherwise by the next one.
             if (m_Banded && m_Dirty < DirtyLevel.Positions && !WindowBandCovers())
             {
                 if (m_InPasses)
                 {
-                    m_WindowBandStale = true;
+                    m_Aside.WindowBandStale = true;
                     return;
                 }
                 SetDirty(DirtyLevel.Positions);
                 m_Host.RequestRebuild(DirtyLevel.Positions);
                 return;
             }
-            if (m_WindowBaked && !m_WantsPose)
+            if (m_Aside.WindowBaked && !m_WantsPose)
             {
                 ShiftBaked(offset - was);
                 return;
@@ -119,9 +112,9 @@ namespace FirstSymbol.Lettera
 
         void BakeWindowOffset()
         {
-            m_WindowBaked = IsWindowed;
-            if (!m_WindowBaked || m_WindowOffset == 0) return;
-            ShiftVertices(m_WindowOffset);
+            m_Aside.WindowBaked = IsWindowed;
+            if (!m_Aside.WindowBaked || m_Aside.WindowOffset == 0) return;
+            ShiftVertices(m_Aside.WindowOffset);
         }
 
         void ShiftBaked(float delta)
@@ -137,8 +130,6 @@ namespace FirstSymbol.Lettera
             for (int i = 0; i < VertexCount; i++) Vertices[i].y += delta;
             m_Bounds.center += new Vector3(0, delta);
         }
-
-        bool m_WindowBandStale;
 
         // What a window with its margins holds, by its viewport and font size, with room to spare. Its buffers take that room when the document opens,
         // so a scroll grows nothing, and opening takes no more than a window needs.
@@ -178,21 +169,21 @@ namespace FirstSymbol.Lettera
             if (Indices.Length < quads * 6) Array.Resize(ref Indices, quads * 6);
             // A window with margins keeps a rest state for its scroll inside it, so that state takes the same room: the window a scroll stops on
             // is often larger than the first, which starts at the top with no margin above it.
-            EnsureExact(ref m_RestVertices, quads * 4);
-            EnsureExact(ref m_RestColors, quads * 4);
-            EnsureExact(ref m_GlyphPoses, quads);
+            EnsureExact(ref m_Aside.RestVertices, quads * 4);
+            EnsureExact(ref m_Aside.RestColors, quads * 4);
+            EnsureExact(ref m_Aside.GlyphPoses, quads);
             EnsureOwnerSize(quads);
-            EnsureExact(ref m_CpBody, n + 1);
+            EnsureExact(ref m_Aside.CpBody, n + 1);
         }
 
         void PlaceWindowAgainIfStale()
         {
-            if (!m_WindowBandStale) return;
-            m_WindowBandStale = false;
+            if (!m_Aside.WindowBandStale) return;
+            m_Aside.WindowBandStale = false;
             if (!m_Banded || WindowBandCovers()) return;
             PositionGlyphs();
             BuildMesh();
-            m_WindowPlaced = false;
+            m_Aside.WindowPlaced = false;
         }
 
         void PoseForScroll()
@@ -203,7 +194,7 @@ namespace FirstSymbol.Lettera
         }
 
         // Where the window's source stands in the document: a position in one, plus this, is that position in the other.
-        internal int WindowSourceBase => m_WindowStart - m_PreludeLength;
+        internal int WindowSourceBase => m_Aside.WindowStart - m_Aside.PreludeLength;
 
         /// <summary>Turns a change of the window's source into the one edit of the document it means.</summary>
         internal void WriteWindowSource(string value)
@@ -214,18 +205,18 @@ namespace FirstSymbol.Lettera
             while (prefix < limit && old[prefix] == value[prefix]) prefix++;
             while (suffix < limit - prefix && old[old.Length - 1 - suffix] == value[value.Length - 1 - suffix]) suffix++;
             // An edit never touches what stands before the window.
-            prefix = Math.Max(prefix, m_PreludeLength);
+            prefix = Math.Max(prefix, m_Aside.PreludeLength);
             int removed = Math.Max(old.Length - prefix - suffix, 0);
             int inserted = Math.Max(value.Length - prefix - suffix, 0);
-            m_View.Rope.Replace(WindowSourceBase + prefix, removed, value.AsSpan(prefix, inserted));
+            m_Aside.View.Rope.Replace(WindowSourceBase + prefix, removed, value.AsSpan(prefix, inserted));
         }
 
         /// <summary>Where a shown codepoint is in the document.</summary>
-        public int DocCharOf(int shown) => m_WindowStart + SourceAt(Math.Min(Math.Max(shown, 0), m_TextLength)) - m_PreludeLength;
+        public int DocCharOf(int shown) => m_Aside.WindowStart + SourceAt(Math.Min(Math.Max(shown, 0), m_TextLength)) - m_Aside.PreludeLength;
 
         int ShownOfDocChar(int docChar)
         {
-            int source = docChar - m_WindowStart + m_PreludeLength;
+            int source = docChar - m_Aside.WindowStart + m_Aside.PreludeLength;
             if (m_IdentityIndex) return Math.Min(Math.Max(source, 0), m_TextLength);
             int low = 0, high = m_TextLength;
             while (low < high)
@@ -243,7 +234,7 @@ namespace FirstSymbol.Lettera
         internal bool TryWindowLineTop(int docChar, out float top)
         {
             top = 0;
-            if (m_Lines.Count == 0 || docChar < m_WindowStart || docChar > m_WindowStart + m_WindowLength) return false;
+            if (m_Lines.Count == 0 || docChar < m_Aside.WindowStart || docChar > m_Aside.WindowStart + m_Aside.WindowLength) return false;
             int line = LineOf(ShownOfDocChar(docChar), LetteraCaretBias.Forward);
             top = LineTopFromWindow(line);
             return true;
@@ -271,7 +262,7 @@ namespace FirstSymbol.Lettera
         internal float WindowHeightBetween(int fromChar, int toChar)
         {
             float height = 0;
-            int from = ShownOfDocChar(fromChar), to = toChar >= m_View.Rope.Length ? m_TextLength + 1 : ShownOfDocChar(toChar);
+            int from = ShownOfDocChar(fromChar), to = toChar >= m_Aside.View.Rope.Length ? m_TextLength + 1 : ShownOfDocChar(toChar);
             // Only the document's own end has an empty last line: a window's end is followed by more of the document.
             for (int l = 0; l < m_Lines.Count; l++)
             {
@@ -283,22 +274,19 @@ namespace FirstSymbol.Lettera
 
         internal bool CanMeasureBlocks => m_Dirty < DirtyLevel.Shape && !SuspendElide;
 
-        TextEngine m_BlockMeasure;
-        MeasureHost m_BlockHost;
-
         // One engine measures every block, so measuring in the background makes no garbage once its buffers have grown.
         internal float MeasureBlockHeight(ReadOnlySpan<char> source)
         {
-            if (m_BlockMeasure == null)
+            if (m_Aside.BlockMeasure == null)
             {
-                m_BlockHost = new MeasureHost { Owner = m_Host.Owner };
-                m_BlockMeasure = new TextEngine(m_BlockHost);
+                m_Aside.BlockHost = new MeasureHost { Owner = m_Host.Owner };
+                m_Aside.BlockMeasure = new TextEngine(m_Aside.BlockHost);
             }
             LetteraTextData data = m_Host.Data;
-            m_BlockHost.Data = data;
-            m_BlockMeasure.SetRuntimeText(source);
-            m_BlockMeasure.SetDirty(DirtyLevel.Parse);
-            return m_BlockMeasure.Measure(data.FontSize, WindowViewportWidth, 0, data.WordWrap, false, 0, 0).y;
+            m_Aside.BlockHost.Data = data;
+            m_Aside.BlockMeasure.SetRuntimeText(source);
+            m_Aside.BlockMeasure.SetDirty(DirtyLevel.Parse);
+            return m_Aside.BlockMeasure.Measure(data.FontSize, WindowViewportWidth, 0, data.WordWrap, false, 0, 0).y;
         }
 
         internal void CollectTagNames(List<string> names)
@@ -310,45 +298,41 @@ namespace FirstSymbol.Lettera
                     names.Add(tag.Name);
         }
 
-        bool m_WindowPlaced;
-
         /// <summary>The window's text was laid out: what is held in document positions is read again from it.</summary>
         internal event Action WindowPlaced;
 
         void AfterWindowPasses()
         {
-            if (m_View == null || !m_WindowPlaced) return;
-            m_WindowPlaced = false;
+            if (m_Aside.View == null || !m_Aside.WindowPlaced) return;
+            m_Aside.WindowPlaced = false;
             float width = WindowViewportWidth;
-            bool wider = !Mathf.Approximately(width, m_ViewWidth);
-            m_ViewWidth = width;
-            if (wider) m_View.NewGeneration();
-            else m_View.AfterLayout();
+            bool wider = !Mathf.Approximately(width, m_Aside.ViewWidth);
+            m_Aside.ViewWidth = width;
+            if (wider) m_Aside.View.NewGeneration();
+            else m_Aside.View.AfterLayout();
             WindowPlaced?.Invoke();
         }
 
         // ------------------------------------------------------------- a plain text under a scroller
 
-        bool m_PlainScroll;
-
         /// <summary>Lets a text that is no document scroll with the same offset, with no movement of its rect.</summary>
         public void SetPlainScroll(bool on)
         {
-            if (m_PlainScroll == on) return;
-            m_PlainScroll = on;
-            if (!on) m_WindowOffset = 0;
+            if (m_Aside.PlainScroll == on) return;
+            m_Aside.PlainScroll = on;
+            if (!on) m_Aside.WindowOffset = 0;
             SetDirty(DirtyLevel.Mesh);
             m_Host.RequestRebuild(DirtyLevel.Mesh);
         }
 
-        public bool ClipsViewport => IsWindowed || m_PlainScroll;
+        public bool ClipsViewport => IsWindowed || m_Aside.PlainScroll;
 
         public float PlainExtent => m_ContentHeight;
 
         public void SetPlainOffset(float offset)
         {
-            if (offset == m_WindowOffset) return;
-            m_WindowOffset = offset;
+            if (offset == m_Aside.WindowOffset) return;
+            m_Aside.WindowOffset = offset;
             PoseForScroll();
         }
 
@@ -376,7 +360,7 @@ namespace FirstSymbol.Lettera
             }
         }
 
-        bool ShowsBars => m_View != null && m_View.IsShownAsBars;
+        bool ShowsBars => m_Aside.View != null && m_Aside.View.IsShownAsBars;
 
         internal void BarsChanged()
         {
@@ -387,12 +371,12 @@ namespace FirstSymbol.Lettera
         // Each block a bar, merged until a bar covers two screen pixels: the work is bounded by the screen, however much text is in view.
         void DrawBars()
         {
-            LetteraRope rope = m_View.Rope;
+            LetteraRope rope = m_Aside.View.Rope;
             if (rope.BlockCount == 0) return;
             Color32 baseColor = m_Host.BaseColor;
             var color = new Color32(baseColor.r, baseColor.g, baseColor.b, (byte)(baseColor.a * 0.35f));
             float top = m_Box.yMax, height = m_Box.height;
-            double y = m_View.DocumentY, bottom = y + height;
+            double y = m_Aside.View.DocumentY, bottom = y + height;
             double minimum = 2.0 * m_Host.Data.FontSize / Mathf.Max(ProjectedEmPixels, 0.01f);
             int block = rope.BlockAtHeight(y, out _);
             UseSegment(s_NoPaint);
@@ -422,10 +406,6 @@ namespace FirstSymbol.Lettera
             public int DocChar, Style;
         }
 
-        Dictionary<long, int> m_DocumentRangeIds = Rare<long, int>.Map;
-        HashSet<long> m_PresentRanges;
-        List<long> m_DocumentRangeScratch = Rare<long>.List;
-
         /// <summary>Tells whether a range holds state worth keeping out of a window, beyond the covers this knows itself.</summary>
         internal Func<int, bool> RangeHasOutsideState;
 
@@ -435,50 +415,50 @@ namespace FirstSymbol.Lettera
         void AssignDocumentRangeIds(LetteraMatchContext context)
         {
             List<LetteraMatchContext.RangeRecord> ranges = context.Ranges;
-            m_RangeIds.Clear();
-            if (ranges.Count == 0 && m_DocumentRangeIds.Count == 0) return;
-            HashSet<long> present = m_PresentRanges ?? (m_PresentRanges = new HashSet<long>());
+            m_Aside.RangeIds.Clear();
+            if (ranges.Count == 0 && m_Aside.DocumentRangeIds.Count == 0) return;
+            HashSet<long> present = m_Aside.PresentRanges ?? (m_Aside.PresentRanges = new HashSet<long>());
             present.Clear();
             for (int r = 0; r < ranges.Count; r++)
             {
                 LetteraMatchContext.RangeRecord range = ranges[r];
-                int docChar = m_WindowStart + SourceAt(Math.Min(Math.Max(range.RenderedStart, 0), m_TextLength)) - m_PreludeLength;
+                int docChar = m_Aside.WindowStart + SourceAt(Math.Min(Math.Max(range.RenderedStart, 0), m_TextLength)) - m_Aside.PreludeLength;
                 long key = DocumentRangeKey(docChar, range.StyleIndex);
-                if (!m_DocumentRangeIds.TryGetValue(key, out int id))
+                if (!m_Aside.DocumentRangeIds.TryGetValue(key, out int id))
                 {
-                    id = m_NextRangeId++;
-                    Own(ref m_DocumentRangeIds)[key] = id;
+                    id = m_Aside.NextRangeId++;
+                    Own(ref m_Aside.DocumentRangeIds)[key] = id;
                 }
                 present.Add(key);
-                Own(ref m_RangeIds).Add(id);
+                Own(ref m_Aside.RangeIds).Add(id);
             }
-            m_DocumentRangeScratch.Clear();
-            foreach (KeyValuePair<long, int> pair in m_DocumentRangeIds)
-                if (!present.Contains(pair.Key) && !(m_CoverTarget.TryGetValue(pair.Value, out bool open) && open) && !(RangeHasOutsideState != null && RangeHasOutsideState(pair.Value)))
-                    Own(ref m_DocumentRangeScratch).Add(pair.Key);
-            foreach (long key in m_DocumentRangeScratch)
+            m_Aside.DocumentRangeScratch.Clear();
+            foreach (KeyValuePair<long, int> pair in m_Aside.DocumentRangeIds)
+                if (!present.Contains(pair.Key) && !(m_Aside.CoverTarget.TryGetValue(pair.Value, out bool open) && open) && !(RangeHasOutsideState != null && RangeHasOutsideState(pair.Value)))
+                    Own(ref m_Aside.DocumentRangeScratch).Add(pair.Key);
+            foreach (long key in m_Aside.DocumentRangeScratch)
             {
-                int id = m_DocumentRangeIds[key];
-                m_DocumentRangeIds.Remove(key);
-                m_CoverValue.Remove(id);
-                m_CoverTarget.Remove(id);
+                int id = m_Aside.DocumentRangeIds[key];
+                m_Aside.DocumentRangeIds.Remove(key);
+                m_Aside.CoverValue.Remove(id);
+                m_Aside.CoverTarget.Remove(id);
                 RangeRetired?.Invoke(id);
             }
         }
 
         internal void MapDocumentRanges(LetteraRopePatch patch)
         {
-            if (m_DocumentRangeIds.Count == 0) return;
-            var mapped = new Dictionary<long, int>(m_DocumentRangeIds.Count);
-            foreach (KeyValuePair<long, int> pair in m_DocumentRangeIds)
+            if (m_Aside.DocumentRangeIds.Count == 0) return;
+            var mapped = new Dictionary<long, int>(m_Aside.DocumentRangeIds.Count);
+            foreach (KeyValuePair<long, int> pair in m_Aside.DocumentRangeIds)
             {
                 int docChar = (int)(pair.Key >> 20), style = (int)(pair.Key & 0xFFFFF);
                 // One the edit cut into starts over.
                 if (docChar > patch.Start && docChar < patch.Start + patch.Removed) continue;
                 mapped[DocumentRangeKey(patch.Map(docChar), style)] = pair.Value;
             }
-            m_DocumentRangeIds.Clear();
-            foreach (KeyValuePair<long, int> pair in mapped) Own(ref m_DocumentRangeIds)[pair.Key] = pair.Value;
+            m_Aside.DocumentRangeIds.Clear();
+            foreach (KeyValuePair<long, int> pair in mapped) Own(ref m_Aside.DocumentRangeIds)[pair.Key] = pair.Value;
         }
 
         // ------------------------------------------------------------- reading what a document holds
@@ -498,7 +478,7 @@ namespace FirstSymbol.Lettera
         /// <summary>The plain text between two places in the document, with markup gone, read block by block with what is open before each.</summary>
         internal string DocumentPlainBetween(int fromChar, int toChar)
         {
-            LetteraRope rope = m_View.Rope;
+            LetteraRope rope = m_Aside.View.Rope;
             var walk = new DocumentTagWalk(rope);
             var builder = new System.Text.StringBuilder(toChar - fromChar);
             if (rope.BlockCount == 0 || toChar <= fromChar) return "";
@@ -522,14 +502,14 @@ namespace FirstSymbol.Lettera
         }
 
         /// <summary>A place in the document, as an index of what shows now, held to the window's ends.</summary>
-        public int ShownOfDocument(int docChar) => ShownOfDocChar(Math.Max(m_WindowStart, Math.Min(docChar, m_WindowStart + m_WindowLength)));
+        public int ShownOfDocument(int docChar) => ShownOfDocChar(Math.Max(m_Aside.WindowStart, Math.Min(docChar, m_Aside.WindowStart + m_Aside.WindowLength)));
 
         internal Vector2 ScrollIntoContent(Vector2 point)
         {
-            point.y -= m_WindowOffset;
+            point.y -= m_Aside.WindowOffset;
             return point;
         }
 
-        internal Rect ScrolledRect(in Rect rect) => new Rect(rect.x, rect.y + m_WindowOffset, rect.width, rect.height);
+        internal Rect ScrolledRect(in Rect rect) => new Rect(rect.x, rect.y + m_Aside.WindowOffset, rect.width, rect.height);
     }
 }

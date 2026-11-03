@@ -11,22 +11,8 @@ namespace FirstSymbol.Lettera
     internal sealed partial class TextEngine
     {
         bool m_Deferring;
-        int m_DeferBaseLevel;
         int m_PendingCount;
         int m_FirstPending;             // No paragraph before this one waits.
-
-        // What estimates read, learned from the paragraphs done so far.
-        float m_EstAdvanceEm, m_EstLineEm, m_EstFill;
-        double m_SeenAdvanceEm, m_SeenChars, m_SeenLineEm, m_SeenLines, m_SeenUsed, m_SeenRoom;
-
-        float m_LaidSize, m_LaidWidth;
-        bool m_LaidWrap;
-        bool m_PlacedOnEstimates;       // A paragraph above the placed lines still waits, so they stand where estimates put them.
-        int m_EstimateVersion;
-
-        readonly List<LetteraLine> m_SpliceLines = new List<LetteraLine>();
-        readonly List<Run> m_RunScratch = new List<Run>();
-        ShapedGlyph[] m_GlyphScratch = Array.Empty<ShapedGlyph>();
 
         // The first paragraphs are shaped at once whatever shows: they teach the estimates, and a text read from its top needs them anyway.
         const int SampleCodepoints = 1024;
@@ -44,11 +30,11 @@ namespace FirstSymbol.Lettera
         internal int ShapedGlyphCount => m_ShapedCount;
 
         /// <summary>Changes whenever the text's height may have changed by finishing.</summary>
-        internal int EstimateVersion => m_EstimateVersion;
+        internal int EstimateVersion => m_Aside.EstimateVersion;
 
         bool DeferApplies(int length, LetteraTextData data) =>
             LetteraLongText.FinishLater && LetteraLongText.VisibleLinesOnly && m_HasVisible && length >= LetteraLongText.FromGlyphs && !IsWindowed && !ClipsViewport &&
-            MaskGlyph == 0 && RevealSource < 0 && m_StageHooks.Count == 0 && m_InlineItems.Count == 0 && !m_Attributes.HasLayout && !m_Attributes.HasCurve &&
+            MaskGlyph == 0 && RevealSource < 0 && m_Aside.StageHooks.Count == 0 && m_Aside.InlineItems.Count == 0 && !m_Attributes.HasLayout && !m_Attributes.HasCurve &&
             m_Attributes.Elides.Count == 0 && m_Attributes.Marquee == null && m_Attributes.RevealRequests.Count == 0 && m_Attributes.LineHeights.Count == 0 &&
             m_Attributes.LineGaps.Count == 0 && m_Attributes.ParagraphSpacings.Count == 0 && m_Attributes.TrimTop == LetteraTrimTop.None &&
             m_Attributes.TrimBottom == LetteraTrimBottom.None && !data.AutoSize && data.VerticalAlignment == LetteraVerticalAlignment.Top &&
@@ -56,10 +42,10 @@ namespace FirstSymbol.Lettera
 
         void ForgetEstimates()
         {
-            m_SeenAdvanceEm = m_SeenChars = m_SeenLineEm = m_SeenLines = m_SeenUsed = m_SeenRoom = 0;
-            m_EstAdvanceEm = 0.5f;
-            m_EstLineEm = Mathf.Max(EstimatedLineHeight / Mathf.Max(m_Host.Data.FontSize, 0.01f), 0.5f);
-            m_EstFill = 0.9f;
+            m_Aside.SeenAdvanceEm = m_Aside.SeenChars = m_Aside.SeenLineEm = m_Aside.SeenLines = m_Aside.SeenUsed = m_Aside.SeenRoom = 0;
+            m_Aside.EstAdvanceEm = 0.5f;
+            m_Aside.EstLineEm = Mathf.Max(EstimatedLineHeight / Mathf.Max(m_Host.Data.FontSize, 0.01f), 0.5f);
+            m_Aside.EstFill = 0.9f;
             m_FirstPending = 0;
         }
 
@@ -71,7 +57,7 @@ namespace FirstSymbol.Lettera
                     count++;
             m_PendingCount = count;
             m_FirstPending = 0;
-            m_EstimateVersion++;
+            m_Aside.EstimateVersion++;
         }
 
         bool PendingBefore(int paragraph)
@@ -113,11 +99,11 @@ namespace FirstSymbol.Lettera
 
         void AddEstimatedLine(List<LetteraLine> lines, ref LineStats stats, in Paragraph paragraph, int index, float baseSize, float maxWidth, bool wrap)
         {
-            float lineHeight = m_EstLineEm * baseSize;
+            float lineHeight = m_Aside.EstLineEm * baseSize;
             int count = 1;
             int chars = paragraph.ContentEnd - paragraph.Start;
             if (wrap && chars > 0 && !float.IsInfinity(maxWidth) && maxWidth > 0)
-                count = Mathf.Max(1, Mathf.CeilToInt(chars * m_EstAdvanceEm * baseSize / (maxWidth * m_EstFill)));
+                count = Mathf.Max(1, Mathf.CeilToInt(chars * m_Aside.EstAdvanceEm * baseSize / (maxWidth * m_Aside.EstFill)));
             float height = count * lineHeight;
             lines.Add(new LetteraLine
             {
@@ -131,13 +117,13 @@ namespace FirstSymbol.Lettera
         {
             int count = lines.Count - first;
             if (count <= 0 || baseSize <= 0) return;
-            for (int l = first; l < lines.Count; l++) m_SeenLineEm += lines[l].Height / baseSize;
-            m_SeenLines += count;
-            m_EstLineEm = (float)(m_SeenLineEm / m_SeenLines);
+            for (int l = first; l < lines.Count; l++) m_Aside.SeenLineEm += lines[l].Height / baseSize;
+            m_Aside.SeenLines += count;
+            m_Aside.EstLineEm = (float)(m_Aside.SeenLineEm / m_Aside.SeenLines);
             if (!wrap || count < 2 || float.IsInfinity(maxWidth) || maxWidth <= 0) return;
-            for (int l = first; l < lines.Count - 1; l++) m_SeenUsed += lines[l].Width;
-            m_SeenRoom += (count - 1) * (double)maxWidth;
-            m_EstFill = Mathf.Clamp((float)(m_SeenUsed / m_SeenRoom), 0.5f, 1f);
+            for (int l = first; l < lines.Count - 1; l++) m_Aside.SeenUsed += lines[l].Width;
+            m_Aside.SeenRoom += (count - 1) * (double)maxWidth;
+            m_Aside.EstFill = Mathf.Clamp((float)(m_Aside.SeenUsed / m_Aside.SeenRoom), 0.5f, 1f);
         }
 
         // ------------------------------------------------------------- shaping what waits
@@ -212,7 +198,7 @@ namespace FirstSymbol.Lettera
             int runs = m_Runs.Count, glyphs = m_ShapedCount;
             int insertRun = RunAtOrAfter(m_Paragraphs[first].Start, runs);
             LetteraAttributes attributes = m_Attributes;
-            int baseLevel = m_DeferBaseLevel;
+            int baseLevel = m_Aside.DeferBaseLevel;
             for (int p = first; p < end; p++)
             {
                 Paragraph paragraph = m_Paragraphs[p];
@@ -244,8 +230,8 @@ namespace FirstSymbol.Lettera
                 m_PendingCount--;
                 double advance = 0;
                 for (int i = paragraph.Start; i < paragraph.ContentEnd; i++) advance += m_CpAdvanceEm[i];
-                m_SeenAdvanceEm += advance;
-                m_SeenChars += paragraph.ContentEnd - paragraph.Start;
+                m_Aside.SeenAdvanceEm += advance;
+                m_Aside.SeenChars += paragraph.ContentEnd - paragraph.Start;
             }
             // An empty paragraph after these took its direction from one that waited.
             for (int p = end; p < m_Paragraphs.Count && baseLevel < 0; p++)
@@ -255,7 +241,7 @@ namespace FirstSymbol.Lettera
                 next.Level = m_Paragraphs[p - 1].Level;
                 m_Paragraphs[p] = next;
             }
-            if (m_SeenChars > 0) m_EstAdvanceEm = (float)(m_SeenAdvanceEm / m_SeenChars);
+            if (m_Aside.SeenChars > 0) m_Aside.EstAdvanceEm = (float)(m_Aside.SeenAdvanceEm / m_Aside.SeenChars);
             if (insertRun < runs) MoveIntoPlace(insertRun, runs, glyphs);
         }
 
@@ -266,19 +252,19 @@ namespace FirstSymbol.Lettera
             int insertGlyph = m_Runs[insertRun].GlyphStart;
             if (newGlyphs > 0)
             {
-                EnsureSize(ref m_GlyphScratch, newGlyphs);
-                Array.Copy(m_Shaped, glyphs, m_GlyphScratch, 0, newGlyphs);
+                EnsureSize(ref m_Aside.GlyphScratch, newGlyphs);
+                Array.Copy(m_Shaped, glyphs, m_Aside.GlyphScratch, 0, newGlyphs);
                 Array.Copy(m_Shaped, insertGlyph, m_Shaped, insertGlyph + newGlyphs, glyphs - insertGlyph);
-                Array.Copy(m_GlyphScratch, 0, m_Shaped, insertGlyph, newGlyphs);
+                Array.Copy(m_Aside.GlyphScratch, 0, m_Shaped, insertGlyph, newGlyphs);
             }
-            m_RunScratch.Clear();
+            m_Aside.RunScratch.Clear();
             for (int r = runs; r < m_Runs.Count; r++)
             {
                 Run run = m_Runs[r];
                 run.GlyphStart += insertGlyph - glyphs;
                 int index = insertRun + r - runs;
                 for (int i = run.Start; i < run.End; i++) m_CpRun[i] = index;
-                m_RunScratch.Add(run);
+                m_Aside.RunScratch.Add(run);
             }
             m_Runs.RemoveRange(runs, newRuns);
             for (int r = insertRun; r < runs; r++)
@@ -288,8 +274,8 @@ namespace FirstSymbol.Lettera
                 m_Runs[r] = run;
                 for (int i = run.Start; i < run.End; i++) m_CpRun[i] += newRuns;
             }
-            m_Runs.InsertRange(insertRun, m_RunScratch);
-            m_RunScratch.Clear();
+            m_Runs.InsertRange(insertRun, m_Aside.RunScratch);
+            m_Aside.RunScratch.Clear();
         }
 
         // ------------------------------------------------------------- lines of what was shaped
@@ -333,11 +319,11 @@ namespace FirstSymbol.Lettera
             int count = end - first;
             float old = 0;
             for (int l = at; l < at + count; l++) old += m_Lines[l].Height + m_Lines[l].GapBefore;
-            m_SpliceLines.Clear();
+            m_Aside.SpliceLines.Clear();
             var stats = new LineStats();
-            BreakParagraphs(m_SpliceLines, ref stats, m_LaidSize, m_LaidWidth, m_LaidWrap, true, first, end);
+            BreakParagraphs(m_Aside.SpliceLines, ref stats, m_Aside.LaidSize, m_Aside.LaidWidth, m_Aside.LaidWrap, true, first, end);
             m_Lines.RemoveRange(at, count);
-            m_Lines.InsertRange(at, m_SpliceLines);
+            m_Lines.InsertRange(at, m_Aside.SpliceLines);
             m_ContentHeight += stats.Height - old;
             if (stats.MaxWidth > m_ContentWidth) m_ContentWidth = stats.MaxWidth;
             if (m_PendingCount == 0)
@@ -347,9 +333,9 @@ namespace FirstSymbol.Lettera
                 for (int l = 0; l < m_Lines.Count; l++) height += m_Lines[l].Height + m_Lines[l].GapBefore;
                 m_ContentHeight = height;
             }
-            int shift = m_SpliceLines.Count - count;
-            m_SpliceLines.Clear();
-            m_EstimateVersion++;
+            int shift = m_Aside.SpliceLines.Count - count;
+            m_Aside.SpliceLines.Clear();
+            m_Aside.EstimateVersion++;
             ShiftPlacedLines(at + count, shift);
             return at;
         }
@@ -366,10 +352,10 @@ namespace FirstSymbol.Lettera
                 if (m_BandFirst >= from) m_BandFirst += shift;
                 if (m_BandEnd >= from) m_BandEnd += shift;
             }
-            m_ExtraLines.Clear();
-            m_ExtraEnd = m_PlacedCount;
-            m_SegmentsValid = false;
-            m_ActiveRectsValid = false;
+            m_Aside.ExtraLines.Clear();
+            m_Aside.ExtraEnd = m_PlacedCount;
+            m_Aside.SegmentsValid = false;
+            m_Aside.ActiveRectsValid = false;
         }
 
         // The paragraphs whose estimates reach into the band are shaped, again until none does: each that is done moves those below it.
@@ -418,8 +404,8 @@ namespace FirstSymbol.Lettera
                 ShapeAllPending(m_FirstPending, m_Paragraphs.Count);
             }
             m_FirstPending = m_Paragraphs.Count;
-            m_PlacedOnEstimates = false;
-            m_EstimateVersion++;
+            m_Aside.PlacedOnEstimates = false;
+            m_Aside.EstimateVersion++;
         }
 
         // A query that reads lines or places finishes everything first. Inside a rebuild it reads what is there.
@@ -456,9 +442,9 @@ namespace FirstSymbol.Lettera
             LayoutBounds = new Rect(LayoutBounds.x, m_Box.yMax - m_ContentHeight, LayoutBounds.width, m_ContentHeight);
             // Done, every line gets its place, as a whole build gives it.
             if (m_PendingCount == 0) return true;
-            if (!m_PlacedOnEstimates) return false;
+            if (!m_Aside.PlacedOnEstimates) return false;
             if (m_BandFirst < m_BandEnd && m_BandFirst < m_Lines.Count && PendingBefore(m_Lines[m_BandFirst].Paragraph)) return false;
-            m_PlacedOnEstimates = false;
+            m_Aside.PlacedOnEstimates = false;
             return true;
         }
     }

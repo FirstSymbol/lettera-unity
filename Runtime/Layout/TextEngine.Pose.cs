@@ -36,16 +36,6 @@ namespace FirstSymbol.Lettera
             public double Time;
         }
 
-        List<MotionSpan> m_MotionSpans = Rare<MotionSpan>.List;
-        List<MotionPhase> m_Phases = Rare<MotionPhase>.List;
-        List<PoseLink> m_PoseLinks = Rare<PoseLink>.List;
-        List<PoseBody> m_PoseBodies = Rare<PoseBody>.List;
-        LetteraGlyphPose[] m_GlyphPoses = System.Array.Empty<LetteraGlyphPose>();
-        LetteraGlyphPose[] m_BodyPoses = System.Array.Empty<LetteraGlyphPose>();
-        Vector3[] m_RestVertices = System.Array.Empty<Vector3>();
-        Color32[] m_RestColors = System.Array.Empty<Color32>();
-        int[] m_QuadOwner = System.Array.Empty<int>();
-        int[] m_CpBody = System.Array.Empty<int>();
         int m_CurrentOwner = -1;
         bool m_WantsPose, m_InHub, m_PoseDirty;
 
@@ -59,7 +49,7 @@ namespace FirstSymbol.Lettera
         public bool HasPoseConsumers => HasMoving || HasSpoilers;
 
         // What needs a tick. A spoiler at rest does not: it joins only while a cover fades.
-        bool HasMoving => m_MotionSpans.Count > 0 || HasRevealOrMarquee || m_PoseHooks.Count > 0 || m_CoverFading;
+        bool HasMoving => m_Aside.MotionSpans.Count > 0 || HasRevealOrMarquee || m_Aside.PoseHooks.Count > 0 || m_Aside.CoverFading;
 
         public void MarkPoseDirty() => m_PoseDirty = true;
 
@@ -67,7 +57,7 @@ namespace FirstSymbol.Lettera
         void CollectMotions()
         {
             m_RevealsCollected = false;
-            m_MotionSpans.Clear();
+            m_Aside.MotionSpans.Clear();
             List<LetteraAttributes.MotionRequest> requests = m_Attributes.MotionRequests;
             for (int r = 0; r < requests.Count; r++)
             {
@@ -76,7 +66,7 @@ namespace FirstSymbol.Lettera
                 request.Effect.Resolve(request.Slots, ref span.Base);
                 span.Effective = span.Base;
                 span.PhaseIndex = PhaseOf(request.Effect);
-                Own(ref m_MotionSpans).Add(span);
+                Own(ref m_Aside.MotionSpans).Add(span);
             }
             RemoveUnusedPhases();
             UpdateHubMembership();
@@ -84,30 +74,30 @@ namespace FirstSymbol.Lettera
 
         int PhaseOf(LetteraMotionEffect effect)
         {
-            for (int i = 0; i < m_Phases.Count; i++)
-                if (m_Phases[i].Effect == effect)
+            for (int i = 0; i < m_Aside.Phases.Count; i++)
+                if (m_Aside.Phases[i].Effect == effect)
                     return i;
-            Own(ref m_Phases).Add(new MotionPhase { Effect = effect, Time = effect.Phase });
-            return m_Phases.Count - 1;
+            Own(ref m_Aside.Phases).Add(new MotionPhase { Effect = effect, Time = effect.Phase });
+            return m_Aside.Phases.Count - 1;
         }
 
         void RemoveUnusedPhases()
         {
-            if (m_Phases.Count <= m_MotionSpans.Count) return;
+            if (m_Aside.Phases.Count <= m_Aside.MotionSpans.Count) return;
             // Dropping one means renumbering what uses them, which is rare enough to do by hand.
-            for (int i = m_Phases.Count - 1; i >= 0; i--)
+            for (int i = m_Aside.Phases.Count - 1; i >= 0; i--)
             {
                 bool used = false;
-                for (int s = 0; s < m_MotionSpans.Count; s++) used |= m_MotionSpans[s].Effect == m_Phases[i].Effect;
+                for (int s = 0; s < m_Aside.MotionSpans.Count; s++) used |= m_Aside.MotionSpans[s].Effect == m_Aside.Phases[i].Effect;
                 if (used) continue;
-                m_Phases.RemoveAt(i);
-                for (int s = 0; s < m_MotionSpans.Count; s++)
+                m_Aside.Phases.RemoveAt(i);
+                for (int s = 0; s < m_Aside.MotionSpans.Count; s++)
                 {
-                    MotionSpan span = m_MotionSpans[s];
+                    MotionSpan span = m_Aside.MotionSpans[s];
                     if (span.PhaseIndex > i)
                     {
                         span.PhaseIndex--;
-                        m_MotionSpans[s] = span;
+                        m_Aside.MotionSpans[s] = span;
                     }
                 }
             }
@@ -135,12 +125,12 @@ namespace FirstSymbol.Lettera
         void PrepareRestState()
         {
             m_WantsPose = true;
-            EnsureExact(ref m_RestVertices, VertexCount);
-            EnsureExact(ref m_RestColors, VertexCount);
-            Array.Copy(Vertices, m_RestVertices, VertexCount);
-            Array.Copy(Colors, m_RestColors, VertexCount);
+            EnsureExact(ref m_Aside.RestVertices, VertexCount);
+            EnsureExact(ref m_Aside.RestColors, VertexCount);
+            Array.Copy(Vertices, m_Aside.RestVertices, VertexCount);
+            Array.Copy(Colors, m_Aside.RestColors, VertexCount);
             CopyRestStreams();
-            EnsureExact(ref m_GlyphPoses, m_PlacedCount);
+            EnsureExact(ref m_Aside.GlyphPoses, m_PlacedCount);
             BuildBodies();
         }
 
@@ -163,40 +153,40 @@ namespace FirstSymbol.Lettera
 
         void EnsureOwnerSize(int quads)
         {
-            if (m_QuadOwner.Length < quads) Array.Resize(ref m_QuadOwner, Math.Max(quads, Math.Max(m_QuadOwner.Length * 2, 64)));
+            if (m_Aside.QuadOwner.Length < quads) Array.Resize(ref m_Aside.QuadOwner, Math.Max(quads, Math.Max(m_Aside.QuadOwner.Length * 2, 64)));
         }
 
         // Which body each glyph of each span belongs to, in reading order.
         void BuildBodies()
         {
-            m_PoseLinks.Clear();
-            m_PoseBodies.Clear();
-            EnsureExact(ref m_CpBody, m_TextLength + 1);
-            for (int s = 0; s < m_MotionSpans.Count; s++)
+            m_Aside.PoseLinks.Clear();
+            m_Aside.PoseBodies.Clear();
+            EnsureExact(ref m_Aside.CpBody, m_TextLength + 1);
+            for (int s = 0; s < m_Aside.MotionSpans.Count; s++)
             {
-                MotionSpan span = m_MotionSpans[s];
-                span.BodyStart = m_PoseBodies.Count;
-                span.LinkStart = m_PoseLinks.Count;
+                MotionSpan span = m_Aside.MotionSpans[s];
+                span.BodyStart = m_Aside.PoseBodies.Count;
+                span.LinkStart = m_Aside.PoseLinks.Count;
                 span.BodyCount = NumberBodies(span);
-                for (int b = 0; b < span.BodyCount; b++) Own(ref m_PoseBodies).Add(new PoseBody { Box = LetteraBodyBox.Empty });
+                for (int b = 0; b < span.BodyCount; b++) Own(ref m_Aside.PoseBodies).Add(new PoseBody { Box = LetteraBodyBox.Empty });
                 for (int i = 0; i < m_PlacedCount; i++)
                 {
                     ref PlacedGlyph g = ref m_Placed[i];
                     if (g.Cluster < span.Start || g.Cluster >= span.End) continue;
-                    int body = m_CpBody[g.Cluster];
+                    int body = m_Aside.CpBody[g.Cluster];
                     if (body < 0) continue;
-                    Own(ref m_PoseLinks).Add(new PoseLink { Glyph = i, Body = span.BodyStart + body });
-                    PoseBody box = m_PoseBodies[span.BodyStart + body];
+                    Own(ref m_Aside.PoseLinks).Add(new PoseLink { Glyph = i, Body = span.BodyStart + body });
+                    PoseBody box = m_Aside.PoseBodies[span.BodyStart + body];
                     LetteraLine line = m_Lines[Math.Min(g.Line, m_Lines.Count - 1)];
                     float bottom = g.Y - line.Descent * 0.8f, top = g.Y + line.Ascent * 0.8f;
                     box.Box.Add(g.X, bottom, g.X + g.Advance, top);
                     if (g.Size > box.Em) box.Em = g.Size;
-                    m_PoseBodies[span.BodyStart + body] = box;
+                    m_Aside.PoseBodies[span.BodyStart + body] = box;
                 }
-                span.LinkCount = m_PoseLinks.Count - span.LinkStart;
-                m_MotionSpans[s] = span;
+                span.LinkCount = m_Aside.PoseLinks.Count - span.LinkStart;
+                m_Aside.MotionSpans[s] = span;
             }
-            EnsureExact(ref m_BodyPoses, m_PoseBodies.Count);
+            EnsureExact(ref m_Aside.BodyPoses, m_Aside.PoseBodies.Count);
         }
 
         // Fills the body number of each codepoint, -1 for what does not count. Returns how many bodies there are.
@@ -207,7 +197,7 @@ namespace FirstSymbol.Lettera
             switch (span.Effect.Unit)
             {
                 case LetteraMotionUnit.Range:
-                    for (int c = span.Start; c < end; c++) m_CpBody[c] = 0;
+                    for (int c = span.Start; c < end; c++) m_Aside.CpBody[c] = 0;
                     return end > span.Start ? 1 : 0;
                 case LetteraMotionUnit.Line:
                 {
@@ -220,7 +210,7 @@ namespace FirstSymbol.Lettera
                             lastLine = line;
                             count++;
                         }
-                        m_CpBody[c] = count - 1;
+                        m_Aside.CpBody[c] = count - 1;
                     }
                     return count;
                 }
@@ -233,7 +223,7 @@ namespace FirstSymbol.Lettera
                         LetteraTextNavigator.WordAt(text, c, out _, out int wordEnd);
                         wordEnd = Math.Min(Math.Max(wordEnd, c + 1), end);
                         bool space = LetteraUnicode.IsWhiteSpace(text[c]) || LetteraTextNavigator.IsParagraphSeparator(text[c]);
-                        for (int k = c; k < wordEnd; k++) m_CpBody[k] = space ? -1 : count;
+                        for (int k = c; k < wordEnd; k++) m_Aside.CpBody[k] = space ? -1 : count;
                         if (!space) count++;
                         c = wordEnd;
                     }
@@ -249,11 +239,11 @@ namespace FirstSymbol.Lettera
                             bool space = LetteraUnicode.IsWhiteSpace(m_Text[c]);
                             if (!space) count++;
                             current = space ? -1 : count - 1;
-                            m_CpBody[c] = current;
+                            m_Aside.CpBody[c] = current;
                             if (space) current = -2;
                             continue;
                         }
-                        m_CpBody[c] = current < 0 ? -1 : current;
+                        m_Aside.CpBody[c] = current < 0 ? -1 : current;
                     }
                     return count;
                 }
@@ -266,16 +256,16 @@ namespace FirstSymbol.Lettera
             if (!m_Host.IsDrawn) return;
             bool moved = false;
             bool reduced = LetteraAccessibility.ReducedMotion;
-            for (int p = 0; p < m_Phases.Count; p++)
+            for (int p = 0; p < m_Aside.Phases.Count; p++)
             {
-                MotionPhase phase = m_Phases[p];
+                MotionPhase phase = m_Aside.Phases[p];
                 LetteraMotionEffect effect = phase.Effect;
                 if (effect.Clock == LetteraClock.Manual)
                 {
                     if (phase.Time != effect.Phase)
                     {
                         phase.Time = effect.Phase;
-                        m_Phases[p] = phase;
+                        m_Aside.Phases[p] = phase;
                         moved = true;
                     }
                     continue;
@@ -284,14 +274,14 @@ namespace FirstSymbol.Lettera
                 float step = effect.Clock == LetteraClock.Scaled ? scaled : unscaled;
                 if (step == 0) continue;
                 phase.Time += step;
-                m_Phases[p] = phase;
+                m_Aside.Phases[p] = phase;
                 moved = true;
             }
             moved |= TickReveal(unscaled, scaled);
             moved |= TickMarquee(scaled, unscaled);
             moved |= TickCovers(unscaled);
-            moved |= m_PoseHooks.Count > 0;
-            for (int s = 0; s < m_MotionSpans.Count && !moved; s++) moved = m_MotionSpans[s].Effect.Version != m_MotionSpans[s].SeenVersion;
+            moved |= m_Aside.PoseHooks.Count > 0;
+            for (int s = 0; s < m_Aside.MotionSpans.Count && !moved; s++) moved = m_Aside.MotionSpans[s].Effect.Version != m_Aside.MotionSpans[s].SeenVersion;
             if (!moved && !m_PoseDirty) return;
             m_PoseDirty = false;
             if (m_Dirty >= DirtyLevel.Mesh || !m_WantsPose || (VertexCount == 0 && !m_SolidsOnly)) return;
@@ -336,35 +326,35 @@ namespace FirstSymbol.Lettera
             PoseCount++;
             int glyphs = m_PlacedCount;
             LetteraGlyphPose identity = LetteraGlyphPose.Identity;
-            for (int i = 0; i < glyphs; i++) m_GlyphPoses[i] = identity;
+            for (int i = 0; i < glyphs; i++) m_Aside.GlyphPoses[i] = identity;
             int streams = 0;
             bool reduced = LetteraAccessibility.ReducedMotion;
 
             PoseReveal();
 
-            for (int s = 0; s < m_MotionSpans.Count; s++)
+            for (int s = 0; s < m_Aside.MotionSpans.Count; s++)
             {
-                MotionSpan span = m_MotionSpans[s];
+                MotionSpan span = m_Aside.MotionSpans[s];
                 ResolveEffective(ref span);
-                m_MotionSpans[s] = span;
+                m_Aside.MotionSpans[s] = span;
                 LetteraMotionEffect effect = span.Effect;
                 if (reduced && effect.ReducedMotionPolicy == LetteraReducedMotion.Rest) continue;
-                float t = (float)Wrap(m_Phases[span.PhaseIndex].Time, effect, span.Effective);
+                float t = (float)Wrap(m_Aside.Phases[span.PhaseIndex].Time, effect, span.Effective);
                 for (int b = 0; b < span.BodyCount; b++)
                 {
-                    PoseBody body = m_PoseBodies[span.BodyStart + b];
+                    PoseBody body = m_Aside.PoseBodies[span.BodyStart + b];
                     LetteraGlyphPose pose = LetteraGlyphPose.Identity;
                     float phi = effect.PhiOf(span.Effective, t, b);
                     effect.PoseBody(new LetteraMotionContext(t, phi, b, span.BodyCount, effect.Seed, body.Box, body.Em, span.Effective), ref pose);
-                    m_BodyPoses[span.BodyStart + b] = effect.Strengthen(pose, body.Box);
+                    m_Aside.BodyPoses[span.BodyStart + b] = effect.Strengthen(pose, body.Box);
                 }
                 // Only a glyph something already posed needs composing: the first span over it, usually the only one, just takes its body's pose.
-                bool first = m_MotionSpans.Count == 1 && m_RevealSpans.Count == 0;
+                bool first = m_Aside.MotionSpans.Count == 1 && m_Aside.RevealSpans.Count == 0;
                 for (int l = span.LinkStart; l < span.LinkStart + span.LinkCount; l++)
                 {
-                    PoseLink link = m_PoseLinks[l];
-                    if (first) m_GlyphPoses[link.Glyph] = m_BodyPoses[link.Body];
-                    else m_GlyphPoses[link.Glyph] = m_BodyPoses[link.Body].After(m_GlyphPoses[link.Glyph]);
+                    PoseLink link = m_Aside.PoseLinks[l];
+                    if (first) m_Aside.GlyphPoses[link.Glyph] = m_Aside.BodyPoses[link.Body];
+                    else m_Aside.GlyphPoses[link.Glyph] = m_Aside.BodyPoses[link.Body].After(m_Aside.GlyphPoses[link.Glyph]);
                 }
             }
 
@@ -376,28 +366,28 @@ namespace FirstSymbol.Lettera
             bool colors = false, moved = false;
             for (int q = 0; q < quads; q++)
             {
-                int owner = m_QuadOwner[q];
+                int owner = m_Aside.QuadOwner[q];
                 int v = q * 4;
                 if (owner < 0 || owner >= glyphs)
                 {
-                    if (m_MarqueeOffset != 0 || m_MarqueeWasMoved || m_WindowOffset != 0 || m_WindowOffsetWas)
+                    if (m_Aside.MarqueeOffset != 0 || m_MarqueeWasMoved || m_Aside.WindowOffset != 0 || m_Aside.WindowOffsetWas)
                     {
                         for (int i = 0; i < 4; i++)
                         {
-                            Vector3 r = m_RestVertices[v + i];
-                            Vertices[v + i] = new Vector3(r.x + m_MarqueeOffset, r.y + m_WindowOffset);
+                            Vector3 r = m_Aside.RestVertices[v + i];
+                            Vertices[v + i] = new Vector3(r.x + m_Aside.MarqueeOffset, r.y + m_Aside.WindowOffset);
                         }
                         moved = true;
                     }
                     continue;
                 }
-                ref LetteraGlyphPose pose = ref m_GlyphPoses[owner];
-                float a = pose.A, b = pose.B, c = pose.C, d = pose.D, tx = pose.Tx + m_MarqueeOffset, ty = pose.Ty + m_WindowOffset;
+                ref LetteraGlyphPose pose = ref m_Aside.GlyphPoses[owner];
+                float a = pose.A, b = pose.B, c = pose.C, d = pose.D, tx = pose.Tx + m_Aside.MarqueeOffset, ty = pose.Ty + m_Aside.WindowOffset;
                 if (a == 1 && b == 0 && c == 0 && d == 1)
                 {
                     for (int i = v; i < v + 4; i++)
                     {
-                        ref Vector3 r = ref m_RestVertices[i];
+                        ref Vector3 r = ref m_Aside.RestVertices[i];
                         ref Vector3 o = ref Vertices[i];
                         o.x = r.x + tx;
                         o.y = r.y + ty;
@@ -408,7 +398,7 @@ namespace FirstSymbol.Lettera
                 {
                     for (int i = v; i < v + 4; i++)
                     {
-                        ref Vector3 r = ref m_RestVertices[i];
+                        ref Vector3 r = ref m_Aside.RestVertices[i];
                         ref Vector3 o = ref Vertices[i];
                         o.x = a * r.x + c * r.y + tx;
                         o.y = b * r.x + d * r.y + ty;
@@ -421,7 +411,7 @@ namespace FirstSymbol.Lettera
                     float red = pose.Tint.r, green = pose.Tint.g, blue = pose.Tint.b, alpha = pose.Tint.a * Mathf.Clamp01(pose.Alpha);
                     for (int i = v; i < v + 4; i++)
                     {
-                        ref Color32 rest = ref m_RestColors[i];
+                        ref Color32 rest = ref m_Aside.RestColors[i];
                         Colors[i] = new Color32((byte)(rest.r * red), (byte)(rest.g * green), (byte)(rest.b * blue), (byte)(rest.a * alpha));
                     }
                     colors = true;
@@ -429,23 +419,23 @@ namespace FirstSymbol.Lettera
                 else if (m_PoseHadColors)
                 {
                     // Only what an earlier pass tinted has anything to go back from.
-                    for (int i = v; i < v + 4; i++) Colors[i] = m_RestColors[i];
+                    for (int i = v; i < v + 4; i++) Colors[i] = m_Aside.RestColors[i];
                 }
                 moved = true;
             }
-            m_MarqueeWasMoved = m_MarqueeOffset != 0;
-            m_WindowOffsetWas = m_WindowOffset != 0;
+            m_MarqueeWasMoved = m_Aside.MarqueeOffset != 0;
+            m_Aside.WindowOffsetWas = m_Aside.WindowOffset != 0;
             ApplyCoverAlpha();
             if (moved) streams |= StreamPositions;
             // Colors stay in step each pass: a glyph whose fade ended has to go back as well.
             if (colors || m_PoseHadColors) streams |= StreamColors;
             m_PoseHadColors = colors;
 
-            for (int s = 0; s < m_MotionSpans.Count; s++)
+            for (int s = 0; s < m_Aside.MotionSpans.Count; s++)
             {
-                MotionSpan span = m_MotionSpans[s];
+                MotionSpan span = m_Aside.MotionSpans[s];
                 if (reduced && span.Effect.ReducedMotionPolicy == LetteraReducedMotion.Rest && !(span.Effect is DeformMotion)) continue;
-                span.Effect.WriteStreams(this, span, (float)Wrap(m_Phases[span.PhaseIndex].Time, span.Effect, span.Effective));
+                span.Effect.WriteStreams(this, span, (float)Wrap(m_Aside.Phases[span.PhaseIndex].Time, span.Effect, span.Effective));
             }
             streams |= m_ExtraStreams;
             m_ExtraStreams = 0;
@@ -471,7 +461,7 @@ namespace FirstSymbol.Lettera
             bool any = false;
             for (int q = 0; q < quads; q++)
             {
-                int owner = m_QuadOwner[q];
+                int owner = m_Aside.QuadOwner[q];
                 if (owner < 0 || owner >= m_PlacedCount) continue;
                 int cluster = m_Placed[owner].Cluster;
                 if (cluster < span.Start || cluster >= span.End) continue;
@@ -484,10 +474,10 @@ namespace FirstSymbol.Lettera
         }
 
         /// <summary>Where a vertex rests, for tests and what wants to compare.</summary>
-        internal Vector3 RestVertex(int v) => m_WantsPose ? m_RestVertices[v] : Vertices[v];
+        internal Vector3 RestVertex(int v) => m_WantsPose ? m_Aside.RestVertices[v] : Vertices[v];
 
         /// <summary>The glyph's pose after the last pass. Tests and inline objects read this.</summary>
-        internal LetteraGlyphPose PoseOfGlyph(int glyph) => glyph < m_GlyphPoses.Length && m_WantsPose ? m_GlyphPoses[glyph] : LetteraGlyphPose.Identity;
+        internal LetteraGlyphPose PoseOfGlyph(int glyph) => glyph < m_Aside.GlyphPoses.Length && m_WantsPose ? m_Aside.GlyphPoses[glyph] : LetteraGlyphPose.Identity;
 
         internal int FirstGlyphOf(int cluster)
         {

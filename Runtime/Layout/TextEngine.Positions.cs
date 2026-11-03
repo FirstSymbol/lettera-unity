@@ -54,8 +54,8 @@ namespace FirstSymbol.Lettera
         void PositionGlyphs()
         {
             PlaceGlyphs();
-            m_WindowPlaced = true;
-            m_ActiveRectsValid = false;
+            m_Aside.WindowPlaced = true;
+            m_Aside.ActiveRectsValid = false;
             m_SemanticsStale = true;
             RunPlacedHooks();
         }
@@ -64,13 +64,13 @@ namespace FirstSymbol.Lettera
         {
             LetteraTextData data = m_Host.Data;
             m_PlacedCount = 0;
-            m_SegmentsValid = false;
-            m_VirtualGlyphs.Clear();
+            m_Aside.SegmentsValid = false;
+            m_Aside.VirtualGlyphs.Clear();
             // A box that only grew taller asks no new lines, only new places.
             if (m_Banded && !IsWindowed) m_Box = ComputeBox(data.Padding, m_Host.LayoutRect);
 
             float top = m_Box.yMax;
-            bool clips = m_Host.ClipsOverflow || m_MarqueeScrolling || ClipsViewport;
+            bool clips = m_Host.ClipsOverflow || m_Aside.MarqueeScrolling || ClipsViewport;
             // A viewport's content starts at its top, however tall it is.
             if (!ClipsViewport && (m_Box.height > 0 || m_ContentHeight > 0))
             {
@@ -112,17 +112,17 @@ namespace FirstSymbol.Lettera
                 y -= line.Height;
             }
             m_RealCount = m_PlacedCount;
-            if (m_ListItems.Count > 0) PlaceListMarkers();
-            if (m_RubyItems.Count > 0) PlaceRubies();
-            if (m_FormulaCount > 0) PlaceFormulas();
-            foreach (PlacedGlyph glyph in m_VirtualGlyphs)
+            if (m_Aside.ListItems.Count > 0) PlaceListMarkers();
+            if (m_Aside.RubyItems.Count > 0) PlaceRubies();
+            if (m_Aside.FormulaCount > 0) PlaceFormulas();
+            foreach (PlacedGlyph glyph in m_Aside.VirtualGlyphs)
             {
                 EnsureSize(ref m_Placed, m_PlacedCount + 1);
                 m_Placed[m_PlacedCount++] = glyph;
             }
             if (m_Attributes.HasCurve) CurveLines();
             FinishBand(top + m_TrimTop, y);
-            m_PlacedOnEstimates = m_PendingCount > 0 && m_BandFirst < m_BandEnd && PendingBefore(m_Lines[m_BandFirst].Paragraph);
+            m_Aside.PlacedOnEstimates = m_PendingCount > 0 && m_BandFirst < m_BandEnd && PendingBefore(m_Lines[m_BandFirst].Paragraph);
             if (left > right) left = right = m_Box.x;
             LayoutBounds = new Rect(left, top - m_ContentHeight, right - left, m_ContentHeight);
         }
@@ -276,7 +276,7 @@ namespace FirstSymbol.Lettera
                 {
                     if ((markersPlaced & (1 << Math.Min(removal, 30))) == 0)
                     {
-                        PlaceMarker(m_Removals[removal], ref x, baseline, lineIndex);
+                        PlaceMarker(m_Aside.Removals[removal], ref x, baseline, lineIndex);
                         markersPlaced |= 1 << Math.Min(removal, 30);
                     }
                     v++;
@@ -302,25 +302,25 @@ namespace FirstSymbol.Lettera
                 x = PlaceFragment(runIndex, low, high + 1, x, baseline, lineIndex, size, stretch, line);
                 v = w;
             }
-            for (int r = 0; r < m_Removals.Count; r++)
+            for (int r = 0; r < m_Aside.Removals.Count; r++)
             {
                 if ((markersPlaced & (1 << Math.Min(r, 30))) != 0) continue;
-                int start = m_Removals[r].Start;
-                if (start >= line.VisibleEnd && start < line.End) PlaceMarker(m_Removals[r], ref x, baseline, lineIndex);
+                int start = m_Aside.Removals[r].Start;
+                if (start >= line.VisibleEnd && start < line.End) PlaceMarker(m_Aside.Removals[r], ref x, baseline, lineIndex);
             }
         }
 
         int RemovalOf(int cp)
         {
-            for (int i = 0; i < m_Removals.Count; i++)
-                if (cp >= m_Removals[i].Start && cp < m_Removals[i].End)
+            for (int i = 0; i < m_Aside.Removals.Count; i++)
+                if (cp >= m_Aside.Removals[i].Start && cp < m_Aside.Removals[i].End)
                     return i;
             return -1;
         }
 
         void PlaceMarkersIn(int start, int end, ref float x, float baseline, int lineIndex)
         {
-            foreach (Removal removal in m_Removals)
+            foreach (Removal removal in m_Aside.Removals)
                 if (removal.Start >= start && removal.Start < end)
                     PlaceMarker(removal, ref x, baseline, lineIndex);
         }
@@ -444,7 +444,6 @@ namespace FirstSymbol.Lettera
         }
 
         // Virtual glyphs: they draw like the letter they follow but are no part of the text.
-        List<PlacedGlyph> m_VirtualGlyphs = Rare<PlacedGlyph>.List;
         const int Tatweel = 0x0640;
 
         // A connecting stroke across the space tracking opened between joined letters.
@@ -464,7 +463,7 @@ namespace FirstSymbol.Lettera
             uint glyph = LetteraNative.lt_font_glyph(instance.Font, Tatweel, 0);
             float advance = LetteraNative.lt_glyph_advance(instance.Font, glyph) * unit;
             if (advance <= 0) return;
-            Own(ref m_VirtualGlyphs).Add(new PlacedGlyph
+            Own(ref m_Aside.VirtualGlyphs).Add(new PlacedGlyph
             {
                 Glyph = glyph, Instance = instance, Cluster = cluster, Line = lineIndex, X = x, Y = baseline, Advance = 0, Unit = unit,
                 Size = run.UnitEm > 0 ? unit / run.UnitEm : 0, XScale = width / advance - 1,

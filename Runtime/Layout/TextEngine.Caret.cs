@@ -22,49 +22,42 @@ namespace FirstSymbol.Lettera
             public bool Rtl;
         }
 
-        CaretSegment[] m_Segments = Array.Empty<CaretSegment>();   // By line, each line in visual order.
-        int[] m_SegmentStarts = Array.Empty<int>();                // Keys and, below, indices of the segments in logical order.
-        int[] m_LogicalOrder = Array.Empty<int>();
-        int[] m_LineSegments = Array.Empty<int>();                 // The first segment of each line.
-        int m_SegmentCount;
-        bool m_SegmentsValid;
-
         void EnsureSegments()
         {
-            if (m_SegmentsValid) return;
-            m_SegmentsValid = true;
-            m_SegmentCount = 0;
+            if (m_Aside.SegmentsValid) return;
+            m_Aside.SegmentsValid = true;
+            m_Aside.SegmentCount = 0;
             int glyphs = m_RealCount + ExtraGlyphCount + 1;
-            EnsureSize(ref m_Segments, glyphs);
-            EnsureSize(ref m_SegmentStarts, glyphs);
-            EnsureSize(ref m_LogicalOrder, glyphs);
-            EnsureSize(ref m_LineSegments, m_Lines.Count + 1);
+            EnsureSize(ref m_Aside.Segments, glyphs);
+            EnsureSize(ref m_Aside.SegmentStarts, glyphs);
+            EnsureSize(ref m_Aside.LogicalOrder, glyphs);
+            EnsureSize(ref m_Aside.LineSegments, m_Lines.Count + 1);
 
             bool curved = m_Attributes.HasCurve;
             int glyph = 0;
             for (int l = 0; l < m_Lines.Count; l++)
             {
-                m_LineSegments[l] = m_SegmentCount;
-                int first = m_SegmentCount;
+                m_Aside.LineSegments[l] = m_Aside.SegmentCount;
+                int first = m_Aside.SegmentCount;
                 float baseline = m_Lines[l].Baseline;
                 int from = glyph;
                 while (glyph < m_RealCount && m_Placed[glyph].Line == l) glyph++;
                 int to = glyph;
                 // A line the band left out may have been placed for a query, past what the mesh reads.
-                if (from == to && m_ExtraLines.Count > 0) ExtraRange(l, out from, out to);
+                if (from == to && m_Aside.ExtraLines.Count > 0) ExtraRange(l, out from, out to);
                 for (int i = from; i < to; i++)
                 {
                     ref PlacedGlyph g = ref m_Placed[i];
                     if (g.Marker) continue;
                     float left = curved ? g.X : g.Pen, right = left + g.Advance;
-                    if (m_SegmentCount > first && m_Segments[m_SegmentCount - 1].Start == g.Cluster)
+                    if (m_Aside.SegmentCount > first && m_Aside.Segments[m_Aside.SegmentCount - 1].Start == g.Cluster)
                     {
-                        ref CaretSegment last = ref m_Segments[m_SegmentCount - 1];
+                        ref CaretSegment last = ref m_Aside.Segments[m_Aside.SegmentCount - 1];
                         if (left < last.Left) last.Left = left;
                         if (right > last.Right) last.Right = right;
                         continue;
                     }
-                    m_Segments[m_SegmentCount++] = new CaretSegment
+                    m_Aside.Segments[m_Aside.SegmentCount++] = new CaretSegment
                     {
                         Start = g.Cluster, End = g.Cluster + 1, Line = l, Left = left, Right = right,
                         Baseline = curved ? g.Y : baseline, Rtl = (m_Levels[g.Cluster] & 1) != 0,
@@ -72,26 +65,26 @@ namespace FirstSymbol.Lettera
                 }
                 // Justification opens space after a cluster, which belongs to it.
                 if (!curved)
-                    for (int s = first; s + 1 < m_SegmentCount; s++)
-                        if (m_Segments[s + 1].Left > m_Segments[s].Right)
-                            m_Segments[s].Right = m_Segments[s + 1].Left;
+                    for (int s = first; s + 1 < m_Aside.SegmentCount; s++)
+                        if (m_Aside.Segments[s + 1].Left > m_Aside.Segments[s].Right)
+                            m_Aside.Segments[s].Right = m_Aside.Segments[s + 1].Left;
             }
-            m_LineSegments[m_Lines.Count] = m_SegmentCount;
+            m_Aside.LineSegments[m_Lines.Count] = m_Aside.SegmentCount;
 
-            for (int i = 0; i < m_SegmentCount; i++)
+            for (int i = 0; i < m_Aside.SegmentCount; i++)
             {
-                m_SegmentStarts[i] = m_Segments[i].Start;
-                m_LogicalOrder[i] = i;
+                m_Aside.SegmentStarts[i] = m_Aside.Segments[i].Start;
+                m_Aside.LogicalOrder[i] = i;
             }
-            Array.Sort(m_SegmentStarts, m_LogicalOrder, 0, m_SegmentCount);
-            for (int i = 0; i < m_SegmentCount; i++)
+            Array.Sort(m_Aside.SegmentStarts, m_Aside.LogicalOrder, 0, m_Aside.SegmentCount);
+            for (int i = 0; i < m_Aside.SegmentCount; i++)
             {
-                ref CaretSegment segment = ref m_Segments[m_LogicalOrder[i]];
-                int end = i + 1 < m_SegmentCount ? m_SegmentStarts[i + 1] : m_TextLength;
+                ref CaretSegment segment = ref m_Aside.Segments[m_Aside.LogicalOrder[i]];
+                int end = i + 1 < m_Aside.SegmentCount ? m_Aside.SegmentStarts[i + 1] : m_TextLength;
                 end = Math.Min(end, m_Lines[segment.Line].VisibleEnd);
-                for (int r = 0; r < m_Removals.Count; r++)
-                    if (m_Removals[r].Start > segment.Start && m_Removals[r].Start < end)
-                        end = m_Removals[r].Start;
+                for (int r = 0; r < m_Aside.Removals.Count; r++)
+                    if (m_Aside.Removals[r].Start > segment.Start && m_Aside.Removals[r].Start < end)
+                        end = m_Aside.Removals[r].Start;
                 segment.End = Math.Max(end, segment.Start + 1);
             }
         }
@@ -99,11 +92,11 @@ namespace FirstSymbol.Lettera
         // The segment holding a codepoint, or -1.
         int SegmentAt(int cp)
         {
-            int low = 0, high = m_SegmentCount - 1, found = -1;
+            int low = 0, high = m_Aside.SegmentCount - 1, found = -1;
             while (low <= high)
             {
                 int middle = (low + high) / 2;
-                if (m_SegmentStarts[middle] <= cp)
+                if (m_Aside.SegmentStarts[middle] <= cp)
                 {
                     found = middle;
                     low = middle + 1;
@@ -114,8 +107,8 @@ namespace FirstSymbol.Lettera
                 }
             }
             if (found < 0) return -1;
-            int index = m_LogicalOrder[found];
-            return cp < m_Segments[index].End ? index : -1;
+            int index = m_Aside.LogicalOrder[found];
+            return cp < m_Aside.Segments[index].End ? index : -1;
         }
 
         public int LineOf(int index, LetteraCaretBias bias)
@@ -153,9 +146,9 @@ namespace FirstSymbol.Lettera
         bool SegmentOnLine(int cp, int line, out CaretSegment segment)
         {
             int index = cp >= 0 && cp < m_TextLength ? SegmentAt(cp) : -1;
-            if (index >= 0 && m_Segments[index].Line == line)
+            if (index >= 0 && m_Aside.Segments[index].Line == line)
             {
-                segment = m_Segments[index];
+                segment = m_Aside.Segments[index];
                 return true;
             }
             segment = default;
@@ -183,9 +176,9 @@ namespace FirstSymbol.Lettera
 
         int SnapOutOfRemoved(int index)
         {
-            for (int r = 0; r < m_Removals.Count; r++)
-                if (index > m_Removals[r].Start && index < m_Removals[r].End)
-                    return m_Removals[r].Start;
+            for (int r = 0; r < m_Aside.Removals.Count; r++)
+                if (index > m_Aside.Removals[r].Start && index < m_Aside.Removals[r].End)
+                    return m_Aside.Removals[r].Start;
             return index;
         }
 
@@ -280,10 +273,10 @@ namespace FirstSymbol.Lettera
             LetteraTextData data = m_Host.Data;
             float size = CurrentFontSize > 0 ? CurrentFontSize : data.FontSize;
             var stats = new LineStats();
-            m_MeasureLines.Clear();
+            m_Aside.MeasureLines.Clear();
             m_PendingGap = 0;
-            AddLine(m_MeasureLines, ref stats, size, 0, 0, 0, 0, true, 0);
-            LetteraLine line = m_MeasureLines[0];
+            AddLine(m_Aside.MeasureLines, ref stats, size, 0, 0, 0, 0, true, 0);
+            LetteraLine line = m_Aside.MeasureLines[0];
             int direction = m_Attributes.DirectionOverride >= 0 ? m_Attributes.DirectionOverride : data.BaseDirection == LetteraDirection.RightToLeft ? 1 : 0;
             var paragraph = new Paragraph { Level = direction };
             x = AlignLine(data, line, paragraph, m_Host.ClipsOverflow, out _);
@@ -298,7 +291,7 @@ namespace FirstSymbol.Lettera
             Exact();
             int first = rects.Count;
             ContentRangeRects(start, end, rects);
-            if (m_WindowOffset == 0) return;
+            if (m_Aside.WindowOffset == 0) return;
             for (int r = first; r < rects.Count; r++) rects[r] = ScrolledRect(rects[r]);
         }
 
@@ -329,9 +322,9 @@ namespace FirstSymbol.Lettera
                 bool open = false;
                 float left = 0, right = 0;
 
-                for (int s = m_LineSegments[l]; s < m_LineSegments[l + 1]; s++)
+                for (int s = m_Aside.LineSegments[l]; s < m_Aside.LineSegments[l + 1]; s++)
                 {
-                    ref CaretSegment segment = ref m_Segments[s];
+                    ref CaretSegment segment = ref m_Aside.Segments[s];
                     int from = Math.Max(segment.Start, start), to = Math.Min(segment.End, end);
                     if (from >= to) continue;
                     float a = EdgeAt(segment, from == segment.Start ? 0 : FractionInside(segment, from));
@@ -385,19 +378,17 @@ namespace FirstSymbol.Lettera
             rects.Add(new Rect(low, bottom, high - low, height));
         }
 
-        readonly List<Rect> m_RangeScratch = new List<Rect>();
-
         public bool TryGetRangeBounds(int start, int end, out Rect bounds)
         {
             Exact();
-            m_RangeScratch.Clear();
-            GetRangeRects(start, end, m_RangeScratch);
+            m_Aside.RangeScratch.Clear();
+            GetRangeRects(start, end, m_Aside.RangeScratch);
             bounds = default;
-            if (m_RangeScratch.Count == 0) return false;
-            bounds = m_RangeScratch[0];
-            for (int i = 1; i < m_RangeScratch.Count; i++)
+            if (m_Aside.RangeScratch.Count == 0) return false;
+            bounds = m_Aside.RangeScratch[0];
+            for (int i = 1; i < m_Aside.RangeScratch.Count; i++)
             {
-                Rect r = m_RangeScratch[i];
+                Rect r = m_Aside.RangeScratch[i];
                 bounds = Rect.MinMaxRect(Mathf.Min(bounds.xMin, r.xMin), Mathf.Min(bounds.yMin, r.yMin), Mathf.Max(bounds.xMax, r.xMax), Mathf.Max(bounds.yMax, r.yMax));
             }
             return true;
@@ -440,13 +431,13 @@ namespace FirstSymbol.Lettera
                 EnsureSegments();
             }
             LetteraLine line = m_Lines[lineIndex];
-            int first = m_LineSegments[lineIndex], stop = m_LineSegments[lineIndex + 1];
+            int first = m_Aside.LineSegments[lineIndex], stop = m_Aside.LineSegments[lineIndex + 1];
             if (first == stop)
             {
                 if (line.VisibleEnd >= LineEndStop(line)) return line.Start;
             }
             bool rtl = (m_Paragraphs[line.Paragraph].Level & 1) != 0;
-            float visualLeft = first < stop ? m_Segments[first].Left : line.X, visualRight = first < stop ? m_Segments[stop - 1].Right : line.X;
+            float visualLeft = first < stop ? m_Aside.Segments[first].Left : line.X, visualRight = first < stop ? m_Aside.Segments[stop - 1].Right : line.X;
 
             // Past the end of the line, where trailing whitespace hangs.
             if (rtl ? x < visualLeft : x > visualRight)
@@ -455,15 +446,15 @@ namespace FirstSymbol.Lettera
                 return HitHanging(line, x, rtl);
             }
             if (first == stop) return line.Start;
-            if (x <= visualLeft) return StopAt(m_Segments[first], 0, out bias);
-            if (x >= visualRight) return StopAt(m_Segments[stop - 1], 1, out bias);
+            if (x <= visualLeft) return StopAt(m_Aside.Segments[first], 0, out bias);
+            if (x >= visualRight) return StopAt(m_Aside.Segments[stop - 1], 1, out bias);
             for (int s = first; s < stop; s++)
             {
-                ref CaretSegment segment = ref m_Segments[s];
+                ref CaretSegment segment = ref m_Aside.Segments[s];
                 if (x > segment.Right) continue;
                 return StopInSegment(segment, x, out bias);
             }
-            return StopAt(m_Segments[stop - 1], 1, out bias);
+            return StopAt(m_Aside.Segments[stop - 1], 1, out bias);
         }
 
         // A visual edge of a segment as a caret: 0 the left edge, 1 the right.
@@ -532,9 +523,9 @@ namespace FirstSymbol.Lettera
             bias = LetteraCaretBias.Forward;
             int best = -1;
             float bestDistance = float.MaxValue;
-            for (int s = 0; s < m_SegmentCount; s++)
+            for (int s = 0; s < m_Aside.SegmentCount; s++)
             {
-                ref CaretSegment segment = ref m_Segments[s];
+                ref CaretSegment segment = ref m_Aside.Segments[s];
                 var center = new Vector2((segment.Left + segment.Right) * 0.5f, segment.Baseline);
                 float distance = (center - point).sqrMagnitude;
                 if (distance < bestDistance)
@@ -543,7 +534,7 @@ namespace FirstSymbol.Lettera
                     best = s;
                 }
             }
-            return best < 0 ? 0 : StopInSegment(m_Segments[best], point.x, out bias);
+            return best < 0 ? 0 : StopInSegment(m_Aside.Segments[best], point.x, out bias);
         }
 
         /// <summary>Whether a local point lies on a line's box, where an I-beam belongs.</summary>

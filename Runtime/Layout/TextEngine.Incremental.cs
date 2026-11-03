@@ -207,7 +207,7 @@ namespace FirstSymbol.Lettera
         // Where shaping starts again: the start of the paragraph before the edit's first character, with all before it kept. 0 shapes everything.
         int ShapeResume(int baseLevel, LetteraTextData data)
         {
-            bool plain = m_MatchContext.Ranges.Count == 0 && MaskGlyph == 0 && m_StageHooks.Count == 0 && m_InlineItems.Count == 0 && !m_Attributes.HasLayout;
+            bool plain = m_MatchContext.Ranges.Count == 0 && MaskGlyph == 0 && m_Aside.StageHooks.Count == 0 && m_Aside.InlineItems.Count == 0 && !m_Attributes.HasLayout;
             var key = new ShapeKey
             {
                 Chain = m_Chain.Id, BaseLevel = baseLevel, Segmenters = LetteraWordSegmenters.Count, Language = data.Language, Plain = plain, Caches = LetteraCaches.Enabled,
@@ -244,9 +244,9 @@ namespace FirstSymbol.Lettera
         int LayoutResume(float size, float width, bool wrap, LetteraTextData data)
         {
             LetteraSettings settings = LetteraSettings.Instance;
-            bool plain = m_Removals.Count == 0 && !data.AutoSize && !m_MarqueeScrolling && m_Attributes.Elides.Count == 0 && m_RevealSpans.Count == 0 &&
-                         m_StageHooks.Count == 0 && !m_Attributes.HasLayout && m_Attributes.TrimTop == LetteraTrimTop.None && m_Attributes.TrimBottom == LetteraTrimBottom.None &&
-                         m_FitGlyphScale == 1 && m_FitTracking == 0 && m_FitLineHeight == 1 && m_RubyItems.Count == 0 && m_InlineItems.Count == 0 &&
+            bool plain = m_Aside.Removals.Count == 0 && !data.AutoSize && !m_Aside.MarqueeScrolling && m_Attributes.Elides.Count == 0 && m_Aside.RevealSpans.Count == 0 &&
+                         m_Aside.StageHooks.Count == 0 && !m_Attributes.HasLayout && m_Attributes.TrimTop == LetteraTrimTop.None && m_Attributes.TrimBottom == LetteraTrimBottom.None &&
+                         m_FitGlyphScale == 1 && m_FitTracking == 0 && m_FitLineHeight == 1 && m_Aside.RubyItems.Count == 0 && m_Aside.InlineItems.Count == 0 &&
                          m_Attributes.LineGaps.Count == 0 && m_Attributes.ParagraphSpacings.Count == 0 && m_Attributes.LineHeights.Count == 0;
             var key = new LayoutKey
             {

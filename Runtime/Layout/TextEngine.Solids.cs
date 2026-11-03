@@ -16,7 +16,7 @@ namespace FirstSymbol.Lettera
         /// <summary>The glyphs of the text as placed, then the virtual ones a formula adds.</summary>
         internal ReadOnlySpan<PlacedGlyph> PlacedSpan => new ReadOnlySpan<PlacedGlyph>(m_Placed, 0, m_PlacedCount);
 
-        internal bool HasMotionForSolids => m_MotionSpans.Count > 0 || m_RevealSpans.Count > 0;
+        internal bool HasMotionForSolids => m_Aside.MotionSpans.Count > 0 || m_Aside.RevealSpans.Count > 0;
 
         internal List<LetteraAttributes.ExtraRange> ExtrasForSolids => m_Attributes.Extras;
 
@@ -41,14 +41,14 @@ namespace FirstSymbol.Lettera
 
         internal void RuleOfForSolids(int special, out float length, out float thickness, out bool vertical)
         {
-            MathSpecial rule = m_MathSpecials[special];
+            MathSpecial rule = m_Aside.MathSpecials[special];
             length = rule.Length;
             thickness = rule.Thickness;
             vertical = rule.Vertical;
         }
 
         internal LetteraGlyphPose PoseOfForSolids(int glyph) =>
-            glyph >= 0 && glyph < m_GlyphPoses.Length && m_WantsPose ? m_GlyphPoses[glyph] : LetteraGlyphPose.Identity;
+            glyph >= 0 && glyph < m_Aside.GlyphPoses.Length && m_WantsPose ? m_Aside.GlyphPoses[glyph] : LetteraGlyphPose.Identity;
 
         /// <summary>A glyph's vertex color: what its range says, on the text's own, with its fade.</summary>
         internal Color32 SolidColorOf(int glyph)
@@ -56,7 +56,7 @@ namespace FirstSymbol.Lettera
             ref PlacedGlyph g = ref m_Placed[glyph];
             LetteraAttributes.Cp attr = m_Attributes.At(g.Cluster);
             Color32 color = attr.HasColor ? attr.Color : m_Host.BaseColor;
-            if (g.Special != 0 && m_MathSpecials[g.SpecialIndex].HasColor) color = m_MathSpecials[g.SpecialIndex].Color;
+            if (g.Special != 0 && m_Aside.MathSpecials[g.SpecialIndex].HasColor) color = m_Aside.MathSpecials[g.SpecialIndex].Color;
             color.a = (byte)(color.a * attr.Alpha * (attr.HasColor ? m_Host.BaseColor.a / 255f : 1));
             return color;
         }
@@ -70,9 +70,7 @@ namespace FirstSymbol.Lettera
             public int Glyph;
         }
 
-        List<SolidBox> m_SolidBoxes = Rare<SolidBox>.List;
-
-        internal List<SolidBox> SolidBoxes => m_SolidBoxes;
+        internal List<SolidBox> SolidBoxes => m_Aside.SolidBoxes;
 
         // The engine's own quads, which for a solid text hold only what has no outline.
         internal void FillFlatMesh(Mesh mesh, MeshRenderer renderer)

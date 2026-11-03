@@ -332,7 +332,7 @@ namespace FirstSymbol.Lettera
             }
         }
 
-        bool ParagraphCacheApplies(int count) => LetteraCaches.Enabled && count >= ParagraphCacheMinimum && MaskGlyph == 0 && m_StageHooks.Count == 0;
+        bool ParagraphCacheApplies(int count) => LetteraCaches.Enabled && count >= ParagraphCacheMinimum && MaskGlyph == 0 && m_Aside.StageHooks.Count == 0;
 
         long HashParagraph(int start, int count, int baseLevel, string language)
         {

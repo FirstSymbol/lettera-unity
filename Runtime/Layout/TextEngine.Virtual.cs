@@ -14,7 +14,7 @@ namespace FirstSymbol.Lettera
         {
             public FontInstance Instance;
             public float UnitEm;    // Em per font unit.
-            public int First, Count;    // Into m_InlineGlyphs.
+            public int First, Count;    // Into m_Aside.InlineGlyphs.
             public float WidthEm;
             public bool Rtl;
         }
@@ -33,10 +33,6 @@ namespace FirstSymbol.Lettera
             public ShapedInline Reading;
         }
 
-        List<ShapedGlyph> m_InlineGlyphs = Rare<ShapedGlyph>.List;
-        List<ListItem> m_ListItems = Rare<ListItem>.List;
-        List<RubyItem> m_RubyItems = Rare<RubyItem>.List;
-        float[] m_CpListIndent = Array.Empty<float>();
         const float MarkerGapEm = 0.4f;
 
         // Shapes a short string in the base's font, or in another font of the chain when that one lacks it.
@@ -54,7 +50,7 @@ namespace FirstSymbol.Lettera
                 }
                 codepoints[count++] = cp;
             }
-            var result = new ShapedInline { First = m_InlineGlyphs.Count };
+            var result = new ShapedInline { First = m_Aside.InlineGlyphs.Count };
             if (count == 0) return result;
 
             FontInstance instance = preferred;
@@ -93,7 +89,7 @@ namespace FirstSymbol.Lettera
             for (int i = 0; i < shaped; i++)
             {
                 NativeGlyph g = output[i];
-                Own(ref m_InlineGlyphs).Add(new ShapedGlyph { Glyph = g.Glyph, Cluster = (int)g.Cluster, XAdvance = g.XAdvance, XOffset = g.XOffset, YOffset = g.YOffset });
+                Own(ref m_Aside.InlineGlyphs).Add(new ShapedGlyph { Glyph = g.Glyph, Cluster = (int)g.Cluster, XAdvance = g.XAdvance, XOffset = g.XOffset, YOffset = g.YOffset });
                 result.WidthEm += g.XAdvance * unitEm;
             }
             result.Count = Math.Max(shaped, 0);
@@ -102,11 +98,11 @@ namespace FirstSymbol.Lettera
 
         void PrepareVirtual()
         {
-            m_InlineGlyphs.Clear();
-            m_ListItems.Clear();
-            m_RubyItems.Clear();
-            EnsureSize(ref m_CpListIndent, m_TextLength + 1);
-            Array.Clear(m_CpListIndent, 0, m_TextLength + 1);
+            m_Aside.InlineGlyphs.Clear();
+            m_Aside.ListItems.Clear();
+            m_Aside.RubyItems.Clear();
+            EnsureSize(ref m_Aside.CpListIndent, m_TextLength + 1);
+            Array.Clear(m_Aside.CpListIndent, 0, m_TextLength + 1);
             if (m_Attributes.ListItems.Count > 0) PrepareLists();
             if (m_Attributes.Rubies.Count > 0) PrepareRubies();
         }
@@ -170,7 +166,7 @@ namespace FirstSymbol.Lettera
                 }
                 ShapedInline marker = ShapeInline(text, instance, unit, script);
                 if (marker.WidthEm > widest[level]) widest[level] = marker.WidthEm;
-                Own(ref m_ListItems).Add(new ListItem { Start = item.Start, Marker = marker, GapEm = MarkerGapEm });
+                Own(ref m_Aside.ListItems).Add(new ListItem { Start = item.Start, Marker = marker, GapEm = MarkerGapEm });
             }
             FinishList(listStart, items.Count, widest);
         }
@@ -185,12 +181,12 @@ namespace FirstSymbol.Lettera
                 float indent = 0;
                 // A nested item indents under its own parent's column, not the widest sibling's.
                 for (int l = 0; l < level; l++) indent += widest[l] + MarkerGapEm;
-                ListItem built = m_ListItems[n];
+                ListItem built = m_Aside.ListItems[n];
                 float own = item.Placement == LetteraListPlacement.Outside ? widest[level] : built.Marker.WidthEm;
                 built.IndentEm = indent + own + MarkerGapEm;
-                m_ListItems[n] = built;
+                m_Aside.ListItems[n] = built;
                 int stop = Math.Min(item.End, m_TextLength);
-                for (int c = item.Start; c < stop; c++) m_CpListIndent[c] = built.IndentEm;
+                for (int c = item.Start; c < stop; c++) m_Aside.CpListIndent[c] = built.IndentEm;
             }
         }
 
@@ -246,7 +242,7 @@ namespace FirstSymbol.Lettera
 
         void PlaceListMarkers()
         {
-            foreach (ListItem item in m_ListItems)
+            foreach (ListItem item in m_Aside.ListItems)
             {
                 if (item.Marker.Count == 0 || item.Start >= m_TextLength || IsRemoved(item.Start)) continue;
                 for (int l = 0; l < m_Lines.Count; l++)
@@ -269,14 +265,14 @@ namespace FirstSymbol.Lettera
             float unit = shaped.UnitEm * size;
             for (int g = shaped.First; g < shaped.First + shaped.Count; g++)
             {
-                ShapedGlyph glyph = m_InlineGlyphs[g];
-                Own(ref m_VirtualGlyphs).Add(new PlacedGlyph
+                ShapedGlyph glyph = m_Aside.InlineGlyphs[g];
+                Own(ref m_Aside.VirtualGlyphs).Add(new PlacedGlyph
                 {
                     Glyph = glyph.Glyph, Instance = shaped.Instance, Cluster = cluster, Line = line,
                     X = x + glyph.XOffset * unit, Y = baseline + glyph.YOffset * unit, Unit = unit, Size = size,
                 });
                 x += glyph.XAdvance * unit;
-                if (g + 1 < shaped.First + shaped.Count && m_InlineGlyphs[g + 1].Cluster != glyph.Cluster) x += extraPerCluster;
+                if (g + 1 < shaped.First + shaped.Count && m_Aside.InlineGlyphs[g + 1].Cluster != glyph.Cluster) x += extraPerCluster;
             }
         }
 
@@ -290,7 +286,7 @@ namespace FirstSymbol.Lettera
                 Run run = m_Runs[m_CpRun[spec.Start]];
                 ShapedInline reading = ShapeInline(spec.Reading, run.Instance, run.UnitEm, UnicodeScript.Common);
                 float scaled = reading.WidthEm * spec.Scale;
-                Own(ref m_RubyItems).Add(new RubyItem { Spec = spec, Reading = reading });
+                Own(ref m_Aside.RubyItems).Add(new RubyItem { Spec = spec, Reading = reading });
 
                 // A reading wider than its base widens the base's space, centered.
                 float baseWidth = 0;
@@ -313,7 +309,7 @@ namespace FirstSymbol.Lettera
             FontFace primary = m_Chain.PrimaryFace;
             float ascent = primary != null ? (float)primary.Metrics.Ascender / primary.Metrics.Upem : 0.8f;
             float descent = primary != null ? -(float)primary.Metrics.Descender / primary.Metrics.Upem : 0.2f;
-            foreach (RubyItem item in m_RubyItems)
+            foreach (RubyItem item in m_Aside.RubyItems)
             {
                 if (item.Spec.Start >= end || item.Spec.End <= start || item.Reading.Count == 0 || IsRemoved(item.Spec.Start)) continue;
                 float height = (ascent + descent) * em * item.Spec.Scale;
@@ -334,7 +330,7 @@ namespace FirstSymbol.Lettera
             FontFace primary = m_Chain.PrimaryFace;
             float descent = primary != null ? -(float)primary.Metrics.Descender / primary.Metrics.Upem : 0.2f;
             float ascent = primary != null ? (float)primary.Metrics.Ascender / primary.Metrics.Upem : 0.8f;
-            foreach (RubyItem item in m_RubyItems)
+            foreach (RubyItem item in m_Aside.RubyItems)
             {
                 if (item.Reading.Count == 0 || IsRemoved(item.Spec.Start)) continue;
                 float left = float.MaxValue, right = float.MinValue, size = 0;
@@ -394,8 +390,8 @@ namespace FirstSymbol.Lettera
             int clusters = 0, last = -1;
             for (int g = shaped.First; g < shaped.First + shaped.Count; g++)
             {
-                if (m_InlineGlyphs[g].Cluster == last) continue;
-                last = m_InlineGlyphs[g].Cluster;
+                if (m_Aside.InlineGlyphs[g].Cluster == last) continue;
+                last = m_Aside.InlineGlyphs[g].Cluster;
                 clusters++;
             }
             return Math.Max(clusters, 1);

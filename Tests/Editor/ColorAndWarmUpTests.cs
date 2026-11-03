@@ -84,7 +84,8 @@ namespace FirstSymbol.Lettera.Editor.Tests
         public void TiersMapToExactlyTheirVariants()
         {
             Assert.AreEqual(2, LetteraShaderWarmUp.AllVariantsOf(LetteraSurfaceTier.UiPlain | LetteraSurfaceTier.UiStyled).Count);
-            Assert.AreEqual(6, LetteraShaderWarmUp.AllVariantsOf(LetteraSurfaceTier.All).Count);
+            Assert.AreEqual(7, LetteraShaderWarmUp.AllVariantsOf(LetteraSurfaceTier.All).Count);
+            Assert.AreEqual(3, LetteraShaderWarmUp.AllVariantsOf(LetteraSurfaceTier.UiMerged, new LetteraWarmUpOptions { Clip = true, AlphaClip = true }).Count, "merged layers draw on a Canvas, which clips");
             Assert.AreEqual(4, LetteraShaderWarmUp.AllVariantsOf(LetteraSurfaceTier.UiPlain | LetteraSurfaceTier.UiStyled, new LetteraWarmUpOptions { Clip = true }).Count);
             Assert.AreEqual(1, LetteraShaderWarmUp.AllVariantsOf(LetteraSurfaceTier.WorldPlain, new LetteraWarmUpOptions { Clip = true, AlphaClip = true }).Count, "only the UI shaders clip by keyword");
         }
@@ -103,7 +104,7 @@ namespace FirstSymbol.Lettera.Editor.Tests
             RenderTexture before = RenderTexture.active;
             LetteraWarmUp warmUp = LetteraShaderWarmUp.Run(LetteraSurfaceTier.All, new LetteraWarmUpOptions { Clip = true, AlphaClip = true });
             Assert.IsTrue(warmUp.IsDone);
-            Assert.AreEqual(10, warmUp.VariantsDone);
+            Assert.AreEqual(13, warmUp.VariantsDone);
             Assert.AreEqual(before, RenderTexture.active);
         }
 

@@ -19,17 +19,13 @@ namespace FirstSymbol.Lettera
             public int Line, Start, End;
         }
 
-        // Lines placed for a query, after everything the mesh reads. The next placement forgets them.
-        List<ExtraLine> m_ExtraLines = Rare<ExtraLine>.List;
-        int m_ExtraEnd;
-
         internal bool IsBanded => m_Banded;
         internal int BandFirstLine => m_Banded ? m_BandFirst : 0;
         internal int BandEndLine => m_Banded ? m_BandEnd : m_Lines.Count;
 
         /// <summary>What decided the band, for a test's message.</summary>
         internal string BandReport =>
-            $"visible {m_HasVisible} {m_VisibleLow:0}..{m_VisibleHigh:0}, band {m_BandLow:0}..{m_BandHigh:0}, lines {m_BandFirst}..{m_BandEnd}, estimates {m_EstAdvanceEm:0.000} em {m_EstLineEm:0.000} em {m_EstFill:0.00}";
+            $"visible {m_HasVisible} {m_VisibleLow:0}..{m_VisibleHigh:0}, band {m_BandLow:0}..{m_BandHigh:0}, lines {m_BandFirst}..{m_BandEnd}, estimates {m_Aside.EstAdvanceEm:0.000} em {m_Aside.EstLineEm:0.000} em {m_Aside.EstFill:0.00}";
 
         /// <summary>Whether a host should say what of this text shows: a text this long may place only part of its lines.</summary>
         internal bool MayBand => LetteraLongText.VisibleLinesOnly && !IsWindowed && (m_Banded || RawChars.Length >= LetteraLongText.FromGlyphs / 2);
@@ -52,32 +48,31 @@ namespace FirstSymbol.Lettera
         }
 
         bool BandApplies =>
-            LetteraLongText.VisibleLinesOnly && !m_MarqueeScrolling && !m_Attributes.HasCurve && m_RevealSpans.Count == 0 && m_StageHooks.Count == 0 && m_InlineItems.Count == 0 &&
+            LetteraLongText.VisibleLinesOnly && !m_Aside.MarqueeScrolling && !m_Attributes.HasCurve && m_Aside.RevealSpans.Count == 0 && m_Aside.StageHooks.Count == 0 && m_Aside.InlineItems.Count == 0 &&
             (IsWindowed ? !ShowsBars : m_HasVisible && (m_ShapedCount >= LetteraLongText.FromGlyphs || m_PendingCount > 0) && !ClipsViewport);
 
         // A document's window reaches past its viewport so that a scroll is only an offset; of it, only the lines near the viewport are placed.
         internal const float WindowBandMargin = 0.25f;
-        float m_WindowBandMargin = WindowBandMargin;
 
         // The window's viewport, in the window's own y: a scroll moves it by the offset.
         bool WindowBandCovers()
         {
-            float top = m_Box.yMax - m_WindowOffset;
+            float top = m_Box.yMax - m_Aside.WindowOffset;
             return BandCovers(top - m_Box.height, top);
         }
 
         void StartBand()
         {
-            m_ExtraLines.Clear();
+            m_Aside.ExtraLines.Clear();
             m_Banded = BandApplies;
             m_BandFirst = int.MaxValue;
             m_BandEnd = 0;
             if (!m_Banded) return;
             if (IsWindowed)
             {
-                float top = m_Box.yMax - m_WindowOffset, height = Mathf.Max(m_Box.height, CurrentFontSize * 4);
-                m_BandLow = top - height * (1 + m_WindowBandMargin);
-                m_BandHigh = top + height * m_WindowBandMargin;
+                float top = m_Box.yMax - m_Aside.WindowOffset, height = Mathf.Max(m_Box.height, CurrentFontSize * 4);
+                m_BandLow = top - height * (1 + m_Aside.WindowBandMargin);
+                m_BandHigh = top + height * m_Aside.WindowBandMargin;
                 return;
             }
             float shown = Mathf.Max(m_VisibleHigh - m_VisibleLow, CurrentFontSize * 4);
@@ -100,27 +95,27 @@ namespace FirstSymbol.Lettera
             m_ContentHigh = contentHigh;
             m_ContentLow = contentLow;
             if (m_BandFirst > m_BandEnd) m_BandFirst = m_BandEnd = 0;
-            m_ExtraEnd = m_PlacedCount;
+            m_Aside.ExtraEnd = m_PlacedCount;
         }
 
         bool LinePlaced(int line)
         {
             if (!m_Banded || (line >= m_BandFirst && line < m_BandEnd)) return true;
-            for (int i = 0; i < m_ExtraLines.Count; i++)
-                if (m_ExtraLines[i].Line == line)
+            for (int i = 0; i < m_Aside.ExtraLines.Count; i++)
+                if (m_Aside.ExtraLines[i].Line == line)
                     return true;
             return false;
         }
 
-        int ExtraGlyphCount => m_ExtraLines.Count > 0 ? m_ExtraEnd - m_PlacedCount : 0;
+        int ExtraGlyphCount => m_Aside.ExtraLines.Count > 0 ? m_Aside.ExtraEnd - m_PlacedCount : 0;
 
         bool ExtraRange(int line, out int start, out int end)
         {
-            for (int i = 0; i < m_ExtraLines.Count; i++)
+            for (int i = 0; i < m_Aside.ExtraLines.Count; i++)
             {
-                if (m_ExtraLines[i].Line != line) continue;
-                start = m_ExtraLines[i].Start;
-                end = m_ExtraLines[i].End;
+                if (m_Aside.ExtraLines[i].Line != line) continue;
+                start = m_Aside.ExtraLines[i].Start;
+                end = m_Aside.ExtraLines[i].End;
                 return true;
             }
             start = end = 0;
@@ -131,23 +126,23 @@ namespace FirstSymbol.Lettera
         void EnsureLinePlaced(int line)
         {
             if (line < 0 || line >= m_Lines.Count || LinePlaced(line)) return;
-            if (m_ExtraLines.Count >= 8)
+            if (m_Aside.ExtraLines.Count >= 8)
             {
-                m_ExtraLines.Clear();
-                m_ExtraEnd = m_PlacedCount;
+                m_Aside.ExtraLines.Clear();
+                m_Aside.ExtraEnd = m_PlacedCount;
             }
-            int keepCount = m_PlacedCount, keepVirtual = m_VirtualGlyphs.Count;
+            int keepCount = m_PlacedCount, keepVirtual = m_Aside.VirtualGlyphs.Count;
             LetteraLine placed = m_Lines[line];
             Paragraph paragraph = m_Paragraphs[placed.Paragraph];
-            bool clips = m_Host.ClipsOverflow || m_MarqueeScrolling || ClipsViewport;
+            bool clips = m_Host.ClipsOverflow || m_Aside.MarqueeScrolling || ClipsViewport;
             AlignLine(m_Host.Data, placed, paragraph, clips, out LineStretch stretch);
-            m_PlacedCount = m_ExtraEnd;
+            m_PlacedCount = m_Aside.ExtraEnd;
             PlaceLine(placed, line, paragraph, placed.X, placed.Baseline, stretch);
-            Own(ref m_ExtraLines).Add(new ExtraLine { Line = line, Start = m_ExtraEnd, End = m_PlacedCount });
-            m_ExtraEnd = m_PlacedCount;
+            Own(ref m_Aside.ExtraLines).Add(new ExtraLine { Line = line, Start = m_Aside.ExtraEnd, End = m_PlacedCount });
+            m_Aside.ExtraEnd = m_PlacedCount;
             m_PlacedCount = keepCount;
-            if (m_VirtualGlyphs.Count > keepVirtual) m_VirtualGlyphs.RemoveRange(keepVirtual, m_VirtualGlyphs.Count - keepVirtual);
-            m_SegmentsValid = false;
+            if (m_Aside.VirtualGlyphs.Count > keepVirtual) m_Aside.VirtualGlyphs.RemoveRange(keepVirtual, m_Aside.VirtualGlyphs.Count - keepVirtual);
+            m_Aside.SegmentsValid = false;
         }
     }
 }

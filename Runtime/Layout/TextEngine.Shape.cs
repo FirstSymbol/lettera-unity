@@ -77,7 +77,7 @@ namespace FirstSymbol.Lettera
             // After an edit, the paragraphs before the one it touched stay as they are.
             int resume = ShapeResume(baseLevel, data);
             m_Deferring = DeferApplies(length, data);
-            m_DeferBaseLevel = baseLevel;
+            m_Aside.DeferBaseLevel = baseLevel;
             ShapedAfresh = resume == 0;
             if (resume == 0 && m_Deferring) ForgetEstimates();
 
@@ -150,8 +150,8 @@ namespace FirstSymbol.Lettera
             }
             else
             {
-                m_ListItems.Clear();
-                m_RubyItems.Clear();
+                m_Aside.ListItems.Clear();
+                m_Aside.RubyItems.Clear();
             }
         }
 
@@ -370,7 +370,7 @@ namespace FirstSymbol.Lettera
             for (int i = run.Start; i < end; i++) m_CpRun[i] = index;
             run.GlyphStart = m_ShapedCount;
             // A face drawn by the browser only exists on the web, where nothing runs in parallel, so a deferred run always has a real one.
-            if (run.Instance != null && m_DeferShaping) DeferShaping(ref run);
+            if (run.Instance != null && m_Aside.DeferShaping) DeferShaping(ref run);
             else if (run.Instance != null) ShapeRun(ref run, paragraph);
             m_Runs.Add(run);
         }
