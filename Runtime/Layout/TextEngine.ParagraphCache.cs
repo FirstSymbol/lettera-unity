@@ -62,6 +62,13 @@ namespace FirstSymbol.Lettera
 
         internal static int Count => s_Chains.Count;
 
+        // For the start-up thread: the key's comparer and a chain's own collections, none of which asks Unity anything.
+        internal static void PrepareTypes()
+        {
+            _ = new Dictionary<Key, FontChain>().TryGetValue(default, out _);
+            _ = new FontChain();
+        }
+
         static void Listen()
         {
             if (s_Listening) return;

@@ -178,6 +178,8 @@ namespace FirstSymbol.Lettera
             if (m_OwnCopies || ClipStyle != null || (m_SolidsOnly && m_Host.HostStyles != null)) return false;
             LetteraTextData data = m_Host.Data;
             if (data.Styles.Count != 0 || data.StylePresets.Count != 0 || !data.UseGlobalStylePreset || LetteraSettings.Instance.GlobalStylePreset != null) return false;
+            // Making the 78 built-in styles was most of the first plain text's parse; one with markup makes them.
+            if (!LetteraDefaultStyles.Made) return true;
             List<LetteraStyle> defaults = LetteraDefaultStyles.Styles;
             if (defaults.Count != s_DefaultCount)
             {

@@ -460,6 +460,30 @@ namespace FirstSymbol.Lettera
             FirstSymbol.Lettera.Unicode.LineBreaker.FindBreaks(sample, breaks);
             FirstSymbol.Lettera.Unicode.ScriptItemizer.Resolve(sample, scripts);
             _ = FirstSymbol.Lettera.Unicode.LetteraUnicode.ToUpper('a');
+            // A key that is an enum or a struct gets its comparer made by reflection at its first lookup on IL2CPP, a millisecond or so each,
+            // and the first text looks up several: settings gates, word lists, font chains, a face's sizes.
+            Keyed<LetteraNativeFeature>();
+            Keyed<LetteraDictionaryScript>();
+            Keyed<FirstSymbol.Lettera.Unicode.UnicodeScript>();
+            Keyed<(long, int)>();
+            _ = new Dictionary<LetteraNativeFeature, string>();
+            _ = new Dictionary<LetteraDictionaryScript, FirstSymbol.Lettera.Unicode.LetteraWordAutomaton>();
+            _ = new Dictionary<FirstSymbol.Lettera.Unicode.UnicodeScript, FirstSymbol.Lettera.Unicode.ILetteraWordSegmenter>();
+            _ = new Dictionary<(long, int), FontInstance>();
+            _ = new HashSet<LetteraFontStack>();
+            _ = new List<Vector3>();
+            _ = new List<Color32>();
+            _ = new List<Vector4>();
+            _ = new List<LetteraText>();
+            LetteraFontChains.PrepareTypes();
+            GlyphAtlas.Types.Prepare();
+        }
+
+        static void Keyed<T>()
+        {
+            var set = new HashSet<T> { default };
+            _ = set.Contains(default);
+            foreach (T _ in set) { }
         }
 
 #if !UNITY_WEBGL || UNITY_EDITOR

@@ -101,6 +101,14 @@ namespace FirstSymbol.Lettera.Editor.Tests
             Assert.IsFalse(after.Engine.Styled);
         }
 
+        // A plain text does not make the built-in styles to ask them, which holds only while every one of them starts at a tag or a backslash.
+        [Test]
+        public void EveryBuiltInStyleStartsAtMarkup()
+        {
+            foreach (LetteraStyle style in LetteraDefaultStyles.Create())
+                Assert.IsTrue(style.Matcher == null || style.Matcher.StartsAtMarkup, style.Matcher?.GetType().Name);
+        }
+
         [Test]
         public void ABackslashStillEscapes()
         {

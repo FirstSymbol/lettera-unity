@@ -120,6 +120,28 @@ namespace FirstSymbol.Lettera
         }
 
         static readonly Memo[] s_Memo = new Memo[1024];
+
+        // For the start-up thread: the atlas's collections, without its statics, which ask Unity for property ids.
+        internal static class Types
+        {
+            internal static void Prepare()
+            {
+                _ = new Dictionary<ulong, AtlasGlyph>().TryGetValue(0, out _);
+                _ = new Dictionary<ulong, int>().TryGetValue(0, out _);
+                _ = new List<PendingUpload>();
+                _ = new List<SdfTile>();
+                _ = new List<UnionPart>();
+                _ = new List<PendingEmoji>();
+                _ = new List<ulong>();
+                _ = new Memo[1];
+                var lines = new NativeList<float4>(1, Allocator.Persistent);
+                lines.Dispose();
+                var colors = new NativeList<byte>(1, Allocator.Persistent);
+                colors.Dispose();
+                var tiles = new NativeArray<SdfTile>(1, Allocator.Persistent);
+                tiles.Dispose();
+            }
+        }
         static int s_MemoVersion = 1;
 
         static void GlyphsChanged() => s_MemoVersion++;

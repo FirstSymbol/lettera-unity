@@ -62,6 +62,9 @@ namespace FirstSymbol.Lettera
         /// <summary>The built-in styles: b, i, size, color, alpha, font, lang, u, s, outline, shadow, ellipsis, truncate, dir, br, noparse and escapes.</summary>
         public static List<LetteraStyle> Styles => s_Styles ?? (s_Styles = Create());
 
+        // Until something asks for the list, no one can have added to it, and each built-in style starts at a tag or a backslash.
+        internal static bool Made => s_Styles != null;
+
         /// <summary>A fresh copy, e.g. to fill a preset asset.</summary>
         public static List<LetteraStyle> Create() => new List<LetteraStyle>
         {
