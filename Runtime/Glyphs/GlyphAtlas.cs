@@ -128,10 +128,10 @@ namespace FirstSymbol.Lettera
             {
                 _ = new Dictionary<ulong, AtlasGlyph>().TryGetValue(0, out _);
                 _ = new Dictionary<ulong, int>().TryGetValue(0, out _);
-                _ = new List<PendingUpload>();
-                _ = new List<SdfTile>();
-                _ = new List<UnionPart>();
-                _ = new List<PendingEmoji>();
+                _ = new ValueList<PendingUpload>();
+                _ = new ValueList<SdfTile>();
+                _ = new ValueList<UnionPart>();
+                _ = new ValueList<PendingEmoji>();
                 _ = new List<ulong>();
                 _ = new Memo[1];
                 var lines = new NativeList<float4>(1, Allocator.Persistent);

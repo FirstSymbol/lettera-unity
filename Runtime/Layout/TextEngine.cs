@@ -523,6 +523,11 @@ namespace FirstSymbol.Lettera
             if (list.Count != 0) list.Clear();
         }
 
+        static void Empty<T>(ValueList<T> list) where T : struct
+        {
+            if (list.Count != 0) list.Clear();
+        }
+
         static List<T> Own<T>(ref List<T> list) => ReferenceEquals(list, Rare<T>.List) ? list = new List<T>() : list;
         static ValueList<T> Own<T>(ref ValueList<T> list) where T : struct => ReferenceEquals(list, RareValues<T>.List) ? list = new ValueList<T>() : list;
         static Dictionary<K, V> Own<K, V>(ref Dictionary<K, V> map) => ReferenceEquals(map, Rare<K, V>.Map) ? map = new Dictionary<K, V>() : map;

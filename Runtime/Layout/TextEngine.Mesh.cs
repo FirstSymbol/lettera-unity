@@ -868,7 +868,7 @@ namespace FirstSymbol.Lettera
                 else if (group.Layer == LayerKind.Shadow && group.Band == LetteraLayerBand.Back && m_Aside.MergeShadow == null) m_Aside.MergeShadow = group;
                 else return false;
             }
-            List<LayerRecord> records = m_Attributes.Layers;
+            ValueList<LayerRecord> records = m_Attributes.Layers;
             for (int i = 0; i < m_PlacedCount; i++)
             {
                 ref PlacedGlyph g = ref m_Placed[i];
@@ -890,7 +890,7 @@ namespace FirstSymbol.Lettera
         // uv1 per corner: edge, softness, and for the shadow its shift in the atlas. An edge of 1 marks a layer this glyph does not have.
         void DrawSharedLayers()
         {
-            List<LayerRecord> records = m_Attributes.Layers;
+            ValueList<LayerRecord> records = m_Attributes.Layers;
             UseSegment(s_NoPaint);
             m_FilterRow = 0;
             Color32 baseColor = m_DrawBase;
