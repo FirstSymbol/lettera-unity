@@ -908,7 +908,8 @@ namespace FirstSymbol.Lettera
         static void RecreateTexture(PageSet set)
         {
             DestroyTexture(set.Texture);
-            var texture = new Texture2DArray(set.Size, set.Size, set.Pixels.Count, FormatOf(set), TextureCreationFlags.None)
+            // Every page's pixels are set below and uploaded once: Unity's own clearing and first upload of the texture would be work thrown away.
+            var texture = new Texture2DArray(set.Size, set.Size, set.Pixels.Count, FormatOf(set), TextureCreationFlags.DontInitializePixels | TextureCreationFlags.DontUploadUponCreate)
             {
                 name = set == s_Sdf ? "Lettera SDF Atlas" : set == s_Msdf ? "Lettera MSDF Atlas" : "Lettera Color Atlas",
                 hideFlags = HideFlags.HideAndDontSave,

@@ -22,6 +22,23 @@ namespace FirstSymbol.Lettera
         }
 
         PlacedGlyph[] m_Placed = Array.Empty<PlacedGlyph>();
+
+        // The codepoints of the lines a band places, about its glyphs: taken at once, the room for them leaves no garbage of every size on the
+        // way, half a megabyte for a band of a long text. The same test as placing's, without its marks.
+        int BandCodepoints(float y)
+        {
+            int codepoints = 0;
+            for (int l = 0; l < m_Lines.Count; l++)
+            {
+                LetteraLine line = m_Lines[l];
+                y -= line.GapBefore;
+                // Below the band, and every line after it lower still; a count short of the glyphs only grows the room as before.
+                if (y < m_BandLow) break;
+                if (!m_Paragraphs[line.Paragraph].Pending && y - line.Height <= m_BandHigh) codepoints += line.End - line.Start;
+                y -= line.Height;
+            }
+            return codepoints;
+        }
         int m_PlacedCount;  // Glyphs of the text, then virtual ones, which only the mesh sees.
         int m_RealCount;
         byte[] m_LineLevels = Array.Empty<byte>();
@@ -93,6 +110,7 @@ namespace FirstSymbol.Lettera
             // Nearly always one placed glyph per shaped one, so a long text does not grow through every size on the way. A banded text places
             // only its band, and a text still finishing would take a new array of all it has shaped at every slice.
             if (!m_Banded) EnsureSize(ref m_Placed, m_ShapedCount);
+            else EnsureSize(ref m_Placed, m_PlacedCount + BandCodepoints(y));
             for (int l = 0; l < m_Lines.Count; l++)
             {
                 LetteraLine line = m_Lines[l];
