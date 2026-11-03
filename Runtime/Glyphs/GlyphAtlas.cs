@@ -384,6 +384,7 @@ namespace FirstSymbol.Lettera
                 Left = -offsetX / scale, Bottom = -offsetY / scale,
                 Right = (width - offsetX) / scale, Top = (height - offsetY) / scale,
                 Spread = spread,
+                Pad = spreadPixels / scale,
             };
             s_Unions[key] = entry;
             return entry;
@@ -711,6 +712,7 @@ namespace FirstSymbol.Lettera
                 Left = -offsetX / scale, Bottom = -offsetY / scale,
                 Right = (width - offsetX) / scale, Top = (height - offsetY) / scale,
                 Spread = spread,
+                Pad = spreadPixels / scale,
             };
         }
 

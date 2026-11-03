@@ -251,31 +251,40 @@ namespace FirstSymbol.Lettera.Editor.Tests
             var view = new GameObject("Mask", typeof(RectTransform), typeof(RectMask2D));
             view.transform.SetParent(canvas, false);
             ((RectTransform)view.transform).sizeDelta = new Vector2(800, 400);
-            // Its rect reaches 3 units into the mask; its letters start well below that.
-            LetteraText below = Label(view.transform, "wn fox jumps ove", new Vector2(760, 26));
-            ((RectTransform)below.transform).anchoredPosition = new Vector2(0, -210);
-            below.VerticalAlignment = LetteraVerticalAlignment.Bottom;
+            // Its rect reaches 18 units into the mask; the tops of its short letters stay a few units below the mask's edge.
+            LetteraText below = Label(view.transform, "wn on mama", new Vector2(760, 60));
+            below.FontSize = 40;
+            ((RectTransform)below.transform).anchoredPosition = new Vector2(0, -212);
             LetteraText inside = Label(view.transform, "fully inside", new Vector2(760, 26));
             LetteraText edge = Label(view.transform, "half inside", new Vector2(760, 26));
             ((RectTransform)edge.transform).anchoredPosition = new Vector2(0, -200);
             Canvas.ForceUpdateCanvases();
             Canvas.ForceUpdateCanvases();
-            Assert.IsTrue(below.canvasRenderer.cull, "only its margin reached in");
+            Assert.IsTrue(below.canvasRenderer.cull, "only its margin reached in: " + below.Engine.InkRect);
             Assert.IsFalse(inside.canvasRenderer.cull);
             Assert.IsFalse(edge.canvasRenderer.cull, "ink across the edge draws");
 
-            // New text with ink inside the mask must come back without anything moving.
-            below.Text = "a line above\nwn fox jumps ove";
+            // Tall letters reach in: a culled text must still rebuild and come back.
+            below.Text = "will fill";
             Canvas.ForceUpdateCanvases();
             Canvas.ForceUpdateCanvases();
-            Assert.IsFalse(below.canvasRenderer.cull, "its ink reaches in now: " + below.Engine.InkKnown + " " + below.Engine.InkRect + " " + below.Engine.MeshBounds + " lines " + below.Lines.Count + " drawn " + Drawn(below) + " dirty " + below.Engine.Dirty);
+            Assert.IsFalse(below.canvasRenderer.cull, "its ink reaches in now: " + below.Engine.InkRect);
             Assert.Greater(Drawn(below), 0);
 
-            // With the mask gone, nothing stays culled.
-            below.Text = "wn fox jumps ove";
+            below.Text = "wn on mama";
             Canvas.ForceUpdateCanvases();
             Canvas.ForceUpdateCanvases();
             Assert.IsTrue(below.canvasRenderer.cull);
+
+            // Moved up, the same text shows.
+            ((RectTransform)below.transform).anchoredPosition = new Vector2(0, -200);
+            Canvas.ForceUpdateCanvases();
+            Assert.IsFalse(below.canvasRenderer.cull, "moved into the mask");
+            ((RectTransform)below.transform).anchoredPosition = new Vector2(0, -212);
+            Canvas.ForceUpdateCanvases();
+            Assert.IsTrue(below.canvasRenderer.cull);
+
+            // With the mask gone, nothing stays culled.
             Object.DestroyImmediate(view.GetComponent<RectMask2D>());
             Canvas.ForceUpdateCanvases();
             Assert.IsFalse(below.canvasRenderer.cull);
