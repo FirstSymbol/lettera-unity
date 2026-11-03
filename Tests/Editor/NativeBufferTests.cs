@@ -64,8 +64,9 @@ namespace FirstSymbol.Lettera.Editor.Tests
             System.GC.KeepAlive(new byte[32]);
             Assert.GreaterOrEqual(recorder.CurrentValue - control, 32, "the allocation counter does not work here");
 
-            long before = recorder.CurrentValue;
+            // What the editor makes of a changed serialized field is not the engine's, so only the rebuild is counted.
             text.Text = source;
+            long before = recorder.CurrentValue;
             text.ForceRebuild();
             long allocated = recorder.CurrentValue - before;
             TextEngine engine = EngineOf(text);

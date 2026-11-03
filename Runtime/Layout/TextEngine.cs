@@ -449,6 +449,17 @@ namespace FirstSymbol.Lettera
             _ = new List<Run>();
             _ = new List<MeshSegment>();
             _ = LetteraNative.Version;
+            // The Unicode tables and the analyzers, which workers run too: the first paragraph of a session paid for them.
+            ReadOnlySpan<int> sample = stackalloc int[] { 'H', 'i', ' ', 0x05D0, 10 };
+            Span<bool> boundaries = stackalloc bool[6];
+            Span<byte> levels = stackalloc byte[5];
+            Span<FirstSymbol.Lettera.Unicode.LineBreakOpportunity> breaks = stackalloc FirstSymbol.Lettera.Unicode.LineBreakOpportunity[5];
+            Span<FirstSymbol.Lettera.Unicode.UnicodeScript> scripts = stackalloc FirstSymbol.Lettera.Unicode.UnicodeScript[5];
+            FirstSymbol.Lettera.Unicode.GraphemeBreaker.FindBoundaries(sample, boundaries);
+            FirstSymbol.Lettera.Unicode.Bidi.ResolveParagraph(sample, -1, levels);
+            FirstSymbol.Lettera.Unicode.LineBreaker.FindBreaks(sample, breaks);
+            FirstSymbol.Lettera.Unicode.ScriptItemizer.Resolve(sample, scripts);
+            _ = FirstSymbol.Lettera.Unicode.LetteraUnicode.ToUpper('a');
         }
 
 #if !UNITY_WEBGL || UNITY_EDITOR
