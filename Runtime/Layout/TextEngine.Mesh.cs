@@ -161,6 +161,7 @@ namespace FirstSymbol.Lettera
             m_AllTakeBase = true;
             m_RecordOwners = HasPoseConsumers || m_Aside.RevealSpans.Count > 0 || (m_Aside.Marquee != null && m_Aside.MarqueeScrolling) || NeedsRestState;
             m_Aside.WindowBaked = false;
+            m_Aside.TailCount = -1;
             if (m_Aside.StageHooks.Count > 0) Empty(m_Aside.CoverQuads);
             m_CurrentOwner = -1;
             m_DrawBase = m_Host.BaseColor;
@@ -246,8 +247,11 @@ namespace FirstSymbol.Lettera
             m_CurrentOwner = -1;
             FinishSegment();
             DuplicateForMarquee();
-            ComputeBounds();
-            ApplyBaseColor();
+            // Faces drawn across the threads and nothing after them: their stretches found the box and wrote the alpha already.
+            bool tail = m_Aside.TailCount == VertexCount && m_Aside.StageHooks.Count == 0;
+            if (tail) m_Bounds = m_Aside.TailBounds;
+            else ComputeBounds();
+            ApplyBaseColor(tail);
             if (m_RecordOwners)
             {
                 PrepareRestState();
@@ -1567,13 +1571,14 @@ namespace FirstSymbol.Lettera
         /// <summary>The fade path: rewrites vertex alpha only, without touching geometry.</summary>
         // Called per glyph, over indices the same pass has just sized; the tests run these with every check on.
         [Unity.IL2CPP.CompilerServices.Il2CppSetOption(Unity.IL2CPP.CompilerServices.Option.ArrayBoundsChecks, false), Unity.IL2CPP.CompilerServices.Il2CppSetOption(Unity.IL2CPP.CompilerServices.Option.NullChecks, false)]
-        void ApplyBaseColor()
+        void ApplyBaseColor(bool written = false)
         {
             Color32 baseColor = m_Host.BaseColor;
             int alpha = baseColor.a;
-            for (int i = 0; i < VertexCount; i++)
-                Colors[i].a = (byte)(m_OwnAlpha[i] * alpha / 255);
-            if (m_AllTakeBase || (m_TrackBase && m_TakesBase.Length >= VertexCount))
+            if (!written)
+                for (int i = 0; i < VertexCount; i++)
+                    Colors[i].a = (byte)(m_OwnAlpha[i] * alpha / 255);
+            if (!written && (m_AllTakeBase || (m_TrackBase && m_TakesBase.Length >= VertexCount)))
             {
                 for (int i = 0; i < VertexCount; i++)
                 {

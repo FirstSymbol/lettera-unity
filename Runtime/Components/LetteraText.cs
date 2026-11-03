@@ -477,7 +477,11 @@ namespace FirstSymbol.Lettera
                 if ((streams & TextEngine.StreamPositions) != 0) m_Mesh.SetVertexBufferData(e.Vertices, 0, 0, count, 0, QuietUpload);
                 if ((streams & TextEngine.StreamColors) != 0) m_Mesh.SetVertexBufferData(e.Colors, 0, 0, count, 1, QuietUpload);
                 if ((streams & TextEngine.StreamUv0) != 0) m_Mesh.SetVertexBufferData(e.Uv0, 0, 0, count, 2, QuietUpload);
-                if ((streams & TextEngine.StreamUv1) != 0) m_Mesh.SetVertexBufferData(e.Uv1, 0, 0, count, 3, QuietUpload);
+                if ((streams & TextEngine.StreamUv1) != 0)
+                {
+                    m_Mesh.SetVertexBufferData(e.Uv1, 0, 0, count, 3, QuietUpload);
+                    m_PlainParams = 0;
+                }
                 canvasRenderer.SetMesh(m_Mesh);
                 return;
             }
@@ -601,6 +605,7 @@ namespace FirstSymbol.Lettera
                 m_Mesh.Clear(false);
                 m_MeshInStreams = true;
                 m_StreamRoom = m_StreamIndices = -1;
+                m_PlainParams = 0;
             }
             // Sizing the buffer is what costs, not writing it: the same count keeps it, and a long text keeps some room, so a scroll that changes
             // its count a little each frame writes vertices only. What lies past the count is no quad's, since no index reaches it.
@@ -608,11 +613,22 @@ namespace FirstSymbol.Lettera
             {
                 m_StreamRoom = count + StreamSlack(count) / 2;
                 m_Mesh.SetVertexBufferParams(m_StreamRoom, s_Streams);
+                m_PlainParams = 0;
             }
             m_Mesh.SetVertexBufferData(e.Vertices, 0, 0, count, 0, QuietUpload);
             m_Mesh.SetVertexBufferData(e.Colors, 0, 0, count, 1, QuietUpload);
             m_Mesh.SetVertexBufferData(e.Uv0, 0, 0, count, 2, QuietUpload);
-            m_Mesh.SetVertexBufferData(e.Uv1, 0, 0, count, 3, QuietUpload);
+            // Plain faces all shade with the same parameters: what the buffer already holds of them stays, and only new room is written.
+            if (e.UniformParams)
+            {
+                if (count > m_PlainParams) m_Mesh.SetVertexBufferData(e.Uv1, m_PlainParams, m_PlainParams, count - m_PlainParams, 3, QuietUpload);
+                m_PlainParams = System.Math.Max(m_PlainParams, count);
+            }
+            else
+            {
+                m_Mesh.SetVertexBufferData(e.Uv1, 0, 0, count, 3, QuietUpload);
+                m_PlainParams = 0;
+            }
             int segments = e.Segments.Count;
             if (segments <= 1 && e.IndexCount * 2 == count * 3 && m_StreamRoom >= LongStreams && m_StreamRoom <= 65536)
             {
@@ -649,6 +665,9 @@ namespace FirstSymbol.Lettera
         }
 
         int m_StreamRoom = -1, m_StreamIndices = -1;
+
+        // How many vertices from the start of the buffer hold a plain face's shading parameters.
+        int m_PlainParams;
 
         // Past this many vertices a text's indices stay in its buffer for all its room.
         const int LongStreams = 2048;

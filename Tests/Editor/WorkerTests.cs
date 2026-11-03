@@ -226,7 +226,8 @@ namespace FirstSymbol.Lettera.Editor.Tests
                         .Append(Bits(line.GapBefore)).Append(Bits(line.Margin)).Append(line.EndedByMandatoryBreak).Append('\n');
                 }
                 Snapshot mesh = Take(text);
-                shot.Append(e.VertexCount).Append(' ').Append(e.IndexCount).Append('\n');
+                shot.Append(e.VertexCount).Append(' ').Append(e.IndexCount).Append(' ').Append(Bits(e.MeshBounds.center.x)).Append(Bits(e.MeshBounds.center.y))
+                    .Append(Bits(e.MeshBounds.size.x)).Append(Bits(e.MeshBounds.size.y)).Append('\n');
                 for (int v = 0; v < mesh.Vertices.Length; v++)
                     shot.Append(Bits(mesh.Vertices[v].x)).Append(Bits(mesh.Vertices[v].y)).Append(Bits(mesh.Uv0[v].x)).Append(Bits(mesh.Uv0[v].y)).Append(mesh.Colors[v].ToString()).Append('\n');
                 foreach (int index in mesh.Indices) shot.Append(index).Append(',');

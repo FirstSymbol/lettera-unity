@@ -14,7 +14,11 @@ namespace FirstSymbol.Lettera
             public bool AllTakeBase;
             public int InkQuads;
             public float InkMinX, InkMinY, InkMaxX, InkMaxY;
+            public float MinX, MinY, MaxX, MaxY;
         }
+
+        /// <summary>Every quad of the mesh is a plain face, whose shading parameters are all the same: an upload may keep those it already holds.</summary>
+        internal bool UniformParams => m_Aside.TailCount == VertexCount && VertexCount > 0 && !m_WantsPose;
 
         bool DrawPlainFacesInParallel(Color32 noColor)
         {
@@ -53,6 +57,9 @@ namespace FirstSymbol.Lettera
                 while (m_Aside.QuadOwner.Length < VertexCount / 4 + quads)
                     EnsureOwnerSize(m_Aside.QuadOwner.Length + 1);
             m_Aside.FaceNoColor = noColor;
+            // With nothing drawn before them, the stretches also do what the end of the mesh does over every vertex: the box and the text's alpha.
+            bool first = VertexCount == 0;
+            m_Aside.FaceAlpha = first ? m_Host.BaseColor.a : -1;
             SplitPasses[2]++;
             LetteraWorkers.Run(stretches, m_Aside.DrawOne ?? (m_Aside.DrawOne = DrawFaceStretch));
             for (int s = 0; s < stretches; s++)
@@ -70,6 +77,23 @@ namespace FirstSymbol.Lettera
             }
             VertexCount += quads * 4;
             IndexCount += quads * 6;
+            if (first && quads > 0)
+            {
+                float minX = float.MaxValue, minY = float.MaxValue, maxX = float.MinValue, maxY = float.MinValue;
+                for (int s = 0; s < stretches; s++)
+                {
+                    ref FaceStretch stretch = ref m_Aside.FaceStretches[s];
+                    if (stretch.Quads == 0) continue;
+                    if (stretch.MinX < minX) minX = stretch.MinX;
+                    if (stretch.MaxX > maxX) maxX = stretch.MaxX;
+                    if (stretch.MinY < minY) minY = stretch.MinY;
+                    if (stretch.MaxY > maxY) maxY = stretch.MaxY;
+                }
+                // As ComputeBounds makes it from the same extremes.
+                var center = new Vector3((minX + maxX) * 0.5f, (minY + maxY) * 0.5f);
+                m_Aside.TailBounds = new Bounds(center, new Vector3(maxX - minX, maxY - minY));
+                m_Aside.TailCount = VertexCount;
+            }
             return true;
         }
 
@@ -86,6 +110,8 @@ namespace FirstSymbol.Lettera
             byte[] ownAlpha = m_OwnAlpha;
             int[] indices = Indices, owners = m_Aside.QuadOwner;
             bool recordOwners = m_RecordOwners, trackInk = m_TrackInk;
+            int baseAlpha = m_Aside.FaceAlpha;
+            float minX = float.MaxValue, minY = float.MaxValue, maxX = float.MinValue, maxY = float.MinValue;
             float inkMargin = m_InkMargin;
             Color32 noColor = m_Aside.FaceNoColor;
             int v = stretch.FirstVertex, n = stretch.FirstIndex, last = -1;
@@ -126,11 +152,23 @@ namespace FirstSymbol.Lettera
                 uv1[v + 1] = parameters;
                 uv1[v + 2] = parameters;
                 uv1[v + 3] = parameters;
+                ownAlpha[v] = ownAlpha[v + 1] = ownAlpha[v + 2] = ownAlpha[v + 3] = color.a;
+                if (baseAlpha >= 0)
+                {
+                    color.a = (byte)(color.a * baseAlpha / 255);
+                    if (left < minX) minX = left;
+                    if (left > maxX) maxX = left;
+                    if (right < minX) minX = right;
+                    if (right > maxX) maxX = right;
+                    if (bottom < minY) minY = bottom;
+                    if (bottom > maxY) maxY = bottom;
+                    if (top < minY) minY = top;
+                    if (top > maxY) maxY = top;
+                }
                 colors[v] = color;
                 colors[v + 1] = color;
                 colors[v + 2] = color;
                 colors[v + 3] = color;
-                ownAlpha[v] = ownAlpha[v + 1] = ownAlpha[v + 2] = ownAlpha[v + 3] = color.a;
                 if (trackInk)
                 {
                     DistanceInset(atlas, xUnit, g.Unit, g.Size, 0.5f, 0, inkMargin, out float ix, out float iy);
@@ -145,6 +183,10 @@ namespace FirstSymbol.Lettera
                 n += 6;
             }
             stretch.LastDrawn = last;
+            stretch.MinX = minX;
+            stretch.MinY = minY;
+            stretch.MaxX = maxX;
+            stretch.MaxY = maxY;
             stretch.AllTakeBase = allTakeBase;
             stretch.InkQuads = inkQuads;
             stretch.InkMinX = inkMinX;

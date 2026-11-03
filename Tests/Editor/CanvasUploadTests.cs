@@ -80,5 +80,35 @@ namespace FirstSymbol.Lettera.Editor.Tests
             label.gameObject.SetActive(false);
             Assert.AreEqual(drawn, Ink(Draw()), "the same as the shorter text made anew");
         }
+
+        // Plain faces drawn across the threads keep the shading parameters the buffer holds: what the mesh has is still what the engine wrote.
+        [Test]
+        public void KeptShadingParametersAreTheEnginesThroughEveryChange()
+        {
+            LetteraWorkerMode mode = LetteraWorkers.Mode;
+            int threshold = LetteraWorkers.ParallelFromCodepoints;
+            LetteraWorkers.Mode = LetteraWorkerMode.Parallel;
+            LetteraWorkers.ParallelFromCodepoints = 256;
+            try
+            {
+                LetteraText label = CanvasLabel(new string('x', 700), 6);
+                int drawn = TextEngine.SplitPasses[2];
+                var held = new System.Collections.Generic.List<Vector4>();
+                foreach (string text in new[] { new string('x', 690), new string('x', 700), "<color=#f00>" + new string('x', 690) + "</color>", new string('x', 760), new string('w', 300) + "<u>" + new string('x', 400) + "</u>", new string('x', 700) })
+                {
+                    label.Text = text;
+                    Draw();
+                    TextEngine e = ((ITextComponent)label).SharedEngine;
+                    label.MeshForTests.GetUVs(1, held);
+                    for (int v = 0; v < e.VertexCount; v++) Assert.AreEqual(e.Uv1[v], held[v], text.Substring(0, 12) + " vertex " + v);
+                }
+                Assert.Greater(TextEngine.SplitPasses[2], drawn, "faces were drawn across the threads");
+            }
+            finally
+            {
+                LetteraWorkers.Mode = mode;
+                LetteraWorkers.ParallelFromCodepoints = threshold;
+            }
+        }
     }
 }

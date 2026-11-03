@@ -42,15 +42,22 @@ namespace FirstSymbol.Lettera
                 int separator = 0;
                 while (i < length && !IsParagraphSeparator(i, out separator)) i++;
                 if (i >= length) separator = 0;
-                AddSlot(start, i, i + separator, baseLevel);
+                AddSlot(start, i, i + separator, baseLevel, false);
                 if (i >= length) break;
                 start = i + separator;
                 if (start == length)
                 {
-                    AddSlot(length, length, length, baseLevel);
+                    AddSlot(length, length, length, baseLevel, false);
                     break;
                 }
             }
+            // Each paragraph's hash and its entry, side by side: the cache is only read here.
+            m_Aside.SlotLanguage = LanguageOf(-1);
+            BaseLevelForSlots = baseLevel;
+            LetteraWorkers.Run(m_Aside.Slots.Count, m_Aside.LookOne ?? (m_Aside.LookOne = LookUpSlot));
+            for (int s = 0; s < m_Aside.Slots.Count; s++)
+                if (m_Aside.Slots[s].Cacheable && !m_Aside.Slots[s].Hit)
+                    LetteraCaches.s_Stats.Misses++;
 
             // Every paragraph no cache had is analyzed, side by side. When the caches had them all, no thread is woken for nothing.
             if (AnySlotToAnalyze()) LetteraWorkers.Run(m_Aside.Slots.Count, m_Aside.AnalyzeOne ?? (m_Aside.AnalyzeOne = AnalyzeSlot));
@@ -108,13 +115,29 @@ namespace FirstSymbol.Lettera
             return false;
         }
 
-        void AddSlot(int start, int contentEnd, int end, int baseLevel)
+        void LookUpSlot(int index)
+        {
+            ParagraphSlot slot = m_Aside.Slots[index];
+            if (!slot.Cacheable) return;
+            int count = slot.End - slot.Start;
+            slot.Hash = HashParagraph(slot.Start, count, BaseLevelForSlots, m_Aside.SlotLanguage);
+            slot.Entry = FindParagraph(slot.Hash, slot.Start, count, BaseLevelForSlots, m_Aside.SlotLanguage);
+            slot.Hit = slot.Entry != null;
+            lock (m_Aside.Slots) m_Aside.Slots[index] = slot;
+        }
+
+        void AddSlot(int start, int contentEnd, int end, int baseLevel, bool lookNow = true)
         {
             int count = end - start;
             var slot = new ParagraphSlot { Start = start, ContentEnd = contentEnd, End = end, Level = baseLevel == 1 ? 1 : 0 };
             if (count > 0 && ParagraphCacheApplies(count))
             {
                 slot.Cacheable = true;
+                if (!lookNow)
+                {
+                    m_Aside.Slots.Add(slot);
+                    return;
+                }
                 slot.Hash = HashParagraph(start, count, baseLevel, LanguageOf(-1));
                 slot.Entry = FindParagraph(slot.Hash, start, count, baseLevel, LanguageOf(-1));
                 slot.Hit = slot.Entry != null;
