@@ -475,7 +475,7 @@ namespace FirstSymbol.Lettera
                 Colors[v + 2] = color;
                 Colors[v + 3] = color;
                 m_OwnAlpha[v] = m_OwnAlpha[v + 1] = m_OwnAlpha[v + 2] = m_OwnAlpha[v + 3] = color.a;
-                AddDistanceInk(left, bottom, right, top, atlas, xUnit, g.Unit, 0.5f, 0);
+                if (m_TrackInk) AddDistanceInk(left, bottom, right, top, atlas, xUnit, g.Unit, 0.5f, 0);
             }
         }
 
@@ -1047,8 +1047,11 @@ namespace FirstSymbol.Lettera
                 Vertices[v + 1] = new Vector3(g.X + left, g.Y + top);
                 Vertices[v + 2] = new Vector3(g.X + right, g.Y + top);
                 Vertices[v + 3] = new Vector3(g.X + right, g.Y + bottom);
-                if ((mode == ModeSdf || mode == ModeMedian || mode == ModeTrueDistance) && extra.w == 0) AddDistanceInk(g.X + left, g.Y + bottom, g.X + right, g.Y + top, atlas, xUnit, g.Unit, threshold, softness);
-                else AddInk(g.X + left, g.Y + bottom, g.X + right, g.Y + top);
+                if (m_TrackInk)
+                {
+                    if ((mode == ModeSdf || mode == ModeMedian || mode == ModeTrueDistance) && extra.w == 0) AddDistanceInk(g.X + left, g.Y + bottom, g.X + right, g.Y + top, atlas, xUnit, g.Unit, threshold, softness);
+                    else AddInk(g.X + left, g.Y + bottom, g.X + right, g.Y + top);
+                }
             }
             else
             {
