@@ -63,8 +63,12 @@ namespace FirstSymbol.Lettera
         /// <summary>The box outside which this mesh draws nothing, a pixel to spare, in local units.</summary>
         public Rect InkRect => Rect.MinMaxRect(m_InkMinX, m_InkMinY, m_InkMaxX, m_InkMaxY);
 
+        // Only a Canvas text under a mask asks; the rest skip it per glyph.
+        bool m_TrackInk;
+
         void AddInk(float left, float bottom, float right, float top)
         {
+            if (!m_TrackInk) return;
             m_InkQuads++;
             if (left < m_InkMinX) m_InkMinX = left;
             if (bottom < m_InkMinY) m_InkMinY = bottom;
@@ -75,6 +79,7 @@ namespace FirstSymbol.Lettera
         // A distance quad draws only as far beyond the outline as its edge, softness and anti-aliasing reach, which is less than its margin.
         void AddDistanceInk(float left, float bottom, float right, float top, in AtlasGlyph atlas, float xUnit, float yUnit, float threshold, float softness)
         {
+            if (!m_TrackInk) return;
             float inset = atlas.Pad - (0.5f - threshold + softness) * 2 * atlas.Pad;
             float ix = inset * xUnit - m_InkMargin, iy = inset * yUnit - m_InkMargin;
             if (ix < 0 || atlas.Pixel || atlas.Kind == AtlasGlyph.Color) ix = 0;
@@ -101,6 +106,7 @@ namespace FirstSymbol.Lettera
             m_CurrentOwner = -1;
             m_DrawBase = m_Host.BaseColor;
             InkKnown = false;
+            m_TrackInk = m_Host is LetteraText inked && inked.TracksInk;
             m_InkQuads = 0;
             m_InkMinX = m_InkMinY = float.MaxValue;
             m_InkMaxX = m_InkMaxY = float.MinValue;
@@ -182,7 +188,7 @@ namespace FirstSymbol.Lettera
                 m_WantsPose = false;
                 BakeWindowOffset();
             }
-            InkKnown = VertexCount > 0 && m_InkQuads * 4 == VertexCount && !m_RecordOwners && !m_WindowBaked && m_StageHooks.Count == 0 &&
+            InkKnown = m_TrackInk && VertexCount > 0 && m_InkQuads * 4 == VertexCount && !m_RecordOwners && !m_WindowBaked && m_StageHooks.Count == 0 &&
                        m_MotionSpans.Count == 0 && m_MarqueeCopies <= 1 && !m_MarqueeScrolling;
             UpdateHubMembership();
         }
@@ -753,6 +759,14 @@ namespace FirstSymbol.Lettera
                 ref PlacedGlyph g = ref m_Placed[i];
                 ref AtlasGlyph atlas = ref m_PlacedAtlas[i];
                 if (atlas.Kind == AtlasGlyph.Empty) continue;
+                // A glyph whose shadow went first keeps its stroke on a plain quad: a merged quad reads the atlas twice for one layer.
+                if (!faces && m_MergeHoisted > 0 && m_MergeHoist[i])
+                {
+                    int alone = m_MergeStroke.Cover[g.Cluster] - 1;
+                    if (alone >= 0) DrawLayer(i, records[alone]);
+                    UseSegment(s_NoPaint);
+                    continue;
+                }
                 m_CurrentOwner = i;
                 ref LetteraAttributes.Cp attr = ref m_Attributes.At(g.Cluster);
                 Color32 face = attr.HasColor ? attr.Color : new Color32(baseColor.r, baseColor.g, baseColor.b, 255);
@@ -780,8 +794,7 @@ namespace FirstSymbol.Lettera
                         any = true;
                     }
                 }
-                bool hoisted = !faces && m_MergeHoisted > 0 && m_MergeHoist[i];
-                int shadow = m_MergeShadow != null && !hoisted ? m_MergeShadow.Cover[g.Cluster] - 1 : -1;
+                int shadow = m_MergeShadow != null ? m_MergeShadow.Cover[g.Cluster] - 1 : -1;
                 if (shadow >= 0)
                 {
                     LayerRecord record = records[shadow];

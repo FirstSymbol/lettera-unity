@@ -737,7 +737,10 @@ namespace FirstSymbol.Lettera
 
         // The last clip a mask gave, so that a text culled by where its ink lies is looked at again when it changes.
         Rect m_CullClip;
-        bool m_CullValid, m_HasCullClip, m_CulledByInk;
+        bool m_CullValid, m_HasCullClip, m_CulledByInk, m_UnderRectMask;
+
+        /// <summary>A mask has culled this text, so its mesh notes where its ink lies; no other text pays for that.</summary>
+        internal bool TracksInk => m_UnderRectMask;
 
         // A mask decides about culling on its own, which must not bring a hidden text back.
         // A text whose rect reaches into the mask while its ink stays outside draws nothing there, so it is culled by its ink.
@@ -752,6 +755,12 @@ namespace FirstSymbol.Lettera
             m_CullValid = validRect;
             m_HasCullClip = true;
             m_CulledByInk = false;
+            if (validRect && !m_UnderRectMask)
+            {
+                m_UnderRectMask = true;
+                // A mesh built before any mask knew of it has no ink: build it again, once.
+                if (Engine.Dirty == DirtyLevel.None && !Engine.InkKnown && Engine.VertexCount > 0) MarkDirty(DirtyLevel.Mesh);
+            }
             if (validRect && m_Parts.Count == 0 && Engine.Dirty == DirtyLevel.None && Engine.InkKnown && !clipRect.Overlaps(InkInRootCanvas(Engine.InkRect), true))
             {
                 m_CulledByInk = true;
