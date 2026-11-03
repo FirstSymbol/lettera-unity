@@ -161,7 +161,7 @@ namespace FirstSymbol.Lettera.Editor.Tests
             foreach (string body in new[]
             {
                 "<stroke=#3399FF,0.08><shadow=#000000,0.06,-0.06>Kerning AV wavy fox</shadow></stroke>",
-                "<stroke=#3399FF,0.08><shadow=#200000,-0.08,-0.04>To AVA, rt ff\nsecond line</shadow></stroke>",
+                "<stroke=#3399FF,0.08><shadow=#200000,-0.05,-0.03>To AVA, rt ff\nsecond line</shadow></stroke>",
             })
             {
                 LetteraText text = LayeredLabel(body);
@@ -171,7 +171,7 @@ namespace FirstSymbol.Lettera.Editor.Tests
                 int separate = SamePictureMergedAndApart(text);
                 Assert.AreEqual(0, separate % 12, body);
                 Assert.AreEqual(separate / 3 * 2 + hoisted * 4, merged, body);
-                if (body.Contains("-0.08")) Assert.Greater(hoisted, 0, "a shadow to the left reaches the stroke before it");
+                if (body.Contains("-0.05")) Assert.Greater(hoisted, 0, "a shadow to the left reaches the stroke before it");
                 foreach (GameObject root in m_Roots) Object.DestroyImmediate(root);
                 m_Roots.Clear();
             }
