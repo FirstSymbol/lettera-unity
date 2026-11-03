@@ -157,9 +157,13 @@ namespace FirstSymbol.Lettera
             return (int)Mathf.Clamp(lines * perLine * 1.25f, 2048, settings.MaxWindowCodepoints + 512);
         }
 
+        /// <summary>How many characters of the document the window's buffers hold without growing, past what is open before it.</summary>
+        internal int WindowRoom => m_Aside.WindowRoom - m_Aside.PreludeLength;
+
         void ReserveFor(int codepoints)
         {
             int n = Math.Max(codepoints, SmallestBuffer);
+            m_Aside.WindowRoom = n;
             EnsureText(n + 4);
             if (m_RuntimeChars.Length < n) m_RuntimeChars = new char[n];
             if (m_PrevSource.Length < n) m_PrevSource = new char[n];

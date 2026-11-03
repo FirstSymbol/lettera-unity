@@ -156,6 +156,7 @@ namespace FirstSymbol.Lettera
             internal bool WindowOffsetWas, WindowLoaded;
             internal float ViewWidth = -1;
             internal bool WindowLean, WindowBaked, WindowExtended;
+            internal int WindowRoom;
             internal bool WindowBandStale;
             internal TextEngine BlockMeasure;
             internal MeasureHost BlockHost;

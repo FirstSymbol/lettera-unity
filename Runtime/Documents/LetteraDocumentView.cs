@@ -479,7 +479,10 @@ namespace FirstSymbol.Lettera
             if (missing <= 0) return false;
             double margin = LeanMargin * viewport;
             int wanted = (int)Math.Min(m_Rope.Length, windowEnd + Math.Ceiling((missing + margin) * m_CharsPerPixel * LeanSlack));
-            int end = ParagraphEndAfter(Math.Min(wanted, m_Engine.WindowStart + m_Settings.MaxWindowCodepoints));
+            // No further than the buffers the document took when it opened, so a scroll grows nothing; a paragraph past that is cut where it stops.
+            int room = m_Engine.WindowStart + Math.Min(m_Settings.MaxWindowCodepoints, m_Engine.WindowRoom);
+            int end = Math.Min(ParagraphEndAfter(Math.Min(wanted, room)), room);
+            if (end > 0 && end < m_Rope.Length && char.IsLowSurrogate(CharAt(end))) end--;
             if (end <= windowEnd) return false;
             m_Extended = true;
             int lastChar = Math.Max(m_Rope.Length - 1, 0);
