@@ -269,13 +269,14 @@ namespace FirstSymbol.Lettera
                     s_ShardPosed = false;
                 }
                 EnsureCapacity(vertexCount + e.VertexCount, indexCount + e.IndexCount);
-                Matrix4x4 m = text.transform.localToWorldMatrix;
+                // The matrix the update loop just read for this text: asking the engine again costs a call per text.
+                Matrix4x4 m = placed.Matrix;
                 placed.BaseVertex = vertexCount;
                 placed.Shard = GetShard(batch, shardIndex);
                 s_ShardPosed |= e.HasPoseConsumers;
                 // The face looks along -Z; a mirrored text still has its normal towards the viewer.
                 Vector3 normal = m.MultiplyVector(Vector3.back).normalized;
-                if (m.determinant < 0) normal = -normal;
+                if (Determinant3(m) < 0) normal = -normal;
                 PlaceVertices(e.Vertices, s_Vertices, vertexCount, e.VertexCount, m);
                 Array.Fill(s_Normals, normal, vertexCount, e.VertexCount);
                 Array.Copy(e.Colors, 0, s_Colors, vertexCount, e.VertexCount);
@@ -326,6 +327,9 @@ namespace FirstSymbol.Lettera
             for (int i = 0; i < count; i++) to[at + i] = from[i] + offset;
         }
 
+        static float Determinant3(in Matrix4x4 m) =>
+            m.m00 * (m.m11 * m.m22 - m.m12 * m.m21) - m.m01 * (m.m10 * m.m22 - m.m12 * m.m20) + m.m02 * (m.m10 * m.m21 - m.m11 * m.m20);
+
         static readonly Comparison<Entry> s_BySortingOrder = (a, b) =>
         {
             int x = a.Text.SortingOrder, y = b.Text.SortingOrder;
@@ -337,7 +341,8 @@ namespace FirstSymbol.Lettera
             if (s_Runs.Count > 0)
             {
                 MaterialRun last = s_Runs[s_Runs.Count - 1];
-                if (last.Styled == styled && last.Blend == blend && last.Texture == texture && last.Custom == custom)
+                // By reference: Unity's equality asks the engine whether each object still lives.
+                if (last.Styled == styled && last.Blend == blend && ReferenceEquals(last.Texture, texture) && ReferenceEquals(last.Custom, custom))
                 {
                     last.IndexCount += count;
                     s_Runs[s_Runs.Count - 1] = last;

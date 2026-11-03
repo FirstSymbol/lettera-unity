@@ -10,8 +10,8 @@ namespace FirstSymbol.Lettera
         LetteraMatchContext m_MatchContext = s_PlainContext, m_OwnContext;
         LetteraAttributes m_Attributes = LetteraAttributes.Plain, m_OwnAttributes;
         readonly List<LetteraStyle> m_EffectiveStyles = new List<LetteraStyle>();
-        readonly List<int> m_MatcherOrder = new List<int>();
-        readonly List<int> m_RangeOrder = new List<int>();
+        // Made by the first text with markup or holds, since most labels have neither.
+        List<int> m_MatcherOrder, m_RangeOrder;
 
         // The rendered text as UTF-32, and for each codepoint its index in the source text.
         int[] m_Text = Array.Empty<int>();
@@ -132,7 +132,7 @@ namespace FirstSymbol.Lettera
                 if (m_ProtectLength > 0 && m_ProtectStart + m_ProtectLength <= source.Length) context.Protect(m_ProtectStart, m_ProtectLength);
                 context.HasEscapes = false;
                 // Higher priority first; the sort is stable so earlier styles win ties.
-                m_MatcherOrder.Clear();
+                (m_MatcherOrder ?? (m_MatcherOrder = new List<int>())).Clear();
                 for (int i = 0; i < m_EffectiveStyles.Count; i++)
                 {
                     LetteraStyle style = m_EffectiveStyles[i];
@@ -209,7 +209,7 @@ namespace FirstSymbol.Lettera
         // ------------------------------------------------------------- queries and holds
 
         List<IHoldSource> m_Holds = Rare<IHoldSource>.List;
-        readonly List<HoldEntry> m_HoldEntries = new List<HoldEntry>();
+        List<HoldEntry> m_HoldEntries;
         bool m_RangesApplied;
 
         internal void AddHold(IHoldSource hold)
@@ -234,7 +234,7 @@ namespace FirstSymbol.Lettera
         List<HoldEntry> HoldsOf(int rangeIndex)
         {
             if (m_Holds.Count == 0) return null;
-            m_HoldEntries.Clear();
+            (m_HoldEntries ?? (m_HoldEntries = new List<HoldEntry>())).Clear();
             foreach (IHoldSource hold in m_Holds) hold.Contribute(rangeIndex, m_HoldEntries);
             return m_HoldEntries.Count > 0 ? m_HoldEntries : null;
         }
@@ -451,7 +451,7 @@ namespace FirstSymbol.Lettera
             ClearStageHooks();
 
             // Outer ranges first, so inner ones refine them: innermost wins.
-            m_RangeOrder.Clear();
+            (m_RangeOrder ?? (m_RangeOrder = new List<int>())).Clear();
             for (int i = 0; i < ranges.Count; i++) m_RangeOrder.Add(i);
             if (ranges.Count > 1) m_RangeOrder.Sort(m_CompareRanges ?? (m_CompareRanges = CompareRanges));
 

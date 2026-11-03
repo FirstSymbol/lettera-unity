@@ -131,9 +131,10 @@ namespace FirstSymbol.Lettera
             List<LayerGroup> groups = m_Attributes.SortedGroups();
             Styled = m_Attributes.NeedsStyledShader() || HasInlineSprites;
             PrepareGlyphs(groups);
-            // One quad a glyph is the usual case, so a long text does not grow through every size on the way.
-            if (m_PlacedCount * 4 > Vertices.Length) GrowVertices(System.Math.Max(System.Math.Max(m_PlacedCount * 4, Vertices.Length * 2), FirstVertices));
-            if (m_PlacedCount * 6 > Indices.Length) System.Array.Resize(ref Indices, System.Math.Max(System.Math.Max(m_PlacedCount * 6, Indices.Length * 2), FirstVertices * 3 / 2));
+            // One quad a glyph is the usual case, so a long text does not grow through every size on the way. A first mesh takes what its glyphs
+            // need: thousands of short labels made at once each holding room for sixteen glyphs was garbage enough to start collections.
+            if (m_PlacedCount * 4 > Vertices.Length) GrowVertices(Vertices.Length == 0 ? m_PlacedCount * 4 : System.Math.Max(System.Math.Max(m_PlacedCount * 4, Vertices.Length * 2), FirstVertices));
+            if (m_PlacedCount * 6 > Indices.Length) System.Array.Resize(ref Indices, Indices.Length == 0 ? m_PlacedCount * 6 : System.Math.Max(System.Math.Max(m_PlacedCount * 6, Indices.Length * 2), FirstVertices * 3 / 2));
             PrepareFade();
             PrepareExtraMotions();
 
