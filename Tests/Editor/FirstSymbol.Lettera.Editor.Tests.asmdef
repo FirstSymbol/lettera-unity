@@ -9,8 +9,6 @@
         "FirstSymbol.Lettera.Editor.Migration",
         "FirstSymbol.Lettera.Editor.CliCore",
         "FirstSymbol.Lettera.Unicode",
-        "Unity.Collections",
-        "Unity.Mathematics",
         "Unity.Burst"
     ],
     "includePlatforms": ["Editor"],

@@ -4,8 +4,6 @@
     "references": [
         "FirstSymbol.Lettera.Unicode",
         "Unity.Burst",
-        "Unity.Collections",
-        "Unity.Mathematics",
         "UnityEngine.UI"
     ],
     "includePlatforms": [],

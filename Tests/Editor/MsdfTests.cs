@@ -2,7 +2,7 @@ using NUnit.Framework;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Jobs;
-using Unity.Mathematics;
+using FirstSymbol.Lettera.Outlines;
 using UnityEngine;
 
 namespace FirstSymbol.Lettera.Editor.Tests

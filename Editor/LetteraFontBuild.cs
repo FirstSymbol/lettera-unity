@@ -17,9 +17,11 @@ namespace FirstSymbol.Lettera.Editor
 
         public override void PrepareForBuild(BuildPlayerContext context)
         {
-            LetteraFont.PackedInThisBuild.Clear();
-            // A build that fails never reaches the step after it, and a later bundle build must not find this set still filled.
-            EditorApplication.delayCall += () => LetteraFont.PackedInThisBuild.Clear();
+            Clear();
+            // A build that fails never reaches the step after it, and a later bundle build must not find these sets still filled.
+            EditorApplication.delayCall += Clear;
+            LetteraFont web = WebFontLeftOut(context.BuildPlayerOptions.target);
+            if (web != null) LetteraFont.LeftOutOfThisBuild.Add(web);
             LetteraFontPackaging setting = LetteraSettings.Instance.FontMemory.Packaging(context.BuildPlayerOptions.target);
             if (setting != LetteraFontPackaging.Packed) return;
 
@@ -27,7 +29,7 @@ namespace FirstSymbol.Lettera.Editor
             var catalog = new StringBuilder();
             foreach (LetteraFont font in FindFonts(context.BuildPlayerOptions.scenes))
             {
-                if (font.KeepInline || !font.HasData) continue;
+                if (font.KeepInline || !font.HasData || LetteraFont.LeftOutOfThisBuild.Contains(font)) continue;
                 byte[] payload = font.PayloadForBuild();
                 if (payload == null) continue;
                 string hash = LetteraFont.HashOf(payload);
@@ -45,7 +47,26 @@ namespace FirstSymbol.Lettera.Editor
             context.AddAdditionalPathToStreamingAssets(list, LetteraFontCache.PackedFolder + "/catalog.txt");
         }
 
-        public void OnPostprocessBuild(BuildReport report) => LetteraFont.PackedInThisBuild.Clear();
+        public void OnPostprocessBuild(BuildReport report) => Clear();
+
+        static void Clear()
+        {
+            LetteraFont.PackedInThisBuild.Clear();
+            LetteraFont.LeftOutOfThisBuild.Clear();
+        }
+
+        /// <summary>
+        /// The package's font for browsers, where a target always has fonts of its own: a text there reaches it only when the system offers
+        /// none. Linux keeps it, for a machine with no fonts installed, and so does a project that names it as its web fallback.
+        /// </summary>
+        internal static LetteraFont WebFontLeftOut(BuildTarget target)
+        {
+            if (target != BuildTarget.StandaloneWindows && target != BuildTarget.StandaloneWindows64 && target != BuildTarget.StandaloneOSX
+                && target != BuildTarget.Android && target != BuildTarget.iOS) return null;
+            var web = Resources.Load<LetteraFont>(FontChain.WebFontResource);
+            if (web == null || LetteraSettings.Instance.WebGLFallbackFont == web || LetteraSettings.Instance.DefaultFont == web) return null;
+            return web;
+        }
 
         // A font missed here stays inside its asset, and still works.
         static IEnumerable<LetteraFont> FindFonts(string[] scenes)

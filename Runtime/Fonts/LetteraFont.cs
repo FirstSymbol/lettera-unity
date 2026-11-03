@@ -18,6 +18,9 @@ namespace FirstSymbol.Lettera
 
         /// <summary>The fonts this build carries in files of their own, by hash. Filled while a player builds.</summary>
         internal static readonly HashSet<string> PackedInThisBuild = new HashSet<string>();
+
+        /// <summary>Fonts this build carries without their bytes, since nothing on its target can reach them. Filled while a player builds.</summary>
+        internal static readonly HashSet<LetteraFont> LeftOutOfThisBuild = new HashSet<LetteraFont>();
 #endif
         [SerializeField, HideInInspector] byte[] m_Compressed;
         [SerializeField, HideInInspector] string m_PayloadHash = "";
@@ -126,7 +129,7 @@ namespace FirstSymbol.Lettera
             // Everything a build holds comes through here. A font the scan missed is simply inline, so that the scan can only ever cost memory, never lose a font.
             if (string.IsNullOrEmpty(m_PayloadHash) && m_EditorBytes != null && m_EditorBytes.Length > 0) m_PayloadHash = HashOf(m_EditorBytes);
             m_PayloadLength = m_EditorBytes?.Length ?? 0;
-            m_Compressed = PackedInThisBuild.Contains(m_PayloadHash) ? null : m_EditorBytes;
+            m_Compressed = PackedInThisBuild.Contains(m_PayloadHash) || LeftOutOfThisBuild.Contains(this) ? null : m_EditorBytes;
 #endif
         }
 
