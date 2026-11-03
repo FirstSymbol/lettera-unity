@@ -228,6 +228,7 @@ namespace FirstSymbol.Lettera
 
         protected override void UpdateGeometry()
         {
+            if (s_Queued.Count > 0 && CanvasUpdateRegistry.IsRebuildingGraphics()) TakeBatch();
             if (m_HasAnimator) Engine.SyncSerializedFields();
             if (Engine.Dirty == DirtyLevel.None && m_Mesh != null)
             {
@@ -816,6 +817,7 @@ namespace FirstSymbol.Lettera
         public override void SetVerticesDirty()
         {
             base.SetVerticesDirty();
+            QueueForBatch();
             if (!m_CulledByInk) return;
             m_CulledByInk = false;
             if (m_HasCullClip) base.Cull(m_CullClip, m_CullValid);

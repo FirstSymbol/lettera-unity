@@ -96,6 +96,8 @@ namespace FirstSymbol.Lettera
                 m_PoseDirty = true;
                 return;
             }
+            m_MeshReady = false;
+            m_DirtyStamp++;
             if (level > m_Dirty) m_Dirty = level;
         }
 
@@ -112,7 +114,7 @@ namespace FirstSymbol.Lettera
 
         static void PassEnd(int pass, long start)
         {
-            if (TimePasses) PassTicks[pass] += System.Diagnostics.Stopwatch.GetTimestamp() - start;
+            if (TimePasses) System.Threading.Interlocked.Add(ref PassTicks[pass], System.Diagnostics.Stopwatch.GetTimestamp() - start);
         }
 
         bool m_Reapply, m_SemanticsStale;
@@ -258,7 +260,11 @@ namespace FirstSymbol.Lettera
             WorkCounter++;
             m_InPasses = true;
             try { RunPasses(level); }
-            finally { m_InPasses = false; }
+            finally
+            {
+                m_InPasses = false;
+                m_MeshReady = false;
+            }
             return true;
         }
 
@@ -290,7 +296,8 @@ namespace FirstSymbol.Lettera
             }
             if (level >= DirtyLevel.Mesh)
             {
-                using (s_MeshMarker.Auto()) { long t = PassStart(); BuildMesh(); PassEnd(4, t); }
+                if (level != DirtyLevel.Mesh || !m_MeshReady)
+                    using (s_MeshMarker.Auto()) { long t = PassStart(); BuildMesh(); PassEnd(4, t); }
                 LastChanges |= LetteraChanges.Mesh;
             }
             else if (level == DirtyLevel.Alpha || level == DirtyLevel.Tint)
@@ -500,6 +507,12 @@ namespace FirstSymbol.Lettera
             thread.Start();
         }
 #endif
+
+        // A list shared by every text that has none of it is left alone: a clear from one thread would break another's walk over it.
+        static void Empty<T>(List<T> list)
+        {
+            if (list.Count != 0) list.Clear();
+        }
 
         static List<T> Own<T>(ref List<T> list) => ReferenceEquals(list, Rare<T>.List) ? list = new List<T>() : list;
         static Dictionary<K, V> Own<K, V>(ref Dictionary<K, V> map) => ReferenceEquals(map, Rare<K, V>.Map) ? map = new Dictionary<K, V>() : map;

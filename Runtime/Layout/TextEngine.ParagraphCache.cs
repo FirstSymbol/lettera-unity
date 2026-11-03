@@ -392,8 +392,16 @@ namespace FirstSymbol.Lettera
             ParagraphEntry* entry = FindParagraph(hash, start, count, baseLevel, language);
             if (entry == null) return false;
 
-            Unlink(entry);
-            LinkNewest(entry);
+            if (m_BatchWorker)
+            {
+                (m_BatchTouched ?? (m_BatchTouched = new List<IntPtr>())).Add((IntPtr)entry);
+                m_BatchHits++;
+            }
+            else
+            {
+                Unlink(entry);
+                LinkNewest(entry);
+            }
 
             new ReadOnlySpan<int>(ShapeOf(entry), count).CopyTo(m_ShapeText.Slice(start, count));
             new ReadOnlySpan<byte>(LevelsOf(entry), count).CopyTo(m_Levels.Slice(start, count));
@@ -431,7 +439,7 @@ namespace FirstSymbol.Lettera
                 });
             }
             m_ShapedCount += glyphCount;
-            LetteraCaches.s_Stats.Hits++;
+            if (!m_BatchWorker) LetteraCaches.s_Stats.Hits++;
             return true;
         }
 

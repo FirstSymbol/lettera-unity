@@ -342,7 +342,7 @@ namespace FirstSymbol.Lettera
                 if (m_BandFirst >= from) m_BandFirst += shift;
                 if (m_BandEnd >= from) m_BandEnd += shift;
             }
-            m_Aside.ExtraLines.Clear();
+            Empty(m_Aside.ExtraLines);
             m_Aside.ExtraEnd = m_PlacedCount;
             m_Aside.SegmentsValid = false;
             m_Aside.ActiveRectsValid = false;

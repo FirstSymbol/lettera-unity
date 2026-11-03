@@ -98,9 +98,9 @@ namespace FirstSymbol.Lettera
 
         void PrepareVirtual()
         {
-            m_Aside.InlineGlyphs.Clear();
-            m_Aside.ListItems.Clear();
-            m_Aside.RubyItems.Clear();
+            Empty(m_Aside.InlineGlyphs);
+            Empty(m_Aside.ListItems);
+            Empty(m_Aside.RubyItems);
             EnsureSize(ref m_Aside.CpListIndent, m_TextLength + 1);
             Array.Clear(m_Aside.CpListIndent, 0, m_TextLength + 1);
             if (m_Attributes.ListItems.Count > 0) PrepareLists();

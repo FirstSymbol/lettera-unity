@@ -404,7 +404,7 @@ namespace FirstSymbol.Lettera
         void AssignDocumentRangeIds(LetteraMatchContext context)
         {
             List<LetteraMatchContext.RangeRecord> ranges = context.Ranges;
-            m_Aside.RangeIds.Clear();
+            Empty(m_Aside.RangeIds);
             if (ranges.Count == 0 && m_Aside.DocumentRangeIds.Count == 0) return;
             HashSet<long> present = m_Aside.PresentRanges ?? (m_Aside.PresentRanges = new HashSet<long>());
             present.Clear();
@@ -421,7 +421,7 @@ namespace FirstSymbol.Lettera
                 present.Add(key);
                 Own(ref m_Aside.RangeIds).Add(id);
             }
-            m_Aside.DocumentRangeScratch.Clear();
+            Empty(m_Aside.DocumentRangeScratch);
             foreach (KeyValuePair<long, int> pair in m_Aside.DocumentRangeIds)
                 if (!present.Contains(pair.Key) && !(m_Aside.CoverTarget.TryGetValue(pair.Value, out bool open) && open) && !(RangeHasOutsideState != null && RangeHasOutsideState(pair.Value)))
                     Own(ref m_Aside.DocumentRangeScratch).Add(pair.Key);

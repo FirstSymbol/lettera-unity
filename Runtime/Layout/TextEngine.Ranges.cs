@@ -43,7 +43,7 @@ namespace FirstSymbol.Lettera
             if (ranges.Count == 0 && m_Aside.OldRanges.Count == 0)
             {
                 // Nothing has an identity to keep, and a plain text pays nothing for this.
-                m_Aside.RangeIds.Clear();
+                Empty(m_Aside.RangeIds);
                 m_Aside.OldLength = -1;
                 return;
             }
@@ -54,7 +54,7 @@ namespace FirstSymbol.Lettera
             int delta = m_TextLength - oldLength;
             MapRevealValues(prefix, suffix, oldLength);
 
-            m_Aside.RangeIds.Clear();
+            Empty(m_Aside.RangeIds);
             for (int r = 0; r < ranges.Count; r++) Own(ref m_Aside.RangeIds).Add(0);
             bool same = delta == 0 && prefix == oldLength;
             for (int r = 0; r < ranges.Count; r++)
@@ -91,7 +91,7 @@ namespace FirstSymbol.Lettera
                     RangeRetired?.Invoke(m_Aside.OldRanges[o].Id);
                 }
 
-            m_Aside.OldRanges.Clear();
+            Empty(m_Aside.OldRanges);
             for (int r = 0; r < ranges.Count; r++)
                 Own(ref m_Aside.OldRanges).Add(new OldRange { Style = ranges[r].StyleIndex, Start = ranges[r].RenderedStart, End = ranges[r].RenderedEnd, Id = m_Aside.RangeIds[r], Label = ranges[r].Label });
             EnsureExact(ref m_Aside.OldText, m_TextLength);
@@ -133,7 +133,7 @@ namespace FirstSymbol.Lettera
         {
             m_Aside.ActiveRectsValid = false;
             bool had = m_Aside.Active.Count > 0;
-            m_Aside.Active.Clear();
+            Empty(m_Aside.Active);
             List<LetteraAttributes.ActiveRequest> requests = m_Attributes.ActiveRequests;
             List<LetteraMatchContext.RangeRecord> ranges = m_MatchContext.Ranges;
             for (int a = 0; a < requests.Count; a++)
@@ -409,7 +409,7 @@ namespace FirstSymbol.Lettera
         {
             if (!m_Aside.CoverFading) return false;
             bool any = false;
-            m_Aside.CoverKeys.Clear();
+            Empty(m_Aside.CoverKeys);
             foreach (KeyValuePair<int, bool> pair in m_Aside.CoverTarget) Own(ref m_Aside.CoverKeys).Add(pair.Key);
             foreach (int id in m_Aside.CoverKeys)
             {
@@ -429,7 +429,7 @@ namespace FirstSymbol.Lettera
         // A cover draws above the text, and the glyphs under it are not drawn at all: nothing can show through or reach a screenshot.
         void DrawSpoilerCovers()
         {
-            m_Aside.CoverQuads.Clear();
+            Empty(m_Aside.CoverQuads);
             if (!HasSpoilers) return;
             EnsureActiveRects();
             m_CurrentOwner = -1;

@@ -51,7 +51,7 @@ namespace FirstSymbol.Lettera
         void RunLayout()
         {
             LetteraTextData data = m_Host.Data;
-            m_Box = ComputeBox(data.Padding, m_Host.LayoutRect);
+            m_Box = ComputeBox(data.Padding, HostRect);
             bool degenerateWidth = m_Box.width <= 0;
             bool wrap = data.WordWrap && !degenerateWidth;
             float width = degenerateWidth ? float.PositiveInfinity : m_Box.width;
@@ -166,7 +166,7 @@ namespace FirstSymbol.Lettera
 
         void ClearRemoval()
         {
-            m_Aside.Removals.Clear();
+            Empty(m_Aside.Removals);
         }
 
         // Each request removes clusters from its own range to make the text fit, the last range first.
@@ -289,7 +289,7 @@ namespace FirstSymbol.Lettera
             ref LetteraAttributes.CpLayout layout = ref m_Attributes.Layout[cp];
             float size = SizeOf(m_Runs[m_CpRun[cp]], baseSize);
             float indent = layout.Indent.Of(size) + (m_Aside.ListItems.Count > 0 ? m_Aside.CpListIndent[cp] * size : 0);
-            if (layout.IndentPercent != 0) indent += layout.IndentPercent * 0.01f * m_Host.LayoutRect.width;
+            if (layout.IndentPercent != 0) indent += layout.IndentPercent * 0.01f * HostRect.width;
             return indent < 0 ? 0 : indent;
         }
 
@@ -535,7 +535,7 @@ namespace FirstSymbol.Lettera
         {
             if (visibleEnd < start) visibleEnd = start;
             LetteraTextData data = m_Host.Data;
-            LetteraSettings settings = LetteraSettings.Instance;
+            LetteraSettings settings = SettingsNow;
             LetteraLineHeightMode mode = data.LineHeightMode == LetteraLineHeightMode.Default ? settings.DefaultLineHeightMode : data.LineHeightMode;
             float value = data.LineHeightMode == LetteraLineHeightMode.Default ? settings.DefaultLineHeightValue : data.LineHeightValue;
 

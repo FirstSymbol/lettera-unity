@@ -1,4 +1,5 @@
 using System;
+using System.Threading;
 using UnityEngine;
 
 namespace FirstSymbol.Lettera
@@ -20,23 +21,52 @@ namespace FirstSymbol.Lettera
         /// <summary>How many batches went to threads. Tests read this.</summary>
         public static int ParallelBatches { get; private set; }
 
+        /// <summary>
+        /// Short Canvas texts that change in the same frame are shaped, broken into lines, placed and, when plain, meshed as one batch across the threads;
+        /// each then hands its mesh to Unity on the main thread. Off, each text does all of it alone in its turn. The result is the same either way.
+        /// </summary>
+        public static bool BatchShortTexts = true;
+
+        /// <summary>How many texts must change in one frame before waking the threads for them is worth it.</summary>
+        public static int BatchFromTexts = 8;
+
+        /// <summary>How many frames sent their short texts to threads. Tests read this.</summary>
+        public static int TextBatches { get; internal set; }
+
 #if UNITY_WEBGL && !UNITY_EDITOR
         // Managed threads do not exist here: the only path is the inline one, and nothing of the thread machinery is compiled.
         public static int WorkerCount => 0;
         internal static bool ShouldRun(int codepoints) => false;
+        internal static bool ShouldBatch(int texts) => false;
         internal static void Run(int count, Action<int> body)
         {
             for (int i = 0; i < count; i++) body(i);
         }
+        static Action<int> s_Body;
+        static int s_Ready;
+        internal static void Open(Action<int> body)
+        {
+            s_Body = body;
+            s_Ready = 0;
+        }
+        internal static void Publish(int ready)
+        {
+            while (s_Ready < ready) s_Body(s_Ready++);
+        }
+        internal static void Close() => s_Body = null;
         internal static void Shutdown() { }
 #else
         static readonly object s_Gate = new object();
-        static System.Threading.Thread[] s_Threads;
+        static Thread[] s_Threads;
         static Action<int> s_Body;
-        static int s_Count, s_Next, s_Pending, s_Generation;
+        // Items below Ready may run; Next is the first not yet taken, Done counts those finished. Closed says no more will come.
+        static int s_Next, s_Ready, s_Done, s_Generation, s_Active;
+        static volatile bool s_Closed;
         static bool s_Stopping;
         static Exception s_Failure;
         static int s_RequestedWorkers = -1;
+        // How long a thread stays awake waiting for the main thread to publish more of a batch, before leaving the rest to it.
+        static readonly long s_AwakeTicks = System.Diagnostics.Stopwatch.Frequency / 2000;
 
         /// <summary>How many threads help the main one. Setting it takes effect at the next batch.</summary>
         public static int WorkerCount
@@ -66,14 +96,25 @@ namespace FirstSymbol.Lettera
             }
         }
 
+        internal static bool ShouldBatch(int texts)
+        {
+            if (!BatchShortTexts || texts < BatchFromTexts) return false;
+            switch (Mode)
+            {
+                case LetteraWorkerMode.Inline: return false;
+                case LetteraWorkerMode.Parallel: return WorkerCount > 0;
+                default: return Application.isPlaying && SystemInfo.processorCount > 2 && WorkerCount > 0;
+            }
+        }
+
         static void Start()
         {
             if (s_Threads != null) return;
             s_Stopping = false;
-            s_Threads = new System.Threading.Thread[WorkerCount];
+            s_Threads = new Thread[WorkerCount];
             for (int i = 0; i < s_Threads.Length; i++)
             {
-                s_Threads[i] = new System.Threading.Thread(Loop) { IsBackground = true, Name = "Lettera Worker" };
+                s_Threads[i] = new Thread(Loop) { IsBackground = true, Name = "Lettera Worker" };
                 s_Threads[i].Start();
             }
         }
@@ -86,32 +127,58 @@ namespace FirstSymbol.Lettera
                 Action<int> body;
                 lock (s_Gate)
                 {
-                    while (!s_Stopping && s_Generation == seen) System.Threading.Monitor.Wait(s_Gate);
+                    // A batch that ended before this thread woke is past: it waits for the next.
+                    while (!s_Stopping && (s_Generation == seen || s_Body == null))
+                    {
+                        seen = s_Generation;
+                        Monitor.Wait(s_Gate);
+                    }
                     if (s_Stopping) return;
                     seen = s_Generation;
                     body = s_Body;
+                    s_Active++;
                 }
                 Work(body);
+                lock (s_Gate)
+                    if (--s_Active == 0)
+                        Monitor.PulseAll(s_Gate);
             }
         }
 
-        static void Work(Action<int> body)
+        /// <summary>Items the main thread did itself, for tests that see how a batch was shared.</summary>
+        internal static int MainItems;
+
+        static int Work(Action<int> body)
         {
+            int done = 0;
+            long idleSince = 0;
             while (true)
             {
-                int index = System.Threading.Interlocked.Increment(ref s_Next) - 1;
-                if (index >= s_Count) return;
-                try
+                int next = Volatile.Read(ref s_Next);
+                if (next < Volatile.Read(ref s_Ready))
                 {
-                    body(index);
+                    if (Interlocked.CompareExchange(ref s_Next, next + 1, next) != next) continue;
+                    try
+                    {
+                        body(next);
+                    }
+                    catch (Exception e)
+                    {
+                        lock (s_Gate) s_Failure = s_Failure ?? e;
+                    }
+                    if (Interlocked.Increment(ref s_Done) == Volatile.Read(ref s_Ready) && s_Closed)
+                        lock (s_Gate)
+                            Monitor.PulseAll(s_Gate);
+                    idleSince = 0;
+                    done++;
+                    continue;
                 }
-                catch (Exception e)
-                {
-                    lock (s_Gate) s_Failure = s_Failure ?? e;
-                }
-                if (System.Threading.Interlocked.Decrement(ref s_Pending) == 0)
-                    lock (s_Gate)
-                        System.Threading.Monitor.PulseAll(s_Gate);
+                if (s_Closed) return done;
+                // Items published one by one come microseconds apart, so the next is waited for awake, for a while.
+                long now = System.Diagnostics.Stopwatch.GetTimestamp();
+                if (idleSince == 0) idleSince = now;
+                else if (now - idleSince > s_AwakeTicks) return done;
+                Thread.SpinWait(16);
             }
         }
 
@@ -119,29 +186,58 @@ namespace FirstSymbol.Lettera
         internal static void Run(int count, Action<int> body)
         {
             if (count <= 0) return;
-            if (count == 1)
+            // One item, or a batch already open around this call: the main thread does it alone.
+            if (count == 1 || s_Body != null)
             {
-                body(0);
+                for (int i = 0; i < count; i++) body(i);
                 return;
             }
+            Begin(body, count, true);
+            Close();
+        }
+
+        /// <summary>
+        /// Starts a batch whose items the main thread readies one by one: the threads wake while it works, and take each item once it is published.
+        /// The main thread helps with what is left at <see cref="Close"/>.
+        /// </summary>
+        internal static void Open(Action<int> body) => Begin(body, 0, false);
+
+        /// <summary>Items below this may run now.</summary>
+        internal static void Publish(int ready) => Volatile.Write(ref s_Ready, ready);
+
+        static void Begin(Action<int> body, int ready, bool closed)
+        {
             Start();
             ParallelBatches++;
             lock (s_Gate)
             {
                 s_Failure = null;
                 s_Body = body;
-                s_Count = count;
-                s_Next = 0;
-                s_Pending = count;
+                s_Next = s_Done = 0;
+                s_Ready = ready;
+                s_Closed = closed;
                 s_Generation++;
-                System.Threading.Monitor.PulseAll(s_Gate);
+                Monitor.PulseAll(s_Gate);
             }
-            // The main thread does its share, so a batch never waits on a thread that has not woken yet.
-            Work(body);
+        }
+
+        /// <summary>No more items: the main thread does its share of what is published, and returns when every item is done and every thread is out.</summary>
+        internal static void Close()
+        {
+            Action<int> body;
             lock (s_Gate)
             {
-                while (s_Pending > 0) System.Threading.Monitor.Wait(s_Gate);
+                s_Closed = true;
+                body = s_Body;
+            }
+            // The main thread does its share, so a batch never waits on a thread that has not woken yet.
+            if (body != null) MainItems += Work(body);
+            lock (s_Gate)
+            {
+                while (Volatile.Read(ref s_Done) < s_Ready) Monitor.Wait(s_Gate);
+                // A thread that took this batch's body leaves before the next batch can start, so it never runs this body on that batch's items.
                 s_Body = null;
+                while (s_Active > 0) Monitor.Wait(s_Gate);
                 if (s_Failure != null)
                 {
                     Exception failure = s_Failure;
@@ -158,9 +254,9 @@ namespace FirstSymbol.Lettera
             lock (s_Gate)
             {
                 s_Stopping = true;
-                System.Threading.Monitor.PulseAll(s_Gate);
+                Monitor.PulseAll(s_Gate);
             }
-            foreach (System.Threading.Thread thread in s_Threads) thread.Join();
+            foreach (Thread thread in s_Threads) thread.Join();
             s_Threads = null;
         }
 

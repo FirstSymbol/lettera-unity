@@ -29,7 +29,7 @@ namespace FirstSymbol.Lettera
         // Each thing a formula draws is a glyph only the mesh sees, so color, layers, reveal and motion reach it with nothing further.
         void PlaceFormulas()
         {
-            m_Aside.MathSpecials.Clear();
+            Empty(m_Aside.MathSpecials);
             for (int i = 0; i < m_Aside.InlineItems.Count; i++)
             {
                 InlineItem item = m_Aside.InlineItems[i];
@@ -206,7 +206,7 @@ namespace FirstSymbol.Lettera
         void CollectInlineItems()
         {
             bool had = m_Aside.InlineItems.Count > 0;
-            m_Aside.InlineItems.Clear();
+            Empty(m_Aside.InlineItems);
             m_Aside.InlineByCp.Clear();
             m_Aside.FormulaCount = 0;
             List<LetteraAttributes.InlineRequest> requests = m_Attributes.InlineRequests;

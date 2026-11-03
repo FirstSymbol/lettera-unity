@@ -100,11 +100,11 @@ namespace FirstSymbol.Lettera
             m_SegmentCustom = null;
             m_SegmentStart = 0;
             m_FilterRow = 0;
-            m_Aside.SolidBoxes.Clear();
+            Empty(m_Aside.SolidBoxes);
             m_AllTakeBase = true;
             m_RecordOwners = HasPoseConsumers || m_Aside.RevealSpans.Count > 0 || (m_Aside.Marquee != null && m_Aside.MarqueeScrolling) || NeedsRestState;
             m_Aside.WindowBaked = false;
-            if (m_Aside.StageHooks.Count > 0) m_Aside.CoverQuads.Clear();
+            if (m_Aside.StageHooks.Count > 0) Empty(m_Aside.CoverQuads);
             m_CurrentOwner = -1;
             m_DrawBase = m_Host.BaseColor;
             InkKnown = false;
@@ -114,7 +114,7 @@ namespace FirstSymbol.Lettera
             m_InkMaxX = m_InkMaxY = float.MinValue;
             if (m_TrackInk)
             {
-                float rasterScale = m_Host.RasterScale;
+                float rasterScale = HostRasterScale;
                 m_InkMargin = rasterScale > 0 ? 1f / rasterScale : 1f;
             }
             GlyphAtlasRegistration.EnsureRegistered();
@@ -131,6 +131,7 @@ namespace FirstSymbol.Lettera
             List<LayerGroup> groups = m_Attributes.SortedGroups();
             Styled = m_Attributes.NeedsStyledShader() || HasInlineSprites;
             PrepareGlyphs(groups);
+            if (m_BatchMeshMissed) return;
             // One quad a glyph is the usual case, so a long text does not grow through every size on the way. A world text's first mesh takes what
             // its glyphs need, four at least: thousands of world labels are often made at once, and room for sixteen glyphs each was garbage enough
             // to start collections in their first frame. A Canvas label keeps room for sixteen, so one made again with more glyphs does not grow.
@@ -162,6 +163,7 @@ namespace FirstSymbol.Lettera
 
                 ReserveExtraQuads();
                 DrawFaces();
+                if (m_BatchMeshMissed) return;
                 foreach (LayerGroup group in m_Faces) DrawExtraFills(group);
                 AddDecorationLayer(null);
 
@@ -196,7 +198,7 @@ namespace FirstSymbol.Lettera
             }
             InkKnown = m_TrackInk && VertexCount > 0 && m_InkQuads * 4 == VertexCount && !m_RecordOwners && !m_Aside.WindowBaked && m_Aside.StageHooks.Count == 0 &&
                        m_Aside.MotionSpans.Count == 0 && m_Aside.MarqueeCopies <= 1 && !m_Aside.MarqueeScrolling;
-            UpdateHubMembership();
+            if (!m_BatchWorker) UpdateHubMembership();
         }
 
         bool m_RecordOwners;
@@ -251,12 +253,23 @@ namespace FirstSymbol.Lettera
 
             PrepareDecorationRects();
 
-            float rasterScale = m_Host.RasterScale;
+            float rasterScale = HostRasterScale;
             for (int i = 0; i < m_PlacedCount; i++)
             {
                 ref PlacedGlyph g = ref m_Placed[i];
                 int density = PixelsPerEm(g.Size, rasterScale);
                 byte boost = m_Attributes.At(g.Cluster).Boost;
+                // A thread takes only what the atlas holds already; anything it would make sends the mesh back to the main thread.
+                if (m_BatchWorker)
+                {
+                    if (boost > 0 || g.Special != 0 || m_SolidsOnly ||
+                        !GlyphAtlas.Peek(g.Instance, g.Glyph, density, m_PlacedReach[i], m_Host.Data.RenderMode == LetteraRenderMode.MSDF, out m_PlacedAtlas[i]))
+                    {
+                        m_BatchMeshMissed = true;
+                        return;
+                    }
+                    continue;
+                }
                 if (boost > 0) density = GlyphAtlas.Boost(g.Instance, g.Glyph, density << boost);
                 if (g.Special == SpecialRule)
                 {
@@ -423,6 +436,7 @@ namespace FirstSymbol.Lettera
         void DrawFaces()
         {
             if (PlainFaces()) DrawPlainFaces();
+            else if (m_BatchWorker) m_BatchMeshMissed = true;
             else
                 for (int i = 0; i < m_PlacedCount; i++) DrawFace(i);
         }
@@ -449,6 +463,11 @@ namespace FirstSymbol.Lettera
                 if (atlas.Kind == AtlasGlyph.Empty) continue;
                 if (g.Special != 0 || g.Angle != 0 || atlas.Kind == AtlasGlyph.Color)
                 {
+                    if (m_BatchWorker)
+                    {
+                        m_BatchMeshMissed = true;
+                        return;
+                    }
                     DrawFace(i);
                     continue;
                 }

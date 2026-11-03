@@ -204,6 +204,29 @@ namespace FirstSymbol.Lettera
             return pixelsPerEm;
         }
 
+        /// <summary>What <see cref="Get"/> returns for a glyph the atlas already holds as asked, with nothing written, for a thread. False where Get would make one.</summary>
+        internal static bool Peek(FontInstance instance, uint glyph, int pixelsPerEm, float reach, bool multi, out AtlasGlyph entry)
+        {
+            int grid = instance.Face.PixelGrid;
+            if (grid > 0)
+            {
+                pixelsPerEm = grid;
+                multi = false;
+            }
+            else if (s_MinDensity.Count > 0 && s_MinDensity.TryGetValue(((ulong)(uint)instance.Id << 32) | glyph, out int raised) && raised > pixelsPerEm)
+                pixelsPerEm = raised;
+            ulong key = ((ulong)(uint)instance.Id << 36) | ((ulong)glyph << 8) | (uint)(pixelsPerEm >> 2 & 0x7F) | (multi ? 0x80u : 0);
+            return s_Glyphs.TryGetValue(key, out entry) && !(entry.HasDistance && entry.Spread < reach);
+        }
+
+        /// <summary>Main thread: marks used what a thread found by <see cref="Peek"/>, as <see cref="Get"/> would have.</summary>
+        internal static void Touch(FontInstance instance, in AtlasGlyph entry)
+        {
+            instance.Face.LastUsedFrame = s_Frame;
+            if (entry.HasDistance) (entry.Kind == AtlasGlyph.Sdf ? s_Sdf : s_Msdf).LastUsed[entry.Page] = s_Tick;
+            else if (entry.Kind == AtlasGlyph.Color) s_Color.LastUsed[entry.Page] = s_Tick;
+        }
+
         public static AtlasGlyph Get(FontInstance instance, uint glyph, int pixelsPerEm, float reach = 0, bool multi = false)
         {
             instance.Face.LastUsedFrame = s_Frame;

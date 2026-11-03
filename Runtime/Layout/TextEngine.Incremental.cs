@@ -243,7 +243,7 @@ namespace FirstSymbol.Lettera
         // Where line breaking starts again: the paragraph shaping started again at, when nothing else that breaks lines changed.
         int LayoutResume(float size, float width, bool wrap, LetteraTextData data)
         {
-            LetteraSettings settings = LetteraSettings.Instance;
+            LetteraSettings settings = SettingsNow;
             bool plain = m_Aside.Removals.Count == 0 && !data.AutoSize && !m_Aside.MarqueeScrolling && m_Attributes.Elides.Count == 0 && m_Aside.RevealSpans.Count == 0 &&
                          m_Aside.StageHooks.Count == 0 && !m_Attributes.HasLayout && m_Attributes.TrimTop == LetteraTrimTop.None && m_Attributes.TrimBottom == LetteraTrimBottom.None &&
                          m_FitGlyphScale == 1 && m_FitTracking == 0 && m_FitLineHeight == 1 && m_Aside.RubyItems.Count == 0 && m_Aside.InlineItems.Count == 0 &&

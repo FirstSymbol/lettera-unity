@@ -70,7 +70,8 @@ namespace FirstSymbol.Lettera
             ShapeCount++;
             int length = m_TextLength;
             LetteraTextData data = m_Host.Data;
-            m_Chain = LetteraFontChains.Get(data.Font, data.FontStack);
+            // On a thread the chain is the one the main thread found for this batch: the shared table of chains is only read there.
+            if (!m_BatchWorker) m_Chain = LetteraFontChains.Get(data.Font, data.FontStack);
             int direction = FieldDirection >= 0 ? FieldDirection : m_Attributes.DirectionOverride >= 0 ? m_Attributes.DirectionOverride
                 : data.BaseDirection == LetteraDirection.LeftToRight ? 0 : data.BaseDirection == LetteraDirection.RightToLeft ? 1 : 2;
             int baseLevel = direction == 2 ? -1 : direction;
@@ -138,6 +139,11 @@ namespace FirstSymbol.Lettera
                     break;
                 }
             }
+            if (m_BatchMissed)
+            {
+                ShapeCount--;
+                return;
+            }
             CountPending();
             if (m_Deferring && resume == 0) ShapeSample();
             RunAnalyzedHooks();
@@ -150,8 +156,8 @@ namespace FirstSymbol.Lettera
             }
             else
             {
-                m_Aside.ListItems.Clear();
-                m_Aside.RubyItems.Clear();
+                Empty(m_Aside.ListItems);
+                Empty(m_Aside.RubyItems);
             }
         }
 
@@ -183,10 +189,21 @@ namespace FirstSymbol.Lettera
                 language = LanguageOf(-1);
                 hash = HashParagraph(start, count, baseLevel, language);
                 if (TryRestoreParagraph(hash, ref paragraph, start, count, baseLevel, language)) return;
+                if (m_BatchWorker)
+                {
+                    m_BatchMissed = true;
+                    return;
+                }
                 LetteraCaches.s_Stats.Misses++;
             }
             if (count > 0)
             {
+                // Shaping anew finds faces and fills the cache, which only the main thread does: this text rebuilds there.
+                if (m_BatchWorker)
+                {
+                    m_BatchMissed = true;
+                    return;
+                }
                 ReadOnlySpan<int> text = m_Text.Slice(start, count);
                 GraphemeBreaker.FindBoundaries(text, m_Boundaries.Slice(start, count + 1));
                 if (MaskGlyph != 0)

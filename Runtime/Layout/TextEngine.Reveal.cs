@@ -30,8 +30,8 @@ namespace FirstSymbol.Lettera
         void CollectReveals()
         {
             foreach (RevealEffect effect in m_Aside.RevealListening) effect.Touched -= OnRevealTouched;
-            m_Aside.RevealListening.Clear();
-            m_Aside.RevealSpans.Clear();
+            Empty(m_Aside.RevealListening);
+            Empty(m_Aside.RevealSpans);
             List<LetteraAttributes.RevealRequest> requests = m_Attributes.RevealRequests;
             if (requests.Count == 0) return;
             EnsureExact(ref m_Aside.CpReveal, m_TextLength + 1);
@@ -255,7 +255,7 @@ namespace FirstSymbol.Lettera
 
         void BuildRevealBodies()
         {
-            m_Aside.RevealBodies.Clear();
+            Empty(m_Aside.RevealBodies);
             if (m_Aside.RevealSpans.Count == 0) return;
             // A unit moves as one body, about its own box.
             for (int i = 0; i < m_PlacedCount; i++)

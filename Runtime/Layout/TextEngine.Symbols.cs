@@ -34,7 +34,7 @@ namespace FirstSymbol.Lettera
         // Before the first quad of a mesh.
         void PrepareExtraMotions()
         {
-            m_Aside.ExtraQuads.Clear();
+            Empty(m_Aside.ExtraQuads);
             m_Aside.UsesRestUv0 = false;
             if (m_Aside.MotionSpans.Count == 0) return;
             EnsureExact(ref m_Aside.FaceQuad, m_PlacedCount);

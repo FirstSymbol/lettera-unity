@@ -9,9 +9,9 @@ namespace FirstSymbol.Lettera
     {
         void ClearStageHooks()
         {
-            m_Aside.PoseHooks.Clear();
-            m_Aside.StageHooks.Clear();
-            m_Aside.HookedHidden.Clear();
+            Empty(m_Aside.PoseHooks);
+            Empty(m_Aside.StageHooks);
+            Empty(m_Aside.HookedHidden);
         }
 
         void RegisterStages(LetteraEffect effect, int start, int end)
