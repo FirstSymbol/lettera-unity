@@ -123,6 +123,7 @@ namespace FirstSymbol.Lettera
         protected override void OnEnable()
         {
             base.OnEnable();
+            m_PixelLength = -1;
             GlyphAtlasRegistration.EnsureRegistered();
             // Still listening means it left with its GameObject: whatever changed since has marked it, so only what it could not hear about is checked here.
             bool kept = ((ITextListener)this).ListenerSlot >= 0;
@@ -184,6 +185,7 @@ namespace FirstSymbol.Lettera
         protected override void OnCanvasHierarchyChanged()
         {
             base.OnCanvasHierarchyChanged();
+            m_PixelLength = -1;
             EnableCanvasChannels();
             RefreshClipping();
         }
@@ -191,6 +193,7 @@ namespace FirstSymbol.Lettera
         protected override void OnTransformParentChanged()
         {
             base.OnTransformParentChanged();
+            m_PixelLength = -1;
             RefreshClipping();
             m_HasAnimator = GetComponentInParent<Animator>() != null;
         }
@@ -215,6 +218,7 @@ namespace FirstSymbol.Lettera
         protected override void OnRectTransformDimensionsChange()
         {
             base.OnRectTransformDimensionsChange();
+            m_PixelLength = -1;
             Vector2 size = rectTransform.rect.size;
             if (size == m_LastRectSize) return;
             bool widthChanged = !Mathf.Approximately(size.x, m_LastRectSize.x);
@@ -768,17 +772,26 @@ namespace FirstSymbol.Lettera
         internal bool TracksInk => m_UnderRectMask;
 
         /// <summary>How long a screen pixel is in this text's units, or 0 where that is not known: in world space a camera can come as near or go as far as it likes.</summary>
+        // Kept until the canvas's scale, the hierarchy or the rect changes, since a rebuild of many labels would otherwise walk each one's transforms.
+        // A label scaled by its own transform alone keeps the length it had, and its quads two pixels of margin at that scale.
         internal float PixelLength()
         {
             Canvas own = canvas;
             if (own == null) return 0;
+            float scale = own.scaleFactor;
+            if (m_PixelLength >= 0 && scale == m_PixelScale) return m_PixelLength;
+            m_PixelScale = scale;
+            m_PixelLength = 0;
             Canvas root = own.rootCanvas;
             if (root.renderMode == UnityEngine.RenderMode.WorldSpace || root.scaleFactor <= 0) return 0;
             Vector3 mine = transform.lossyScale, rootScale = root.transform.lossyScale;
             if (rootScale.x == 0 || rootScale.y == 0) return 0;
             float relative = Mathf.Min(Mathf.Abs(mine.x / rootScale.x), Mathf.Abs(mine.y / rootScale.y));
-            return relative > 0 ? 1f / (root.scaleFactor * relative) : 0;
+            m_PixelLength = relative > 0 ? 1f / (root.scaleFactor * relative) : 0;
+            return m_PixelLength;
         }
+
+        float m_PixelLength = -1, m_PixelScale;
 
         // A mask decides about culling on its own, which must not bring a hidden text back.
         // A text whose rect reaches into the mask while its ink stays outside draws nothing there, so it is culled by its ink.
