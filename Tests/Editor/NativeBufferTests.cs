@@ -53,27 +53,37 @@ namespace FirstSymbol.Lettera.Editor.Tests
 
         static TextEngine EngineOf(Component text) => ((ITextComponent)text).SharedEngine;
 
+        // What the editor makes of a changed serialized field is not the engine's, so only the rebuild is counted.
+        static long RebuildAllocation(LetteraText text, string source, ProfilerRecorder recorder)
+        {
+            text.Text = source;
+            long before = recorder.CurrentValue;
+            text.ForceRebuild();
+            return recorder.CurrentValue - before;
+        }
+
         [Test]
         public void SettingALongTextKeepsItsCodepointsAndShapingOffTheManagedHeap()
         {
-            string source = LongTextTests.Page(512 * 1024);
-            // A view a third of the way in: the band's shaping reaches that far into the text.
-            LetteraText text = InViewport("", 30000);
+            // Views a third of the way into 512 KB: the band's shaping reaches that far into the text. What the band itself places and draws
+            // is the same in both texts, so the difference is what the text holds per codepoint past the band.
+            string source = LongTextTests.Page(512 * 1024), longer = LongTextTests.Page(1024 * 1024);
+            LetteraText warm = InViewport("", 30000), text = InViewport("", 30000), other = InViewport("", 30000);
             using var recorder = ProfilerRecorder.StartNew(ProfilerCategory.Memory, "GC Allocated In Frame");
             long control = recorder.CurrentValue;
             System.GC.KeepAlive(new byte[32]);
             Assert.GreaterOrEqual(recorder.CurrentValue - control, 32, "the allocation counter does not work here");
 
-            // What the editor makes of a changed serialized field is not the engine's, so only the rebuild is counted.
-            text.Text = source;
-            long before = recorder.CurrentValue;
-            text.ForceRebuild();
-            long allocated = recorder.CurrentValue - before;
+            RebuildAllocation(warm, source, recorder);
+            long allocated = RebuildAllocation(text, source, recorder);
+            long allocatedLonger = RebuildAllocation(other, longer, recorder);
             TextEngine engine = EngineOf(text);
             Assert.Greater(engine.PendingParagraphs, 0, "most of it waits");
             Assert.Greater(engine.BandFirstLine, 100, "the view is deep in the text");
-            // Its codepoints at 4 bytes each and shaping's 17 a codepoint up to the band were 3.8 MB here as managed arrays. Lines and paragraphs stay.
-            Assert.Less(allocated, source.Length / 2, "allocated " + allocated + " bytes for " + source.Length + " characters");
+            Assert.AreEqual(engine.BandFirstLine, EngineOf(other).BandFirstLine, "both views show the same lines");
+            // As managed arrays, the codepoints alone were 4 bytes each: 2 MB more for the longer text. Its paragraphs stay, under a byte each.
+            int more = longer.Length - source.Length;
+            Assert.Less(allocatedLonger - allocated, more, $"{allocated} bytes for {source.Length} characters, {allocatedLonger} for {longer.Length}");
 
             LetteraText.FinishSomeNow();
             while (engine.PendingParagraphs > 0) LetteraText.FinishSomeNow();
