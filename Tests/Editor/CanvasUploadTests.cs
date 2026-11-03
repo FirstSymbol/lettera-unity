@@ -60,5 +60,25 @@ namespace FirstSymbol.Lettera.Editor.Tests
             label.color = new Color(0.2f, 0.2f, 0.2f);
             Assert.Less(Ink(Draw()), 10, "a dark colour leaves no bright ink");
         }
+
+        // A long text keeps its indices for all its room and says how many draw: a shorter text in the same room draws its own quads only.
+        [Test]
+        public void AShorterLongTextInTheSameRoomDrawsOnlyItsQuads()
+        {
+            string longer = new string('x', 700), shorter = new string('x', 680);
+            LetteraText label = CanvasLabel(longer, 6);
+            int full = Ink(Draw());
+            int room = label.MeshForTests.vertexCount;
+            Assert.GreaterOrEqual(room, 2048, "a long text's room");
+            label.Text = shorter;
+            int drawn = Ink(Draw());
+            Assert.AreEqual(room, label.MeshForTests.vertexCount, "the room stayed");
+            Assert.AreEqual(1, label.MeshForTests.subMeshCount);
+            Assert.AreEqual(((ITextComponent)label).SharedEngine.IndexCount, (int)label.MeshForTests.GetSubMesh(0).indexCount);
+            Assert.Less(drawn, full, "the quads past its count are drawn");
+            CanvasLabel(shorter, 6);
+            label.gameObject.SetActive(false);
+            Assert.AreEqual(drawn, Ink(Draw()), "the same as the shorter text made anew");
+        }
     }
 }
