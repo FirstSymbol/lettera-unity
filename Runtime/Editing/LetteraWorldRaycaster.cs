@@ -10,7 +10,7 @@ namespace FirstSymbol.Lettera
     [RequireComponent(typeof(Camera))]
     public class LetteraWorldRaycaster : BaseRaycaster
     {
-        [Tooltip("Layers that hide text behind them. Empty ignores physics.")]
+        [Tooltip("Layers that hide text behind them. Empty ignores physics, as does a project without the Physics module.")]
         [SerializeField] LayerMask m_Blockers;
         [Tooltip("Extra room around each text's rect, in its local units.")]
         [SerializeField] float m_Padding;
@@ -29,7 +29,9 @@ namespace FirstSymbol.Lettera
             if (viewport.x < 0 || viewport.x > 1 || viewport.y < 0 || viewport.y > 1) return;
             Ray ray = camera.ScreenPointToRay(eventData.position);
             float limit = float.MaxValue;
+#if LETTERA_PHYSICS
             if (m_Blockers.value != 0 && Physics.Raycast(ray, out RaycastHit block, camera.farClipPlane, m_Blockers)) limit = block.distance;
+#endif
 
             foreach (LetteraWorldText text in LetteraWorldBatcher.Texts)
             {

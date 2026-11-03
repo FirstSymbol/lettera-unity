@@ -243,6 +243,40 @@ namespace FirstSymbol.Lettera.Editor.Tests
             }
         }
 
+        // F4: a project can make pages of 1024; a page costs a quarter, and the text looks the same.
+        [Test]
+        public void SmallerPagesCostAQuarterAndDrawTheSame()
+        {
+            var background = new Color(0.1f, 0.1f, 0.1f, 1);
+            GlyphAtlas.Clear();
+            LetteraWorldText text = Make("Pages of 1024, the same picture", 300, 60, null, 24);
+            Texture2D large = Render(300, 60, background);
+            Assert.AreEqual(2048, GlyphAtlas.SdfPageSize);
+            long largeBytes = GlyphAtlas.PageBytes;
+            try
+            {
+                GlyphAtlas.PageSizeForTests = 1024;
+                GlyphAtlas.Clear();
+                GlyphAtlas.Flush();
+                text.ForceRebuild();
+                Texture2D small = Render(300, 60, background);
+                Assert.AreEqual(1024, GlyphAtlas.SdfPageSize);
+                Assert.AreEqual(1024, GlyphAtlas.TextureOf(0).width);
+                Assert.AreEqual(largeBytes / 4, GlyphAtlas.PageBytes);
+                int differing = 0;
+                for (int y = 0; y < 60; y++)
+                    for (int x = 0; x < 300; x++)
+                        if (Mathf.Abs(large.GetPixel(x, y).r - small.GetPixel(x, y).r) > 2 / 255f) differing++;
+                Assert.LessOrEqual(differing, 3);
+            }
+            finally
+            {
+                GlyphAtlas.PageSizeForTests = 0;
+                GlyphAtlas.Clear();
+            }
+            Assert.AreEqual(2048, GlyphAtlas.SdfPageSize);
+        }
+
         // The row I3 of the targets: a label that reaches into a mask with only its empty margin draws nothing there.
         [Test]
         public void AMaskCullsALabelWhoseInkLiesOutsideIt()

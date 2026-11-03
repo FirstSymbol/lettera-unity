@@ -44,7 +44,11 @@ namespace FirstSymbol.Lettera
         /// <summary>The farthest a layer can reach from the edge, in em.</summary>
         public const float MaxReachEm = 1f;
 
-        const int PageSize = 2048;
+        /// <summary>Pages made before the settings were read, and the size of a page when nothing says otherwise.</summary>
+        internal const int DefaultPageSize = 2048;
+
+        /// <summary>Overrides every set's page size for tests; 0 reads the settings.</summary>
+        internal static int PageSizeForTests;
         // Browsers on phones stop a page long before desktops run out, so the web keeps fewer pages.
 #if UNITY_WEBGL && !UNITY_EDITOR
         const int DefaultSdfPages = 3;
@@ -62,6 +66,7 @@ namespace FirstSymbol.Lettera
         static readonly int s_SdfAtlasId = Shader.PropertyToID("_LetteraSdfAtlas");
         static readonly int s_ColorAtlasId = Shader.PropertyToID("_LetteraColorAtlas");
         static readonly int s_MsdfAtlasId = Shader.PropertyToID("_LetteraMsdfAtlas");
+        static readonly int s_SdfAtlasSizeId = Shader.PropertyToID("_LetteraSdfAtlasSize");
 
         sealed class PageSet
         {
@@ -76,6 +81,11 @@ namespace FirstSymbol.Lettera
             public int Current;
             public bool NeedsFullUpload;
 
+            int m_Size = DefaultPageSize;
+
+            // A set takes the configured size while it holds no page, and keeps it while it has any.
+            public int Size => Pixels.Count > 0 ? m_Size : (m_Size = ConfiguredSize(this));
+
             public PageSet(GraphicsFormat format, int bytes, int maxPages, int propertyId)
             {
                 Format = format;
@@ -89,6 +99,14 @@ namespace FirstSymbol.Lettera
         {
             public PageSet Set;
             public int Page, X, Y, Width, Height;
+        }
+
+        static int ConfiguredSize(PageSet set)
+        {
+            if (PageSizeForTests > 0) return PageSizeForTests;
+            LetteraAtlasSettings atlas = LetteraSettings.Instance.Atlas;
+            LetteraAtlasPageSize size = set == s_Sdf ? atlas.SdfPageSize : set == s_Color ? atlas.ColorPageSize : atlas.MsdfPageSize;
+            return size == LetteraAtlasPageSize.Size1024 ? 1024 : 2048;
         }
 
         static readonly PageSet s_Sdf = new PageSet(GraphicsFormat.R8_UNorm, 1, DefaultSdfPages, s_SdfAtlasId);
@@ -126,6 +144,16 @@ namespace FirstSymbol.Lettera
         public static event Action Cleared;
 
         public static int SdfPageCount => s_Sdf.Pixels.Count;
+
+        /// <summary>What the pages of every kind hold in memory, in bytes: each page is this once on the CPU and once on the GPU.</summary>
+        public static long PageBytes => SetBytes(s_Sdf) + SetBytes(s_Color) + SetBytes(s_Msdf);
+
+        /// <summary>The side of a page of each kind, in texels: distance fields, colour, multi-channel.</summary>
+        public static int SdfPageSize => s_Sdf.Size;
+        public static int ColorPageSize => s_Color.Size;
+        public static int MsdfPageSize => s_Msdf.Size;
+
+        static long SetBytes(PageSet set) => (long)set.Pixels.Count * set.Size * set.Size * set.Bytes;
         public static int ColorPageCount => s_Color.Pixels.Count;
         public static int MsdfPageCount => s_Msdf.Pixels.Count;
 
@@ -267,7 +295,7 @@ namespace FirstSymbol.Lettera
             s_Tiles.Add(new SdfTile
             {
                 Target = (byte*)set.Pixels[page],
-                Stride = PageSize * set.Bytes,
+                Stride = set.Size * set.Bytes,
                 Multi = multi,
                 X = x, Y = y, Width = width, Height = height,
                 LineStart = lineStart,
@@ -280,8 +308,8 @@ namespace FirstSymbol.Lettera
             {
                 Kind = multi ? AtlasGlyph.Msdf : AtlasGlyph.Sdf,
                 Page = (ushort)page,
-                U0 = (float)x / PageSize, V0 = (float)y / PageSize,
-                U1 = (float)(x + width) / PageSize, V1 = (float)(y + height) / PageSize,
+                U0 = (float)x / set.Size, V0 = (float)y / set.Size,
+                U1 = (float)(x + width) / set.Size, V1 = (float)(y + height) / set.Size,
                 Left = -offsetX / scale, Bottom = -offsetY / scale,
                 Right = (width - offsetX) / scale, Top = (height - offsetY) / scale,
                 Spread = spread,
@@ -367,7 +395,7 @@ namespace FirstSymbol.Lettera
             s_Tiles.Add(new SdfTile
             {
                 Target = (byte*)set.Pixels[page],
-                Stride = PageSize * set.Bytes,
+                Stride = set.Size * set.Bytes,
                 Multi = multi,
                 X = x, Y = y, Width = width, Height = height,
                 LineStart = lineStart,
@@ -379,8 +407,8 @@ namespace FirstSymbol.Lettera
             {
                 Kind = multi ? AtlasGlyph.Msdf : AtlasGlyph.Sdf,
                 Page = (ushort)page,
-                U0 = (float)x / PageSize, V0 = (float)y / PageSize,
-                U1 = (float)(x + width) / PageSize, V1 = (float)(y + height) / PageSize,
+                U0 = (float)x / set.Size, V0 = (float)y / set.Size,
+                U1 = (float)(x + width) / set.Size, V1 = (float)(y + height) / set.Size,
                 Left = -offsetX / scale, Bottom = -offsetY / scale,
                 Right = (width - offsetX) / scale, Top = (height - offsetY) / scale,
                 Spread = spread,
@@ -440,7 +468,7 @@ namespace FirstSymbol.Lettera
                     if (distance == float.MaxValue) distance = 0;
                     distance = Mathf.Sqrt(distance);
                     float value = inside ? 0.5f + distance * toValue : 0.5f - distance * toValue;
-                    target[(y + row) * PageSize + x + column] = (byte)(Mathf.Clamp01(value) * 255f + 0.5f);
+                    target[(y + row) * s_Sdf.Size + x + column] = (byte)(Mathf.Clamp01(value) * 255f + 0.5f);
                 }
             }
             lines.Dispose();
@@ -452,8 +480,8 @@ namespace FirstSymbol.Lettera
                 Kind = AtlasGlyph.Sdf,
                 Pixel = true,
                 Page = (ushort)page,
-                U0 = (float)x / PageSize, V0 = (float)y / PageSize,
-                U1 = (float)(x + width) / PageSize, V1 = (float)(y + height) / PageSize,
+                U0 = (float)x / s_Sdf.Size, V0 = (float)y / s_Sdf.Size,
+                U1 = (float)(x + width) / s_Sdf.Size, V1 = (float)(y + height) / s_Sdf.Size,
                 Left = (cellMinX - margin) * cell, Bottom = (cellMinY - margin) * cell,
                 Right = (cellMaxX + margin) * cell, Top = (cellMaxY + margin) * cell,
                 Spread = spread,
@@ -501,7 +529,7 @@ namespace FirstSymbol.Lettera
             y += Bleed;
             byte* pixels = (byte*)s_Color.Pixels[page];
             for (int row = 0; row < height; row++)
-                UnsafeUtility.MemCpy(pixels + ((y + row) * PageSize + x) * 4, source + row * width * 4, width * 4);
+                UnsafeUtility.MemCpy(pixels + ((y + row) * s_Color.Size + x) * 4, source + row * width * 4, width * 4);
             painted.Dispose();
             PaintedGlyphs++;
 
@@ -510,8 +538,8 @@ namespace FirstSymbol.Lettera
             {
                 Kind = AtlasGlyph.Color,
                 Page = (ushort)page,
-                U0 = (float)x / PageSize, V0 = (float)y / PageSize,
-                U1 = (float)(x + width) / PageSize, V1 = (float)(y + height) / PageSize,
+                U0 = (float)x / s_Color.Size, V0 = (float)y / s_Color.Size,
+                U1 = (float)(x + width) / s_Color.Size, V1 = (float)(y + height) / s_Color.Size,
                 Left = originX / scale, Bottom = originY / scale,
                 Right = (originX + width) / scale, Top = (originY + height) / scale,
             };
@@ -563,7 +591,7 @@ namespace FirstSymbol.Lettera
                 uint argb = index < (uint)palette.Length ? palette[index] : 0xFF000000u;
                 for (int row = 0; row < height; row++)
                 {
-                    byte* target = pixels + ((y + row) * PageSize + x) * 4;
+                    byte* target = pixels + ((y + row) * s_Color.Size + x) * 4;
                     for (int column = 0; column < width; column++, target += 4)
                         BlendOver(target, argb, coverage[row * width + column]);
                 }
@@ -577,8 +605,8 @@ namespace FirstSymbol.Lettera
             {
                 Kind = AtlasGlyph.Color,
                 Page = (ushort)page,
-                U0 = (float)x / PageSize, V0 = (float)y / PageSize,
-                U1 = (float)(x + width) / PageSize, V1 = (float)(y + height) / PageSize,
+                U0 = (float)x / s_Color.Size, V0 = (float)y / s_Color.Size,
+                U1 = (float)(x + width) / s_Color.Size, V1 = (float)(y + height) / s_Color.Size,
                 Left = -offsetX / scale, Bottom = -offsetY / scale,
                 Right = (width - offsetX) / scale, Top = (height - offsetY) / scale,
             };
@@ -621,7 +649,7 @@ namespace FirstSymbol.Lettera
                 byte* pixels = (byte*)s_Color.Pixels[page];
                 for (int row = 0; row < height; row++)
                 {
-                    byte* target = pixels + ((y + row) * PageSize + x) * 4;
+                    byte* target = pixels + ((y + row) * s_Color.Size + x) * 4;
                     for (int column = 0; column < width; column++, target += 4)
                     {
                         Color32 c = decoded.GetPixelBilinear((column + 0.5f) / width, (row + 0.5f) / height);
@@ -635,8 +663,8 @@ namespace FirstSymbol.Lettera
                 {
                     Kind = AtlasGlyph.Color,
                     Page = (ushort)page,
-                    U0 = (float)x / PageSize, V0 = (float)y / PageSize,
-                    U1 = (float)(x + width) / PageSize, V1 = (float)(y + height) / PageSize,
+                    U0 = (float)x / s_Color.Size, V0 = (float)y / s_Color.Size,
+                    U1 = (float)(x + width) / s_Color.Size, V1 = (float)(y + height) / s_Color.Size,
                     Left = extents[0], Top = extents[1],
                     Right = extents[0] + extents[2], Bottom = extents[1] + extents[3],
                 };
@@ -695,7 +723,7 @@ namespace FirstSymbol.Lettera
             s_Tiles.Add(new SdfTile
             {
                 Target = (byte*)set.Pixels[page],
-                Stride = PageSize * set.Bytes,
+                Stride = set.Size * set.Bytes,
                 Multi = multi,
                 X = x, Y = y, Width = width, Height = height,
                 LineStart = lineStart,
@@ -707,8 +735,8 @@ namespace FirstSymbol.Lettera
             {
                 Kind = multi ? AtlasGlyph.Msdf : AtlasGlyph.Sdf,
                 Page = (ushort)page,
-                U0 = (float)x / PageSize, V0 = (float)y / PageSize,
-                U1 = (float)(x + width) / PageSize, V1 = (float)(y + height) / PageSize,
+                U0 = (float)x / set.Size, V0 = (float)y / set.Size,
+                U1 = (float)(x + width) / set.Size, V1 = (float)(y + height) / set.Size,
                 Left = -offsetX / scale, Bottom = -offsetY / scale,
                 Right = (width - offsetX) / scale, Top = (height - offsetY) / scale,
                 Spread = spread,
@@ -734,7 +762,7 @@ namespace FirstSymbol.Lettera
 
         internal static byte[] ColorPixelsForTests(int page)
         {
-            var copy = new byte[PageSize * PageSize * 4];
+            var copy = new byte[s_Color.Size * s_Color.Size * 4];
             fixed (byte* target = copy) UnsafeUtility.MemCpy(target, (byte*)s_Color.Pixels[page], copy.Length);
             return copy;
         }
@@ -744,7 +772,7 @@ namespace FirstSymbol.Lettera
         {
             string cluster = BrowserEmoji.ClusterText(glyph);
             int pixels = BrowserEmoji.TilePixels;
-            int width = Mathf.Clamp(Mathf.CeilToInt(BrowserEmoji.Advance(glyph) * pixels / (float)BrowserEmoji.Upem), 1, PageSize / 2);
+            int width = Mathf.Clamp(Mathf.CeilToInt(BrowserEmoji.Advance(glyph) * pixels / (float)BrowserEmoji.Upem), 1, s_Color.Size / 2);
             int ascent = Mathf.CeilToInt(BrowserEmoji.AscentEm * pixels);
             int height = ascent + Mathf.CeilToInt(BrowserEmoji.DescentEm * pixels);
             if (!Allocate(s_Color, width + 2 * Bleed, height + 2 * Bleed, out int page, out int x, out int y)) return default;
@@ -753,7 +781,7 @@ namespace FirstSymbol.Lettera
 
             // Until its pixels come, a recycled place must not show what stood there before.
             byte* clear = (byte*)s_Color.Pixels[page];
-            for (int row = 0; row < height; row++) UnsafeUtility.MemClear(clear + ((y + row) * PageSize + x) * 4, width * 4);
+            for (int row = 0; row < height; row++) UnsafeUtility.MemClear(clear + ((y + row) * s_Color.Size + x) * 4, width * 4);
             s_EmojiPending.Add(new PendingEmoji { Cluster = cluster, Page = page, X = x, Y = y, Width = width, Height = height, Baseline = ascent });
 
             float unit = (float)BrowserEmoji.Upem / pixels;
@@ -761,8 +789,8 @@ namespace FirstSymbol.Lettera
             {
                 Kind = AtlasGlyph.Color,
                 Page = (ushort)page,
-                U0 = (float)x / PageSize, V0 = (float)y / PageSize,
-                U1 = (float)(x + width) / PageSize, V1 = (float)(y + height) / PageSize,
+                U0 = (float)x / s_Color.Size, V0 = (float)y / s_Color.Size,
+                U1 = (float)(x + width) / s_Color.Size, V1 = (float)(y + height) / s_Color.Size,
                 Left = 0, Right = width * unit,
                 Top = ascent * unit, Bottom = (ascent - height) * unit,
             };
@@ -791,15 +819,15 @@ namespace FirstSymbol.Lettera
         static bool Allocate(PageSet set, int width, int height, out int page, out int x, out int y)
         {
             page = x = y = 0;
-            if (width > PageSize || height > PageSize) return false;
+            if (width > set.Size || height > set.Size) return false;
             if (set.Pixels.Count == 0) AddPage(set);
-            if (set.ShelfX + width > PageSize)
+            if (set.ShelfX + width > set.Size)
             {
                 set.ShelfY += set.ShelfHeight;
                 set.ShelfX = 0;
                 set.ShelfHeight = 0;
             }
-            if (set.ShelfY + height > PageSize)
+            if (set.ShelfY + height > set.Size)
             {
                 if (set.Pixels.Count < set.MaxPages) AddPage(set);
                 else RecycleOldestPage(set);
@@ -839,7 +867,7 @@ namespace FirstSymbol.Lettera
                 if (s_Uploads[i].Set == set && s_Uploads[i].Page == oldest)
                     s_Uploads.RemoveAt(i);
 
-            UnsafeUtility.MemClear((void*)set.Pixels[oldest], (long)PageSize * PageSize * set.Bytes);
+            UnsafeUtility.MemClear((void*)set.Pixels[oldest], (long)set.Size * set.Size * set.Bytes);
             // A page going back to the pool takes what was still to be drawn on it.
             if (set == s_Color) s_EmojiPending.RemoveAll(e => e.Page == oldest);
             set.Current = oldest;
@@ -849,7 +877,7 @@ namespace FirstSymbol.Lettera
 
         static void AddPage(PageSet set)
         {
-            long bytes = (long)PageSize * PageSize * set.Bytes;
+            long bytes = (long)set.Size * set.Size * set.Bytes;
             void* memory = UnsafeUtility.MallocTracked(bytes, 16, Allocator.Persistent, 0);
             UnsafeUtility.MemClear(memory, bytes);
             set.Pixels.Add((IntPtr)memory);
@@ -862,7 +890,7 @@ namespace FirstSymbol.Lettera
         static void RecreateTexture(PageSet set)
         {
             DestroyTexture(set.Texture);
-            var texture = new Texture2DArray(PageSize, PageSize, set.Pixels.Count, FormatOf(set), TextureCreationFlags.None)
+            var texture = new Texture2DArray(set.Size, set.Size, set.Pixels.Count, FormatOf(set), TextureCreationFlags.None)
             {
                 name = set == s_Sdf ? "Lettera SDF Atlas" : set == s_Msdf ? "Lettera MSDF Atlas" : "Lettera Color Atlas",
                 hideFlags = HideFlags.HideAndDontSave,
@@ -873,7 +901,7 @@ namespace FirstSymbol.Lettera
             for (int page = 0; page < set.Pixels.Count; page++)
             {
                 var pixels = NativeArrayUnsafeUtility.ConvertExistingDataToNativeArray<byte>(
-                    (void*)set.Pixels[page], PageSize * PageSize * set.Bytes, Allocator.None);
+                    (void*)set.Pixels[page], set.Size * set.Size * set.Bytes, Allocator.None);
 #if ENABLE_UNITY_COLLECTIONS_CHECKS
                 NativeArrayUnsafeUtility.SetAtomicSafetyHandle(ref pixels, AtomicSafetyHandle.GetTempMemoryHandle());
 #endif
@@ -883,6 +911,7 @@ namespace FirstSymbol.Lettera
             set.Texture = texture;
             // Bound at once: a canvas can draw before the next flush, which may run before it in the frame.
             Shader.SetGlobalTexture(set.PropertyId, texture);
+            if (set == s_Sdf) Shader.SetGlobalFloat(s_SdfAtlasSizeId, set.Size);
             s_Rebind = true;
         }
 
@@ -1017,7 +1046,7 @@ namespace FirstSymbol.Lettera
                 {
                     UnsafeUtility.MemCpy(
                         stagingPixels + (shelfY + row) * stride + shelfX * set.Bytes,
-                        source + ((upload.Y + row) * PageSize + upload.X) * set.Bytes,
+                        source + ((upload.Y + row) * set.Size + upload.X) * set.Bytes,
                         rowBytes);
                 }
                 shelfX += upload.Width;
@@ -1127,7 +1156,7 @@ namespace FirstSymbol.Lettera
             byte* target = (byte*)s_Color.Pixels[emoji.Page];
             fixed (byte* source = canvas)
                 for (int row = 0; row < emoji.Height; row++)
-                    UnsafeUtility.MemCpy(target + ((emoji.Y + row) * PageSize + emoji.X) * 4, source + ((fromY + emoji.Height - 1 - row) * canvasWidth + fromX) * 4, emoji.Width * 4);
+                    UnsafeUtility.MemCpy(target + ((emoji.Y + row) * s_Color.Size + emoji.X) * 4, source + ((fromY + emoji.Height - 1 - row) * canvasWidth + fromX) * 4, emoji.Width * 4);
             s_Uploads.Add(new PendingUpload { Set = s_Color, Page = emoji.Page, X = emoji.X, Y = emoji.Y, Width = emoji.Width, Height = emoji.Height });
         }
 

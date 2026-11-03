@@ -21,10 +21,13 @@ float LetteraEdge(float d, float edge, float softness)
     return smoothstep(edge - w, edge + w, d);
 }
 
+float _LetteraSdfAtlasSize;
+
 // A pixel font's tile has one texel per font pixel. The atlas filters, so read each texel's center.
 float LetteraPixelValue(float2 uv, float page)
 {
-    float2 texel = (floor(uv * 2048.0) + 0.5) / 2048.0;
+    float size = _LetteraSdfAtlasSize > 0 ? _LetteraSdfAtlasSize : 2048.0;
+    float2 texel = (floor(uv * size) + 0.5) / size;
     return LETTERA_SAMPLE_SDF(texel, page).r;
 }
 

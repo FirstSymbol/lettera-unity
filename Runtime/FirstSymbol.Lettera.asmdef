@@ -20,6 +20,11 @@
             "name": "com.unity.modules.unitywebrequest",
             "expression": "1.0.0",
             "define": "LETTERA_WEBREQUEST"
+        },
+        {
+            "name": "com.unity.modules.physics",
+            "expression": "1.0.0",
+            "define": "LETTERA_PHYSICS"
         }
     ],
     "noEngineReferences": false

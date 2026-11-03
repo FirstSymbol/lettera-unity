@@ -172,8 +172,8 @@ namespace FirstSymbol.Lettera.Editor
             Section("memory", "Memory", memory);
 
             VisualElement atlases = LtUI.El("lt-list", new LtStatus()
-                .Line("Page Size", () => "2048 by 2048, fixed")
-                .Line("Depth", () => "SDF 8-bit, MSDF 8-bit, color RGBA, fixed")
+                .Line("Page Size Now", () => "SDF " + GlyphAtlas.SdfPageSize + ", colour " + GlyphAtlas.ColorPageSize + ", MSDF " + GlyphAtlas.MsdfPageSize)
+                .Line("Depth", () => "SDF 8-bit, MSDF 8-bit per channel, colour RGBA, fixed")
                 .Line("In Use Now", () =>
                 {
                     long bytes = 0;
@@ -188,6 +188,7 @@ namespace FirstSymbol.Lettera.Editor
                     return pages + " pages, " + bytes / 1024 + " KB";
                 })
                 .RefreshNow(), LtUI.Clickable("Open Atlases", "lt-add lt-add--small", "The pages themselves, with what each holds.", LetteraAtlasesWindow.Open));
+            AddAll(atlases, serialized.FindProperty("m_Atlas"));
             Section("atlases", "Atlases", atlases);
 
             SerializedProperty math = serialized.FindProperty("m_Math");
