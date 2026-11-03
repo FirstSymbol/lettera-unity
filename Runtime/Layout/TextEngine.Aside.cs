@@ -24,7 +24,8 @@ namespace FirstSymbol.Lettera
             internal int[] LineSegments = Array.Empty<int>(); // The first segment of each line.
             internal int SegmentCount;
             internal bool SegmentsValid;
-            internal readonly List<Rect> RangeScratch = new List<Rect>();
+            List<Rect> m_RangeScratch;
+            internal List<Rect> RangeScratch => m_RangeScratch ?? (m_RangeScratch = new List<Rect>());
 
             internal List<Rect> RowRects = Rare<Rect>.List;
             internal List<int> RowLines = Rare<int>.List;
@@ -37,8 +38,10 @@ namespace FirstSymbol.Lettera
             internal bool LaidWrap;
             internal bool PlacedOnEstimates; // A paragraph above the placed lines still waits, so they stand where estimates put them.
             internal int EstimateVersion;
-            internal readonly List<LetteraLine> SpliceLines = new List<LetteraLine>();
-            internal readonly List<Run> RunScratch = new List<Run>();
+            List<LetteraLine> m_SpliceLines;
+            internal List<LetteraLine> SpliceLines => m_SpliceLines ?? (m_SpliceLines = new List<LetteraLine>());
+            List<Run> m_RunScratch;
+            internal List<Run> RunScratch => m_RunScratch ?? (m_RunScratch = new List<Run>());
             internal ShapedGlyph[] GlyphScratch = Array.Empty<ShapedGlyph>();
 
             internal List<MathSpecial> MathSpecials = Rare<MathSpecial>.List;
@@ -46,7 +49,8 @@ namespace FirstSymbol.Lettera
             internal List<InlineItem> InlineItems = Rare<InlineItem>.List;
             internal Dictionary<int, int> InlineByCp = Rare<int, int>.Map;
 
-            internal readonly List<LetteraLine> MeasureLines = new List<LetteraLine>();
+            List<LetteraLine> m_MeasureLines;
+            internal List<LetteraLine> MeasureLines => m_MeasureLines ?? (m_MeasureLines = new List<LetteraLine>());
             internal List<Removal> Removals = Rare<Removal>.List;
 
             internal LayerGroup MergeStroke, MergeShadow;
@@ -67,7 +71,8 @@ namespace FirstSymbol.Lettera
             internal List<PlacedGlyph> VirtualGlyphs = Rare<PlacedGlyph>.List;
 
             internal List<ActiveRange> Active = Rare<ActiveRange>.List;
-            internal readonly List<Rect> ActiveRects = new List<Rect>();
+            List<Rect> m_ActiveRects;
+            internal List<Rect> ActiveRects => m_ActiveRects ?? (m_ActiveRects = new List<Rect>());
             internal List<OldRange> OldRanges = Rare<OldRange>.List;
             internal List<int> RangeIds = Rare<int>.List;
             internal int[] OldText = System.Array.Empty<int>();
@@ -97,8 +102,10 @@ namespace FirstSymbol.Lettera
             internal int MarqueeCopies = 1;
             internal bool MarqueeRtl;
 
-            internal readonly List<ParagraphSlot> Slots = new List<ParagraphSlot>();
-            internal readonly List<DeferredRun> Deferred = new List<DeferredRun>();
+            List<ParagraphSlot> m_Slots;
+            internal List<ParagraphSlot> Slots => m_Slots ?? (m_Slots = new List<ParagraphSlot>());
+            List<DeferredRun> m_Deferred;
+            internal List<DeferredRun> Deferred => m_Deferred ?? (m_Deferred = new List<DeferredRun>());
             internal bool DeferShaping;
             internal int DeferParagraphStart, DeferParagraphLength;
             internal ShapedGlyph[] ShapedMerged = Array.Empty<ShapedGlyph>();
