@@ -209,7 +209,7 @@ namespace FirstSymbol.Lettera
             Empty(m_Aside.InlineItems);
             m_Aside.InlineByCp.Clear();
             m_Aside.FormulaCount = 0;
-            List<LetteraAttributes.InlineRequest> requests = m_Attributes.InlineRequests;
+            ValueList<LetteraAttributes.InlineRequest> requests = m_Attributes.InlineRequests;
             for (int r = 0; r < requests.Count; r++)
             {
                 LetteraAttributes.InlineRequest request = requests[r];

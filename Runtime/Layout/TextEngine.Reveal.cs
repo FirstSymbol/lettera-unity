@@ -32,7 +32,7 @@ namespace FirstSymbol.Lettera
             foreach (RevealEffect effect in m_Aside.RevealListening) effect.Touched -= OnRevealTouched;
             Empty(m_Aside.RevealListening);
             Empty(m_Aside.RevealSpans);
-            List<LetteraAttributes.RevealRequest> requests = m_Attributes.RevealRequests;
+            ValueList<LetteraAttributes.RevealRequest> requests = m_Attributes.RevealRequests;
             if (requests.Count == 0) return;
             EnsureExact(ref m_Aside.CpReveal, m_TextLength + 1);
             EnsureRevealArrays(m_TextLength + 1);

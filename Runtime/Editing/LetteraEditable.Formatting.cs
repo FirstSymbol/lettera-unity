@@ -44,10 +44,10 @@ namespace FirstSymbol.Lettera
             public bool Add;
         }
 
-        readonly List<Pending> m_Pending = new List<Pending>();
+        readonly ValueList<Pending> m_Pending = new ValueList<Pending>();
         readonly LetteraCaretStyles m_CaretStyles = new LetteraCaretStyles();
-        readonly List<RawSplice> m_RawSplices = new List<RawSplice>();
-        readonly List<(int start, int end, string raw)> m_Keep = new List<(int, int, string)>();
+        readonly ValueList<RawSplice> m_RawSplices = new ValueList<RawSplice>();
+        readonly ValueList<(int start, int end, string raw)> m_Keep = new ValueList<(int, int, string)>();
 
         /// <summary>At most once per frame, when what covers the caret may have changed.</summary>
         public event Action<LetteraCaretStyles> CaretStylesChanged;
@@ -159,7 +159,8 @@ namespace FirstSymbol.Lettera
 
         void ApplyPendingStyles(int start, int end)
         {
-            var pending = new List<Pending>(m_Pending);
+            var pending = new ValueList<Pending>(m_Pending.Count);
+            pending.AddRange(m_Pending);
             m_Pending.Clear();
             if (end <= start) return;
             foreach (Pending p in pending) FormatRangeInner(p.Effect, p.Parameter, start, end, p.Add);
@@ -363,7 +364,7 @@ namespace FirstSymbol.Lettera
         // The plain text with each range written in this field's own syntax. A range no style writes stays plain: paste never adds a style.
         string WriteSpans(string plain, List<LetteraPastedSpan> spans)
         {
-            var events = new List<(int at, bool open, string text)>();
+            var events = new ValueList<(int at, bool open, string text)>();
             foreach (LetteraPastedSpan span in spans)
             {
                 LetteraStyle writer = WriterOfKey(span.EffectKey);

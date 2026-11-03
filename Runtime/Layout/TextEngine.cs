@@ -405,6 +405,11 @@ namespace FirstSymbol.Lettera
             public static readonly List<T> List = new List<T>();
         }
 
+        static class RareValues<T> where T : struct
+        {
+            public static readonly ValueList<T> List = new ValueList<T>();
+        }
+
         static class Rare<TKey, TValue>
         {
             public static readonly Dictionary<TKey, TValue> Map = new Dictionary<TKey, TValue>();
@@ -418,30 +423,30 @@ namespace FirstSymbol.Lettera
         internal static void PrepareTypes()
         {
             _ = LetteraAttributes.Plain;
-            _ = Rare<(LetteraEffect effect, int start, int end)>.List;
+            _ = RareValues<(LetteraEffect effect, int start, int end)>.List;
             _ = Rare<ActiveRange>.List;
-            _ = Rare<CoverQuad>.List;
-            _ = Rare<ExtraLine>.List;
-            _ = Rare<ExtraQuad>.List;
+            _ = RareValues<CoverQuad>.List;
+            _ = RareValues<ExtraLine>.List;
+            _ = RareValues<ExtraQuad>.List;
             _ = Rare<IHoldSource>.List;
             _ = Rare<InlineItem>.List;
             _ = Rare<LetteraStyle, LetteraStyle>.Map;
-            _ = Rare<ListItem>.List;
-            _ = Rare<MathSpecial>.List;
-            _ = Rare<MotionPhase>.List;
-            _ = Rare<MotionSpan>.List;
-            _ = Rare<OldRange>.List;
-            _ = Rare<PlacedGlyph>.List;
-            _ = Rare<PoseBody>.List;
-            _ = Rare<PoseLink>.List;
+            _ = RareValues<ListItem>.List;
+            _ = RareValues<MathSpecial>.List;
+            _ = RareValues<MotionPhase>.List;
+            _ = RareValues<MotionSpan>.List;
+            _ = RareValues<OldRange>.List;
+            _ = RareValues<PlacedGlyph>.List;
+            _ = RareValues<PoseBody>.List;
+            _ = RareValues<PoseLink>.List;
             _ = Rare<Rect>.List;
-            _ = Rare<Removal>.List;
-            _ = Rare<RevealBody>.List;
+            _ = RareValues<Removal>.List;
+            _ = RareValues<RevealBody>.List;
             _ = Rare<RevealEffect>.List;
-            _ = Rare<RevealSpan>.List;
-            _ = Rare<RubyItem>.List;
-            _ = Rare<ShapedGlyph>.List;
-            _ = Rare<SolidBox>.List;
+            _ = RareValues<RevealSpan>.List;
+            _ = RareValues<RubyItem>.List;
+            _ = RareValues<ShapedGlyph>.List;
+            _ = RareValues<SolidBox>.List;
             _ = Rare<SymbolSet>.List;
             _ = Rare<Vector2Int>.List;
             _ = Rare<int, bool>.Map;
@@ -452,8 +457,8 @@ namespace FirstSymbol.Lettera
             _ = Rare<long>.List;
             _ = new List<LetteraLine>();
             _ = new List<LayerGroup>();
-            _ = new List<Paragraph>();
-            _ = new List<Run>();
+            _ = new ValueList<Paragraph>();
+            _ = new ValueList<Run>();
             _ = new List<MeshSegment>();
             _ = LetteraNative.Version;
             // The Unicode tables and the analyzers, which workers run too: the first paragraph of a session paid for them.
@@ -519,6 +524,7 @@ namespace FirstSymbol.Lettera
         }
 
         static List<T> Own<T>(ref List<T> list) => ReferenceEquals(list, Rare<T>.List) ? list = new List<T>() : list;
+        static ValueList<T> Own<T>(ref ValueList<T> list) where T : struct => ReferenceEquals(list, RareValues<T>.List) ? list = new ValueList<T>() : list;
         static Dictionary<K, V> Own<K, V>(ref Dictionary<K, V> map) => ReferenceEquals(map, Rare<K, V>.Map) ? map = new Dictionary<K, V>() : map;
 
         // Thousands of short labels each hold these, so they start empty and grow to what the text asks.

@@ -62,7 +62,7 @@ namespace FirstSymbol.Lettera
             foreach (SymbolSet known in m_Aside.SymbolSets)
                 if (known.Instance == instance && known.Density == density && known.Reach == reach && known.Alphabet == alphabet)
                     return known;
-            var list = new List<SymbolGlyph>();
+            var list = new ValueList<SymbolGlyph>();
             for (int i = 0; i < alphabet.Length; i++)
             {
                 int cp = char.ConvertToUtf32(alphabet, i);

@@ -134,7 +134,7 @@ namespace FirstSymbol.Lettera
             m_Aside.ActiveRectsValid = false;
             bool had = m_Aside.Active.Count > 0;
             Empty(m_Aside.Active);
-            List<LetteraAttributes.ActiveRequest> requests = m_Attributes.ActiveRequests;
+            ValueList<LetteraAttributes.ActiveRequest> requests = m_Attributes.ActiveRequests;
             List<LetteraMatchContext.RangeRecord> ranges = m_MatchContext.Ranges;
             for (int a = 0; a < requests.Count; a++)
             {

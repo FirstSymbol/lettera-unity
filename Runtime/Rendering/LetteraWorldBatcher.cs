@@ -70,7 +70,7 @@ namespace FirstSymbol.Lettera
         }
 
         static readonly List<Entry> s_Posed = new List<Entry>();
-        static readonly List<(Shard shard, int streams)> s_PosedShards = new List<(Shard, int)>();
+        static readonly ValueList<(Shard shard, int streams)> s_PosedShards = new ValueList<(Shard, int)>();
 
         static readonly List<Entry> s_Entries = new List<Entry>();
         static readonly Dictionary<LetteraWorldText, Entry> s_ByText = new Dictionary<LetteraWorldText, Entry>();
@@ -97,7 +97,7 @@ namespace FirstSymbol.Lettera
             public Material Custom;
         }
 
-        static readonly List<MaterialRun> s_Runs = new List<MaterialRun>();
+        static readonly ValueList<MaterialRun> s_Runs = new ValueList<MaterialRun>();
         static bool s_ShardStyled, s_ShardPosed;
 
         /// <summary>Every enabled world text.</summary>
@@ -486,7 +486,7 @@ namespace FirstSymbol.Lettera
         internal static void ForgetScene(Scene scene)
         {
             int handle = scene.GetHashCode();
-            List<BatchKey> gone = null;
+            ValueList<BatchKey> gone = null;
             foreach (KeyValuePair<BatchKey, Batch> pair in s_Batches)
             {
                 if (pair.Key.SceneHandle != handle) continue;
@@ -495,7 +495,7 @@ namespace FirstSymbol.Lettera
                     if (shard.Object != null) Destroy(shard.Object);
                     if (shard.Mesh != null) Destroy(shard.Mesh);
                 }
-                (gone = gone ?? new List<BatchKey>()).Add(pair.Key);
+                (gone = gone ?? new ValueList<BatchKey>()).Add(pair.Key);
             }
             if (gone != null)
                 foreach (BatchKey key in gone)

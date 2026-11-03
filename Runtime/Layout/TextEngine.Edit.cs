@@ -105,7 +105,7 @@ namespace FirstSymbol.Lettera
 
         bool TryGetReplacement(int shown, out LetteraMatchContext.Claim claim)
         {
-            List<LetteraMatchContext.Claim> claims = m_MatchContext.Claims;
+            ValueList<LetteraMatchContext.Claim> claims = m_MatchContext.Claims;
             int source = SourceAt(shown);
             for (int i = 0; i < claims.Count; i++)
             {
@@ -146,7 +146,7 @@ namespace FirstSymbol.Lettera
         {
             open = close = default;
             bool hasOpen = false, hasClose = false;
-            List<LetteraMatchContext.Claim> claims = m_MatchContext.Claims;
+            ValueList<LetteraMatchContext.Claim> claims = m_MatchContext.Claims;
             for (int i = 0; i < claims.Count; i++)
             {
                 if (claims[i].OpenRange == range) { open = claims[i]; hasOpen = true; }
@@ -173,7 +173,7 @@ namespace FirstSymbol.Lettera
         // Claims that hide the delimiters of a range around the position become empty, so those characters show and stay inside the range.
         void RevealRangesAt(LetteraMatchContext context, int position)
         {
-            List<LetteraMatchContext.Claim> claims = context.Claims;
+            ValueList<LetteraMatchContext.Claim> claims = context.Claims;
             for (int r = 0; r < context.Ranges.Count; r++)
             {
                 int openIndex = -1, closeIndex = -1;

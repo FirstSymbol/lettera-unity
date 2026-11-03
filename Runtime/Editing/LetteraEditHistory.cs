@@ -24,8 +24,8 @@ namespace FirstSymbol.Lettera
             public double Time;
         }
 
-        readonly List<Splice> m_Splices = new List<Splice>();
-        readonly List<Step> m_Steps = new List<Step>();
+        readonly ValueList<Splice> m_Splices = new ValueList<Splice>();
+        readonly ValueList<Step> m_Steps = new ValueList<Step>();
         readonly List<char> m_Chars = new List<char>();
         int m_Cursor;       // Steps below it can be undone; from it on, redone.
         bool m_Sealed = true;

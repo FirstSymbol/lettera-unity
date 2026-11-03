@@ -292,7 +292,7 @@ namespace FirstSymbol.Lettera
         const int QuadsPerPart = MaxPartVertices / 4;
         const string PartName = "Lettera Text Part";
 
-        readonly System.Collections.Generic.List<(GameObject go, CanvasRenderer renderer, Mesh mesh)> m_Parts = new System.Collections.Generic.List<(GameObject, CanvasRenderer, Mesh)>();
+        readonly ValueList<(GameObject go, CanvasRenderer renderer, Mesh mesh)> m_Parts = new ValueList<(GameObject, CanvasRenderer, Mesh)>();
         static readonly System.Collections.Generic.List<Vector3> s_PartVertices = new System.Collections.Generic.List<Vector3>();
         static readonly System.Collections.Generic.List<Color32> s_PartColors = new System.Collections.Generic.List<Color32>();
         static readonly System.Collections.Generic.List<Vector4> s_PartUv = new System.Collections.Generic.List<Vector4>();

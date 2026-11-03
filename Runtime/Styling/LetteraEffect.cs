@@ -102,7 +102,7 @@ namespace FirstSymbol.Lettera
     {
         readonly string[] m_Tag;
         readonly string[] m_Default;
-        readonly System.Collections.Generic.List<HoldEntry> m_Holds;
+        readonly ValueList<HoldEntry> m_Holds;
         readonly object m_Owner;
 
         /// <summary>The tag's whole value before it was split into slots, or null. Composite effects split it their own way.</summary>
@@ -111,7 +111,7 @@ namespace FirstSymbol.Lettera
         /// <summary>The style's default parameter before it was split, or null.</summary>
         public string DefaultRaw { get; }
 
-        internal LetteraSlots(string[] tag, string[] defaults, string raw = null, string defaultRaw = null, System.Collections.Generic.List<HoldEntry> holds = null, object owner = null)
+        internal LetteraSlots(string[] tag, string[] defaults, string raw = null, string defaultRaw = null, ValueList<HoldEntry> holds = null, object owner = null)
         {
             m_Tag = tag;
             m_Default = defaults;
@@ -329,7 +329,7 @@ namespace FirstSymbol.Lettera
             public object Payload;
         }
 
-        internal readonly System.Collections.Generic.List<ExtraRange> Extras = new System.Collections.Generic.List<ExtraRange>();
+        internal readonly ValueList<ExtraRange> Extras = new ValueList<ExtraRange>();
 
         internal void AddExtra(object key, int start, int end, float value, object payload) => Extras.Add(new ExtraRange { Key = key, Start = start, End = end, Value = value, Payload = payload });
 
@@ -368,10 +368,10 @@ namespace FirstSymbol.Lettera
 
         internal CpLayout[] Layout = new CpLayout[0];
         internal bool HasLayout;
-        internal readonly System.Collections.Generic.List<LineHeightSpec> LineHeights = new System.Collections.Generic.List<LineHeightSpec>();
-        internal readonly System.Collections.Generic.List<ParagraphSpacingSpec> ParagraphSpacings = new System.Collections.Generic.List<ParagraphSpacingSpec>();
-        internal readonly System.Collections.Generic.List<LineGapSpec> LineGaps = new System.Collections.Generic.List<LineGapSpec>();
-        internal readonly System.Collections.Generic.List<AlignSpec> Aligns = new System.Collections.Generic.List<AlignSpec>();
+        internal readonly ValueList<LineHeightSpec> LineHeights = new ValueList<LineHeightSpec>();
+        internal readonly ValueList<ParagraphSpacingSpec> ParagraphSpacings = new ValueList<ParagraphSpacingSpec>();
+        internal readonly ValueList<LineGapSpec> LineGaps = new ValueList<LineGapSpec>();
+        internal readonly ValueList<AlignSpec> Aligns = new ValueList<AlignSpec>();
         internal readonly System.Collections.Generic.List<Vector2Int> NoBreaks = new System.Collections.Generic.List<Vector2Int>();
         internal LetteraTrimTop TrimTop;
         internal LetteraTrimBottom TrimBottom;
@@ -403,14 +403,14 @@ namespace FirstSymbol.Lettera
         internal ref Cp At(int i) => ref Chars[Uniform ? 0 : i];
         internal readonly System.Collections.Generic.List<string> FamilyRequests = new System.Collections.Generic.List<string>();
         internal readonly System.Collections.Generic.List<string> Languages = new System.Collections.Generic.List<string>();
-        internal readonly System.Collections.Generic.List<DecorationSpec> Decorations = new System.Collections.Generic.List<DecorationSpec>();
-        internal readonly System.Collections.Generic.List<LayerRecord> Layers = new System.Collections.Generic.List<LayerRecord>();
+        internal readonly ValueList<DecorationSpec> Decorations = new ValueList<DecorationSpec>();
+        internal readonly ValueList<LayerRecord> Layers = new ValueList<LayerRecord>();
         readonly System.Collections.Generic.List<LayerGroup> m_Groups = new System.Collections.Generic.List<LayerGroup>();
         readonly System.Collections.Generic.List<LayerGroup> m_GroupPool = new System.Collections.Generic.List<LayerGroup>();
         object m_CurrentEffect;
         int m_CurrentStyle;
         bool m_GroupsSorted;
-        internal readonly System.Collections.Generic.List<ElideRequest> Elides = new System.Collections.Generic.List<ElideRequest>();
+        internal readonly ValueList<ElideRequest> Elides = new ValueList<ElideRequest>();
 
         internal readonly System.Collections.Generic.List<FeatureSet> FeatureSets = new System.Collections.Generic.List<FeatureSet>();
         readonly System.Collections.Generic.Dictionary<string, short> m_FeatureIds = new System.Collections.Generic.Dictionary<string, short>();
@@ -711,8 +711,8 @@ namespace FirstSymbol.Lettera
             for (int i = start; i < end; i++) Layout[i].Align = index;
         }
 
-        internal readonly System.Collections.Generic.List<ListItemSpec> ListItems = new System.Collections.Generic.List<ListItemSpec>();
-        internal readonly System.Collections.Generic.List<RubySpec> Rubies = new System.Collections.Generic.List<RubySpec>();
+        internal readonly ValueList<ListItemSpec> ListItems = new ValueList<ListItemSpec>();
+        internal readonly ValueList<RubySpec> Rubies = new ValueList<RubySpec>();
 
         internal void AddListItem(in ListItemSpec item)
         {
@@ -747,8 +747,8 @@ namespace FirstSymbol.Lettera
             public float[] Matrix;
         }
 
-        internal readonly System.Collections.Generic.List<FilterRange> Filters = new System.Collections.Generic.List<FilterRange>();
-        internal readonly System.Collections.Generic.List<WarpSpec> Warps = new System.Collections.Generic.List<WarpSpec>();
+        internal readonly ValueList<FilterRange> Filters = new ValueList<FilterRange>();
+        internal readonly ValueList<WarpSpec> Warps = new ValueList<WarpSpec>();
         internal LetteraPaintOrder PaintOrder;
         internal bool PaintReverse, HasUnion, HasCurve;
         internal LayoutLength CurveRadius;
@@ -796,7 +796,7 @@ namespace FirstSymbol.Lettera
             public LetteraSlots Slots;
         }
 
-        internal readonly System.Collections.Generic.List<InlineRequest> InlineRequests = new System.Collections.Generic.List<InlineRequest>();
+        internal readonly ValueList<InlineRequest> InlineRequests = new ValueList<InlineRequest>();
 
         internal void AddInline(InlineEffect effect, int start, int end, in LetteraSlots slots)
         {
@@ -810,7 +810,7 @@ namespace FirstSymbol.Lettera
             public int Start, End, Range;
         }
 
-        internal readonly System.Collections.Generic.List<ActiveRequest> ActiveRequests = new System.Collections.Generic.List<ActiveRequest>();
+        internal readonly ValueList<ActiveRequest> ActiveRequests = new ValueList<ActiveRequest>();
         internal readonly System.Collections.Generic.List<SemanticRequest> SemanticRequests = new System.Collections.Generic.List<SemanticRequest>();
 
         internal void AddActive(LetteraRangeEffect effect, int start, int end, string value) =>
@@ -819,8 +819,8 @@ namespace FirstSymbol.Lettera
         internal void AddSemantic(SemanticEffect effect, int start, int end) =>
             SemanticRequests.Add(new SemanticRequest { Effect = effect, Start = start, End = end, Range = CurrentRange });
 
-        internal readonly System.Collections.Generic.List<MotionRequest> MotionRequests = new System.Collections.Generic.List<MotionRequest>();
-        internal readonly System.Collections.Generic.List<RevealRequest> RevealRequests = new System.Collections.Generic.List<RevealRequest>();
+        internal readonly ValueList<MotionRequest> MotionRequests = new ValueList<MotionRequest>();
+        internal readonly ValueList<RevealRequest> RevealRequests = new ValueList<RevealRequest>();
         internal MarqueeEffect Marquee;
         internal int CurrentRange;
 
@@ -964,7 +964,7 @@ namespace FirstSymbol.Lettera
             }
         }
 
-        internal readonly System.Collections.Generic.List<HighlightSpec> Highlights = new System.Collections.Generic.List<HighlightSpec>();
+        internal readonly ValueList<HighlightSpec> Highlights = new ValueList<HighlightSpec>();
 
         internal void AddHighlight(int start, int end, in LayerRecord record, in HighlightSpec spec)
         {

@@ -58,7 +58,7 @@ namespace FirstSymbol.Lettera
         {
             m_RevealsCollected = false;
             Empty(m_Aside.MotionSpans);
-            List<LetteraAttributes.MotionRequest> requests = m_Attributes.MotionRequests;
+            ValueList<LetteraAttributes.MotionRequest> requests = m_Attributes.MotionRequests;
             for (int r = 0; r < requests.Count; r++)
             {
                 LetteraAttributes.MotionRequest request = requests[r];

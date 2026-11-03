@@ -54,7 +54,7 @@ namespace FirstSymbol.Lettera
     /// <summary>Which input source a text gets when it takes the keyboard.</summary>
     public static class LetteraInput
     {
-        static readonly List<(Func<ILetteraInputSource> create, int priority)> s_Sources = new List<(Func<ILetteraInputSource>, int)>();
+        static readonly ValueList<(Func<ILetteraInputSource> create, int priority)> s_Sources = new ValueList<(Func<ILetteraInputSource>, int)>();
 
         /// <summary>Higher priorities are asked first. A factory that returns null passes.</summary>
         public static void Register(Func<ILetteraInputSource> create, int priority)

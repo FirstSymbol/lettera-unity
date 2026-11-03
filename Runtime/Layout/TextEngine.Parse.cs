@@ -211,7 +211,7 @@ namespace FirstSymbol.Lettera
         // ------------------------------------------------------------- queries and holds
 
         List<IHoldSource> m_Holds = Rare<IHoldSource>.List;
-        List<HoldEntry> m_HoldEntries;
+        ValueList<HoldEntry> m_HoldEntries;
         bool m_RangesApplied;
 
         internal void AddHold(IHoldSource hold)
@@ -233,10 +233,10 @@ namespace FirstSymbol.Lettera
             m_Host.RequestRebuild(level);
         }
 
-        List<HoldEntry> HoldsOf(int rangeIndex)
+        ValueList<HoldEntry> HoldsOf(int rangeIndex)
         {
             if (m_Holds.Count == 0) return null;
-            (m_HoldEntries ?? (m_HoldEntries = new List<HoldEntry>())).Clear();
+            (m_HoldEntries ?? (m_HoldEntries = new ValueList<HoldEntry>())).Clear();
             foreach (IHoldSource hold in m_Holds) hold.Contribute(rangeIndex, m_HoldEntries);
             return m_HoldEntries.Count > 0 ? m_HoldEntries : null;
         }
@@ -294,7 +294,7 @@ namespace FirstSymbol.Lettera
 
         void BuildRenderedText(ReadOnlySpan<char> source, LetteraMatchContext context)
         {
-            List<LetteraMatchContext.Claim> claims = context.Claims;
+            ValueList<LetteraMatchContext.Claim> claims = context.Claims;
             if (claims.Count > 1) claims.Sort(s_ByStart);
 
             EnsureText(source.Length + 4);
@@ -468,7 +468,7 @@ namespace FirstSymbol.Lettera
                 RegisterStages(style.Effect, r.RenderedStart, r.RenderedEnd);
                 try
                 {
-                    List<HoldEntry> holds = HoldsOf(index);
+                    ValueList<HoldEntry> holds = HoldsOf(index);
                     style.Effect.Apply(attributes, r.RenderedStart, r.RenderedEnd, new LetteraSlots(r.Slots, style.ParsedDefault(), r.Raw, style.DefaultParameter, holds, style.Effect));
                 }
                 catch (Exception e)

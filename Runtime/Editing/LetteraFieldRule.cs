@@ -554,7 +554,7 @@ namespace FirstSymbol.Lettera
             public char Literal, Slot;
         }
 
-        readonly List<Token> m_Tokens = new List<Token>();
+        readonly ValueList<Token> m_Tokens = new ValueList<Token>();
         string m_Parsed;
 
         public string Pattern { get => m_Pattern; set => m_Pattern = value; }

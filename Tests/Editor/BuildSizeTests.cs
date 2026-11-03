@@ -70,6 +70,90 @@ namespace FirstSymbol.Lettera.Editor.Tests
             Assert.AreEqual(2f, filled.z);
         }
 
+        struct Item
+        {
+            public int Key, Order;
+            public string Name;
+        }
+
+        // A value list does what a List does with the same calls, in the same order, so that turning one into the other changes no result.
+        [Test]
+        public void ValueListMatchesList()
+        {
+            var random = new System.Random(7);
+            var list = new System.Collections.Generic.List<Item>();
+            var values = new ValueList<Item>();
+            for (int step = 0; step < 4000; step++)
+            {
+                var item = new Item { Key = random.Next(8), Order = step, Name = "n" + step };
+                switch (random.Next(9))
+                {
+                    case 0:
+                    case 1:
+                    case 2: list.Add(item); values.Add(item); break;
+                    case 3:
+                        int at = random.Next(list.Count + 1);
+                        list.Insert(at, item);
+                        values.Insert(at, item);
+                        break;
+                    case 4:
+                        if (list.Count == 0) break;
+                        int remove = random.Next(list.Count);
+                        list.RemoveAt(remove);
+                        values.RemoveAt(remove);
+                        break;
+                    case 5:
+                        if (list.Count < 4) break;
+                        int start = random.Next(list.Count - 3), count = random.Next(4);
+                        list.RemoveRange(start, count);
+                        values.RemoveRange(start, count);
+                        break;
+                    case 6:
+                        list.Sort((x, y) => x.Key.CompareTo(y.Key));
+                        values.Sort((x, y) => x.Key.CompareTo(y.Key));
+                        break;
+                    case 7:
+                        int key = random.Next(8);
+                        Assert.AreEqual(list.FindIndex(x => x.Key == key), values.FindIndex(x => x.Key == key));
+                        if (random.Next(20) == 0) Assert.AreEqual(list.RemoveAll(x => x.Key == key), values.RemoveAll(x => x.Key == key));
+                        break;
+                    case 8:
+                        if (random.Next(50) == 0)
+                        {
+                            list.Clear();
+                            values.Clear();
+                        }
+                        break;
+                }
+                Assert.AreEqual(list.Count, values.Count);
+            }
+            Assert.Greater(list.Count, 100);
+            int index = 0;
+            foreach (Item item in values)
+            {
+                Assert.AreEqual(list[index].Order, item.Order);
+                Assert.AreEqual(list[index].Name, item.Name);
+                index++;
+            }
+            Assert.AreEqual(list.Count, index);
+            CollectionAssert.AreEqual(list.ConvertAll(x => x.Order), System.Array.ConvertAll(values.ToArray(), x => x.Order));
+
+            var more = new ValueList<Item>();
+            more.Add(new Item { Order = -1 });
+            more.Add(new Item { Order = -2 });
+            values.InsertRange(3, more);
+            list.InsertRange(3, new[] { new Item { Order = -1 }, new Item { Order = -2 } });
+            values.AddRange(more);
+            list.AddRange(new[] { new Item { Order = -1 }, new Item { Order = -2 } });
+            values.Reverse();
+            list.Reverse();
+            CollectionAssert.AreEqual(list.ConvertAll(x => x.Order), System.Array.ConvertAll(values.ToArray(), x => x.Order));
+            values.Capacity = values.Count;
+            Assert.AreEqual(values.Count, values.Capacity);
+            Assert.Throws<System.ArgumentOutOfRangeException>(() => _ = values[values.Count]);
+            Assert.Throws<System.ArgumentOutOfRangeException>(() => values.RemoveAt(-1));
+        }
+
         [Test]
         public void OutlineListGrowsAndIsSharedByCopies()
         {

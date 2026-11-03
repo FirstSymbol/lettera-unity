@@ -627,7 +627,7 @@ namespace FirstSymbol.Lettera
                 });
                 vertices += entry.Vertices.Length;
             }
-            List<TextEngine.SolidBox> boxes = engine.SolidBoxes;
+            ValueList<TextEngine.SolidBox> boxes = engine.SolidBoxes;
             for (int b = 0; b < boxes.Count; b++)
             {
                 TextEngine.SolidBox box = boxes[b];

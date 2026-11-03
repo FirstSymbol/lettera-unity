@@ -56,7 +56,7 @@ namespace FirstSymbol.Lettera
         }
 
         static readonly Dictionary<Key, FontChain> s_Chains = new Dictionary<Key, FontChain>();
-        static readonly List<Key> s_Dead = new List<Key>();
+        static readonly ValueList<Key> s_Dead = new ValueList<Key>();
         static int s_NextId = 1;
         static bool s_Listening;
 

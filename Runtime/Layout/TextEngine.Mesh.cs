@@ -274,7 +274,7 @@ namespace FirstSymbol.Lettera
             EnsureSize(ref m_PlacedAtlas, m_PlacedCount);
             EnsureSize(ref m_PlacedReach, m_PlacedCount);
             System.Array.Clear(m_PlacedReach, 0, m_PlacedCount);
-            List<LayerRecord> records = m_Attributes.Layers;
+            ValueList<LayerRecord> records = m_Attributes.Layers;
             for (int r = 0; r < records.Count; r++)
             {
                 LayerRecord record = records[r];
@@ -426,7 +426,7 @@ namespace FirstSymbol.Lettera
 
         void PrepareDecorationRects()
         {
-            List<LetteraAttributes.DecorationSpec> decorations = m_Attributes.Decorations;
+            ValueList<LetteraAttributes.DecorationSpec> decorations = m_Attributes.Decorations;
             if (decorations.Count == 0) return;
             for (int d = 0; d < decorations.Count; d++)
             {
@@ -480,7 +480,7 @@ namespace FirstSymbol.Lettera
 
         void DrawGroup(LayerGroup group)
         {
-            List<LayerRecord> records = m_Attributes.Layers;
+            ValueList<LayerRecord> records = m_Attributes.Layers;
             int[] cover = group.Cover;
             for (int i = 0; i < m_PlacedCount; i++)
             {
@@ -601,7 +601,7 @@ namespace FirstSymbol.Lettera
         // Every layer of a glyph before the next glyph's. Texture paints and custom materials still split the text into segments, in this order.
         void DrawGlyphMajor(List<LayerGroup> groups)
         {
-            List<LayerRecord> records = m_Attributes.Layers;
+            ValueList<LayerRecord> records = m_Attributes.Layers;
             bool reverse = m_Attributes.PaintReverse;
             int at = reverse ? m_PlacedCount - 1 : 0;
             int count = 0;
@@ -683,7 +683,7 @@ namespace FirstSymbol.Lettera
                 else return Refuse("layer");
             }
             if (m_Aside.MergeStroke == null && m_Aside.MergeShadow == null) return Refuse("none");
-            List<LayerRecord> records = m_Attributes.Layers;
+            ValueList<LayerRecord> records = m_Attributes.Layers;
             for (int i = 0; i < m_PlacedCount; i++)
             {
                 ref PlacedGlyph g = ref m_Placed[i];
@@ -736,7 +736,7 @@ namespace FirstSymbol.Lettera
         // The vertex color stays white, so what a canvas multiplies into it, a tint or an alpha, reaches face and layers alike.
         void DrawMerged()
         {
-            List<LayerRecord> records = m_Attributes.Layers;
+            ValueList<LayerRecord> records = m_Attributes.Layers;
             UseSegment(s_NoPaint);
             m_FilterRow = 0;
             bool reverse = m_Attributes.PaintReverse;
@@ -1022,7 +1022,7 @@ namespace FirstSymbol.Lettera
         // The filters of later styles that cover a codepoint, composed in style order; an inner range after an outer one.
         float FilterFor(int cluster, int style)
         {
-            List<LetteraAttributes.FilterRange> filters = m_Attributes.Filters;
+            ValueList<LetteraAttributes.FilterRange> filters = m_Attributes.Filters;
             if (filters.Count == 0) return 0;
             bool any = false;
             for (int f = 0; f < filters.Count; f++)
@@ -1076,7 +1076,7 @@ namespace FirstSymbol.Lettera
 
         void DrawExtraFills(LayerGroup group)
         {
-            List<LayerRecord> records = m_Attributes.Layers;
+            ValueList<LayerRecord> records = m_Attributes.Layers;
             for (int i = 0; i < m_PlacedCount; i++)
             {
                 int index = group.Cover[m_Placed[i].Cluster] - 1;

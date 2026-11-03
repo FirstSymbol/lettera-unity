@@ -48,7 +48,7 @@ namespace FirstSymbol.Lettera
         // What a range's effects change for one glyph. Nearly every text has none of these, and pays one count.
         internal static void Read(TextEngine engine, int cluster, ref LetteraSolidRecipe recipe, ref float depth)
         {
-            List<LetteraAttributes.ExtraRange> extras = engine.ExtrasForSolids;
+            ValueList<LetteraAttributes.ExtraRange> extras = engine.ExtrasForSolids;
             if (extras.Count == 0) return;
             for (int i = 0; i < extras.Count; i++)
             {

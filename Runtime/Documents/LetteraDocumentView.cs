@@ -632,7 +632,7 @@ namespace FirstSymbol.Lettera
         readonly LetteraRope m_Rope;
         readonly List<string> m_Ends = new List<string>();
         char[] m_Chars = Array.Empty<char>();
-        readonly List<(string name, string raw)> m_Open = new List<(string, string)>();
+        readonly ValueList<(string name, string raw)> m_Open = new ValueList<(string, string)>();
         readonly List<string> m_Names = new List<string>();
         int m_NextBlock;
         bool m_NamesKnown;

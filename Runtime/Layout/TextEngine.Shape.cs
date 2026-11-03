@@ -40,8 +40,8 @@ namespace FirstSymbol.Lettera
 
         /// <summary>Fonts, stacks or settings changed: resolve faces again at the next shaping.</summary>
         public void InvalidateFonts() => LetteraFontChains.Invalidate();
-        readonly List<Paragraph> m_Paragraphs = new List<Paragraph>();
-        readonly List<Run> m_Runs = new List<Run>();
+        readonly ValueList<Paragraph> m_Paragraphs = new ValueList<Paragraph>();
+        readonly ValueList<Run> m_Runs = new ValueList<Run>();
         ShapedGlyph[] m_Shaped = Array.Empty<ShapedGlyph>();
         static NativeGlyph[] s_NativeGlyphs = new NativeGlyph[256];
         int m_ShapedCount;

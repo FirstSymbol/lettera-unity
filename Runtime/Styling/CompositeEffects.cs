@@ -491,7 +491,7 @@ namespace FirstSymbol.Lettera
 
         void IHoldSource.Refresh() => Refresh();
 
-        void IHoldSource.Contribute(int rangeIndex, List<HoldEntry> results)
+        void IHoldSource.Contribute(int rangeIndex, ValueList<HoldEntry> results)
         {
             if (m_Suspended || !m_HasValue) return;
             bool isMember = false;
@@ -536,7 +536,7 @@ namespace FirstSymbol.Lettera
     {
         int Priority { get; }
         void Refresh();
-        void Contribute(int rangeIndex, List<HoldEntry> results);
+        void Contribute(int rangeIndex, ValueList<HoldEntry> results);
 
         /// <summary>The number a pose-level hold gives a range's parameter, reached with no token and no boxing.</summary>
         bool TryPoseNumber(object effect, int rangeIndex, int slot, out float number, out float weight, out LetteraHoldComposition composition);

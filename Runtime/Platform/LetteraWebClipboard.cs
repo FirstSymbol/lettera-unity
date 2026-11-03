@@ -173,7 +173,7 @@ namespace FirstSymbol.Lettera
 
         // ---------------------------------------------------------- gestures
 
-        static readonly List<(int verb, RectTransform control)> s_Armed = new List<(int, RectTransform)>();
+        static readonly ValueList<(int verb, RectTransform control)> s_Armed = new ValueList<(int, RectTransform)>();
         static readonly float[][] s_SentRects = new float[VerbCount][];
         static readonly string[] s_SentPlain = new string[VerbCount];
         static readonly Vector3[] s_Corners = new Vector3[4];

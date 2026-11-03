@@ -173,7 +173,7 @@ namespace FirstSymbol.Lettera
         // The component's Overflow was added last, but it covers everything, so it is the last resort.
         void ApplyElide(float size, float width, float height, bool wrap)
         {
-            List<LetteraAttributes.ElideRequest> elides = m_Attributes.Elides;
+            ValueList<LetteraAttributes.ElideRequest> elides = m_Attributes.Elides;
             int component = m_Host.Data.Overflow != LetteraOverflow.Visible ? elides.Count - 1 : -1;
             for (int r = component >= 0 ? elides.Count - 2 : elides.Count - 1; r >= -1; r--)
             {

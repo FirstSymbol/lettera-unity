@@ -99,7 +99,7 @@ namespace FirstSymbol.Lettera
 
         readonly ILetteraNativeHost m_Host;
         readonly LetteraHostEvent[] m_Events = new LetteraHostEvent[64];
-        readonly List<Patch> m_Patches = new List<Patch>(PatchHistory);
+        readonly ValueList<Patch> m_Patches = new ValueList<Patch>(PatchHistory);
         readonly LetteraHostMode m_Mode;
         ILetteraInputSink m_Sink;
         ILetteraInputHost m_Field;

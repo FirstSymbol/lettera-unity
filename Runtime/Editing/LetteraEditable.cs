@@ -60,7 +60,7 @@ namespace FirstSymbol.Lettera
         readonly LetteraEditHistory m_History = new LetteraEditHistory();
         readonly StringBuilder m_Builder = new StringBuilder();
         readonly List<Vector2Int> m_Spans = new List<Vector2Int>();
-        readonly List<Splice> m_Splices = new List<Splice>();
+        readonly ValueList<Splice> m_Splices = new ValueList<Splice>();
         readonly List<LetteraFieldRule> m_ActiveRules = new List<LetteraFieldRule>();
         int m_Version;
         bool m_Writing, m_Attached;

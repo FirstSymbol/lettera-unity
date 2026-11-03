@@ -61,7 +61,7 @@ namespace FirstSymbol.Lettera
             public bool SelfClosing;
         }
 
-        internal readonly List<Claim> Claims = new List<Claim>();
+        internal readonly ValueList<Claim> Claims = new ValueList<Claim>();
         internal readonly List<RangeRecord> Ranges = new List<RangeRecord>();
         readonly List<int> m_LessThan = new List<int>();
         bool[] m_Blocked = Array.Empty<bool>();

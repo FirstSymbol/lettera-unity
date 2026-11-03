@@ -944,7 +944,7 @@ namespace FirstSymbol.Lettera
         readonly ITextComponent m_Text;
         readonly Dictionary<Key, Live> m_Live = new Dictionary<Key, Live>();
         readonly Dictionary<(int, string), float> m_Custom = new Dictionary<(int, string), float>();
-        readonly List<Key> m_Keys = new List<Key>();
+        readonly ValueList<Key> m_Keys = new ValueList<Key>();
 
         public RulesRuntime(LetteraRangeRouter router, ITextComponent text)
         {

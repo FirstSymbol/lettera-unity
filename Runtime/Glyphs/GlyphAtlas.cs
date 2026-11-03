@@ -145,8 +145,8 @@ namespace FirstSymbol.Lettera
         static int s_MemoVersion = 1;
 
         static void GlyphsChanged() => s_MemoVersion++;
-        static readonly List<PendingUpload> s_Uploads = new List<PendingUpload>();
-        static readonly List<SdfTile> s_Tiles = new List<SdfTile>();
+        static readonly ValueList<PendingUpload> s_Uploads = new ValueList<PendingUpload>();
+        static readonly ValueList<SdfTile> s_Tiles = new ValueList<SdfTile>();
         static NativeList<float4> s_Lines;
         static NativeList<byte> s_LineColors;
         static float[] s_Commands = new float[4096];
@@ -371,7 +371,7 @@ namespace FirstSymbol.Lettera
             }
         }
 
-        static readonly List<UnionPart> s_UnionParts = new List<UnionPart>();
+        static readonly ValueList<UnionPart> s_UnionParts = new ValueList<UnionPart>();
         static readonly Dictionary<ulong, AtlasGlyph> s_Unions = new Dictionary<ulong, AtlasGlyph>();
 
         /// <summary>Starts describing a merged shape. Parts are at font unit offsets from the first glyph.</summary>
@@ -791,7 +791,7 @@ namespace FirstSymbol.Lettera
 
         const int EmojiCanvasSide = 2048, EmojiPadding = 2;
         const double EmojiBatchMaxMs = 2;
-        static readonly List<PendingEmoji> s_EmojiPending = new List<PendingEmoji>();
+        static readonly ValueList<PendingEmoji> s_EmojiPending = new ValueList<PendingEmoji>();
         static string[] s_EmojiNames = new string[64];
         static int[] s_EmojiSpots = new int[128];
         static byte[] s_EmojiCanvas;
