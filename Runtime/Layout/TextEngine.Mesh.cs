@@ -132,9 +132,10 @@ namespace FirstSymbol.Lettera
             Styled = m_Attributes.NeedsStyledShader() || HasInlineSprites;
             PrepareGlyphs(groups);
             // One quad a glyph is the usual case, so a long text does not grow through every size on the way. A first mesh takes what its glyphs
-            // need: thousands of short labels made at once each holding room for sixteen glyphs was garbage enough to start collections.
-            if (m_PlacedCount * 4 > Vertices.Length) GrowVertices(Vertices.Length == 0 ? m_PlacedCount * 4 : System.Math.Max(System.Math.Max(m_PlacedCount * 4, Vertices.Length * 2), FirstVertices));
-            if (m_PlacedCount * 6 > Indices.Length) System.Array.Resize(ref Indices, Indices.Length == 0 ? m_PlacedCount * 6 : System.Math.Max(System.Math.Max(m_PlacedCount * 6, Indices.Length * 2), FirstVertices * 3 / 2));
+            // need, four at least, so a counter that starts at one digit does not grow: thousands of short labels made at once each holding room
+            // for sixteen glyphs was garbage enough to start collections.
+            if (m_PlacedCount * 4 > Vertices.Length) GrowVertices(Vertices.Length == 0 ? System.Math.Max(m_PlacedCount * 4, FirstMeshVertices) : System.Math.Max(System.Math.Max(m_PlacedCount * 4, Vertices.Length * 2), FirstVertices));
+            if (m_PlacedCount * 6 > Indices.Length) System.Array.Resize(ref Indices, Indices.Length == 0 ? System.Math.Max(m_PlacedCount * 6, FirstMeshVertices * 3 / 2) : System.Math.Max(System.Math.Max(m_PlacedCount * 6, Indices.Length * 2), FirstVertices * 3 / 2));
             PrepareFade();
             PrepareExtraMotions();
 
@@ -1161,6 +1162,7 @@ namespace FirstSymbol.Lettera
 
         // A label's first mesh takes room for sixteen glyphs, so a counter going from one digit to three does not grow its buffers in the frame it changes.
         const int FirstVertices = 64;
+        const int FirstMeshVertices = 16;
 
         // Only a styled text ever reads the last two streams, and most texts are not styled.
         void GrowVertices(int capacity)
