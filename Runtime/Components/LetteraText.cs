@@ -58,7 +58,10 @@ namespace FirstSymbol.Lettera
 
         internal TextEngine Engine => m_Engine ?? (m_Engine = new TextEngine(this));
 
-        public override Material defaultMaterial => LetteraMaterials.Variant(LetteraMaterials.Ui, Engine.Styled, LetteraBlend.Normal, null);
+        public override Material defaultMaterial => LetteraMaterials.Variant(LetteraMaterials.Ui, Engine.Styled, LetteraBlend.Normal, null, Engine.LayersMerged);
+
+        /// <summary>No material of the user's own: the merged-layer variant of the default shader can draw it.</summary>
+        internal bool UsesDefaultMaterial => m_Material == null;
 
         public override Color color
         {
@@ -399,7 +402,7 @@ namespace FirstSymbol.Lettera
                 {
                     MeshSegment segment = e.Segments[i];
                     if (Mathf.Max(segment.IndexStart, start) >= Mathf.Min(segment.IndexStart + segment.IndexCount, end)) continue;
-                    Material material = segment.Custom != null ? segment.Custom : LetteraMaterials.Variant(source, e.Styled, segment.Blend, segment.Texture);
+                    Material material = segment.Custom != null ? segment.Custom : LetteraMaterials.Variant(source, e.Styled, segment.Blend, segment.Texture, e.LayersMerged);
                     if (maskable && m_StencilValue > 0)
                     {
                         int bits = (1 << m_StencilValue) - 1;
@@ -611,16 +614,17 @@ namespace FirstSymbol.Lettera
         // The materials of the last rebuild's stretches, to see when the renderer needs new ones.
         readonly System.Collections.Generic.List<MeshSegment> m_LastSegments = new System.Collections.Generic.List<MeshSegment>();
         readonly System.Collections.Generic.List<Material> m_SegmentMasks = new System.Collections.Generic.List<Material>();
-        bool m_LastStyled;
+        bool m_LastStyled, m_LastMerged;
 
         bool MaterialsChanged()
         {
             TextEngine e = Engine;
-            bool changed = m_LastStyled != e.Styled || m_LastSegments.Count != e.Segments.Count;
+            bool changed = m_LastStyled != e.Styled || m_LastMerged != e.LayersMerged || m_LastSegments.Count != e.Segments.Count;
             for (int i = 0; !changed && i < e.Segments.Count; i++)
                 changed = m_LastSegments[i].Blend != e.Segments[i].Blend || m_LastSegments[i].Texture != e.Segments[i].Texture || m_LastSegments[i].Custom != e.Segments[i].Custom;
             if (!changed) return false;
             m_LastStyled = e.Styled;
+            m_LastMerged = e.LayersMerged;
             m_LastSegments.Clear();
             m_LastSegments.AddRange(e.Segments);
             return true;
@@ -647,7 +651,7 @@ namespace FirstSymbol.Lettera
             for (int i = 0; i < count; i++)
             {
                 MeshSegment segment = e.Segments[i];
-                Material material = segment.Custom != null ? segment.Custom : LetteraMaterials.Variant(source, e.Styled, segment.Blend, segment.Texture);
+                Material material = segment.Custom != null ? segment.Custom : LetteraMaterials.Variant(source, e.Styled, segment.Blend, segment.Texture, e.LayersMerged);
                 if (maskable && m_StencilValue > 0)
                 {
                     int bits = (1 << m_StencilValue) - 1;

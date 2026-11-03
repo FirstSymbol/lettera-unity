@@ -293,9 +293,12 @@ LETTERA_COLOR4 LetteraShadeMerged(float4 uv0, float4 params, LETTERA_COLOR4 colo
 {
     float d = LETTERA_SAMPLE_SDF(uv0.xy, uv0.z).r;
     float moved = LETTERA_SAMPLE_SDF(uv0.xy - extra.xy, uv0.z).r;
-    float faceEdge = LetteraEdge(d, 0.5, 0);
-    float strokeEdge = LetteraEdge(d, max(params.y, 0.001), extra.z);
-    float shadowEdge = LetteraEdge(moved, max(params.z, 0.001), params.w);
+    // One rate of change serves all three edges: the moved sample is the same field at the same scale.
+    float aa = fwidth(d) * 0.75 + 1e-5;
+    float faceEdge = smoothstep(0.5 - aa, 0.5 + aa, d);
+    float ws = max(aa, extra.z), wh = max(aa, params.w);
+    float strokeEdge = smoothstep(params.y - ws, params.y + ws, d);
+    float shadowEdge = smoothstep(params.z - wh, params.z + wh, moved);
     float4 faceColor = float4(LetteraUnpackBytes(params.x), LetteraUnpackBytes(extra.w));
     float4 stroke = float4(LetteraUnpackBytes(paint.x), LetteraUnpackBytes(paint.y));
     float4 shadow = float4(LetteraUnpackBytes(paint.z), LetteraUnpackBytes(paint.w));
@@ -314,7 +317,6 @@ LETTERA_COLOR4 LetteraShadeMerged(float4 uv0, float4 params, LETTERA_COLOR4 colo
 
 LETTERA_COLOR4 LetteraShadeStyled(float4 uv0, float4 params, LETTERA_COLOR4 color, float4 paint, float4 extra, float2 screen)
 {
-    if (uv0.w > 12.5) return LetteraShadeMerged(uv0, params, color, paint, extra);
     return LetteraApplyFilter(LetteraShadeGlyph(uv0, params, color, paint, extra, screen), params.w);
 }
 
