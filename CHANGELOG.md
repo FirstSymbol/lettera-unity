@@ -208,7 +208,7 @@ The same harness, IL2CPP, median of 5, before at `96dd770` and after this batch.
 
 Glyph-major text with a stroke and a shadow, 200 labels in the same scene, in a probe build that is not a row of the harness: GPU 1.04 ms with the quads apart, 0.45 ms merged. Joining a glyph's stroke and shadow in layer order, tried and left out: 0.80 to 1.07 ms, since the two more vertex streams every quad then carries cost more than the third of the quads saved.
 
-**Build size,** a project of its own: an empty uGUI project (uGUI, UI, IMGUI, JSON modules) against the same with Lettera and one text in a scene, Windows IL2CPP release, files shipped; the web build is gzip-compressed:
+**Build size,** a project of its own: an empty uGUI project (uGUI, UI, IMGUI, JSON modules) against the same with Lettera and one text in a scene, Windows IL2CPP release, files shipped, after at `c03201a`; the web build is gzip-compressed:
 
 | | Before | After |
 |---|---|---|
