@@ -376,7 +376,9 @@ namespace FirstSymbol.Lettera
         {
             var data = new LetteraTextData { Font = font, FontStack = stack, FontSize = size, Text = characters };
             // The characters go in as they are: what looks like a tag is still what was asked for.
-            new TextEngine(new MeasureHost { Data = data, LayoutRect = new Rect(0, 0, 4096, 4096) }) { Literal = true }.Rebuild();
+            var engine = new TextEngine(new MeasureHost { Data = data, LayoutRect = new Rect(0, 0, 4096, 4096) }) { Literal = true };
+            engine.Rebuild();
+            engine.ReleaseCells();
         }
 
         /// <summary>Measures a text without touching what a component displays.</summary>
@@ -385,7 +387,9 @@ namespace FirstSymbol.Lettera
             LetteraTextData copy = data.Clone();
             copy.Text = text ?? "";
             var engine = new TextEngine(new MeasureHost { Data = copy, Owner = owner });
-            return engine.Measure(size, width, height, wrap, autoSize, minSize, maxSize);
+            Vector2 measured = engine.Measure(size, width, height, wrap, autoSize, minSize, maxSize);
+            engine.ReleaseCells();
+            return measured;
         }
 
         // What few texts ever use starts as one shared empty collection, and the text's own comes with the first write. A shared one is only read and cleared.

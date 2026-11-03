@@ -143,22 +143,11 @@ namespace FirstSymbol.Lettera
         void ReserveFor(int codepoints)
         {
             int n = Math.Max(codepoints, SmallestBuffer);
-            EnsureSize(ref m_Text, n + 4);
+            EnsureText(n + 4);
             if (m_RuntimeChars.Length < n) m_RuntimeChars = new char[n];
             if (m_PrevSource.Length < n) m_PrevSource = new char[n];
-            EnsureSize(ref m_Levels, n + 1);
-            EnsureSize(ref m_Boundaries, n + 2);
-            EnsureSize(ref m_Breaks, n + 1);
-            EnsureSize(ref m_Scripts, n + 1);
-            EnsureSize(ref m_CpRun, n + 1);
-            EnsureSize(ref m_CpAdvanceEm, n + 1);
-            EnsureSize(ref m_ShapeText, n + 1);
-            Cleared(ref m_CpDivider, n, 0);
-            Cleared(ref m_CpExtraEm, n, 0);
-            Cleared(ref m_CpExtraUnits, n, 0);
-            Cleared(ref m_CpLeadEm, n, 0);
-            Cleared(ref m_CpLeadUnits, n, 0);
-            Cleared(ref m_CpKashida, n, 0);
+            EnsureShapeBuffers(n + 1);
+            ClearedExtras(n, 0);
             EnsureSize(ref m_Shaped, n);
             // Of a window, the lines near the viewport are placed: three quarters of it at most.
             int quads = n * 3 / 4;
@@ -470,9 +459,10 @@ namespace FirstSymbol.Lettera
             copy.Text = source;
             var engine = new TextEngine(new MeasureHost { Data = copy, Owner = owner.m_Host.Owner });
             engine.EnsureParsed();
-            shown = engine.m_Text;
+            shown = engine.m_Text.Slice(0, Math.Min(engine.m_Text.Length, engine.m_TextLength + 4)).ToArray();
             sourceIndex = engine.SourceIndexArray();
             length = engine.m_TextLength;
+            engine.ReleaseCells();
         }
 
         /// <summary>The plain text between two places in the document, with markup gone, read block by block with what is open before each.</summary>

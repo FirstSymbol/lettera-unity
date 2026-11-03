@@ -260,8 +260,8 @@ namespace FirstSymbol.Lettera
             }
             EnsureSize(ref m_LineLevels, count);
             EnsureSize(ref m_VisualOrder, count);
-            var paragraphText = new ReadOnlySpan<int>(m_Text, paragraph.Start, paragraph.End - paragraph.Start);
-            Bidi.ResolveLineLevels(paragraphText, new ReadOnlySpan<byte>(m_Levels, paragraph.Start, paragraph.End - paragraph.Start),
+            ReadOnlySpan<int> paragraphText = m_Text.Slice(paragraph.Start, paragraph.End - paragraph.Start);
+            Bidi.ResolveLineLevels(paragraphText, m_Levels.Slice(paragraph.Start, paragraph.End - paragraph.Start),
                 line.Start - paragraph.Start, line.VisibleEnd - paragraph.Start, paragraph.Level, new Span<byte>(m_LineLevels, 0, count));
             Bidi.ReorderLine(new ReadOnlySpan<byte>(m_LineLevels, 0, count), new Span<int>(m_VisualOrder, 0, count));
 

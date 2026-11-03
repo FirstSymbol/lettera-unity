@@ -14,7 +14,7 @@ namespace FirstSymbol.Lettera
         List<int> m_MatcherOrder, m_RangeOrder;
 
         // The rendered text as UTF-32, and for each codepoint its index in the source text.
-        int[] m_Text = Array.Empty<int>();
+        Cells<int> m_Text;
         int[] m_SourceIndex = Array.Empty<int>();
         int m_TextLength;
 
@@ -111,7 +111,7 @@ namespace FirstSymbol.Lettera
             bool copied = false, markup;
             if (!edited && m_Resolver == null && source.Length >= CopyWhileLookingFrom && m_ProtectLength == 0 && RevealSource < 0)
             {
-                EnsureSize(ref m_Text, source.Length + 4);
+                EnsureText(source.Length + 4);
                 copied = CopyPlain(source, true);
                 markup = !copied;
             }
@@ -295,7 +295,7 @@ namespace FirstSymbol.Lettera
             List<LetteraMatchContext.Claim> claims = context.Claims;
             if (claims.Count > 1) claims.Sort(s_ByStart);
 
-            EnsureSize(ref m_Text, source.Length + 4);
+            EnsureText(source.Length + 4);
             if (claims.Count == 0)
             {
                 CopyPlain(source);
@@ -340,7 +340,7 @@ namespace FirstSymbol.Lettera
                 }
                 if (claim.Replacement != null)
                 {
-                    EnsureSize(ref m_Text, count + claim.Replacement.Length + (source.Length - at) + 4);
+                    EnsureText(count + claim.Replacement.Length + (source.Length - at) + 4);
                     EnsureSize(ref m_SourceIndex, count + claim.Replacement.Length + (source.Length - at) + 4);
                     foreach (char c in claim.Replacement)
                     {
@@ -390,7 +390,8 @@ namespace FirstSymbol.Lettera
             count = at;
             EnsureSize(ref m_SourceIndex, length + 4);
             fixed (char* s = source)
-            fixed (int* text = m_Text, index = m_SourceIndex)
+            fixed (int* text = m_Text)
+            fixed (int* index = m_SourceIndex)
             {
                 for (int i = 0; i < count; i++) index[i] = i;
                 while (at < length)

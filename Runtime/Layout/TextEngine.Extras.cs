@@ -6,10 +6,10 @@ namespace FirstSymbol.Lettera
     // What layout effects add to the shaped widths. Extra space belongs to the first codepoint of its cluster.
     internal sealed partial class TextEngine
     {
-        float[] m_CpExtraEm = Array.Empty<float>(), m_CpExtraUnits = Array.Empty<float>();
-        float[] m_CpLeadEm = Array.Empty<float>(), m_CpLeadUnits = Array.Empty<float>();
-        bool[] m_CpKashida = Array.Empty<bool>();
-        bool[] m_CpDivider = Array.Empty<bool>();
+        Cells<float> m_CpExtraEm, m_CpExtraUnits;
+        Cells<float> m_CpLeadEm, m_CpLeadUnits;
+        Cells<bool> m_CpKashida;
+        Cells<bool> m_CpDivider;
 
         // A long text left for later has no layout effect, so all its extras are zero: it keeps none, and reads none.
         bool m_NoExtras;
@@ -21,23 +21,24 @@ namespace FirstSymbol.Lettera
             if (m_NoExtras) from = 0;
             m_NoExtras = none;
             if (none) return;
-            Cleared(ref m_CpDivider, length, from);
-            Cleared(ref m_CpExtraEm, length, from);
-            Cleared(ref m_CpExtraUnits, length, from);
-            Cleared(ref m_CpLeadEm, length, from);
-            Cleared(ref m_CpLeadUnits, length, from);
-            Cleared(ref m_CpKashida, length, from);
+            ClearedExtras(length, from);
         }
 
-        // Zeros from a codepoint on. A new array is zeros already, and what stood before that codepoint is zeros on every path that keeps it.
-        static void Cleared<T>(ref T[] array, int length, int from)
+        // Zeros from a codepoint on. A new block is zeros already, and what stood before that codepoint is zeros on every path that keeps it.
+        void ClearedExtras(int length, int from)
         {
-            if (array.Length < length + 1)
+            if (m_ExtrasRoom < length)
             {
-                array = new T[Math.Max(Math.Max(length + 1, SmallestBuffer), array.Length * 2)];
+                AllocateExtras(Math.Max(Math.Max(length, SmallestBuffer), (m_ExtrasRoom + 1) * 2));
                 return;
             }
-            Array.Clear(array, from, length + 1 - from);
+            int count = length + 1 - from;
+            m_CpDivider.Clear(from, count);
+            m_CpExtraEm.Clear(from, count);
+            m_CpExtraUnits.Clear(from, count);
+            m_CpLeadEm.Clear(from, count);
+            m_CpLeadUnits.Clear(from, count);
+            m_CpKashida.Clear(from, count);
         }
 
         /// <summary>A codepoint's share of the line: its shaped advance, and what effects and a fit add.</summary>

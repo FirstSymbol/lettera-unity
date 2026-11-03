@@ -83,7 +83,7 @@ namespace FirstSymbol.Lettera
                 RevealSpan span = m_Aside.RevealSpans[s];
                 int unit = -1;
                 int c = span.Start;
-                var text = new ReadOnlySpan<int>(m_Text, 0, m_TextLength);
+                var text = m_Text.Slice(0, m_TextLength);
                 while (c < span.End)
                 {
                     int end;

@@ -95,7 +95,7 @@ namespace FirstSymbol.Lettera
             for (int r = 0; r < ranges.Count; r++)
                 Own(ref m_Aside.OldRanges).Add(new OldRange { Style = ranges[r].StyleIndex, Start = ranges[r].RenderedStart, End = ranges[r].RenderedEnd, Id = m_Aside.RangeIds[r], Label = ranges[r].Label });
             EnsureExact(ref m_Aside.OldText, m_TextLength);
-            Array.Copy(m_Text, m_Aside.OldText, m_TextLength);
+            m_Text.Slice(0, m_TextLength).CopyTo(m_Aside.OldText);
             m_Aside.OldLength = m_TextLength;
         }
 
@@ -506,7 +506,7 @@ namespace FirstSymbol.Lettera
                 plain.Remove(a16, b16 - a16);
                 if (spoiler.CopyPolicy == LetteraSpoilerCopy.Mask)
                 {
-                    var text = new ReadOnlySpan<int>(m_Text, 0, m_TextLength);
+                    var text = m_Text.Slice(0, m_TextLength);
                     int clusters = 0;
                     for (int c = from; c < to; c = LetteraTextNavigator.NextStop(text, c)) clusters++;
                     plain.Insert(a16, new string('█', clusters));

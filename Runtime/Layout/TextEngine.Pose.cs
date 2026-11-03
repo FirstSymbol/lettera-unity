@@ -216,7 +216,7 @@ namespace FirstSymbol.Lettera
                 }
                 case LetteraMotionUnit.Word:
                 {
-                    var text = new ReadOnlySpan<int>(m_Text, 0, m_TextLength);
+                    var text = m_Text.Slice(0, m_TextLength);
                     int c = span.Start;
                     while (c < end)
                     {

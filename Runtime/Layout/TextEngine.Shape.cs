@@ -45,15 +45,15 @@ namespace FirstSymbol.Lettera
         ShapedGlyph[] m_Shaped = Array.Empty<ShapedGlyph>();
         static NativeGlyph[] s_NativeGlyphs = new NativeGlyph[256];
         int m_ShapedCount;
-        byte[] m_Levels = Array.Empty<byte>();
-        bool[] m_Boundaries = Array.Empty<bool>();
-        LineBreakOpportunity[] m_Breaks = Array.Empty<LineBreakOpportunity>();
-        UnicodeScript[] m_Scripts = Array.Empty<UnicodeScript>();
-        int[] m_CpRun = Array.Empty<int>();
+        Cells<byte> m_Levels;
+        Cells<bool> m_Boundaries;
+        Cells<LineBreakOpportunity> m_Breaks;
+        Cells<UnicodeScript> m_Scripts;
+        Cells<int> m_CpRun;
         // What shaping reads: the rendered text with case effects applied, so indices stay the same and CleanText keeps its case.
-        int[] m_ShapeText = Array.Empty<int>();
+        Cells<int> m_ShapeText;
         static readonly uint s_Smcp = LetteraNative.Tag("smcp"), s_Sups = LetteraNative.Tag("sups"), s_Subs = LetteraNative.Tag("subs");
-        float[] m_CpAdvanceEm = Array.Empty<float>();
+        Cells<float> m_CpAdvanceEm;
 
         LetteraSegmenterScratch m_SegmenterScratch;
 
@@ -92,7 +92,7 @@ namespace FirstSymbol.Lettera
                     byte map = chars.At(i).CaseMap;
                     m_ShapeText[i] = map == 0 ? cp : map == 1 ? LetteraUnicode.ToUpper(cp) : LetteraUnicode.ToLower(cp);
                 }
-                Array.Clear(m_CpAdvanceEm, resume, length + 1 - resume);
+                m_CpAdvanceEm.Clear(resume, length + 1 - resume);
             }
             else if (m_CpAdvanceEm.Length > length)
             {
@@ -187,17 +187,17 @@ namespace FirstSymbol.Lettera
             }
             if (count > 0)
             {
-                var text = new ReadOnlySpan<int>(m_Text, start, count);
-                GraphemeBreaker.FindBoundaries(text, new Span<bool>(m_Boundaries, start, count + 1));
+                ReadOnlySpan<int> text = m_Text.Slice(start, count);
+                GraphemeBreaker.FindBoundaries(text, m_Boundaries.Slice(start, count + 1));
                 if (MaskGlyph != 0)
                 {
                     MaskParagraph(start, contentEnd);
-                    text = new ReadOnlySpan<int>(m_ShapeText, start, count);
+                    text = m_ShapeText.Slice(start, count);
                 }
-                paragraph.Level = Bidi.ResolveParagraph(text, baseLevel, new Span<byte>(m_Levels, start, count));
-                LineBreaker.FindBreaks(text, new Span<LineBreakOpportunity>(m_Breaks, start, count));
-                if (LetteraWordSegmenters.Count != 0) LetteraWordSegmenters.ApplyToBreaks(text, new ReadOnlySpan<bool>(m_Boundaries, start, count + 1), new Span<LineBreakOpportunity>(m_Breaks, start, count), m_SegmenterScratch ?? (m_SegmenterScratch = new LetteraSegmenterScratch()));
-                ScriptItemizer.Resolve(text, new Span<UnicodeScript>(m_Scripts, start, count));
+                paragraph.Level = Bidi.ResolveParagraph(text, baseLevel, m_Levels.Slice(start, count));
+                LineBreaker.FindBreaks(text, m_Breaks.Slice(start, count));
+                if (LetteraWordSegmenters.Count != 0) LetteraWordSegmenters.ApplyToBreaks(text, m_Boundaries.Slice(start, count + 1), m_Breaks.Slice(start, count), m_SegmenterScratch ?? (m_SegmenterScratch = new LetteraSegmenterScratch()));
+                ScriptItemizer.Resolve(text, m_Scripts.Slice(start, count));
                 BuildRuns(paragraph);
                 if (cacheable) StoreParagraph(hash, paragraph, start, count, baseLevel, language, firstRun, firstGlyph);
             }
@@ -244,7 +244,7 @@ namespace FirstSymbol.Lettera
                 string family = attr.Family >= 0 ? m_Attributes.FamilyRequests[attr.Family] : null;
                 string language = LanguageOf(attr.Language);
                 bool emoji = MaskGlyph == 0 && EmojiClassifier.IsEmojiCluster(m_Text, i, clusterEnd - i);
-                FontFace face = m_Chain.Resolve(new ReadOnlySpan<int>(m_ShapeText, i, clusterEnd - i), emoji, family, language, out FontChain.Family owner);
+                FontFace face = m_Chain.Resolve(m_ShapeText.Slice(i, clusterEnd - i), emoji, family, language, out FontChain.Family owner);
                 if (memo >= 0)
                 {
                     s_MemoCp[memo] = m_ShapeText[i];
@@ -395,7 +395,7 @@ namespace FirstSymbol.Lettera
             {
                 int end = i + 1;
                 while (end < run.End && !m_Boundaries[end]) end++;
-                uint glyph = BrowserEmoji.GlyphFor(new ReadOnlySpan<int>(m_Text, i, end - i), out int advance);
+                uint glyph = BrowserEmoji.GlyphFor(m_Text.Slice(i, end - i), out int advance);
                 m_Shaped[slot] = new ShapedGlyph { Glyph = glyph, Cluster = i, XAdvance = advance };
                 m_CpAdvanceEm[i] += advance * run.UnitEm;
                 slot += rtl ? -1 : 1;

@@ -131,19 +131,14 @@ namespace FirstSymbol.Lettera
         // What shaping writes per codepoint, up to a codepoint. A long text left for later grows these as it is shaped, not all at once.
         // They grow a quarter past what is asked: shaping near what shows asks a little more each round, and doubling seven arrays of a long text
         // for that is megabytes. A text left for later never takes much more than its length.
+        // They live in native memory, so a long text's megabytes start no collection. A text left for later takes them as they come, not zeroed:
+        // every paragraph writes all its values before anything reads them, and the pages no paragraph reached stay untouched.
         void EnsureShapeBuffers(int size)
         {
-            if (m_Levels.Length >= size && m_Boundaries.Length >= size + 1 && m_Breaks.Length >= size && m_Scripts.Length >= size && m_CpRun.Length >= size &&
-                m_CpAdvanceEm.Length >= size && m_ShapeText.Length >= size) return;
-            int room = Math.Max(Math.Max(size + size / 4, m_Levels.Length * 2), SmallestBuffer);
+            if (m_ShapeRoom >= size) return;
+            int room = Math.Max(Math.Max(size + size / 4, (m_ShapeRoom + 1) * 2), SmallestBuffer);
             if (m_Deferring) room = Math.Min(room, Math.Max(size, m_TextLength + 1 + (m_TextLength >> 3)));
-            Grow(ref m_Levels, room);
-            Grow(ref m_Boundaries, room + 1);
-            Grow(ref m_Breaks, room);
-            Grow(ref m_Scripts, room);
-            Grow(ref m_CpRun, room);
-            Grow(ref m_CpAdvanceEm, room);
-            Grow(ref m_ShapeText, room);
+            AllocateShape(room, m_Deferring);
         }
 
         // Finishing writes to the end of the text, so its first step takes that room at once: growing by halves through every size on the way
@@ -157,11 +152,6 @@ namespace FirstSymbol.Lettera
             EnsureShapeBuffers(m_TextLength + 1);
             int glyphs = m_TextLength + (m_TextLength >> 3);
             if (m_Shaped.Length < glyphs) Array.Resize(ref m_Shaped, glyphs);
-        }
-
-        static void Grow<T>(ref T[] array, int size)
-        {
-            if (array.Length < size) Array.Resize(ref array, size);
         }
 
         // The first run that starts at or after a codepoint, among the first runs.
@@ -208,7 +198,7 @@ namespace FirstSymbol.Lettera
                     byte map = attributes.At(i).CaseMap;
                     m_ShapeText[i] = map == 0 ? cp : map == 1 ? LetteraUnicode.ToUpper(cp) : LetteraUnicode.ToLower(cp);
                 }
-                Array.Clear(m_CpAdvanceEm, paragraph.Start, paragraph.End - paragraph.Start);
+                m_CpAdvanceEm.Clear(paragraph.Start, paragraph.End - paragraph.Start);
             }
             int chars = m_Paragraphs[end - 1].End - m_Paragraphs[first].Start;
             if (end - first > 1 && ShapesInParallel(chars)) ShapePendingInParallel(first, end, runs, glyphs);

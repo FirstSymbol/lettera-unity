@@ -374,7 +374,7 @@ namespace FirstSymbol.Lettera
             if (entry == null || entry->Count != count || entry->ChainId != m_Chain.Id || entry->BaseLevel != baseLevel || entry->SizeMatch != m_Attributes.SizeMatchOverride ||
                 entry->Language != StoredLanguage(language, false))
                 return null;
-            if (!new ReadOnlySpan<int>(m_Text, start, count).SequenceEqual(new ReadOnlySpan<int>(TextOf(entry), count))) return null;
+            if (!m_Text.Slice(start, count).SequenceEqual(new ReadOnlySpan<int>(TextOf(entry), count))) return null;
             if ((entry->Signed != 0) == m_SignaturesPlain) return null;
             if (!m_SignaturesPlain && !new ReadOnlySpan<long>(m_CpSignature, start, count).SequenceEqual(new ReadOnlySpan<long>(SignatureOf(entry), count))) return null;
             return entry;
@@ -388,12 +388,12 @@ namespace FirstSymbol.Lettera
             Unlink(entry);
             LinkNewest(entry);
 
-            new ReadOnlySpan<int>(ShapeOf(entry), count).CopyTo(new Span<int>(m_ShapeText, start, count));
-            new ReadOnlySpan<byte>(LevelsOf(entry), count).CopyTo(new Span<byte>(m_Levels, start, count));
-            new ReadOnlySpan<bool>(BoundariesOf(entry), count + 1).CopyTo(new Span<bool>(m_Boundaries, start, count + 1));
-            new ReadOnlySpan<LineBreakOpportunity>(BreaksOf(entry), count).CopyTo(new Span<LineBreakOpportunity>(m_Breaks, start, count));
-            new ReadOnlySpan<UnicodeScript>(ScriptsOf(entry), count).CopyTo(new Span<UnicodeScript>(m_Scripts, start, count));
-            new ReadOnlySpan<float>(AdvancesOf(entry), count).CopyTo(new Span<float>(m_CpAdvanceEm, start, count));
+            new ReadOnlySpan<int>(ShapeOf(entry), count).CopyTo(m_ShapeText.Slice(start, count));
+            new ReadOnlySpan<byte>(LevelsOf(entry), count).CopyTo(m_Levels.Slice(start, count));
+            new ReadOnlySpan<bool>(BoundariesOf(entry), count + 1).CopyTo(m_Boundaries.Slice(start, count + 1));
+            new ReadOnlySpan<LineBreakOpportunity>(BreaksOf(entry), count).CopyTo(m_Breaks.Slice(start, count));
+            new ReadOnlySpan<UnicodeScript>(ScriptsOf(entry), count).CopyTo(m_Scripts.Slice(start, count));
+            new ReadOnlySpan<float>(AdvancesOf(entry), count).CopyTo(m_CpAdvanceEm.Slice(start, count));
             paragraph.Level = entry->Level;
 
             int runBase = m_Runs.Count;
@@ -461,13 +461,13 @@ namespace FirstSymbol.Lettera
                 RunCount = runCount, GlyphCount = glyphCount, Language = StoredLanguage(language, true), Signed = signed ? 1 : 0,
             };
             if (signed) new ReadOnlySpan<long>(m_CpSignature, start, count).CopyTo(new Span<long>(SignatureOf(entry), count));
-            new ReadOnlySpan<int>(m_Text, start, count).CopyTo(new Span<int>(TextOf(entry), count));
-            new ReadOnlySpan<int>(m_ShapeText, start, count).CopyTo(new Span<int>(ShapeOf(entry), count));
-            new ReadOnlySpan<byte>(m_Levels, start, count).CopyTo(new Span<byte>(LevelsOf(entry), count));
-            new ReadOnlySpan<bool>(m_Boundaries, start, count + 1).CopyTo(new Span<bool>(BoundariesOf(entry), count + 1));
-            new ReadOnlySpan<LineBreakOpportunity>(m_Breaks, start, count).CopyTo(new Span<LineBreakOpportunity>(BreaksOf(entry), count));
-            new ReadOnlySpan<UnicodeScript>(m_Scripts, start, count).CopyTo(new Span<UnicodeScript>(ScriptsOf(entry), count));
-            new ReadOnlySpan<float>(m_CpAdvanceEm, start, count).CopyTo(new Span<float>(AdvancesOf(entry), count));
+            m_Text.Slice(start, count).CopyTo(new Span<int>(TextOf(entry), count));
+            m_ShapeText.Slice(start, count).CopyTo(new Span<int>(ShapeOf(entry), count));
+            m_Levels.Slice(start, count).CopyTo(new Span<byte>(LevelsOf(entry), count));
+            m_Boundaries.Slice(start, count + 1).CopyTo(new Span<bool>(BoundariesOf(entry), count + 1));
+            m_Breaks.Slice(start, count).CopyTo(new Span<LineBreakOpportunity>(BreaksOf(entry), count));
+            m_Scripts.Slice(start, count).CopyTo(new Span<UnicodeScript>(ScriptsOf(entry), count));
+            m_CpAdvanceEm.Slice(start, count).CopyTo(new Span<float>(AdvancesOf(entry), count));
             int* cpRun = CpRunOf(entry);
             for (int i = 0; i < count; i++) cpRun[i] = m_CpRun[start + i] - firstRun;
             ShapedGlyph* glyphs = GlyphsOf(entry);

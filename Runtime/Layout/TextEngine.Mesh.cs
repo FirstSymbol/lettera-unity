@@ -131,9 +131,12 @@ namespace FirstSymbol.Lettera
             List<LayerGroup> groups = m_Attributes.SortedGroups();
             Styled = m_Attributes.NeedsStyledShader() || HasInlineSprites;
             PrepareGlyphs(groups);
-            // One quad a glyph is the usual case, so a long text does not grow through every size on the way.
-            if (m_PlacedCount * 4 > Vertices.Length) GrowVertices(System.Math.Max(System.Math.Max(m_PlacedCount * 4, Vertices.Length * 2), FirstVertices));
-            if (m_PlacedCount * 6 > Indices.Length) System.Array.Resize(ref Indices, System.Math.Max(System.Math.Max(m_PlacedCount * 6, Indices.Length * 2), FirstVertices * 3 / 2));
+            // One quad a glyph is the usual case, so a long text does not grow through every size on the way. A world text's first mesh takes what
+            // its glyphs need, four at least: thousands of world labels are often made at once, and room for sixteen glyphs each was garbage enough
+            // to start collections in their first frame. A Canvas label keeps room for sixteen, so one made again with more glyphs does not grow.
+            int firstRoom = Vertices.Length == 0 && m_Host is LetteraWorldText ? FirstWorldVertices : FirstVertices;
+            if (m_PlacedCount * 4 > Vertices.Length) GrowVertices(System.Math.Max(System.Math.Max(m_PlacedCount * 4, Vertices.Length * 2), firstRoom));
+            if (m_PlacedCount * 6 > Indices.Length) System.Array.Resize(ref Indices, System.Math.Max(System.Math.Max(m_PlacedCount * 6, Indices.Length * 2), firstRoom * 3 / 2));
             PrepareFade();
             PrepareExtraMotions();
 
@@ -1159,7 +1162,7 @@ namespace FirstSymbol.Lettera
         }
 
         // A label's first mesh takes room for sixteen glyphs, so a counter going from one digit to three does not grow its buffers in the frame it changes.
-        const int FirstVertices = 64;
+        const int FirstVertices = 64, FirstWorldVertices = 16;
 
         // Only a styled text ever reads the last two streams, and most texts are not styled.
         void GrowVertices(int capacity)
