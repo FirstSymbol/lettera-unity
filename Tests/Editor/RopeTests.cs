@@ -90,6 +90,53 @@ namespace FirstSymbol.Lettera.Editor.Tests
             }
         }
 
+        static string Blocks(LetteraRope rope)
+        {
+            var shot = new StringBuilder();
+            for (int b = 0; b < rope.BlockCount; b++)
+            {
+                rope.BlockTotals(b, out int codepoints, out int paragraphs);
+                shot.Append(rope.CharOfBlock(b)).Append(' ').Append(rope.BlockChars(b)).Append(' ').Append(codepoints).Append(' ').Append(paragraphs).Append(' ')
+                    .Append(rope.BlockHasMarkup(b)).Append(rope.BlockEndsParagraph(b)).Append('\n');
+            }
+            return shot.ToString();
+        }
+
+        // Plain letters go through in stretches: the blocks, their counts and their flags are what one character at a time gives.
+        [Test]
+        public void PlainStretchesCutBlocksAsCharacterByCharacterDoes()
+        {
+            var random = new Random(7);
+            string[] pieces = { "word ", "Long", "\n", "\r\n", "<b>", "</b>", "\t", "é", "שלום", "😀", "\u0301", "x", "12345678901234567890", "\u2029", "> <" };
+            var triggers = new LetteraMarkupTriggers('<');
+            try
+            {
+                for (int round = 0; round < 12; round++)
+                {
+                    var text = new StringBuilder();
+                    // Some rounds hold stretches past the block limit with no space, so the limit cuts inside a stretch.
+                    int length = round % 3 == 0 ? 70000 : 30000;
+                    while (text.Length < length)
+                    {
+                        if (round % 3 == 0 && random.Next(40) == 0) text.Append('a', random.Next(17000, 20000));
+                        else text.Append(pieces[random.Next(pieces.Length)]);
+                    }
+                    string body = text.ToString();
+                    foreach (LetteraMarkupTriggers set in new[] { null, triggers })
+                    {
+                        RopeScanner.NoPlainStretches = true;
+                        string slow = Blocks(LetteraRope.FromString(body, set));
+                        RopeScanner.NoPlainStretches = false;
+                        Assert.AreEqual(slow, Blocks(LetteraRope.FromString(body, set)), "round " + round);
+                    }
+                }
+            }
+            finally
+            {
+                RopeScanner.NoPlainStretches = false;
+            }
+        }
+
         [Test]
         public void RandomEditsAgreeWithAPlainString()
         {
