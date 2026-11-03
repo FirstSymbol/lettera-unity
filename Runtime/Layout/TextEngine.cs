@@ -273,6 +273,8 @@ namespace FirstSymbol.Lettera
 
         void RunPasses(DirtyLevel level)
         {
+            // A long text's passes go across the threads one after another: they wake now, while parsing runs, and not at the first batch.
+            if (level >= DirtyLevel.Shape && RawChars.Length >= LetteraWorkers.ParallelFromCodepoints && LetteraWorkers.ShouldRun(RawChars.Length)) LetteraWorkers.Prewake();
             if (level >= DirtyLevel.Parse)
             {
                 using (s_ParseMarker.Auto()) { long t = PassStart(); Parse(); PassEnd(0, t); }

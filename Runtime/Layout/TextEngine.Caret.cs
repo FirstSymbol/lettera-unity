@@ -274,8 +274,8 @@ namespace FirstSymbol.Lettera
             float size = CurrentFontSize > 0 ? CurrentFontSize : data.FontSize;
             var stats = new LineStats();
             m_Aside.MeasureLines.Clear();
-            m_PendingGap = 0;
-            AddLine(m_Aside.MeasureLines, ref stats, size, 0, 0, 0, 0, true, 0);
+            float gap = 0;
+            AddLine(m_Aside.MeasureLines, ref stats, size, 0, 0, 0, 0, true, 0, CurrentLineFormat(), ref gap);
             LetteraLine line = m_Aside.MeasureLines[0];
             int direction = m_Attributes.DirectionOverride >= 0 ? m_Attributes.DirectionOverride : data.BaseDirection == LetteraDirection.RightToLeft ? 1 : 0;
             var paragraph = new Paragraph { Level = direction };

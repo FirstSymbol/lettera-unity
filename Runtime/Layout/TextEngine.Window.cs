@@ -125,6 +125,7 @@ namespace FirstSymbol.Lettera
             m_Host.PoseChanged();
         }
 
+        [Unity.IL2CPP.CompilerServices.Il2CppSetOption(Unity.IL2CPP.CompilerServices.Option.ArrayBoundsChecks, false), Unity.IL2CPP.CompilerServices.Il2CppSetOption(Unity.IL2CPP.CompilerServices.Option.NullChecks, false)]
         void ShiftVertices(float delta)
         {
             for (int i = 0; i < VertexCount; i++) Vertices[i].y += delta;
@@ -163,6 +164,7 @@ namespace FirstSymbol.Lettera
             EnsureExact(ref m_Aside.GlyphPoses, quads);
             EnsureOwnerSize(quads);
             EnsureExact(ref m_Aside.CpBody, n + 1);
+            ReserveStretches();
         }
 
         void PlaceWindowAgainIfStale()

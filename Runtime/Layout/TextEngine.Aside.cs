@@ -109,7 +109,21 @@ namespace FirstSymbol.Lettera
             internal bool DeferShaping;
             internal int DeferParagraphStart, DeferParagraphLength;
             internal ShapedGlyph[] ShapedMerged = Array.Empty<ShapedGlyph>();
-            internal Action<int> AnalyzeOne, ShapeOne;
+            internal Action<int> AnalyzeOne, ShapeOne, RestoreOne;
+            internal BreakStretch[] Stretches = Array.Empty<BreakStretch>();
+            internal Action<int> BreakOne;
+            internal float StretchSize, StretchWidth;
+            internal bool StretchWrap, StretchEmergency;
+            internal LineFormat StretchFormat;
+            internal FaceStretch[] FaceStretches = Array.Empty<FaceStretch>();
+            internal Action<int> DrawOne;
+            internal Color32 FaceNoColor;
+            internal AtlasMemo[] AtlasMemos;
+            internal int AtlasMemoStamp;
+            internal PlaceItem[] PlaceItems = Array.Empty<PlaceItem>();
+            internal int PlaceItemCount;
+            internal PlaceSink[] PlaceSinks = Array.Empty<PlaceSink>();
+            internal Action<int> PlaceOne;
 
             internal ValueList<SolidBox> SolidBoxes = RareValues<SolidBox>.List;
 

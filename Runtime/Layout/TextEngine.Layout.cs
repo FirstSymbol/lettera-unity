@@ -12,7 +12,7 @@ namespace FirstSymbol.Lettera
         readonly List<LetteraLine> m_Lines = new List<LetteraLine>();
         Rect m_Box;
         float m_ContentWidth, m_ContentHeight;
-        float m_PendingGap, m_TrimTop;
+        float m_TrimTop;
 
         // What the last auto-size fit spends, on top of the shaped widths.
         float m_FitTracking, m_FitGlyphScale = 1, m_FitLineHeight = 1;
@@ -321,15 +321,20 @@ namespace FirstSymbol.Lettera
             {
                 lines.Clear();
             }
-            BreakParagraphs(lines, ref stats, baseSize, maxWidth, wrap, emergency, firstParagraph, m_Paragraphs.Count);
+            if (!BreakInParallel(lines, ref stats, baseSize, maxWidth, wrap, emergency, firstParagraph, m_Paragraphs.Count))
+                BreakParagraphs(lines, ref stats, baseSize, maxWidth, wrap, emergency, firstParagraph, m_Paragraphs.Count);
             if (m_Attributes.TrimTop != LetteraTrimTop.None || m_Attributes.TrimBottom != LetteraTrimBottom.None) ApplyTrim(lines, ref stats, baseSize);
             else m_TrimTop = 0;
             return stats;
         }
 
-        void BreakParagraphs(List<LetteraLine> lines, ref LineStats stats, float baseSize, float maxWidth, bool wrap, bool emergency, int firstParagraph, int endParagraph)
+        void BreakParagraphs(List<LetteraLine> lines, ref LineStats stats, float baseSize, float maxWidth, bool wrap, bool emergency, int firstParagraph, int endParagraph) =>
+            BreakParagraphs(lines, ref stats, baseSize, maxWidth, wrap, emergency, firstParagraph, endParagraph, CurrentLineFormat());
+
+        void BreakParagraphs(List<LetteraLine> lines, ref LineStats stats, float baseSize, float maxWidth, bool wrap, bool emergency, int firstParagraph, int endParagraph, in LineFormat format)
         {
-            m_PendingGap = 0;
+            // What a line keeps from the one before: workers each break a stretch, so it is no field.
+            float pendingGap = 0;
             bool simple = m_Aside.Removals.Count == 0 && !m_Attributes.HasLayout;
             int sizedRun = -1;
             float runSize = 0;
@@ -346,7 +351,7 @@ namespace FirstSymbol.Lettera
                 int firstLine = lines.Count;
 
                 if (previousParagraph >= 0 && m_Attributes.ParagraphSpacings.Count > 0)
-                    m_PendingGap += ParagraphGap(m_Paragraphs[previousParagraph], paragraph, baseSize);
+                    pendingGap += ParagraphGap(m_Paragraphs[previousParagraph], paragraph, baseSize);
                 previousParagraph = p;
 
                 int lineStart = paragraph.Start, lastBreak = -1;
@@ -393,7 +398,7 @@ namespace FirstSymbol.Lettera
                     {
                         if (lastBreak > lineStart)
                         {
-                            AddLine(lines, ref stats, baseSize, lineStart, lastBreak, Math.Min(visibleBefore(lastBreak, paragraph), lastBreak), p, false, margin);
+                            AddLine(lines, ref stats, baseSize, lineStart, lastBreak, Math.Min(visibleBefore(lastBreak, paragraph), lastBreak), p, false, margin, format, ref pendingGap);
                             x -= xAtBreak;
                             visible = Mathf.Max(visible - xAtBreak, 0);
                             lineStart = lastBreak;
@@ -403,7 +408,7 @@ namespace FirstSymbol.Lettera
                         }
                         if (emergency)
                         {
-                            AddLine(lines, ref stats, baseSize, lineStart, i, Math.Min(visibleBefore(i, paragraph), i), p, false, margin);
+                            AddLine(lines, ref stats, baseSize, lineStart, i, Math.Min(visibleBefore(i, paragraph), i), p, false, margin, format, ref pendingGap);
                             lineStart = i;
                             margin = IndentOf(lineStart, baseSize);
                             x = visible = 0;
@@ -419,7 +424,7 @@ namespace FirstSymbol.Lettera
                     LineBreakOpportunity opportunity = m_Breaks[i - 1];
                     if (opportunity == LineBreakOpportunity.Mandatory && i < paragraph.ContentEnd)
                     {
-                        AddLine(lines, ref stats, baseSize, lineStart, i, i - 1, p, true, margin);
+                        AddLine(lines, ref stats, baseSize, lineStart, i, i - 1, p, true, margin, format, ref pendingGap);
                         lineStart = i;
                         margin = IndentOf(lineStart, baseSize);
                         lastBreak = -1;
@@ -431,7 +436,7 @@ namespace FirstSymbol.Lettera
                         xAtBreak = x;
                     }
                 }
-                AddLine(lines, ref stats, baseSize, lineStart, paragraph.End, visibleBefore(paragraph.ContentEnd, paragraph), p, true, margin);
+                AddLine(lines, ref stats, baseSize, lineStart, paragraph.End, visibleBefore(paragraph.ContentEnd, paragraph), p, true, margin, format, ref pendingGap);
                 if (m_Deferring) LearnLines(lines, firstLine, baseSize, maxWidth, wrap);
             }
         }
@@ -531,13 +536,43 @@ namespace FirstSymbol.Lettera
             return end;
         }
 
-        void AddLine(List<LetteraLine> lines, ref LineStats stats, float baseSize, int start, int end, int visibleEnd, int paragraph, bool mandatory, float margin)
+        // What every line of one breaking reads alike, read once: workers then touch no Unity object.
+        struct LineFormat
         {
-            if (visibleEnd < start) visibleEnd = start;
+            public LetteraLineHeightMode Mode;
+            public float Value;
+            public int Leading;
+            public bool HasPrimary;
+            public int Ascender, Descender, Upem;
+        }
+
+        LineFormat CurrentLineFormat()
+        {
             LetteraTextData data = m_Host.Data;
             LetteraSettings settings = SettingsNow;
-            LetteraLineHeightMode mode = data.LineHeightMode == LetteraLineHeightMode.Default ? settings.DefaultLineHeightMode : data.LineHeightMode;
-            float value = data.LineHeightMode == LetteraLineHeightMode.Default ? settings.DefaultLineHeightValue : data.LineHeightValue;
+            var format = new LineFormat
+            {
+                Mode = data.LineHeightMode == LetteraLineHeightMode.Default ? settings.DefaultLineHeightMode : data.LineHeightMode,
+                Value = data.LineHeightMode == LetteraLineHeightMode.Default ? settings.DefaultLineHeightValue : data.LineHeightValue,
+                Leading = (int)data.LeadingDistribution,
+            };
+            FontFace primary = m_Chain.PrimaryFace;
+            if (primary != null)
+            {
+                FaceMetrics metrics = primary.Metrics;
+                format.HasPrimary = true;
+                format.Ascender = metrics.Ascender;
+                format.Descender = metrics.Descender;
+                format.Upem = metrics.Upem;
+            }
+            return format;
+        }
+
+        void AddLine(List<LetteraLine> lines, ref LineStats stats, float baseSize, int start, int end, int visibleEnd, int paragraph, bool mandatory, float margin, in LineFormat format, ref float pendingGap)
+        {
+            if (visibleEnd < start) visibleEnd = start;
+            LetteraLineHeightMode mode = format.Mode;
+            float value = format.Value;
 
             float width = 0, em = 0, runAscent = 0, runDescent = 0;
             for (int c = start; c < end && c < m_TextLength;)
@@ -563,12 +598,11 @@ namespace FirstSymbol.Lettera
             if (m_Attributes.HasLayout || m_FitTracking != 0) width -= TrailingTrackingOf(start, visibleEnd, baseSize);
             if (em <= 0) em = EmptyLineSize(start, baseSize);
 
-            FontFace primary = m_Chain.PrimaryFace;
-            float ascent = primary != null ? (float)primary.Metrics.Ascender / primary.Metrics.Upem * em : em * 0.8f;
-            float descent = primary != null ? -(float)primary.Metrics.Descender / primary.Metrics.Upem * em : em * 0.2f;
+            float ascent = format.HasPrimary ? (float)format.Ascender / format.Upem * em : em * 0.8f;
+            float descent = format.HasPrimary ? -(float)format.Descender / format.Upem * em : em * 0.2f;
             float primaryAscent = ascent, primaryDescent = descent;
             float contentAscent = Mathf.Max(ascent, runAscent), contentDescent = Mathf.Max(descent, runDescent);
-            int leadingMode = (int)data.LeadingDistribution;
+            int leadingMode = format.Leading;
             float height = HeightFor(mode, value, em, primaryAscent, primaryDescent, contentAscent, contentDescent);
             if (mode == LetteraLineHeightMode.Content) { ascent = contentAscent; descent = contentDescent; }
 
@@ -614,7 +648,7 @@ namespace FirstSymbol.Lettera
                 above += rubyOver;
             }
 
-            float gap = lines.Count > 0 ? m_PendingGap : 0;
+            float gap = lines.Count > 0 ? pendingGap : 0;
             if (lines.Count > 0 && m_Attributes.LineGaps.Count > 0)
             {
                 LetteraLine before = lines[lines.Count - 1];
@@ -622,7 +656,7 @@ namespace FirstSymbol.Lettera
                     if (lineGap.End > before.Start && lineGap.End <= before.End)
                         gap += lineGap.Amount.Of(em);
             }
-            m_PendingGap = 0;
+            pendingGap = 0;
 
             lines.Add(new LetteraLine
             {

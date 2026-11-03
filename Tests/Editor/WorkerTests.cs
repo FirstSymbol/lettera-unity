@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Text;
 using System.Threading;
 using NUnit.Framework;
@@ -193,6 +194,108 @@ namespace FirstSymbol.Lettera.Editor.Tests
             double inline = Time(LetteraWorkerMode.Inline), parallel = Time(LetteraWorkerMode.Parallel);
             Debug.Log($"LETTERA_BUDGET shape_{text.Length}cp inline={inline:0.00}ms parallel_4={parallel:0.00}ms");
             Assert.Less(parallel, inline, "threads made it slower");
+        }
+
+        static string Sentence(int i)
+        {
+            const string Words = "The quick brown fox jumps over a lazy dog and then runs back home again ";
+            return Words.Substring(i % 20, 12 + i * 7 % 29);
+        }
+
+        // Lines, then the mesh, of each window a fast scroll builds: lean ones, which break and draw a viewport of new text each step.
+        List<string> ScrollShots(string page, LetteraWorkerMode mode)
+        {
+            LetteraWorkers.Mode = mode;
+            LetteraWorldText text = Make("", 800, 600, null, 14);
+            text.OpenDocument(LetteraRope.FromString(page), true);
+            text.ForceRebuild();
+            var shots = new List<string>();
+            double step = text.View.ViewportHeight * 1.7;
+            for (int i = 1; i <= 12; i++)
+            {
+                text.View.ScrollTo(i * step);
+                text.ForceRebuild();
+                Assert.IsTrue(text.View.IsLean, "a lean window");
+                TextEngine e = text.Engine;
+                var shot = new StringBuilder();
+                for (int l = 0; l < e.LineCountForHooks; l++)
+                {
+                    LetteraLine line = e.LineForHooks(l);
+                    shot.Append(line.Start).Append(' ').Append(line.End).Append(' ').Append(line.VisibleEnd).Append(' ').Append(line.Paragraph).Append(' ')
+                        .Append(Bits(line.X)).Append(Bits(line.Baseline)).Append(Bits(line.Width)).Append(Bits(line.Height)).Append(Bits(line.Ascent)).Append(Bits(line.Descent))
+                        .Append(Bits(line.GapBefore)).Append(Bits(line.Margin)).Append(line.EndedByMandatoryBreak).Append('\n');
+                }
+                Snapshot mesh = Take(text);
+                shot.Append(e.VertexCount).Append(' ').Append(e.IndexCount).Append('\n');
+                for (int v = 0; v < mesh.Vertices.Length; v++)
+                    shot.Append(Bits(mesh.Vertices[v].x)).Append(Bits(mesh.Vertices[v].y)).Append(Bits(mesh.Uv0[v].x)).Append(Bits(mesh.Uv0[v].y)).Append(mesh.Colors[v].ToString()).Append('\n');
+                foreach (int index in mesh.Indices) shot.Append(index).Append(',');
+                shots.Add(shot.ToString());
+            }
+            return shots;
+        }
+
+        static string Bits(float value) => System.BitConverter.SingleToInt32Bits(value).ToString("x8") + " ";
+
+        [TestCase(1)]
+        [TestCase(4)]
+        public void ALeanDocumentWindowIsTheSameAcrossWorkers(int workers)
+        {
+            var page = new StringBuilder();
+            int n = 0;
+            while (page.Length < 300 * 1024) page.Append(Sentence(n++)).Append(n % 8 == 0 ? "\n" : " ");
+            LetteraWorkers.WorkerCount = workers;
+            // A window here holds about 5000 codepoints; this keeps it across the threads whatever the harness's threshold.
+            LetteraWorkers.ParallelFromCodepoints = 1024;
+            List<string> inline = ScrollShots(page.ToString(), LetteraWorkerMode.Inline);
+            var before = (int[])TextEngine.SplitPasses.Clone();
+            List<string> parallel = ScrollShots(page.ToString(), LetteraWorkerMode.Parallel);
+            Assert.Greater(TextEngine.SplitPasses[0], before[0], "lines were broken in order");
+            Assert.Greater(TextEngine.SplitPasses[1], before[1], "glyphs were placed in order");
+            Assert.Greater(TextEngine.SplitPasses[2], before[2], "faces were drawn in order");
+            Assert.AreEqual(inline.Count, parallel.Count);
+            for (int i = 0; i < inline.Count; i++) Assert.AreEqual(inline[i], parallel[i], "window " + i);
+        }
+
+        // A text under a mask notes where its ink lies while it draws: the threads' boxes join into the same box.
+        string MaskedShot(string body, LetteraWorkerMode mode)
+        {
+            LetteraWorkers.Mode = mode;
+            var canvas = new GameObject("Canvas", typeof(Canvas));
+            Created.Add(canvas);
+            var mask = new GameObject("Mask", typeof(RectTransform), typeof(UnityEngine.UI.RectMask2D));
+            mask.transform.SetParent(canvas.transform, false);
+            ((RectTransform)mask.transform).sizeDelta = new Vector2(900, 2000);
+            var go = new GameObject("Label", typeof(RectTransform));
+            go.transform.SetParent(mask.transform, false);
+            ((RectTransform)go.transform).sizeDelta = new Vector2(800, 1900);
+            var text = go.AddComponent<LetteraText>();
+            text.Font = Latin;
+            text.FontSize = 14;
+            text.Text = body;
+            Canvas.ForceUpdateCanvases();
+            Canvas.ForceUpdateCanvases();
+            TextEngine e = text.Engine;
+            Assert.IsTrue(text.TracksInk, "under a mask");
+            var shot = new StringBuilder();
+            shot.Append(e.InkKnown).Append(' ').Append(Bits(e.InkRect.xMin)).Append(Bits(e.InkRect.yMin)).Append(Bits(e.InkRect.xMax)).Append(Bits(e.InkRect.yMax)).Append(e.VertexCount).Append('\n');
+            for (int v = 0; v < e.VertexCount; v++) shot.Append(Bits(e.Vertices[v].x)).Append(Bits(e.Vertices[v].y)).Append(e.Colors[v].ToString()).Append('\n');
+            return shot.ToString();
+        }
+
+        [Test]
+        public void AMaskedTextNotesTheSameInkAcrossWorkers()
+        {
+            var body = new StringBuilder();
+            for (int i = 0; body.Length < 6000; i++) body.Append(Sentence(i)).Append(i % 8 == 0 ? "\n" : " ");
+            LetteraWorkers.WorkerCount = 4;
+            LetteraWorkers.ParallelFromCodepoints = 512;
+            string inline = MaskedShot(body.ToString(), LetteraWorkerMode.Inline);
+            int drawn = TextEngine.SplitPasses[2];
+            string parallel = MaskedShot(body.ToString(), LetteraWorkerMode.Parallel);
+            Assert.Greater(TextEngine.SplitPasses[2], drawn, "faces were drawn in order");
+            Assert.IsTrue(inline.StartsWith("True"), "the ink is known: " + inline.Substring(0, 60));
+            Assert.AreEqual(inline, parallel);
         }
 
         [Test]

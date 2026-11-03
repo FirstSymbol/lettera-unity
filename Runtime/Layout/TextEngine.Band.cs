@@ -137,7 +137,7 @@ namespace FirstSymbol.Lettera
             bool clips = m_Host.ClipsOverflow || m_Aside.MarqueeScrolling || ClipsViewport;
             AlignLine(m_Host.Data, placed, paragraph, clips, out LineStretch stretch);
             m_PlacedCount = m_Aside.ExtraEnd;
-            PlaceLine(placed, line, paragraph, placed.X, placed.Baseline, stretch);
+            PlaceLine(placed, line, paragraph, placed.X, placed.Baseline, stretch, null);
             Own(ref m_Aside.ExtraLines).Add(new ExtraLine { Line = line, Start = m_Aside.ExtraEnd, End = m_PlacedCount });
             m_Aside.ExtraEnd = m_PlacedCount;
             m_PlacedCount = keepCount;

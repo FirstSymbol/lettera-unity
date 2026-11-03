@@ -80,13 +80,19 @@ namespace FirstSymbol.Lettera
         void AddDistanceInk(float left, float bottom, float right, float top, in AtlasGlyph atlas, float xUnit, float yUnit, float size, float threshold, float softness)
         {
             if (!m_TrackInk) return;
+            DistanceInset(atlas, xUnit, yUnit, size, threshold, softness, m_InkMargin, out float ix, out float iy);
+            AddInk(left + ix, bottom + iy, right - ix, top - iy);
+        }
+
+        static void DistanceInset(in AtlasGlyph atlas, float xUnit, float yUnit, float size, float threshold, float softness, float margin, out float ix, out float iy)
+        {
             // The quad's margin is the field's reach, Spread em, which is Spread * upem in font units.
             float pad = yUnit > 0 ? atlas.Spread * size / yUnit : 0;
             float inset = pad - (0.5f - threshold + softness) * 2 * pad;
-            float ix = inset * xUnit - m_InkMargin, iy = inset * yUnit - m_InkMargin;
+            ix = inset * xUnit - margin;
+            iy = inset * yUnit - margin;
             if (ix < 0 || atlas.Pixel || atlas.Kind == AtlasGlyph.Color) ix = 0;
             if (iy < 0 || atlas.Pixel || atlas.Kind == AtlasGlyph.Color) iy = 0;
-            AddInk(left + ix, bottom + iy, right - ix, top - iy);
         }
 
         // Two screen pixels in the text's units, or 0 where a pixel's size is not known.
@@ -268,6 +274,17 @@ namespace FirstSymbol.Lettera
 
         static int PixelsPerEm(float size, float rasterScale) => size * rasterScale >= 72f ? 128 : 64;
 
+        internal struct AtlasMemo
+        {
+            public FontInstance Instance;
+            public uint Glyph;
+            public int Density, Stamp, Version;
+            public float Reach;
+            public AtlasGlyph Entry;
+        }
+
+        const int AtlasMemoSize = 256;
+
         // Finds each glyph's reach and range rectangles before anything draws, so a glyph is rasterized once.
         void PrepareGlyphs(List<LayerGroup> groups)
         {
@@ -311,6 +328,15 @@ namespace FirstSymbol.Lettera
             PrepareDecorationRects();
 
             float rasterScale = HostRasterScale;
+            bool multi = m_Host.Data.RenderMode == LetteraRenderMode.MSDF;
+            // A long text asks for the same few letters thousands of times: each is asked of the atlas once per mesh, which also marks it used.
+            AtlasMemo[] memo = null;
+            int stamp = 0;
+            if (m_PlacedCount >= AtlasMemoSize && !m_SolidsOnly)
+            {
+                memo = m_Aside.AtlasMemos ?? (m_Aside.AtlasMemos = new AtlasMemo[AtlasMemoSize]);
+                stamp = ++m_Aside.AtlasMemoStamp;
+            }
             for (int i = 0; i < m_PlacedCount; i++)
             {
                 ref PlacedGlyph g = ref m_Placed[i];
@@ -327,7 +353,12 @@ namespace FirstSymbol.Lettera
                     }
                     continue;
                 }
-                if (boost > 0) density = GlyphAtlas.Boost(g.Instance, g.Glyph, density << boost);
+                if (boost > 0)
+                {
+                    density = GlyphAtlas.Boost(g.Instance, g.Glyph, density << boost);
+                    // A raised density changes what the atlas answers for that letter everywhere.
+                    if (memo != null) stamp = ++m_Aside.AtlasMemoStamp;
+                }
                 if (g.Special == SpecialRule)
                 {
                     MathSpecial rule = m_Aside.MathSpecials[g.SpecialIndex];
@@ -341,7 +372,21 @@ namespace FirstSymbol.Lettera
                     m_PlacedAtlas[i] = flat.Kind == AtlasGlyph.Color ? flat : default;
                     continue;
                 }
-                m_PlacedAtlas[i] = GlyphAtlas.Get(g.Instance, g.Glyph, density, m_PlacedReach[i], m_Host.Data.RenderMode == LetteraRenderMode.MSDF);
+                if (memo == null)
+                {
+                    m_PlacedAtlas[i] = GlyphAtlas.Get(g.Instance, g.Glyph, density, m_PlacedReach[i], multi);
+                    continue;
+                }
+                float reach = m_PlacedReach[i];
+                ref AtlasMemo slot = ref memo[(int)(g.Glyph * 31 + (uint)density) & (AtlasMemoSize - 1)];
+                if (slot.Stamp == stamp && slot.Version == GlyphAtlas.Version && slot.Glyph == g.Glyph && slot.Density == density && slot.Reach == reach && ReferenceEquals(slot.Instance, g.Instance))
+                {
+                    m_PlacedAtlas[i] = slot.Entry;
+                    continue;
+                }
+                AtlasGlyph entry = GlyphAtlas.Get(g.Instance, g.Glyph, density, reach, multi);
+                m_PlacedAtlas[i] = entry;
+                slot = new AtlasMemo { Instance = g.Instance, Glyph = g.Glyph, Density = density, Reach = reach, Stamp = stamp, Version = GlyphAtlas.Version, Entry = entry };
             }
 
             if (m_Attributes.HasUnion) PrepareUnions(rasterScale);
@@ -511,6 +556,7 @@ namespace FirstSymbol.Lettera
             m_FilterRow = 0;
             Color32 baseColor = m_DrawBase;
             var noColor = new Color32(baseColor.r, baseColor.g, baseColor.b, 255);
+            if (DrawPlainFacesInParallel(noColor)) return;
             PlacedGlyph[] placed = m_Placed;
             AtlasGlyph[] atlases = m_PlacedAtlas;
             for (int i = 0; i < m_PlacedCount; i++)
