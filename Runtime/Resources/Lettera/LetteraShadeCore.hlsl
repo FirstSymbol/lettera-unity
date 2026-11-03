@@ -283,26 +283,29 @@ float2 LetteraUnpackBytes(float packed)
 }
 
 // A glyph's face, stroke and shadow in one quad, composed as three quads blended in that order would be.
-// uv1: face edge, stroke edge (0 none), shadow edge (0 none), shadow softness. paint: stroke and shadow colors packed.
-// extra: the shadow's offset in the atlas, the stroke's softness, the face's alpha. The vertex alpha is the text's.
+// params: face red and green, stroke edge (0 none), shadow edge (0 none), shadow softness. paint: stroke and shadow colors.
+// extra: the shadow's offset in the atlas, the stroke's softness, face blue and alpha (alpha 0: layers only). Two bytes a float.
+// The vertex color is white times what the canvas multiplies in, so it tints every part.
 LETTERA_COLOR4 LetteraShadeMerged(float4 uv0, float4 params, LETTERA_COLOR4 color, float4 paint, float4 extra)
 {
     float d = LETTERA_SAMPLE_SDF(uv0.xy, uv0.z).r;
     float moved = LETTERA_SAMPLE_SDF(uv0.xy - extra.xy, uv0.z).r;
-    float faceEdge = LetteraEdge(d, params.x, 0);
+    float faceEdge = LetteraEdge(d, 0.5, 0);
     float strokeEdge = LetteraEdge(d, max(params.y, 0.001), extra.z);
     float shadowEdge = LetteraEdge(moved, max(params.z, 0.001), params.w);
+    float4 faceColor = float4(LetteraUnpackBytes(params.x), LetteraUnpackBytes(extra.w));
     float4 stroke = float4(LetteraUnpackBytes(paint.x), LetteraUnpackBytes(paint.y));
     float4 shadow = float4(LetteraUnpackBytes(paint.z), LetteraUnpackBytes(paint.w));
-    float face = faceEdge * extra.w * color.a;
+    float face = faceEdge * faceColor.a * color.a;
     float strokeAlpha = params.y > 0 ? strokeEdge * stroke.a * color.a : 0;
     float shadowAlpha = params.z > 0 ? shadowEdge * shadow.a * color.a : 0;
-    float3 rgb = color.rgb * face;
+    float3 rgb = LETTERA_LAYER_RGB(faceColor.rgb) * face;
     float alpha = face;
     rgb += LETTERA_LAYER_RGB(stroke.rgb) * strokeAlpha * (1 - alpha);
     alpha += strokeAlpha * (1 - alpha);
     rgb += LETTERA_LAYER_RGB(shadow.rgb) * shadowAlpha * (1 - alpha);
     alpha += shadowAlpha * (1 - alpha);
+    rgb *= color.rgb;
     return LETTERA_COLOR4(alpha > 0 ? rgb / alpha : rgb, alpha);
 }
 
