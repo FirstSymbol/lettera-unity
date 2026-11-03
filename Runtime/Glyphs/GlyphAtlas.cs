@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Jobs;
-using Unity.Mathematics;
+using FirstSymbol.Lettera.Outlines;
 using UnityEngine;
 using UnityEngine.Experimental.Rendering;
 
@@ -120,11 +120,33 @@ namespace FirstSymbol.Lettera
         }
 
         static readonly Memo[] s_Memo = new Memo[1024];
+
+        // For the start-up thread: the atlas's collections, without its statics, which ask Unity for property ids.
+        internal static class Types
+        {
+            internal static void Prepare()
+            {
+                _ = new Dictionary<ulong, AtlasGlyph>().TryGetValue(0, out _);
+                _ = new Dictionary<ulong, int>().TryGetValue(0, out _);
+                _ = new ValueList<PendingUpload>();
+                _ = new ValueList<SdfTile>();
+                _ = new ValueList<UnionPart>();
+                _ = new ValueList<PendingEmoji>();
+                _ = new List<ulong>();
+                _ = new Memo[1];
+                var lines = new NativeList<float4>(1, Allocator.Persistent);
+                lines.Dispose();
+                var colors = new NativeList<byte>(1, Allocator.Persistent);
+                colors.Dispose();
+                var tiles = new NativeArray<SdfTile>(1, Allocator.Persistent);
+                tiles.Dispose();
+            }
+        }
         static int s_MemoVersion = 1;
 
         static void GlyphsChanged() => s_MemoVersion++;
-        static readonly List<PendingUpload> s_Uploads = new List<PendingUpload>();
-        static readonly List<SdfTile> s_Tiles = new List<SdfTile>();
+        static readonly ValueList<PendingUpload> s_Uploads = new ValueList<PendingUpload>();
+        static readonly ValueList<SdfTile> s_Tiles = new ValueList<SdfTile>();
         static NativeList<float4> s_Lines;
         static NativeList<byte> s_LineColors;
         static float[] s_Commands = new float[4096];
@@ -180,6 +202,29 @@ namespace FirstSymbol.Lettera
             if (s_MinDensity.TryGetValue(key, out int known) && known >= pixelsPerEm) return known;
             s_MinDensity[key] = pixelsPerEm;
             return pixelsPerEm;
+        }
+
+        /// <summary>What <see cref="Get"/> returns for a glyph the atlas already holds as asked, with nothing written, for a thread. False where Get would make one.</summary>
+        internal static bool Peek(FontInstance instance, uint glyph, int pixelsPerEm, float reach, bool multi, out AtlasGlyph entry)
+        {
+            int grid = instance.Face.PixelGrid;
+            if (grid > 0)
+            {
+                pixelsPerEm = grid;
+                multi = false;
+            }
+            else if (s_MinDensity.Count > 0 && s_MinDensity.TryGetValue(((ulong)(uint)instance.Id << 32) | glyph, out int raised) && raised > pixelsPerEm)
+                pixelsPerEm = raised;
+            ulong key = ((ulong)(uint)instance.Id << 36) | ((ulong)glyph << 8) | (uint)(pixelsPerEm >> 2 & 0x7F) | (multi ? 0x80u : 0);
+            return s_Glyphs.TryGetValue(key, out entry) && !(entry.HasDistance && entry.Spread < reach);
+        }
+
+        /// <summary>Main thread: marks used what a thread found by <see cref="Peek"/>, as <see cref="Get"/> would have.</summary>
+        internal static void Touch(FontInstance instance, in AtlasGlyph entry)
+        {
+            instance.Face.LastUsedFrame = s_Frame;
+            if (entry.HasDistance) (entry.Kind == AtlasGlyph.Sdf ? s_Sdf : s_Msdf).LastUsed[entry.Page] = s_Tick;
+            else if (entry.Kind == AtlasGlyph.Color) s_Color.LastUsed[entry.Page] = s_Tick;
         }
 
         public static AtlasGlyph Get(FontInstance instance, uint glyph, int pixelsPerEm, float reach = 0, bool multi = false)
@@ -326,7 +371,7 @@ namespace FirstSymbol.Lettera
             }
         }
 
-        static readonly List<UnionPart> s_UnionParts = new List<UnionPart>();
+        static readonly ValueList<UnionPart> s_UnionParts = new ValueList<UnionPart>();
         static readonly Dictionary<ulong, AtlasGlyph> s_Unions = new Dictionary<ulong, AtlasGlyph>();
 
         /// <summary>Starts describing a merged shape. Parts are at font unit offsets from the first glyph.</summary>
@@ -746,7 +791,7 @@ namespace FirstSymbol.Lettera
 
         const int EmojiCanvasSide = 2048, EmojiPadding = 2;
         const double EmojiBatchMaxMs = 2;
-        static readonly List<PendingEmoji> s_EmojiPending = new List<PendingEmoji>();
+        static readonly ValueList<PendingEmoji> s_EmojiPending = new ValueList<PendingEmoji>();
         static string[] s_EmojiNames = new string[64];
         static int[] s_EmojiSpots = new int[128];
         static byte[] s_EmojiCanvas;
@@ -886,7 +931,8 @@ namespace FirstSymbol.Lettera
         static void RecreateTexture(PageSet set)
         {
             DestroyTexture(set.Texture);
-            var texture = new Texture2DArray(set.Size, set.Size, set.Pixels.Count, FormatOf(set), TextureCreationFlags.None)
+            // Every page's pixels are set below and uploaded once: Unity's own clearing and first upload of the texture would be work thrown away.
+            var texture = new Texture2DArray(set.Size, set.Size, set.Pixels.Count, FormatOf(set), TextureCreationFlags.DontInitializePixels | TextureCreationFlags.DontUploadUponCreate)
             {
                 name = set == s_Sdf ? "Lettera SDF Atlas" : set == s_Msdf ? "Lettera MSDF Atlas" : "Lettera Color Atlas",
                 hideFlags = HideFlags.HideAndDontSave,

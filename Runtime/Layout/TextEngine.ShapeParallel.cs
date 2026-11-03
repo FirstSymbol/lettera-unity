@@ -106,13 +106,13 @@ namespace FirstSymbol.Lettera
             int count = slot.End - slot.Start;
             if (count <= 0 || slot.Hit) return;
             int start = slot.Start;
-            var text = new ReadOnlySpan<int>(m_Text, start, count);
-            GraphemeBreaker.FindBoundaries(text, new Span<bool>(m_Boundaries, start, count + 1));
-            slot.Level = Bidi.ResolveParagraph(text, slot.Level == 1 && BaseLevelForSlots == 1 ? 1 : BaseLevelForSlots, new Span<byte>(m_Levels, start, count));
-            LineBreaker.FindBreaks(text, new Span<LineBreakOpportunity>(m_Breaks, start, count));
+            ReadOnlySpan<int> text = m_Text.Slice(start, count);
+            GraphemeBreaker.FindBoundaries(text, m_Boundaries.Slice(start, count + 1));
+            slot.Level = Bidi.ResolveParagraph(text, slot.Level == 1 && BaseLevelForSlots == 1 ? 1 : BaseLevelForSlots, m_Levels.Slice(start, count));
+            LineBreaker.FindBreaks(text, m_Breaks.Slice(start, count));
             if (LetteraWordSegmenters.Count != 0)
-                LetteraWordSegmenters.ApplyToBreaks(text, new ReadOnlySpan<bool>(m_Boundaries, start, count + 1), new Span<LineBreakOpportunity>(m_Breaks, start, count), s_WorkerScratch ?? (s_WorkerScratch = new LetteraSegmenterScratch()));
-            ScriptItemizer.Resolve(text, new Span<UnicodeScript>(m_Scripts, start, count));
+                LetteraWordSegmenters.ApplyToBreaks(text, m_Boundaries.Slice(start, count + 1), m_Breaks.Slice(start, count), s_WorkerScratch ?? (s_WorkerScratch = new LetteraSegmenterScratch()));
+            ScriptItemizer.Resolve(text, m_Scripts.Slice(start, count));
             lock (m_Aside.Slots) m_Aside.Slots[index] = slot;
         }
 

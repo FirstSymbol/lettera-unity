@@ -57,8 +57,8 @@ namespace FirstSymbol.Lettera
         void CollectMotions()
         {
             m_RevealsCollected = false;
-            m_Aside.MotionSpans.Clear();
-            List<LetteraAttributes.MotionRequest> requests = m_Attributes.MotionRequests;
+            Empty(m_Aside.MotionSpans);
+            ValueList<LetteraAttributes.MotionRequest> requests = m_Attributes.MotionRequests;
             for (int r = 0; r < requests.Count; r++)
             {
                 LetteraAttributes.MotionRequest request = requests[r];
@@ -159,8 +159,8 @@ namespace FirstSymbol.Lettera
         // Which body each glyph of each span belongs to, in reading order.
         void BuildBodies()
         {
-            m_Aside.PoseLinks.Clear();
-            m_Aside.PoseBodies.Clear();
+            Empty(m_Aside.PoseLinks);
+            Empty(m_Aside.PoseBodies);
             EnsureExact(ref m_Aside.CpBody, m_TextLength + 1);
             for (int s = 0; s < m_Aside.MotionSpans.Count; s++)
             {
@@ -216,7 +216,7 @@ namespace FirstSymbol.Lettera
                 }
                 case LetteraMotionUnit.Word:
                 {
-                    var text = new ReadOnlySpan<int>(m_Text, 0, m_TextLength);
+                    var text = m_Text.Slice(0, m_TextLength);
                     int c = span.Start;
                     while (c < end)
                     {

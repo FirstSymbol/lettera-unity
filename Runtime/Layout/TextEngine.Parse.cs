@@ -14,7 +14,7 @@ namespace FirstSymbol.Lettera
         List<int> m_MatcherOrder, m_RangeOrder;
 
         // The rendered text as UTF-32, and for each codepoint its index in the source text.
-        int[] m_Text = Array.Empty<int>();
+        Cells<int> m_Text;
         int[] m_SourceIndex = Array.Empty<int>();
         int m_TextLength;
 
@@ -111,7 +111,7 @@ namespace FirstSymbol.Lettera
             bool copied = false, markup;
             if (!edited && m_Resolver == null && source.Length >= CopyWhileLookingFrom && m_ProtectLength == 0 && RevealSource < 0)
             {
-                EnsureSize(ref m_Text, source.Length + 4);
+                EnsureText(source.Length + 4);
                 copied = CopyPlain(source, true);
                 markup = !copied;
             }
@@ -178,6 +178,8 @@ namespace FirstSymbol.Lettera
             if (m_OwnCopies || ClipStyle != null || (m_SolidsOnly && m_Host.HostStyles != null)) return false;
             LetteraTextData data = m_Host.Data;
             if (data.Styles.Count != 0 || data.StylePresets.Count != 0 || !data.UseGlobalStylePreset || LetteraSettings.Instance.GlobalStylePreset != null) return false;
+            // Making the 78 built-in styles was most of the first plain text's parse; one with markup makes them.
+            if (!LetteraDefaultStyles.Made) return true;
             List<LetteraStyle> defaults = LetteraDefaultStyles.Styles;
             if (defaults.Count != s_DefaultCount)
             {
@@ -209,7 +211,7 @@ namespace FirstSymbol.Lettera
         // ------------------------------------------------------------- queries and holds
 
         List<IHoldSource> m_Holds = Rare<IHoldSource>.List;
-        List<HoldEntry> m_HoldEntries;
+        ValueList<HoldEntry> m_HoldEntries;
         bool m_RangesApplied;
 
         internal void AddHold(IHoldSource hold)
@@ -231,10 +233,10 @@ namespace FirstSymbol.Lettera
             m_Host.RequestRebuild(level);
         }
 
-        List<HoldEntry> HoldsOf(int rangeIndex)
+        ValueList<HoldEntry> HoldsOf(int rangeIndex)
         {
             if (m_Holds.Count == 0) return null;
-            (m_HoldEntries ?? (m_HoldEntries = new List<HoldEntry>())).Clear();
+            (m_HoldEntries ?? (m_HoldEntries = new ValueList<HoldEntry>())).Clear();
             foreach (IHoldSource hold in m_Holds) hold.Contribute(rangeIndex, m_HoldEntries);
             return m_HoldEntries.Count > 0 ? m_HoldEntries : null;
         }
@@ -292,10 +294,10 @@ namespace FirstSymbol.Lettera
 
         void BuildRenderedText(ReadOnlySpan<char> source, LetteraMatchContext context)
         {
-            List<LetteraMatchContext.Claim> claims = context.Claims;
+            ValueList<LetteraMatchContext.Claim> claims = context.Claims;
             if (claims.Count > 1) claims.Sort(s_ByStart);
 
-            EnsureSize(ref m_Text, source.Length + 4);
+            EnsureText(source.Length + 4);
             if (claims.Count == 0)
             {
                 CopyPlain(source);
@@ -340,7 +342,7 @@ namespace FirstSymbol.Lettera
                 }
                 if (claim.Replacement != null)
                 {
-                    EnsureSize(ref m_Text, count + claim.Replacement.Length + (source.Length - at) + 4);
+                    EnsureText(count + claim.Replacement.Length + (source.Length - at) + 4);
                     EnsureSize(ref m_SourceIndex, count + claim.Replacement.Length + (source.Length - at) + 4);
                     foreach (char c in claim.Replacement)
                     {
@@ -390,7 +392,8 @@ namespace FirstSymbol.Lettera
             count = at;
             EnsureSize(ref m_SourceIndex, length + 4);
             fixed (char* s = source)
-            fixed (int* text = m_Text, index = m_SourceIndex)
+            fixed (int* text = m_Text)
+            fixed (int* index = m_SourceIndex)
             {
                 for (int i = 0; i < count; i++) index[i] = i;
                 while (at < length)
@@ -465,7 +468,7 @@ namespace FirstSymbol.Lettera
                 RegisterStages(style.Effect, r.RenderedStart, r.RenderedEnd);
                 try
                 {
-                    List<HoldEntry> holds = HoldsOf(index);
+                    ValueList<HoldEntry> holds = HoldsOf(index);
                     style.Effect.Apply(attributes, r.RenderedStart, r.RenderedEnd, new LetteraSlots(r.Slots, style.ParsedDefault(), r.Raw, style.DefaultParameter, holds, style.Effect));
                 }
                 catch (Exception e)

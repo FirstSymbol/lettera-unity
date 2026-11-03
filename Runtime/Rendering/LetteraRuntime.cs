@@ -16,10 +16,28 @@ namespace FirstSymbol.Lettera
         public static Material World => s_World != null ? s_World : s_World = Create("Lettera/LetteraWorld");
         public static Material WorldLit => s_WorldLit != null ? s_WorldLit : s_WorldLit = Create("Lettera/LetteraWorldLit");
 
+        static ResourceRequest s_UiAhead, s_WorldAhead;
+
+        // With the settings, as a player starts: the shaders load on Unity's loading thread before the first text asks for its material.
+        internal static void LoadAhead()
+        {
+            s_UiAhead = Resources.LoadAsync<Shader>("Lettera/LetteraUI");
+            s_WorldAhead = Resources.LoadAsync<Shader>("Lettera/LetteraWorld");
+        }
+
         static Material Create(string resource)
         {
-            var shader = Resources.Load<Shader>(resource);
+            Shader shader = resource == "Lettera/LetteraUI" ? Take(ref s_UiAhead) : resource == "Lettera/LetteraWorld" ? Take(ref s_WorldAhead) : null;
+            if (shader == null) shader = Resources.Load<Shader>(resource);
             return new Material(shader) { hideFlags = HideFlags.HideAndDontSave, name = resource };
+        }
+
+        // Reading the asset of a request still loading waits for it, as a load would.
+        static Shader Take(ref ResourceRequest ahead)
+        {
+            Shader shader = ahead != null ? ahead.asset as Shader : null;
+            ahead = null;
+            return shader;
         }
 
         static readonly int s_SrcBlend = Shader.PropertyToID("_SrcBlend");
@@ -32,15 +50,18 @@ namespace FirstSymbol.Lettera
         /// a blend and a paint texture. Variants are shared across texts.
         /// </summary>
         // Merged layers take a variant of their own: plain glyphs and merged quads, with none of the styled path's weight on the rest.
-        internal static Material Variant(Material source, bool styled, LetteraBlend blend, Texture2D texture, bool merged = false)
+        // Shared layers take another: plain glyphs whose colour and edge are flat, read from the corner that leads each triangle.
+        internal static Material Variant(Material source, bool styled, LetteraBlend blend, Texture2D texture, bool merged = false, bool shared = false)
         {
             if (blend == LetteraBlend.Inherit) blend = LetteraBlend.Normal;
-            if (!styled && blend == LetteraBlend.Normal && texture == null) return source;
+            shared &= !styled && blend == LetteraBlend.Normal && texture == null;
+            if (!styled && blend == LetteraBlend.Normal && texture == null && !shared) return source;
             merged &= styled && blend == LetteraBlend.Normal && texture == null;
-            var key = (source, styled, blend, texture, merged);
+            var key = (source, styled, blend, texture, merged || shared);
             if (s_Variants.TryGetValue(key, out Material variant) && variant != null) return variant;
-            variant = new Material(source) { hideFlags = HideFlags.HideAndDontSave, name = source.name + (merged ? " Merged" : " Variant") };
-            if (merged) variant.EnableKeyword("LETTERA_MERGED");
+            variant = new Material(source) { hideFlags = HideFlags.HideAndDontSave, name = source.name + (merged ? " Merged" : shared ? " Shared" : " Variant") };
+            if (shared) variant.EnableKeyword("LETTERA_LAYERED");
+            else if (merged) variant.EnableKeyword("LETTERA_MERGED");
             else if (styled) variant.EnableKeyword("LETTERA_STYLED");
             if (texture != null) variant.SetTexture(s_PaintTex, texture);
             SetBlend(variant, blend);

@@ -294,8 +294,8 @@ namespace FirstSymbol.Lettera
         // All lines of one range merge into one contour: each row touches its neighbours where they overlap, and only exposed corners round.
         int DrawBlock(LayerGroup group, int cover, in LayerRecord record, in HighlightSpec spec, int start)
         {
-            m_Aside.RowRects.Clear();
-            m_Aside.RowLines.Clear();
+            Empty(m_Aside.RowRects);
+            Empty(m_Aside.RowLines);
             int i = start;
             while (i < m_RealCount && group.Cover[m_Placed[i].Cluster] == cover)
             {

@@ -98,9 +98,9 @@ namespace FirstSymbol.Lettera
 
         void PrepareVirtual()
         {
-            m_Aside.InlineGlyphs.Clear();
-            m_Aside.ListItems.Clear();
-            m_Aside.RubyItems.Clear();
+            Empty(m_Aside.InlineGlyphs);
+            Empty(m_Aside.ListItems);
+            Empty(m_Aside.RubyItems);
             EnsureSize(ref m_Aside.CpListIndent, m_TextLength + 1);
             Array.Clear(m_Aside.CpListIndent, 0, m_TextLength + 1);
             if (m_Attributes.ListItems.Count > 0) PrepareLists();
@@ -111,7 +111,7 @@ namespace FirstSymbol.Lettera
 
         void PrepareLists()
         {
-            List<ListItemSpec> items = m_Attributes.ListItems;
+            ValueList<ListItemSpec> items = m_Attributes.ListItems;
             items.Sort((a, b) => a.Start.CompareTo(b.Start));
             int* counters = stackalloc int[16];
             for (int i = 0; i < 16; i++) counters[i] = 0;
@@ -173,7 +173,7 @@ namespace FirstSymbol.Lettera
 
         void FinishList(int first, int end, float* widest)
         {
-            List<ListItemSpec> items = m_Attributes.ListItems;
+            ValueList<ListItemSpec> items = m_Attributes.ListItems;
             for (int n = first; n < end; n++)
             {
                 ListItemSpec item = items[n];

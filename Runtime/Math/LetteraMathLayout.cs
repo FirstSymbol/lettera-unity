@@ -53,7 +53,7 @@ namespace FirstSymbol.Lettera
         readonly MathTree m_Tree;
         readonly LetteraMathFont m_Font;
         readonly LetteraMathFont m_TextFont;
-        readonly List<LetteraMathItem> m_Items = new List<LetteraMathItem>(64);
+        readonly ValueList<LetteraMathItem> m_Items = new ValueList<LetteraMathItem>(64);
         readonly List<FontInstance> m_Faces = new List<FontInstance>(2);
         readonly List<Color32> m_Colors = new List<Color32>();
         readonly float m_Script, m_ScriptScript;
@@ -910,7 +910,7 @@ namespace FirstSymbol.Lettera
             float Longest(int repeat, int pieces) => fixedSum + extenderSum * repeat - minOverlap * Mathf.Max(0, pieces - 1);
             while (extenders > 0 && total + extenders * copies < LetteraMathLimits.AssemblyParts && Longest(copies, total + extenders * copies) < target) copies++;
 
-            var sequence = new List<MathPart>(total + extenders * copies);
+            var sequence = new ValueList<MathPart>(total + extenders * copies);
             for (int i = 0; i < count; i++)
             {
                 if (!s_Parts[i].Extender) sequence.Add(s_Parts[i]);
@@ -1041,7 +1041,7 @@ namespace FirstSymbol.Lettera
             int start = m_Items.Count;
             float a = C(MathConstant.AxisHeight, style);
             // Every part's height first, and then the delimiters: each runs once, so nesting stays linear.
-            var parts = new List<(Box box, int cp)>();
+            var parts = new ValueList<(Box box, int cp)>();
             float ascent = 0, descent = 0;
             for (int segment = n.A; segment >= 0; segment = m_Tree.Nodes[segment].Next)
             {
@@ -1330,12 +1330,12 @@ namespace FirstSymbol.Lettera
             float strutUp = 0.7f * rowSkip, strutDown = 0.3f * rowSkip;
             int start = m_Items.Count;
 
-            var cells = new List<List<(Box box, bool emptyLeading)>>();
-            var rowFlags = new List<(int rule, float extra)>();
+            var cells = new List<ValueList<(Box box, bool emptyLeading)>>();
+            var rowFlags = new ValueList<(int rule, float extra)>();
             int columnCount = 0;
             for (int row = n.A; row >= 0; row = m_Tree.Nodes[row].Next)
             {
-                var line = new List<(Box, bool)>();
+                var line = new ValueList<(Box, bool)>();
                 int c = 0;
                 for (int cell = m_Tree.Nodes[row].A; cell >= 0; cell = m_Tree.Nodes[cell].Next, c++)
                 {
@@ -1361,7 +1361,7 @@ namespace FirstSymbol.Lettera
             }
 
             var widths = new float[columnCount];
-            foreach (List<(Box box, bool)> line in cells)
+            foreach (ValueList<(Box box, bool)> line in cells)
                 for (int c = 0; c < line.Count; c++)
                     widths[c] = Mathf.Max(widths[c], line[c].box.Width);
 

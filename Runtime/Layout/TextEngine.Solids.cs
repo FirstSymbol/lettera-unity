@@ -18,7 +18,7 @@ namespace FirstSymbol.Lettera
 
         internal bool HasMotionForSolids => m_Aside.MotionSpans.Count > 0 || m_Aside.RevealSpans.Count > 0;
 
-        internal List<LetteraAttributes.ExtraRange> ExtrasForSolids => m_Attributes.Extras;
+        internal ValueList<LetteraAttributes.ExtraRange> ExtrasForSolids => m_Attributes.Extras;
 
         /// <summary>A color glyph, or what stands in for an inline item: there is no outline to build from.</summary>
         internal bool IsDrawnFlatForSolids(int glyph)
@@ -70,7 +70,7 @@ namespace FirstSymbol.Lettera
             public int Glyph;
         }
 
-        internal List<SolidBox> SolidBoxes => m_Aside.SolidBoxes;
+        internal ValueList<SolidBox> SolidBoxes => m_Aside.SolidBoxes;
 
         // The engine's own quads, which for a solid text hold only what has no outline.
         internal void FillFlatMesh(Mesh mesh, MeshRenderer renderer)

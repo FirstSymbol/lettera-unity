@@ -96,6 +96,8 @@ namespace FirstSymbol.Lettera
                 m_PoseDirty = true;
                 return;
             }
+            m_MeshReady = false;
+            m_DirtyStamp++;
             if (level > m_Dirty) m_Dirty = level;
         }
 
@@ -112,7 +114,7 @@ namespace FirstSymbol.Lettera
 
         static void PassEnd(int pass, long start)
         {
-            if (TimePasses) PassTicks[pass] += System.Diagnostics.Stopwatch.GetTimestamp() - start;
+            if (TimePasses) System.Threading.Interlocked.Add(ref PassTicks[pass], System.Diagnostics.Stopwatch.GetTimestamp() - start);
         }
 
         bool m_Reapply, m_SemanticsStale;
@@ -258,7 +260,11 @@ namespace FirstSymbol.Lettera
             WorkCounter++;
             m_InPasses = true;
             try { RunPasses(level); }
-            finally { m_InPasses = false; }
+            finally
+            {
+                m_InPasses = false;
+                m_MeshReady = false;
+            }
             return true;
         }
 
@@ -290,7 +296,8 @@ namespace FirstSymbol.Lettera
             }
             if (level >= DirtyLevel.Mesh)
             {
-                using (s_MeshMarker.Auto()) { long t = PassStart(); BuildMesh(); PassEnd(4, t); }
+                if (level != DirtyLevel.Mesh || !m_MeshReady)
+                    using (s_MeshMarker.Auto()) { long t = PassStart(); BuildMesh(); PassEnd(4, t); }
                 LastChanges |= LetteraChanges.Mesh;
             }
             else if (level == DirtyLevel.Alpha || level == DirtyLevel.Tint)
@@ -376,7 +383,9 @@ namespace FirstSymbol.Lettera
         {
             var data = new LetteraTextData { Font = font, FontStack = stack, FontSize = size, Text = characters };
             // The characters go in as they are: what looks like a tag is still what was asked for.
-            new TextEngine(new MeasureHost { Data = data, LayoutRect = new Rect(0, 0, 4096, 4096) }) { Literal = true }.Rebuild();
+            var engine = new TextEngine(new MeasureHost { Data = data, LayoutRect = new Rect(0, 0, 4096, 4096) }) { Literal = true };
+            engine.Rebuild();
+            engine.ReleaseCells();
         }
 
         /// <summary>Measures a text without touching what a component displays.</summary>
@@ -385,13 +394,20 @@ namespace FirstSymbol.Lettera
             LetteraTextData copy = data.Clone();
             copy.Text = text ?? "";
             var engine = new TextEngine(new MeasureHost { Data = copy, Owner = owner });
-            return engine.Measure(size, width, height, wrap, autoSize, minSize, maxSize);
+            Vector2 measured = engine.Measure(size, width, height, wrap, autoSize, minSize, maxSize);
+            engine.ReleaseCells();
+            return measured;
         }
 
         // What few texts ever use starts as one shared empty collection, and the text's own comes with the first write. A shared one is only read and cleared.
         static class Rare<T>
         {
             public static readonly List<T> List = new List<T>();
+        }
+
+        static class RareValues<T> where T : struct
+        {
+            public static readonly ValueList<T> List = new ValueList<T>();
         }
 
         static class Rare<TKey, TValue>
@@ -407,30 +423,30 @@ namespace FirstSymbol.Lettera
         internal static void PrepareTypes()
         {
             _ = LetteraAttributes.Plain;
-            _ = Rare<(LetteraEffect effect, int start, int end)>.List;
+            _ = RareValues<(LetteraEffect effect, int start, int end)>.List;
             _ = Rare<ActiveRange>.List;
-            _ = Rare<CoverQuad>.List;
-            _ = Rare<ExtraLine>.List;
-            _ = Rare<ExtraQuad>.List;
+            _ = RareValues<CoverQuad>.List;
+            _ = RareValues<ExtraLine>.List;
+            _ = RareValues<ExtraQuad>.List;
             _ = Rare<IHoldSource>.List;
             _ = Rare<InlineItem>.List;
             _ = Rare<LetteraStyle, LetteraStyle>.Map;
-            _ = Rare<ListItem>.List;
-            _ = Rare<MathSpecial>.List;
-            _ = Rare<MotionPhase>.List;
-            _ = Rare<MotionSpan>.List;
-            _ = Rare<OldRange>.List;
-            _ = Rare<PlacedGlyph>.List;
-            _ = Rare<PoseBody>.List;
-            _ = Rare<PoseLink>.List;
+            _ = RareValues<ListItem>.List;
+            _ = RareValues<MathSpecial>.List;
+            _ = RareValues<MotionPhase>.List;
+            _ = RareValues<MotionSpan>.List;
+            _ = RareValues<OldRange>.List;
+            _ = RareValues<PlacedGlyph>.List;
+            _ = RareValues<PoseBody>.List;
+            _ = RareValues<PoseLink>.List;
             _ = Rare<Rect>.List;
-            _ = Rare<Removal>.List;
-            _ = Rare<RevealBody>.List;
+            _ = RareValues<Removal>.List;
+            _ = RareValues<RevealBody>.List;
             _ = Rare<RevealEffect>.List;
-            _ = Rare<RevealSpan>.List;
-            _ = Rare<RubyItem>.List;
-            _ = Rare<ShapedGlyph>.List;
-            _ = Rare<SolidBox>.List;
+            _ = RareValues<RevealSpan>.List;
+            _ = RareValues<RubyItem>.List;
+            _ = RareValues<ShapedGlyph>.List;
+            _ = RareValues<SolidBox>.List;
             _ = Rare<SymbolSet>.List;
             _ = Rare<Vector2Int>.List;
             _ = Rare<int, bool>.Map;
@@ -441,10 +457,45 @@ namespace FirstSymbol.Lettera
             _ = Rare<long>.List;
             _ = new List<LetteraLine>();
             _ = new List<LayerGroup>();
-            _ = new List<Paragraph>();
-            _ = new List<Run>();
+            _ = new ValueList<Paragraph>();
+            _ = new ValueList<Run>();
             _ = new List<MeshSegment>();
             _ = LetteraNative.Version;
+            // The Unicode tables and the analyzers, which workers run too: the first paragraph of a session paid for them.
+            ReadOnlySpan<int> sample = stackalloc int[] { 'H', 'i', ' ', 0x05D0, 10 };
+            Span<bool> boundaries = stackalloc bool[6];
+            Span<byte> levels = stackalloc byte[5];
+            Span<FirstSymbol.Lettera.Unicode.LineBreakOpportunity> breaks = stackalloc FirstSymbol.Lettera.Unicode.LineBreakOpportunity[5];
+            Span<FirstSymbol.Lettera.Unicode.UnicodeScript> scripts = stackalloc FirstSymbol.Lettera.Unicode.UnicodeScript[5];
+            FirstSymbol.Lettera.Unicode.GraphemeBreaker.FindBoundaries(sample, boundaries);
+            FirstSymbol.Lettera.Unicode.Bidi.ResolveParagraph(sample, -1, levels);
+            FirstSymbol.Lettera.Unicode.LineBreaker.FindBreaks(sample, breaks);
+            FirstSymbol.Lettera.Unicode.ScriptItemizer.Resolve(sample, scripts);
+            _ = FirstSymbol.Lettera.Unicode.LetteraUnicode.ToUpper('a');
+            // A key that is an enum or a struct gets its comparer made by reflection at its first lookup on IL2CPP, a millisecond or so each,
+            // and the first text looks up several: settings gates, word lists, font chains, a face's sizes.
+            Keyed<LetteraNativeFeature>();
+            Keyed<LetteraDictionaryScript>();
+            Keyed<FirstSymbol.Lettera.Unicode.UnicodeScript>();
+            Keyed<(long, int)>();
+            _ = new Dictionary<LetteraNativeFeature, string>();
+            _ = new Dictionary<LetteraDictionaryScript, FirstSymbol.Lettera.Unicode.LetteraWordAutomaton>();
+            _ = new Dictionary<FirstSymbol.Lettera.Unicode.UnicodeScript, FirstSymbol.Lettera.Unicode.ILetteraWordSegmenter>();
+            _ = new Dictionary<(long, int), FontInstance>();
+            _ = new HashSet<LetteraFontStack>();
+            _ = new List<Vector3>();
+            _ = new List<Color32>();
+            _ = new List<Vector4>();
+            _ = new List<LetteraText>();
+            LetteraFontChains.PrepareTypes();
+            GlyphAtlas.Types.Prepare();
+        }
+
+        static void Keyed<T>()
+        {
+            var set = new HashSet<T> { default };
+            _ = set.Contains(default);
+            foreach (T _ in set) { }
         }
 
 #if !UNITY_WEBGL || UNITY_EDITOR
@@ -453,16 +504,32 @@ namespace FirstSymbol.Lettera
         static void PrepareTypesAside()
         {
             if (Application.isEditor || LetteraWorkers.Mode == LetteraWorkerMode.Inline || SystemInfo.processorCount <= 2) return;
+            // The system's font files are listed there too, so the first character no font of the project has opens a file and lists no folder.
+            Action discover = LetteraSystemFonts.DiscoveryAside();
             var thread = new System.Threading.Thread(() =>
             {
                 try { PrepareTypes(); }
+                catch (Exception) { }
+                try { discover?.Invoke(); }
                 catch (Exception) { }
             }) { IsBackground = true, Name = "Lettera types" };
             thread.Start();
         }
 #endif
 
+        // A list shared by every text that has none of it is left alone: a clear from one thread would break another's walk over it.
+        static void Empty<T>(List<T> list)
+        {
+            if (list.Count != 0) list.Clear();
+        }
+
+        static void Empty<T>(ValueList<T> list) where T : struct
+        {
+            if (list.Count != 0) list.Clear();
+        }
+
         static List<T> Own<T>(ref List<T> list) => ReferenceEquals(list, Rare<T>.List) ? list = new List<T>() : list;
+        static ValueList<T> Own<T>(ref ValueList<T> list) where T : struct => ReferenceEquals(list, RareValues<T>.List) ? list = new ValueList<T>() : list;
         static Dictionary<K, V> Own<K, V>(ref Dictionary<K, V> map) => ReferenceEquals(map, Rare<K, V>.Map) ? map = new Dictionary<K, V>() : map;
 
         // Thousands of short labels each hold these, so they start empty and grow to what the text asks.

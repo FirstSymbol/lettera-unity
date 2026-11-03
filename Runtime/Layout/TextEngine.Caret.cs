@@ -551,7 +551,7 @@ namespace FirstSymbol.Lettera
         }
 
         /// <summary>The rendered text, in codepoints. Current after EnsureParsed.</summary>
-        public ReadOnlySpan<int> ShownCodepoints => new ReadOnlySpan<int>(m_Text, 0, m_TextLength);
+        public ReadOnlySpan<int> ShownCodepoints => m_Text.Slice(0, m_TextLength);
 
         /// <summary>The direction of the paragraph holding an index. Current after EnsurePositioned.</summary>
         public bool ParagraphIsRtlAt(int index)

@@ -22,6 +22,23 @@ namespace FirstSymbol.Lettera
         }
 
         PlacedGlyph[] m_Placed = Array.Empty<PlacedGlyph>();
+
+        // The codepoints of the lines a band places, about its glyphs: taken at once, the room for them leaves no garbage of every size on the
+        // way, half a megabyte for a band of a long text. The same test as placing's, without its marks.
+        int BandCodepoints(float y)
+        {
+            int codepoints = 0;
+            for (int l = 0; l < m_Lines.Count; l++)
+            {
+                LetteraLine line = m_Lines[l];
+                y -= line.GapBefore;
+                // Below the band, and every line after it lower still; a count short of the glyphs only grows the room as before.
+                if (y < m_BandLow) break;
+                if (!m_Paragraphs[line.Paragraph].Pending && y - line.Height <= m_BandHigh) codepoints += line.End - line.Start;
+                y -= line.Height;
+            }
+            return codepoints;
+        }
         int m_PlacedCount;  // Glyphs of the text, then virtual ones, which only the mesh sees.
         int m_RealCount;
         byte[] m_LineLevels = Array.Empty<byte>();
@@ -65,9 +82,9 @@ namespace FirstSymbol.Lettera
             LetteraTextData data = m_Host.Data;
             m_PlacedCount = 0;
             m_Aside.SegmentsValid = false;
-            m_Aside.VirtualGlyphs.Clear();
+            Empty(m_Aside.VirtualGlyphs);
             // A box that only grew taller asks no new lines, only new places.
-            if (m_Banded && !IsWindowed) m_Box = ComputeBox(data.Padding, m_Host.LayoutRect);
+            if (m_Banded && !IsWindowed) m_Box = ComputeBox(data.Padding, HostRect);
 
             float top = m_Box.yMax;
             bool clips = m_Host.ClipsOverflow || m_Aside.MarqueeScrolling || ClipsViewport;
@@ -93,6 +110,7 @@ namespace FirstSymbol.Lettera
             // Nearly always one placed glyph per shaped one, so a long text does not grow through every size on the way. A banded text places
             // only its band, and a text still finishing would take a new array of all it has shaped at every slice.
             if (!m_Banded) EnsureSize(ref m_Placed, m_ShapedCount);
+            else EnsureSize(ref m_Placed, m_PlacedCount + BandCodepoints(y));
             for (int l = 0; l < m_Lines.Count; l++)
             {
                 LetteraLine line = m_Lines[l];
@@ -260,8 +278,8 @@ namespace FirstSymbol.Lettera
             }
             EnsureSize(ref m_LineLevels, count);
             EnsureSize(ref m_VisualOrder, count);
-            var paragraphText = new ReadOnlySpan<int>(m_Text, paragraph.Start, paragraph.End - paragraph.Start);
-            Bidi.ResolveLineLevels(paragraphText, new ReadOnlySpan<byte>(m_Levels, paragraph.Start, paragraph.End - paragraph.Start),
+            ReadOnlySpan<int> paragraphText = m_Text.Slice(paragraph.Start, paragraph.End - paragraph.Start);
+            Bidi.ResolveLineLevels(paragraphText, m_Levels.Slice(paragraph.Start, paragraph.End - paragraph.Start),
                 line.Start - paragraph.Start, line.VisibleEnd - paragraph.Start, paragraph.Level, new Span<byte>(m_LineLevels, 0, count));
             Bidi.ReorderLine(new ReadOnlySpan<byte>(m_LineLevels, 0, count), new Span<int>(m_VisualOrder, 0, count));
 

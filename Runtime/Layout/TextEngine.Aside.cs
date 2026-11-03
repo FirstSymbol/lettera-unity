@@ -14,7 +14,7 @@ namespace FirstSymbol.Lettera
         sealed class Aside
         {
             // Lines placed for a query, after everything the mesh reads. The next placement forgets them.
-            internal List<ExtraLine> ExtraLines = Rare<ExtraLine>.List;
+            internal ValueList<ExtraLine> ExtraLines = RareValues<ExtraLine>.List;
             internal int ExtraEnd;
             internal float WindowBandMargin = TextEngine.WindowBandMargin;
 
@@ -40,27 +40,27 @@ namespace FirstSymbol.Lettera
             internal int EstimateVersion;
             List<LetteraLine> m_SpliceLines;
             internal List<LetteraLine> SpliceLines => m_SpliceLines ?? (m_SpliceLines = new List<LetteraLine>());
-            List<Run> m_RunScratch;
-            internal List<Run> RunScratch => m_RunScratch ?? (m_RunScratch = new List<Run>());
+            ValueList<Run> m_RunScratch;
+            internal ValueList<Run> RunScratch => m_RunScratch ?? (m_RunScratch = new ValueList<Run>());
             internal ShapedGlyph[] GlyphScratch = Array.Empty<ShapedGlyph>();
 
-            internal List<MathSpecial> MathSpecials = Rare<MathSpecial>.List;
+            internal ValueList<MathSpecial> MathSpecials = RareValues<MathSpecial>.List;
             internal int FormulaCount;
             internal List<InlineItem> InlineItems = Rare<InlineItem>.List;
             internal Dictionary<int, int> InlineByCp = Rare<int, int>.Map;
 
             List<LetteraLine> m_MeasureLines;
             internal List<LetteraLine> MeasureLines => m_MeasureLines ?? (m_MeasureLines = new List<LetteraLine>());
-            internal List<Removal> Removals = Rare<Removal>.List;
+            internal ValueList<Removal> Removals = RareValues<Removal>.List;
 
             internal LayerGroup MergeStroke, MergeShadow;
             internal int FadeLine;
             internal float FadeCut, FadeDistance, FadeSign;
 
-            internal List<MotionSpan> MotionSpans = Rare<MotionSpan>.List;
-            internal List<MotionPhase> Phases = Rare<MotionPhase>.List;
-            internal List<PoseLink> PoseLinks = Rare<PoseLink>.List;
-            internal List<PoseBody> PoseBodies = Rare<PoseBody>.List;
+            internal ValueList<MotionSpan> MotionSpans = RareValues<MotionSpan>.List;
+            internal ValueList<MotionPhase> Phases = RareValues<MotionPhase>.List;
+            internal ValueList<PoseLink> PoseLinks = RareValues<PoseLink>.List;
+            internal ValueList<PoseBody> PoseBodies = RareValues<PoseBody>.List;
             internal LetteraGlyphPose[] GlyphPoses = System.Array.Empty<LetteraGlyphPose>();
             internal LetteraGlyphPose[] BodyPoses = System.Array.Empty<LetteraGlyphPose>();
             internal Vector3[] RestVertices = System.Array.Empty<Vector3>();
@@ -68,12 +68,12 @@ namespace FirstSymbol.Lettera
             internal int[] QuadOwner = System.Array.Empty<int>();
             internal int[] CpBody = System.Array.Empty<int>();
 
-            internal List<PlacedGlyph> VirtualGlyphs = Rare<PlacedGlyph>.List;
+            internal ValueList<PlacedGlyph> VirtualGlyphs = RareValues<PlacedGlyph>.List;
 
             internal List<ActiveRange> Active = Rare<ActiveRange>.List;
             List<Rect> m_ActiveRects;
             internal List<Rect> ActiveRects => m_ActiveRects ?? (m_ActiveRects = new List<Rect>());
-            internal List<OldRange> OldRanges = Rare<OldRange>.List;
+            internal ValueList<OldRange> OldRanges = RareValues<OldRange>.List;
             internal List<int> RangeIds = Rare<int>.List;
             internal int[] OldText = System.Array.Empty<int>();
             internal int OldLength = -1, NextRangeId = 1;
@@ -81,16 +81,16 @@ namespace FirstSymbol.Lettera
             // Each range's box, kept apart from the range so a hit test rejects most of them with four comparisons and no copy of anything.
             internal float[] ActiveBoxes = System.Array.Empty<float>();
             internal LetteraRangeEffect[] ActiveEffects = System.Array.Empty<LetteraRangeEffect>();
-            internal List<CoverQuad> CoverQuads = Rare<CoverQuad>.List;
+            internal ValueList<CoverQuad> CoverQuads = RareValues<CoverQuad>.List;
             internal Dictionary<int, float> CoverValue = Rare<int, float>.Map;
             internal Dictionary<int, bool> CoverTarget = Rare<int, bool>.Map;
             internal List<int> CoverKeys = Rare<int>.List;
             internal bool CoverFading;
             internal float CoverSeconds = 0.2f;
 
-            internal List<RevealSpan> RevealSpans = Rare<RevealSpan>.List;
+            internal ValueList<RevealSpan> RevealSpans = RareValues<RevealSpan>.List;
             internal List<RevealEffect> RevealListening = Rare<RevealEffect>.List;
-            internal List<RevealBody> RevealBodies = Rare<RevealBody>.List;
+            internal ValueList<RevealBody> RevealBodies = RareValues<RevealBody>.List;
             internal int[] CpReveal = System.Array.Empty<int>(), CpUnit = System.Array.Empty<int>();
             internal float[] CpVisible = System.Array.Empty<float>(), CpTarget = System.Array.Empty<float>();
             internal bool[] CpShownEvent = System.Array.Empty<bool>();
@@ -102,19 +102,19 @@ namespace FirstSymbol.Lettera
             internal int MarqueeCopies = 1;
             internal bool MarqueeRtl;
 
-            List<ParagraphSlot> m_Slots;
-            internal List<ParagraphSlot> Slots => m_Slots ?? (m_Slots = new List<ParagraphSlot>());
-            List<DeferredRun> m_Deferred;
-            internal List<DeferredRun> Deferred => m_Deferred ?? (m_Deferred = new List<DeferredRun>());
+            ValueList<ParagraphSlot> m_Slots;
+            internal ValueList<ParagraphSlot> Slots => m_Slots ?? (m_Slots = new ValueList<ParagraphSlot>());
+            ValueList<DeferredRun> m_Deferred;
+            internal ValueList<DeferredRun> Deferred => m_Deferred ?? (m_Deferred = new ValueList<DeferredRun>());
             internal bool DeferShaping;
             internal int DeferParagraphStart, DeferParagraphLength;
             internal ShapedGlyph[] ShapedMerged = Array.Empty<ShapedGlyph>();
             internal Action<int> AnalyzeOne, ShapeOne;
 
-            internal List<SolidBox> SolidBoxes = Rare<SolidBox>.List;
+            internal ValueList<SolidBox> SolidBoxes = RareValues<SolidBox>.List;
 
-            internal List<(LetteraEffect effect, int start, int end)> PoseHooks = Rare<(LetteraEffect effect, int start, int end)>.List;
-            internal List<(LetteraEffect effect, int start, int end)> StageHooks = Rare<(LetteraEffect effect, int start, int end)>.List;
+            internal ValueList<(LetteraEffect effect, int start, int end)> PoseHooks = RareValues<(LetteraEffect effect, int start, int end)>.List;
+            internal ValueList<(LetteraEffect effect, int start, int end)> StageHooks = RareValues<(LetteraEffect effect, int start, int end)>.List;
             internal List<Vector2Int> HookedHidden = Rare<Vector2Int>.List;
             internal HashSet<LetteraEffect> HookFailed;
             internal DirtyLevel HookStale;
@@ -122,15 +122,15 @@ namespace FirstSymbol.Lettera
             internal DirtyLevel EarlyHookLevel;
 
             internal List<SymbolSet> SymbolSets = Rare<SymbolSet>.List;
-            internal List<ExtraQuad> ExtraQuads = Rare<ExtraQuad>.List;
+            internal ValueList<ExtraQuad> ExtraQuads = RareValues<ExtraQuad>.List;
             internal int[] FaceQuad = System.Array.Empty<int>();
             internal SymbolSet[] GlyphSymbols = System.Array.Empty<SymbolSet>();
             internal Vector4[] RestUv0 = System.Array.Empty<Vector4>();
             internal bool UsesRestUv0;
 
-            internal List<ShapedGlyph> InlineGlyphs = Rare<ShapedGlyph>.List;
-            internal List<ListItem> ListItems = Rare<ListItem>.List;
-            internal List<RubyItem> RubyItems = Rare<RubyItem>.List;
+            internal ValueList<ShapedGlyph> InlineGlyphs = RareValues<ShapedGlyph>.List;
+            internal ValueList<ListItem> ListItems = RareValues<ListItem>.List;
+            internal ValueList<RubyItem> RubyItems = RareValues<RubyItem>.List;
             internal float[] CpListIndent = Array.Empty<float>();
 
             internal LetteraDocumentView View;

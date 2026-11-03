@@ -26,7 +26,7 @@ namespace FirstSymbol.Lettera
         float m_RememberedX = float.NaN;
         internal LetteraEditable Editable;
 
-        readonly List<(LetteraSelectionFilter handler, int order)> m_Filters = new List<(LetteraSelectionFilter, int)>();
+        readonly ValueList<(LetteraSelectionFilter handler, int order)> m_Filters = new ValueList<(LetteraSelectionFilter, int)>();
         readonly List<Rect> m_Rects = new List<Rect>();
         ISelectionVisual m_Visual;
         ILetteraInputSource m_Source;

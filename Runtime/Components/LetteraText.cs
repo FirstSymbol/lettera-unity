@@ -58,7 +58,7 @@ namespace FirstSymbol.Lettera
 
         internal TextEngine Engine => m_Engine ?? (m_Engine = new TextEngine(this));
 
-        public override Material defaultMaterial => LetteraMaterials.Variant(LetteraMaterials.Ui, Engine.Styled, LetteraBlend.Normal, null, Engine.LayersMerged);
+        public override Material defaultMaterial => LetteraMaterials.Variant(LetteraMaterials.Ui, Engine.Styled, LetteraBlend.Normal, null, Engine.LayersMerged, Engine.LayersShared);
 
         /// <summary>No material of the user's own: the merged-layer variant of the default shader can draw it.</summary>
         internal bool UsesDefaultMaterial => m_Material == null;
@@ -123,6 +123,7 @@ namespace FirstSymbol.Lettera
         protected override void OnEnable()
         {
             base.OnEnable();
+            m_PixelLength = -1;
             GlyphAtlasRegistration.EnsureRegistered();
             // Still listening means it left with its GameObject: whatever changed since has marked it, so only what it could not hear about is checked here.
             bool kept = ((ITextListener)this).ListenerSlot >= 0;
@@ -184,6 +185,7 @@ namespace FirstSymbol.Lettera
         protected override void OnCanvasHierarchyChanged()
         {
             base.OnCanvasHierarchyChanged();
+            m_PixelLength = -1;
             EnableCanvasChannels();
             RefreshClipping();
         }
@@ -191,6 +193,7 @@ namespace FirstSymbol.Lettera
         protected override void OnTransformParentChanged()
         {
             base.OnTransformParentChanged();
+            m_PixelLength = -1;
             RefreshClipping();
             m_HasAnimator = GetComponentInParent<Animator>() != null;
         }
@@ -215,6 +218,7 @@ namespace FirstSymbol.Lettera
         protected override void OnRectTransformDimensionsChange()
         {
             base.OnRectTransformDimensionsChange();
+            m_PixelLength = -1;
             Vector2 size = rectTransform.rect.size;
             if (size == m_LastRectSize) return;
             bool widthChanged = !Mathf.Approximately(size.x, m_LastRectSize.x);
@@ -228,6 +232,7 @@ namespace FirstSymbol.Lettera
 
         protected override void UpdateGeometry()
         {
+            if (s_Queued.Count > 0 && CanvasUpdateRegistry.IsRebuildingGraphics()) TakeBatch();
             if (m_HasAnimator) Engine.SyncSerializedFields();
             if (Engine.Dirty == DirtyLevel.None && m_Mesh != null)
             {
@@ -287,7 +292,7 @@ namespace FirstSymbol.Lettera
         const int QuadsPerPart = MaxPartVertices / 4;
         const string PartName = "Lettera Text Part";
 
-        readonly System.Collections.Generic.List<(GameObject go, CanvasRenderer renderer, Mesh mesh)> m_Parts = new System.Collections.Generic.List<(GameObject, CanvasRenderer, Mesh)>();
+        readonly ValueList<(GameObject go, CanvasRenderer renderer, Mesh mesh)> m_Parts = new ValueList<(GameObject, CanvasRenderer, Mesh)>();
         static readonly System.Collections.Generic.List<Vector3> s_PartVertices = new System.Collections.Generic.List<Vector3>();
         static readonly System.Collections.Generic.List<Color32> s_PartColors = new System.Collections.Generic.List<Color32>();
         static readonly System.Collections.Generic.List<Vector4> s_PartUv = new System.Collections.Generic.List<Vector4>();
@@ -403,7 +408,7 @@ namespace FirstSymbol.Lettera
                 {
                     MeshSegment segment = e.Segments[i];
                     if (Mathf.Max(segment.IndexStart, start) >= Mathf.Min(segment.IndexStart + segment.IndexCount, end)) continue;
-                    Material material = segment.Custom != null ? segment.Custom : LetteraMaterials.Variant(source, e.Styled, segment.Blend, segment.Texture, e.LayersMerged);
+                    Material material = segment.Custom != null ? segment.Custom : LetteraMaterials.Variant(source, e.Styled, segment.Blend, segment.Texture, e.LayersMerged, e.LayersShared);
                     if (maskable && m_StencilValue > 0)
                     {
                         int bits = (1 << m_StencilValue) - 1;
@@ -637,17 +642,18 @@ namespace FirstSymbol.Lettera
         // The materials of the last rebuild's stretches, to see when the renderer needs new ones.
         readonly System.Collections.Generic.List<MeshSegment> m_LastSegments = new System.Collections.Generic.List<MeshSegment>();
         readonly System.Collections.Generic.List<Material> m_SegmentMasks = new System.Collections.Generic.List<Material>();
-        bool m_LastStyled, m_LastMerged;
+        bool m_LastStyled, m_LastMerged, m_LastShared;
 
         bool MaterialsChanged()
         {
             TextEngine e = Engine;
-            bool changed = m_LastStyled != e.Styled || m_LastMerged != e.LayersMerged || m_LastSegments.Count != e.Segments.Count;
+            bool changed = m_LastStyled != e.Styled || m_LastMerged != e.LayersMerged || m_LastShared != e.LayersShared || m_LastSegments.Count != e.Segments.Count;
             for (int i = 0; !changed && i < e.Segments.Count; i++)
                 changed = m_LastSegments[i].Blend != e.Segments[i].Blend || m_LastSegments[i].Texture != e.Segments[i].Texture || m_LastSegments[i].Custom != e.Segments[i].Custom;
             if (!changed) return false;
             m_LastStyled = e.Styled;
             m_LastMerged = e.LayersMerged;
+            m_LastShared = e.LayersShared;
             m_LastSegments.Clear();
             m_LastSegments.AddRange(e.Segments);
             return true;
@@ -674,7 +680,7 @@ namespace FirstSymbol.Lettera
             for (int i = 0; i < count; i++)
             {
                 MeshSegment segment = e.Segments[i];
-                Material material = segment.Custom != null ? segment.Custom : LetteraMaterials.Variant(source, e.Styled, segment.Blend, segment.Texture, e.LayersMerged);
+                Material material = segment.Custom != null ? segment.Custom : LetteraMaterials.Variant(source, e.Styled, segment.Blend, segment.Texture, e.LayersMerged, e.LayersShared);
                 if (maskable && m_StencilValue > 0)
                 {
                     int bits = (1 << m_StencilValue) - 1;
@@ -765,6 +771,28 @@ namespace FirstSymbol.Lettera
         /// <summary>A mask has culled this text, so its mesh notes where its ink lies; no other text pays for that.</summary>
         internal bool TracksInk => m_UnderRectMask;
 
+        /// <summary>How long a screen pixel is in this text's units, or 0 where that is not known: in world space a camera can come as near or go as far as it likes.</summary>
+        // Kept until the canvas's scale, the hierarchy or the rect changes, since a rebuild of many labels would otherwise walk each one's transforms.
+        // A label scaled by its own transform alone keeps the length it had, and its quads two pixels of margin at that scale.
+        internal float PixelLength()
+        {
+            Canvas own = canvas;
+            if (own == null) return 0;
+            float scale = own.scaleFactor;
+            if (m_PixelLength >= 0 && scale == m_PixelScale) return m_PixelLength;
+            m_PixelScale = scale;
+            m_PixelLength = 0;
+            Canvas root = own.rootCanvas;
+            if (root.renderMode == UnityEngine.RenderMode.WorldSpace || root.scaleFactor <= 0) return 0;
+            Vector3 mine = transform.lossyScale, rootScale = root.transform.lossyScale;
+            if (rootScale.x == 0 || rootScale.y == 0) return 0;
+            float relative = Mathf.Min(Mathf.Abs(mine.x / rootScale.x), Mathf.Abs(mine.y / rootScale.y));
+            m_PixelLength = relative > 0 ? 1f / (root.scaleFactor * relative) : 0;
+            return m_PixelLength;
+        }
+
+        float m_PixelLength = -1, m_PixelScale;
+
         // A mask decides about culling on its own, which must not bring a hidden text back.
         // A text whose rect reaches into the mask while its ink stays outside draws nothing there, so it is culled by its ink.
         public override void Cull(Rect clipRect, bool validRect)
@@ -816,6 +844,7 @@ namespace FirstSymbol.Lettera
         public override void SetVerticesDirty()
         {
             base.SetVerticesDirty();
+            QueueForBatch();
             if (!m_CulledByInk) return;
             m_CulledByInk = false;
             if (m_HasCullClip) base.Cull(m_CullClip, m_CullValid);

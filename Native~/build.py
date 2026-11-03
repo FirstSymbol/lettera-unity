@@ -25,6 +25,9 @@ FLAGS = ["-O2", "-std=c++17", "-fno-exceptions", "-fno-rtti", "-fvisibility=hidd
 # Static targets link into a player that holds its own HarfBuzz: see tools/gen_hb_prefix.py.
 STATIC = ["-include", os.path.join("src", "lt_hb_prefix.h")]
 POSIX = ["-DHAVE_MMAP", "-DHAVE_SYS_MMAN_H", "-DHAVE_UNISTD_H"]  # lets hb_blob map font files
+# A shared library keeps only what its exports reach: HarfBuzz's own API is hidden, so the linker drops the parts of it Lettera never calls
+# (a fifth of the Windows library). The code that stays is compiled the same.
+GC = ["-ffunction-sections", "-fdata-sections", "-Wl,--gc-sections"]
 SOURCES = [os.path.join(HB, "harfbuzz.cc"), os.path.join(HB, "hb-raster-draw.cc"), os.path.join(HB, "hb-raster-image.cc"), os.path.join(HB, "hb-raster-paint.cc"), os.path.join("src", "lettera_native.cpp")]
 DEFAULT_ZIG = r"D:\General\Other\Unity\Tools\zig\zig.exe"
 DEFAULT_EDITOR = r"D:\General\Other\Unity\Editors\6000.4.8f1"
@@ -80,16 +83,16 @@ def fat(slices, output):
 
 
 def build_win(zig, triple, folder):
-    place(shared(zig, triple, "lettera_native.dll", ["-s"]), "Windows", folder, "lettera_native.dll")
+    place(shared(zig, triple, "lettera_native.dll", ["-s", *GC]), "Windows", folder, "lettera_native.dll")
 
 
 def build_linux(zig, triple, folder):
-    place(shared(zig, triple, "liblettera_native.so", ["-s", *POSIX]), "Linux", folder, "liblettera_native.so")
+    place(shared(zig, triple, "liblettera_native.so", ["-s", *GC, *POSIX]), "Linux", folder, "liblettera_native.so")
 
 
 def build_macos(zig):
-    x64 = shared(zig, "x86_64-macos.11.0", "liblettera_native.dylib", POSIX)
-    arm = shared(zig, "aarch64-macos.11.0", "liblettera_native.dylib", POSIX)
+    x64 = shared(zig, "x86_64-macos.11.0", "liblettera_native.dylib", [*POSIX, "-ffunction-sections", "-fdata-sections", "-Wl,-dead_strip"])
+    arm = shared(zig, "aarch64-macos.11.0", "liblettera_native.dylib", [*POSIX, "-ffunction-sections", "-fdata-sections", "-Wl,-dead_strip"])
     output = os.path.join(OUT, "liblettera_native.dylib")
     fat([("x86_64", x64), ("arm64", arm)], output)
     place(output, "macOS", "liblettera_native.dylib")
@@ -217,7 +220,7 @@ def build_android(ndk):
         os.makedirs(out_dir, exist_ok=True)
         output = os.path.join(out_dir, "liblettera_native.so")
         # 16 KB pages: Google Play requires it for new Android 15+ builds.
-        run([clang, f"--target={triple}", "-shared", "-fPIC", *FLAGS, *POSIX, "-static-libstdc++", "-s",
+        run([clang, f"--target={triple}", "-shared", "-fPIC", *FLAGS, *GC, *POSIX, "-static-libstdc++", "-s",
              "-Wl,-z,max-page-size=16384", *SOURCES, "-o", output])
         place(output, "Android", abi, "liblettera_native.so")
 

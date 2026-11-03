@@ -63,7 +63,7 @@ namespace FirstSymbol.Lettera
 
         void StartBand()
         {
-            m_Aside.ExtraLines.Clear();
+            Empty(m_Aside.ExtraLines);
             m_Banded = BandApplies;
             m_BandFirst = int.MaxValue;
             m_BandEnd = 0;
@@ -128,7 +128,7 @@ namespace FirstSymbol.Lettera
             if (line < 0 || line >= m_Lines.Count || LinePlaced(line)) return;
             if (m_Aside.ExtraLines.Count >= 8)
             {
-                m_Aside.ExtraLines.Clear();
+                Empty(m_Aside.ExtraLines);
                 m_Aside.ExtraEnd = m_PlacedCount;
             }
             int keepCount = m_PlacedCount, keepVirtual = m_Aside.VirtualGlyphs.Count;

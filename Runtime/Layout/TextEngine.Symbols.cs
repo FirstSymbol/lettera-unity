@@ -34,7 +34,7 @@ namespace FirstSymbol.Lettera
         // Before the first quad of a mesh.
         void PrepareExtraMotions()
         {
-            m_Aside.ExtraQuads.Clear();
+            Empty(m_Aside.ExtraQuads);
             m_Aside.UsesRestUv0 = false;
             if (m_Aside.MotionSpans.Count == 0) return;
             EnsureExact(ref m_Aside.FaceQuad, m_PlacedCount);
@@ -62,7 +62,7 @@ namespace FirstSymbol.Lettera
             foreach (SymbolSet known in m_Aside.SymbolSets)
                 if (known.Instance == instance && known.Density == density && known.Reach == reach && known.Alphabet == alphabet)
                     return known;
-            var list = new List<SymbolGlyph>();
+            var list = new ValueList<SymbolGlyph>();
             for (int i = 0; i < alphabet.Length; i++)
             {
                 int cp = char.ConvertToUtf32(alphabet, i);

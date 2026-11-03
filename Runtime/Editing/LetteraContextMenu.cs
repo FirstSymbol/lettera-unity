@@ -28,7 +28,7 @@ namespace FirstSymbol.Lettera
         [SerializeField] GameObject m_Blocker;
 
         readonly List<GameObject> m_Copies = new List<GameObject>();
-        readonly List<(GameObject target, int entry)> m_Shown = new List<(GameObject, int)>();
+        readonly ValueList<(GameObject target, int entry)> m_Shown = new ValueList<(GameObject, int)>();
         Action<int> m_Invoke;
         CanvasGroup m_Group;
         bool m_Visible;

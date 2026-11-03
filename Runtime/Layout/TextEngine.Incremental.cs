@@ -129,12 +129,12 @@ namespace FirstSymbol.Lettera
             int tail = m_TextLength - cpOldEnd;
             int newCount = cpStart + inserted + tail;
             int tailTo = cpStart + inserted;
-            EnsureSize(ref m_Text, Math.Max(source.Length, newCount) + 4);
+            EnsureText(Math.Max(source.Length, newCount) + 4);
             // A text that was its source stays so while no surrogate comes in, and needs no index moved.
             bool identity = m_IdentityIndex && !pairs;
             if (identity)
             {
-                if (tail > 0 && tailTo != cpOldEnd) Array.Copy(m_Text, cpOldEnd, m_Text, tailTo, tail);
+                if (tail > 0 && tailTo != cpOldEnd) m_Text.Slice(cpOldEnd, tail).CopyTo(m_Text.Slice(tailTo, tail));
             }
             else
             {
@@ -142,7 +142,7 @@ namespace FirstSymbol.Lettera
                 EnsureSize(ref m_SourceIndex, Math.Max(source.Length, newCount) + 4);
                 if (tail > 0 && tailTo != cpOldEnd)
                 {
-                    Array.Copy(m_Text, cpOldEnd, m_Text, tailTo, tail);
+                    m_Text.Slice(cpOldEnd, tail).CopyTo(m_Text.Slice(tailTo, tail));
                     Array.Copy(m_SourceIndex, cpOldEnd, m_SourceIndex, tailTo, tail);
                 }
                 int shift = newEnd - oldEnd;
@@ -243,7 +243,7 @@ namespace FirstSymbol.Lettera
         // Where line breaking starts again: the paragraph shaping started again at, when nothing else that breaks lines changed.
         int LayoutResume(float size, float width, bool wrap, LetteraTextData data)
         {
-            LetteraSettings settings = LetteraSettings.Instance;
+            LetteraSettings settings = SettingsNow;
             bool plain = m_Aside.Removals.Count == 0 && !data.AutoSize && !m_Aside.MarqueeScrolling && m_Attributes.Elides.Count == 0 && m_Aside.RevealSpans.Count == 0 &&
                          m_Aside.StageHooks.Count == 0 && !m_Attributes.HasLayout && m_Attributes.TrimTop == LetteraTrimTop.None && m_Attributes.TrimBottom == LetteraTrimBottom.None &&
                          m_FitGlyphScale == 1 && m_FitTracking == 0 && m_FitLineHeight == 1 && m_Aside.RubyItems.Count == 0 && m_Aside.InlineItems.Count == 0 &&

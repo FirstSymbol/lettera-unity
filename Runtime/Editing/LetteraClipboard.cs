@@ -594,8 +594,8 @@ namespace FirstSymbol.Lettera
             }
 
             var text = new StringBuilder(Math.Min(to - from, 1024));
-            var stack = new List<Open>();
-            var openSpans = new List<(int stackDepth, LetteraPastedSpan span)>();
+            var stack = new ValueList<Open>();
+            var openSpans = new ValueList<(int stackDepth, LetteraPastedSpan span)>();
             int cps = 0;
             bool pendingSpace = false, atLineStart = true, pendingBreak = false, anyText = false;
             int preDepth = 0;
@@ -806,7 +806,7 @@ namespace FirstSymbol.Lettera
             return -1;
         }
 
-        static void AddSpansOfElement(string name, string html, int from, int to, int at, int depth, List<(int, LetteraPastedSpan)> open)
+        static void AddSpansOfElement(string name, string html, int from, int to, int at, int depth, ValueList<(int, LetteraPastedSpan)> open)
         {
             string style = null, href = null;
             int i = from;
@@ -974,7 +974,7 @@ namespace FirstSymbol.Lettera
             }
             offsets.Add(plain.Length);
             int cps = offsets.Count - 1;
-            var events = new List<(int at, bool open, string text, int order)>();
+            var events = new ValueList<(int at, bool open, string text, int order)>();
             int order = 0;
             foreach (LetteraPastedSpan s in spans)
             {
