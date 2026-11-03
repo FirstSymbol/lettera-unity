@@ -154,31 +154,13 @@ namespace FirstSymbol.Lettera.Editor.Tests
             Assert.IsFalse(text.Engine.LayersMerged);
         }
 
-        // Layer-major, the usual order: a glyph's stroke and shadow join in one quad under every face, and a shadow that reaches an earlier stroke goes first.
+        // Layer order, the usual one, keeps its quads apart: joining a glyph's layers there saves a third of the quads and costs two more streams on all.
         [Test]
-        public void MergedLayersInLayerOrderKeepThePicture()
+        public void LayerOrderKeepsItsQuadsApart()
         {
-            foreach (string body in new[]
-            {
-                "<stroke=#3399FF,0.08><shadow=#000000,0.06,-0.06>Kerning AV wavy fox</shadow></stroke>",
-                "<stroke=#3399FF,0.08><shadow=#200000,-0.05,-0.03>To AVA, rt ff\nsecond line</shadow></stroke>",
-            })
-            {
-                LetteraText text = LayeredLabel(body);
-                Assert.IsTrue(text.Engine.LayersMerged, body + ": " + text.Engine.LayersRefused + " " + text.Engine.LayersRefusedAt);
-                int hoisted = text.Engine.LayersHoisted;
-                int merged = Drawn(text);
-                int separate = SamePictureMergedAndApart(text);
-                Assert.AreEqual(0, separate % 12, body);
-                Assert.AreEqual(separate / 3 * 2 + hoisted * 4, merged, body);
-                if (body.Contains("-0.05")) Assert.Greater(hoisted, 0, "a shadow to the left reaches the stroke before it");
-                foreach (GameObject root in m_Roots) Object.DestroyImmediate(root);
-                m_Roots.Clear();
-            }
-
-            // A shadow alone has nothing to join in this order, and keeps its quads.
-            LetteraText alone = LayeredLabel("<shadow=#000000C0,0.05,-0.05>Shadow alone</shadow>");
-            Assert.IsFalse(alone.Engine.LayersMerged);
+            LetteraText text = LayeredLabel("<stroke=#3399FF,0.08><shadow=#000000,0.06,-0.06>Kerning AV wavy fox</shadow></stroke>");
+            Assert.IsFalse(text.Engine.LayersMerged);
+            Assert.AreEqual(0, Drawn(text) % 12);
         }
 
         // A tint a canvas multiplies into the vertices, as a button's transition does, reaches the merged layers as it reaches separate ones.
@@ -186,7 +168,11 @@ namespace FirstSymbol.Lettera.Editor.Tests
         public void MergedLayersTakeTheCanvasTint()
         {
             LetteraText text = LayeredLabel("<stroke=#3399FF,0.08><shadow=#000000,0.06,-0.06>Tinted label</shadow></stroke>");
+            text.Styles.Add(LetteraStyle.ForWholeText(new PaintOrderEffect { Order = LetteraPaintOrder.GlyphMajor }));
+            text.MarkStylesDirty();
+            text.ForceRebuild();
             text.canvasRenderer.SetColor(new Color(1f, 0.4f, 0.6f, 0.8f));
+            Canvas.ForceUpdateCanvases();
             Assert.IsTrue(text.Engine.LayersMerged);
             SamePictureMergedAndApart(text);
         }

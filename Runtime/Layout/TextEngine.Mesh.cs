@@ -142,17 +142,15 @@ namespace FirstSymbol.Lettera
             if (m_Attributes.PaintOrder == LetteraPaintOrder.GlyphMajor)
             {
                 ReserveExtraQuads();
-                if (CanMergeLayers(groups, true)) DrawMerged(true);
+                if (CanMergeLayers(groups)) DrawMerged();
                 else DrawGlyphMajor(groups);
                 AddDecorationLayer(null);
             }
             else
             {
-                if (CanMergeLayers(groups, false)) DrawMerged(false);
-                else
-                    foreach (LayerGroup group in groups)
-                        if (group.Band < LetteraLayerBand.Face && group.Layer != LayerKind.Highlight)
-                            DrawGroup(group);
+                foreach (LayerGroup group in groups)
+                    if (group.Band < LetteraLayerBand.Face && group.Layer != LayerKind.Highlight)
+                        DrawGroup(group);
 
                 ReserveExtraQuads();
                 DrawFaces();
@@ -558,22 +556,15 @@ namespace FirstSymbol.Lettera
 
         // ---------------------------------------------------------------- merged layers
 
-        // Canvas text with a stroke and a shadow draws fewer quads, with the picture the separate quads make.
-        // Glyph-major: one quad a glyph, the shader composing face over stroke over shadow, as the glyph's three quads blended in that order would.
-        // Layer-major: every shadow goes under every stroke and every stroke under every face, so a glyph's face cannot join its layers, whose
-        // neighbours' layers lie between; each glyph's stroke and shadow join in one quad under all the faces. That is exact while no glyph's shadow
-        // reaches an earlier glyph's stroke; a shadow that does goes first, on a quad of its own, which is exact when all shadows share one colour.
-        // Only where that holds: plain distance-field glyphs, solid paints, normal blend, a shadow that lies inside the glyph's quad and reads
-        // nothing of its neighbours in the atlas, and nothing else on the text.
+        // Glyph-major Canvas text with a stroke and a shadow draws each glyph as one quad: the shader composes face over stroke over shadow, as the
+        // glyph's three quads blended in that order would. Only where that holds: plain distance-field glyphs, solid paints, normal blend, a stroke
+        // wholly outside, a shadow that lies inside the glyph's quad and reads nothing of its neighbours in the atlas, and nothing else on the text.
+        // Layer order is left apart: there a glyph's face cannot join its layers, which its neighbours' layers lie between, and joining only its
+        // stroke and shadow saves a third of the quads while every quad then carries two more streams, which cost the GPU more than they saved.
         LayerGroup m_MergeStroke, m_MergeShadow;
-        bool[] m_MergeHoist = System.Array.Empty<bool>();
-        int m_MergeHoisted;
 
         /// <summary>The last mesh drew its layers merged.</summary>
         internal bool LayersMerged { get; private set; }
-
-        /// <summary>Shadows the last merged mesh drew first, on quads of their own.</summary>
-        internal int LayersHoisted => LayersMerged ? m_MergeHoisted : 0;
 
         /// <summary>Draws layers as separate quads, for a test that compares the two.</summary>
         internal static bool NoMergedLayersForTests;
@@ -591,7 +582,7 @@ namespace FirstSymbol.Lettera
             return false;
         }
 
-        bool CanMergeLayers(List<LayerGroup> groups, bool glyphMajor)
+        bool CanMergeLayers(List<LayerGroup> groups)
         {
             if (NoMergedLayersForTests || !(m_Host is LetteraText host) || !host.UsesDefaultMaterial || m_Faces.Count > 0 || m_Attributes.Filters.Count > 0 || m_Attributes.Warps.Count > 0 || m_Attributes.Decorations.Count > 0 ||
                 m_FadeActive || m_RecordOwners || m_MotionSpans.Count > 0 || m_StageHooks.Count > 0 || HasInlineSprites || m_Host.Data.RenderMode == LetteraRenderMode.MSDF ||
@@ -605,8 +596,6 @@ namespace FirstSymbol.Lettera
                 else return Refuse("layer");
             }
             if (m_MergeStroke == null && m_MergeShadow == null) return Refuse("none");
-            // In layer order a lone layer has nothing to join: its quad and the face's are two either way.
-            if (!glyphMajor && (m_MergeStroke == null || m_MergeShadow == null)) return Refuse("one layer");
             List<LayerRecord> records = m_Attributes.Layers;
             for (int i = 0; i < m_PlacedCount; i++)
             {
@@ -614,14 +603,12 @@ namespace FirstSymbol.Lettera
                 ref AtlasGlyph atlas = ref m_PlacedAtlas[i];
                 if (atlas.Kind == AtlasGlyph.Empty) continue;
                 if (atlas.Kind != AtlasGlyph.Sdf || atlas.Pixel || atlas.Pad <= 0 || g.Special != 0 || g.Angle != 0 || g.Size <= 0) return Refuse("glyph", i);
-                if (glyphMajor && i > 0 && IsConnected(m_Placed[i - 1].Cluster, g.Cluster)) return Refuse("joined");
+                if (i > 0 && IsConnected(m_Placed[i - 1].Cluster, g.Cluster)) return Refuse("joined");
                 int stroke = m_MergeStroke != null ? m_MergeStroke.Cover[g.Cluster] - 1 : -1;
                 if (stroke >= 0 && (!MergeablePaint(records[stroke]) || records[stroke].Align != 1)) return Refuse("stroke", i);
                 int shadow = m_MergeShadow != null ? m_MergeShadow.Cover[g.Cluster] - 1 : -1;
                 if (shadow >= 0 && (!MergeablePaint(records[shadow]) || !ShadowFits(g, atlas, records[shadow]))) return Refuse("shadow", i);
             }
-            m_MergeHoisted = 0;
-            if (!glyphMajor && !FindHoistedShadows()) return Refuse("colours");
             LayersRefused = null;
             Styled = true;
             LayersMerged = true;
@@ -642,86 +629,6 @@ namespace FirstSymbol.Lettera
             return offset + (0.5f - threshold + softness) * 2 * atlas.Spread <= atlas.Spread && offset * toSdf < threshold - softness - 0.25f;
         }
 
-        struct InkBox
-        {
-            public float MinX, MinY, MaxX, MaxY;
-            public static InkBox None => new InkBox { MinX = float.MaxValue, MinY = float.MaxValue, MaxX = float.MinValue, MaxY = float.MinValue };
-            public bool Overlaps(in InkBox o) => MinX < o.MaxX && o.MinX < MaxX && MinY < o.MaxY && o.MinY < MaxY;
-
-            public void Add(in InkBox o)
-            {
-                if (o.MinX < MinX) MinX = o.MinX;
-                if (o.MinY < MinY) MinY = o.MinY;
-                if (o.MaxX > MaxX) MaxX = o.MaxX;
-                if (o.MaxY > MaxY) MaxY = o.MaxY;
-            }
-        }
-
-        // Where a layer with this edge can show around a glyph's outline, a pixel to spare: the quad less what its margin leaves empty.
-        InkBox LayerBox(in PlacedGlyph g, in AtlasGlyph atlas, float threshold, float softness, float dx, float dy)
-        {
-            float xUnit = g.Unit * (1 + g.XScale);
-            float empty = atlas.Pad - (0.5f - threshold + softness) * 2 * atlas.Pad;
-            float ix = Mathf.Max(0, empty * xUnit - m_InkMargin), iy = Mathf.Max(0, empty * g.Unit - m_InkMargin);
-            return new InkBox
-            {
-                MinX = g.X + atlas.Left * xUnit + ix + dx, MaxX = g.X + atlas.Right * xUnit - ix + dx,
-                MinY = g.Y + atlas.Bottom * g.Unit + iy + dy, MaxY = g.Y + atlas.Top * g.Unit - iy + dy,
-            };
-        }
-
-        // Marks each glyph whose shadow reaches a stroke drawn before it, on its line or an earlier one. False when such shadows would have to go
-        // first and not all shadows share one colour, since only then does their order not matter.
-        bool FindHoistedShadows()
-        {
-            if (m_MergeHoist.Length < m_PlacedCount) m_MergeHoist = new bool[System.Math.Max(m_PlacedCount, m_MergeHoist.Length * 2)];
-            List<LayerRecord> records = m_Attributes.Layers;
-            InkBox line = InkBox.None, above = InkBox.None;
-            int lineIndex = int.MinValue;
-            bool oneColor = true, haveColor = false;
-            Color32 shadowColor = default;
-            for (int i = 0; i < m_PlacedCount; i++)
-            {
-                m_MergeHoist[i] = false;
-                ref PlacedGlyph g = ref m_Placed[i];
-                ref AtlasGlyph atlas = ref m_PlacedAtlas[i];
-                if (atlas.Kind == AtlasGlyph.Empty) continue;
-                if (g.Line != lineIndex)
-                {
-                    above.Add(line);
-                    line = InkBox.None;
-                    lineIndex = g.Line;
-                }
-                ref LetteraAttributes.Cp attr = ref m_Attributes.At(g.Cluster);
-                float toEm = 1f / g.Size, toSdf = 1f / (2f * atlas.Spread);
-                int shadow = m_MergeShadow.Cover[g.Cluster] - 1;
-                if (shadow >= 0)
-                {
-                    LayerRecord record = records[shadow];
-                    float size = MeasureSize(record, g);
-                    float threshold = Mathf.Max(0.002f, 0.5f - record.Dilate.Of(size) * toEm * toSdf);
-                    InkBox box = LayerBox(g, atlas, threshold, record.Softness * SoftnessEm * toSdf, SnappedOffset(g, record.OffsetX.Of(size)), SnappedOffset(g, record.OffsetY.Of(size)));
-                    Color32 c = LayerColor(record, attr);
-                    if (!haveColor) shadowColor = c;
-                    haveColor = true;
-                    oneColor &= c.r == shadowColor.r && c.g == shadowColor.g && c.b == shadowColor.b && c.a == shadowColor.a;
-                    if (box.Overlaps(line) || box.Overlaps(above))
-                    {
-                        m_MergeHoist[i] = true;
-                        m_MergeHoisted++;
-                    }
-                }
-                int stroke = m_MergeStroke.Cover[g.Cluster] - 1;
-                if (stroke >= 0)
-                {
-                    LayerRecord record = records[stroke];
-                    float width = record.Width.Of(MeasureSize(record, g)) * toEm;
-                    if (width > 0) line.Add(LayerBox(g, atlas, Mathf.Max(0.002f, 0.5f - width * toSdf), record.Softness * SoftnessEm * toSdf, 0, 0));
-                }
-            }
-            return m_MergeHoisted == 0 || oneColor;
-        }
-
         // Two bytes in one float, exact through interpolation: the shader rounds it back.
         static float Pack(byte high, byte low) => high + low / 256f;
 
@@ -738,19 +645,14 @@ namespace FirstSymbol.Lettera
         }
 
         // uv1: face red and green, stroke edge (0 none), shadow edge (0 none), shadow softness. uv2: stroke and shadow colors.
-        // uv3: the shadow's offset in the atlas, the stroke's softness, face blue and alpha (alpha 0: no face). Two bytes a float.
+        // uv3: the shadow's offset in the atlas, the stroke's softness, face blue and alpha. Two bytes a float.
         // The vertex color stays white, so what a canvas multiplies into it, a tint or an alpha, reaches face and layers alike.
-        // With faces false the quads hold the layers alone, and the shadows marked to go first are drawn before them, on quads of their own.
-        void DrawMerged(bool faces)
+        void DrawMerged()
         {
             List<LayerRecord> records = m_Attributes.Layers;
-            if (!faces && m_MergeHoisted > 0)
-                for (int i = 0; i < m_PlacedCount; i++)
-                    if (m_MergeHoist[i])
-                        DrawLayer(i, records[m_MergeShadow.Cover[m_Placed[i].Cluster] - 1]);
             UseSegment(s_NoPaint);
             m_FilterRow = 0;
-            bool reverse = faces && m_Attributes.PaintReverse;
+            bool reverse = m_Attributes.PaintReverse;
             Color32 baseColor = m_DrawBase;
             var white = new Color32(255, 255, 255, 255);
             for (int n = 0; n < m_PlacedCount; n++)
@@ -759,18 +661,10 @@ namespace FirstSymbol.Lettera
                 ref PlacedGlyph g = ref m_Placed[i];
                 ref AtlasGlyph atlas = ref m_PlacedAtlas[i];
                 if (atlas.Kind == AtlasGlyph.Empty) continue;
-                // A glyph whose shadow went first keeps its stroke on a plain quad: a merged quad reads the atlas twice for one layer.
-                if (!faces && m_MergeHoisted > 0 && m_MergeHoist[i])
-                {
-                    int alone = m_MergeStroke.Cover[g.Cluster] - 1;
-                    if (alone >= 0) DrawLayer(i, records[alone]);
-                    UseSegment(s_NoPaint);
-                    continue;
-                }
                 m_CurrentOwner = i;
                 ref LetteraAttributes.Cp attr = ref m_Attributes.At(g.Cluster);
                 Color32 face = attr.HasColor ? attr.Color : new Color32(baseColor.r, baseColor.g, baseColor.b, 255);
-                face.a = faces ? (byte)(face.a * attr.Alpha) : (byte)0;
+                face.a = (byte)(face.a * attr.Alpha);
                 float toEm = 1f / g.Size, toSdf = 1f / (2f * atlas.Spread);
                 float xUnit = g.Unit * (1 + g.XScale);
                 float left = g.X + atlas.Left * xUnit, right = g.X + atlas.Right * xUnit;
@@ -778,7 +672,6 @@ namespace FirstSymbol.Lettera
                 var parameters = new Vector4(Pack(face.r, face.g), 0, 0, 0);
                 var colors = new Vector4();
                 var extra = new Vector4(0, 0, 0, Pack(face.b, face.a));
-                bool any = faces;
                 int stroke = m_MergeStroke != null ? m_MergeStroke.Cover[g.Cluster] - 1 : -1;
                 if (stroke >= 0)
                 {
@@ -791,7 +684,6 @@ namespace FirstSymbol.Lettera
                         extra.z = record.Softness * SoftnessEm * toSdf;
                         colors.x = Pack(c.r, c.g);
                         colors.y = Pack(c.b, c.a);
-                        any = true;
                     }
                 }
                 int shadow = m_MergeShadow != null ? m_MergeShadow.Cover[g.Cluster] - 1 : -1;
@@ -806,9 +698,7 @@ namespace FirstSymbol.Lettera
                     colors.w = Pack(c.b, c.a);
                     extra.x = SnappedOffset(g, record.OffsetX.Of(size)) / (right - left) * (atlas.U1 - atlas.U0);
                     extra.y = SnappedOffset(g, record.OffsetY.Of(size)) / (top - bottom) * (atlas.V1 - atlas.V0);
-                    any = true;
                 }
-                if (!any) continue;
                 int v = Reserve();
                 Vertices[v] = new Vector3(left, bottom);
                 Vertices[v + 1] = new Vector3(left, top);

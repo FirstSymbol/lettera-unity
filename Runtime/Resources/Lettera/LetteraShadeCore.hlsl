@@ -26,7 +26,8 @@ float _LetteraSdfAtlasSize;
 // A pixel font's tile has one texel per font pixel. The atlas filters, so read each texel's center.
 float LetteraPixelValue(float2 uv, float page)
 {
-    float2 texel = (floor(uv * 2048.0) + 0.5) / 2048.0;
+    float size = _LetteraSdfAtlasSize > 0 ? _LetteraSdfAtlasSize : 2048.0;
+    float2 texel = (floor(uv * size) + 0.5) / size;
     return LETTERA_SAMPLE_SDF(texel, page).r;
 }
 
@@ -98,7 +99,7 @@ float2 LetteraUnpackBytes(float packed)
 
 // A glyph's face, stroke and shadow in one quad, composed as three quads blended in that order would be.
 // params: face red and green, stroke edge (0 none), shadow edge (0 none), shadow softness. paint: stroke and shadow colors.
-// extra: the shadow's offset in the atlas, the stroke's softness, face blue and alpha (alpha 0: layers only). Two bytes a float.
+// extra: the shadow's offset in the atlas, the stroke's softness, face blue and alpha. Two bytes a float.
 // The vertex color is white times what the canvas multiplies in, so it tints every part.
 LETTERA_COLOR4 LetteraShadeMerged(float4 uv0, float4 params, LETTERA_COLOR4 color, float4 paint, float4 extra)
 {
