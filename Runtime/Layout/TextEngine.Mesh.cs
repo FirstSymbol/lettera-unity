@@ -587,7 +587,7 @@ namespace FirstSymbol.Lettera
 
         bool CanMergeLayers(List<LayerGroup> groups, bool glyphMajor)
         {
-            if (NoMergedLayersForTests || !(m_Host is LetteraText) || m_Faces.Count > 0 || m_Attributes.Filters.Count > 0 || m_Attributes.Warps.Count > 0 || m_Attributes.Decorations.Count > 0 ||
+            if (NoMergedLayersForTests || !(m_Host is LetteraText host) || !host.UsesDefaultMaterial || m_Faces.Count > 0 || m_Attributes.Filters.Count > 0 || m_Attributes.Warps.Count > 0 || m_Attributes.Decorations.Count > 0 ||
                 m_FadeActive || m_RecordOwners || m_MotionSpans.Count > 0 || m_StageHooks.Count > 0 || HasInlineSprites || m_Host.Data.RenderMode == LetteraRenderMode.MSDF ||
                 m_PlacedCount == 0)
                 return Refuse("text");

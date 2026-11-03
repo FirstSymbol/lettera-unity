@@ -45,7 +45,7 @@ Shader "Lettera/UI"
             #pragma require 2darray
             #pragma multi_compile_local _ UNITY_UI_CLIP_RECT
             #pragma multi_compile_local _ UNITY_UI_ALPHACLIP
-            #pragma multi_compile_local _ LETTERA_STYLED
+            #pragma multi_compile_local _ LETTERA_STYLED LETTERA_MERGED
 
             #include "UnityCG.cginc"
             #include "UnityUI.cginc"
@@ -61,7 +61,7 @@ Shader "Lettera/UI"
                 float4 color : COLOR;
                 float4 uv0 : TEXCOORD0;
                 float4 uv1 : TEXCOORD1;
-                #ifdef LETTERA_STYLED
+                #if defined(LETTERA_STYLED) || defined(LETTERA_MERGED)
                 float4 uv2 : TEXCOORD2;
                 float4 uv3 : TEXCOORD3;
                 #endif
@@ -76,7 +76,7 @@ Shader "Lettera/UI"
                 float4 params : TEXCOORD1;
                 float4 world : TEXCOORD2;
                 float4 mask : TEXCOORD3;
-                #ifdef LETTERA_STYLED
+                #if defined(LETTERA_STYLED) || defined(LETTERA_MERGED)
                 float4 paint : TEXCOORD4;
                 float4 extra : TEXCOORD5;
                 #endif
@@ -97,7 +97,7 @@ Shader "Lettera/UI"
                 o.vertex = UnityObjectToClipPos(v.vertex);
                 o.uv0 = v.uv0;
                 o.params = v.uv1;
-                #ifdef LETTERA_STYLED
+                #if defined(LETTERA_STYLED) || defined(LETTERA_MERGED)
                 o.paint = v.uv2;
                 o.extra = v.uv3;
                 #endif
@@ -116,7 +116,13 @@ Shader "Lettera/UI"
 
             fixed4 frag(v2f i) : SV_Target
             {
-                #ifdef LETTERA_STYLED
+                #if defined(LETTERA_MERGED)
+                // Merged quads and plain glyphs only: a text drawn this way has nothing else.
+                fixed4 color;
+                UNITY_BRANCH
+                if (i.uv0.w > 12.5) color = LetteraShadeMerged(i.uv0, i.params, i.color, i.paint, i.extra);
+                else color = LetteraShadePlain(i.uv0, i.params.xy, i.color);
+                #elif defined(LETTERA_STYLED)
                 fixed4 color = LetteraShadeStyled(i.uv0, i.params, i.color, i.paint, i.extra, i.vertex.xy);
                 #else
                 fixed4 color = LetteraShadePlain(i.uv0, i.params.xy, i.color);
