@@ -10,10 +10,8 @@ namespace FirstSymbol.Lettera
         const float Epsilon = 0.001f;
 
         readonly List<LetteraLine> m_Lines = new List<LetteraLine>();
-        readonly List<LetteraLine> m_MeasureLines = new List<LetteraLine>();
         Rect m_Box;
         float m_ContentWidth, m_ContentHeight;
-        List<Removal> m_Removals = Rare<Removal>.List;
         float m_PendingGap, m_TrimTop;
 
         // What the last auto-size fit spends, on top of the shaped widths.
@@ -71,12 +69,12 @@ namespace FirstSymbol.Lettera
             ApplyRevealRemovals();
             ApplyHookRemovals();
             DecideMarquee(size, width);
-            if (m_MarqueeScrolling) wrap = false;
-            if (m_Attributes.Elides.Count > 0 && !SuspendElide && !m_MarqueeScrolling && !ClipsViewport) ApplyElide(size, width, height, wrap);
+            if (m_Aside.MarqueeScrolling) wrap = false;
+            if (m_Attributes.Elides.Count > 0 && !SuspendElide && !m_Aside.MarqueeScrolling && !ClipsViewport) ApplyElide(size, width, height, wrap);
 
-            m_LaidSize = size;
-            m_LaidWidth = width;
-            m_LaidWrap = wrap;
+            m_Aside.LaidSize = size;
+            m_Aside.LaidWidth = width;
+            m_Aside.LaidWrap = wrap;
             // A long text has a line at least for each paragraph, and one each while its paragraphs wait: taking that room at once leaves
             // no list of every size on the way behind.
             int paragraphs = m_Paragraphs.Count;
@@ -85,7 +83,7 @@ namespace FirstSymbol.Lettera
             m_ContentWidth = stats.MaxWidth;
             m_ContentHeight = stats.Height;
             RunLinesHooks(size, width, wrap);
-            if (m_RevealSpans.Count > 0)
+            if (m_Aside.RevealSpans.Count > 0)
             {
                 NumberRevealUnits();
                 UpdateRevealTargets();
@@ -111,7 +109,7 @@ namespace FirstSymbol.Lettera
 
         bool Fits(float size, float width, float height, bool wrap, bool emergency)
         {
-            LineStats stats = BreakLines(m_MeasureLines, size, width, wrap, emergency);
+            LineStats stats = BreakLines(m_Aside.MeasureLines, size, width, wrap, emergency);
             return !stats.WordOverflow && stats.MaxWidth <= width + Epsilon && stats.Height <= height + Epsilon;
         }
 
@@ -168,7 +166,7 @@ namespace FirstSymbol.Lettera
 
         void ClearRemoval()
         {
-            m_Removals.Clear();
+            m_Aside.Removals.Clear();
         }
 
         // Each request removes clusters from its own range to make the text fit, the last range first.
@@ -198,8 +196,8 @@ namespace FirstSymbol.Lettera
                     clusters++;
             if (clusters == 0) return;
 
-            int slot = m_Removals.Count;
-            Own(ref m_Removals).Add(default);
+            int slot = m_Aside.Removals.Count;
+            Own(ref m_Aside.Removals).Add(default);
             int low = 1, high = clusters;
             while (low < high)
             {
@@ -232,7 +230,7 @@ namespace FirstSymbol.Lettera
             while (a > start && LetteraUnicode.IsWhiteSpace(m_Text[a - 1])) a--;
             var removal = new Removal { Start = a, End = b, FadeDistance = request.FadeDistance, FadeShift = request.FadeShift };
             if (request.Marker) PrepareMarker(ref removal, a > 0 ? a - 1 : a);
-            m_Removals[slot] = removal;
+            m_Aside.Removals[slot] = removal;
         }
 
         void PrepareMarker(ref Removal removal, int anchor)
@@ -270,8 +268,8 @@ namespace FirstSymbol.Lettera
 
         bool IsRemoved(int cp)
         {
-            for (int i = 0; i < m_Removals.Count; i++)
-                if (cp >= m_Removals[i].Start && cp < m_Removals[i].End)
+            for (int i = 0; i < m_Aside.Removals.Count; i++)
+                if (cp >= m_Aside.Removals[i].Start && cp < m_Aside.Removals[i].End)
                     return true;
             return false;
         }
@@ -279,9 +277,9 @@ namespace FirstSymbol.Lettera
         // The marker of the removal that starts at a codepoint, in local units.
         float MarkerWidthAt(int cp, float baseSize)
         {
-            for (int i = 0; i < m_Removals.Count; i++)
-                if (m_Removals[i].Start == cp && m_Removals[i].MarkerEm > 0)
-                    return m_Removals[i].MarkerEm * SizeOf(m_Runs[m_CpRun[m_Removals[i].Anchor]], baseSize);
+            for (int i = 0; i < m_Aside.Removals.Count; i++)
+                if (m_Aside.Removals[i].Start == cp && m_Aside.Removals[i].MarkerEm > 0)
+                    return m_Aside.Removals[i].MarkerEm * SizeOf(m_Runs[m_CpRun[m_Aside.Removals[i].Anchor]], baseSize);
             return 0;
         }
 
@@ -290,7 +288,7 @@ namespace FirstSymbol.Lettera
             if (!m_Attributes.HasLayout || cp >= m_TextLength) return 0;
             ref LetteraAttributes.CpLayout layout = ref m_Attributes.Layout[cp];
             float size = SizeOf(m_Runs[m_CpRun[cp]], baseSize);
-            float indent = layout.Indent.Of(size) + (m_ListItems.Count > 0 ? m_CpListIndent[cp] * size : 0);
+            float indent = layout.Indent.Of(size) + (m_Aside.ListItems.Count > 0 ? m_Aside.CpListIndent[cp] * size : 0);
             if (layout.IndentPercent != 0) indent += layout.IndentPercent * 0.01f * m_Host.LayoutRect.width;
             return indent < 0 ? 0 : indent;
         }
@@ -332,7 +330,7 @@ namespace FirstSymbol.Lettera
         void BreakParagraphs(List<LetteraLine> lines, ref LineStats stats, float baseSize, float maxWidth, bool wrap, bool emergency, int firstParagraph, int endParagraph)
         {
             m_PendingGap = 0;
-            bool simple = m_Removals.Count == 0 && !m_Attributes.HasLayout;
+            bool simple = m_Aside.Removals.Count == 0 && !m_Attributes.HasLayout;
             int sizedRun = -1;
             float runSize = 0;
             int previousParagraph = firstParagraph - 1;
@@ -344,7 +342,7 @@ namespace FirstSymbol.Lettera
                     AddEstimatedLine(lines, ref stats, paragraph, p, baseSize, maxWidth, wrap);
                     continue;
                 }
-                if (m_Removals.Count > 0 && IsWhollyRemoved(paragraph)) continue;
+                if (m_Aside.Removals.Count > 0 && IsWhollyRemoved(paragraph)) continue;
                 int firstLine = lines.Count;
 
                 if (previousParagraph >= 0 && m_Attributes.ParagraphSpacings.Count > 0)
@@ -440,7 +438,7 @@ namespace FirstSymbol.Lettera
 
         bool IsWhollyRemoved(in Paragraph paragraph)
         {
-            foreach (Removal removal in m_Removals)
+            foreach (Removal removal in m_Aside.Removals)
                 if (paragraph.Start > removal.Start && paragraph.ContentEnd <= removal.End && paragraph.Start < removal.End)
                     return true;
             return false;
@@ -596,7 +594,7 @@ namespace FirstSymbol.Lettera
             height *= m_FitLineHeight;
 
             // What stands in the line grows it only past the room it already has, in every height mode.
-            if (m_InlineItems.Count > 0)
+            if (m_Aside.InlineItems.Count > 0)
             {
                 float roomAbove = ascent, roomBelow = descent;
                 InlineLineExtents(start, end, em, ref roomAbove, ref roomBelow);
@@ -609,7 +607,7 @@ namespace FirstSymbol.Lettera
             float above = leadingMode == (int)LetteraLeading.Above ? leading : leadingMode == (int)LetteraLeading.Below ? 0 : leading * 0.5f;
 
             float rubyOver = 0, rubyUnder = 0;
-            if (m_RubyItems.Count > 0)
+            if (m_Aside.RubyItems.Count > 0)
             {
                 RubyExtents(start, end, em, out rubyOver, out rubyUnder, out _);
                 height += rubyOver + rubyUnder;
@@ -665,7 +663,7 @@ namespace FirstSymbol.Lettera
         public float GetMaxContentWidth()
         {
             EnsureMeasured();
-            return BreakLines(m_MeasureLines, QuerySize(true), float.PositiveInfinity, false, false).MaxWidth;
+            return BreakLines(m_Aside.MeasureLines, QuerySize(true), float.PositiveInfinity, false, false).MaxWidth;
         }
 
         /// <summary>The narrowest width that splits no word; with wrap off, the widest line.</summary>
@@ -673,7 +671,7 @@ namespace FirstSymbol.Lettera
         {
             EnsureMeasured();
             float size = QuerySize(false);
-            if (!m_Host.Data.WordWrap) return BreakLines(m_MeasureLines, size, float.PositiveInfinity, false, false).MaxWidth;
+            if (!m_Host.Data.WordWrap) return BreakLines(m_Aside.MeasureLines, size, float.PositiveInfinity, false, false).MaxWidth;
             float widest = 0, word = 0;
             for (int i = 0; i < m_TextLength; i++)
             {
@@ -694,7 +692,7 @@ namespace FirstSymbol.Lettera
             EnsureMeasured(false);
             LetteraTextData data = m_Host.Data;
             // Asked for the width the text has, the layout it is about to run answers, so a layout group's question costs no second line breaking.
-            if (!data.AutoSize && width > 0 && m_Attributes.Elides.Count == 0 && m_Marquee == null && m_StageHooks.Count == 0 && m_RevealSpans.Count == 0 &&
+            if (!data.AutoSize && width > 0 && m_Attributes.Elides.Count == 0 && m_Aside.Marquee == null && m_Aside.StageHooks.Count == 0 && m_Aside.RevealSpans.Count == 0 &&
                 width == ComputeBox(data.Padding, m_Host.LayoutRect).width)
             {
                 if (m_Dirty >= DirtyLevel.Layout)
@@ -703,11 +701,11 @@ namespace FirstSymbol.Lettera
                     m_EarlyChanges |= LetteraChanges.Layout;
                     m_Dirty = DirtyLevel.Positions;
                 }
-                if (m_Removals.Count == 0 && m_FitGlyphScale == 1 && m_FitTracking == 0 && m_FitLineHeight == 1) return m_ContentHeight;
+                if (m_Aside.Removals.Count == 0 && m_FitGlyphScale == 1 && m_FitTracking == 0 && m_FitLineHeight == 1) return m_ContentHeight;
             }
             if (m_PendingCount > 0) FinishForQuery();
             float size = data.AutoSize ? CurrentFontSize > 0 ? CurrentFontSize : data.FontSize : data.FontSize;
-            return BreakLines(m_MeasureLines, size, width, data.WordWrap && width > 0, true).Height;
+            return BreakLines(m_Aside.MeasureLines, size, width, data.WordWrap && width > 0, true).Height;
         }
 
         /// <summary>Size of the laid-out text in a given box, excluding padding. Used by MeasureText.</summary>
@@ -733,7 +731,7 @@ namespace FirstSymbol.Lettera
                     size = low;
                 }
             }
-            LineStats stats = BreakLines(m_MeasureLines, size, width, wrap, true);
+            LineStats stats = BreakLines(m_Aside.MeasureLines, size, width, wrap, true);
             return new Vector2(stats.MaxWidth, stats.Height);
         }
     }

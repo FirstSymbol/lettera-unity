@@ -23,21 +23,15 @@ namespace FirstSymbol.Lettera
             public int Count;
         }
 
-        readonly List<ParagraphSlot> m_Slots = new List<ParagraphSlot>();
-        readonly List<DeferredRun> m_Deferred = new List<DeferredRun>();
-        bool m_DeferShaping;
-        int m_DeferParagraphStart, m_DeferParagraphLength;
-        ShapedGlyph[] m_ShapedMerged = Array.Empty<ShapedGlyph>();
         [ThreadStatic] static NativeGlyph[] s_WorkerGlyphs;
         [ThreadStatic] static LetteraSegmenterScratch s_WorkerScratch;
-        Action<int> m_AnalyzeOne, m_ShapeOne;
 
-        bool ShapesInParallel(int length) => length >= LetteraWorkers.ParallelFromCodepoints && LetteraWorkers.ShouldRun(length) && MaskGlyph == 0 && m_StageHooks.Count == 0;
+        bool ShapesInParallel(int length) => length >= LetteraWorkers.ParallelFromCodepoints && LetteraWorkers.ShouldRun(length) && MaskGlyph == 0 && m_Aside.StageHooks.Count == 0;
 
         void ShapeParagraphsInParallel(int length, int baseLevel)
         {
             // Where each paragraph is, and which the caches already hold.
-            m_Slots.Clear();
+            m_Aside.Slots.Clear();
             int start = 0;
             while (start <= length)
             {
@@ -56,15 +50,15 @@ namespace FirstSymbol.Lettera
             }
 
             // Every paragraph no cache had is analyzed, side by side.
-            LetteraWorkers.Run(m_Slots.Count, m_AnalyzeOne ?? (m_AnalyzeOne = AnalyzeSlot));
+            LetteraWorkers.Run(m_Aside.Slots.Count, m_Aside.AnalyzeOne ?? (m_Aside.AnalyzeOne = AnalyzeSlot));
 
             // Faces are found in order, and hits go in where they belong.
-            m_DeferShaping = true;
-            m_Deferred.Clear();
+            m_Aside.DeferShaping = true;
+            m_Aside.Deferred.Clear();
             string language = LanguageOf(-1);
-            for (int s = 0; s < m_Slots.Count; s++)
+            for (int s = 0; s < m_Aside.Slots.Count; s++)
             {
-                ParagraphSlot slot = m_Slots[s];
+                ParagraphSlot slot = m_Aside.Slots[s];
                 var paragraph = new Paragraph { Start = slot.Start, ContentEnd = slot.ContentEnd, End = slot.End, Level = slot.Level };
                 slot.FirstRun = m_Runs.Count;
                 if (slot.Hit)
@@ -73,19 +67,19 @@ namespace FirstSymbol.Lettera
                 }
                 else if (slot.End > slot.Start)
                 {
-                    m_DeferParagraphStart = slot.Start;
-                    m_DeferParagraphLength = slot.End - slot.Start;
+                    m_Aside.DeferParagraphStart = slot.Start;
+                    m_Aside.DeferParagraphLength = slot.End - slot.Start;
                     BuildRuns(paragraph);
                 }
                 slot.RunCount = m_Runs.Count - slot.FirstRun;
-                m_Slots[s] = slot;
+                m_Aside.Slots[s] = slot;
                 if (slot.ContentEnd == slot.Start && baseLevel < 0 && m_Paragraphs.Count > 0) paragraph.Level = m_Paragraphs[m_Paragraphs.Count - 1].Level;
                 m_Paragraphs.Add(paragraph);
             }
-            m_DeferShaping = false;
+            m_Aside.DeferShaping = false;
 
             // Runs shape side by side, each into its own buffer.
-            LetteraWorkers.Run(m_Deferred.Count, m_ShapeOne ?? (m_ShapeOne = ShapeDeferred));
+            LetteraWorkers.Run(m_Aside.Deferred.Count, m_Aside.ShapeOne ?? (m_Aside.ShapeOne = ShapeDeferred));
 
             // Then all of it comes together in reading order, as shaping one by one would have left it.
             MergeShaped();
@@ -103,12 +97,12 @@ namespace FirstSymbol.Lettera
                 slot.Hit = ParagraphIsCached(slot.Hash, start, count, baseLevel, LanguageOf(-1));
                 if (!slot.Hit) LetteraCaches.s_Stats.Misses++;
             }
-            m_Slots.Add(slot);
+            m_Aside.Slots.Add(slot);
         }
 
         void AnalyzeSlot(int index)
         {
-            ParagraphSlot slot = m_Slots[index];
+            ParagraphSlot slot = m_Aside.Slots[index];
             int count = slot.End - slot.Start;
             if (count <= 0 || slot.Hit) return;
             int start = slot.Start;
@@ -119,14 +113,14 @@ namespace FirstSymbol.Lettera
             if (LetteraWordSegmenters.Count != 0)
                 LetteraWordSegmenters.ApplyToBreaks(text, new ReadOnlySpan<bool>(m_Boundaries, start, count + 1), new Span<LineBreakOpportunity>(m_Breaks, start, count), s_WorkerScratch ?? (s_WorkerScratch = new LetteraSegmenterScratch()));
             ScriptItemizer.Resolve(text, new Span<UnicodeScript>(m_Scripts, start, count));
-            lock (m_Slots) m_Slots[index] = slot;
+            lock (m_Aside.Slots) m_Aside.Slots[index] = slot;
         }
 
         int BaseLevelForSlots;
 
         void ShapeDeferred(int index)
         {
-            DeferredRun deferred = m_Deferred[index];
+            DeferredRun deferred = m_Aside.Deferred[index];
             Run run = m_Runs[deferred.RunIndex];
             string language = LanguageOf(run.Language);
             byte[] languageBytes = null;
@@ -168,30 +162,30 @@ namespace FirstSymbol.Lettera
             }
             deferred.Glyphs = shaped;
             deferred.Count = count;
-            lock (m_Deferred) m_Deferred[index] = deferred;
+            lock (m_Aside.Deferred) m_Aside.Deferred[index] = deferred;
         }
 
         // Hits were copied in as they came, so runs that waited are put between them here.
         void MergeShaped()
         {
             int total = m_ShapedCount;
-            foreach (DeferredRun deferred in m_Deferred) total += deferred.Count;
-            EnsureSize(ref m_ShapedMerged, total);
+            foreach (DeferredRun deferred in m_Aside.Deferred) total += deferred.Count;
+            EnsureSize(ref m_Aside.ShapedMerged, total);
             int at = 0, next = 0;
             for (int r = 0; r < m_Runs.Count; r++)
             {
                 Run run = m_Runs[r];
                 int glyphs;
-                if (next < m_Deferred.Count && m_Deferred[next].RunIndex == r)
+                if (next < m_Aside.Deferred.Count && m_Aside.Deferred[next].RunIndex == r)
                 {
-                    DeferredRun deferred = m_Deferred[next++];
-                    Array.Copy(deferred.Glyphs, 0, m_ShapedMerged, at, deferred.Count);
+                    DeferredRun deferred = m_Aside.Deferred[next++];
+                    Array.Copy(deferred.Glyphs, 0, m_Aside.ShapedMerged, at, deferred.Count);
                     glyphs = deferred.Count;
                     ArrayPool<ShapedGlyph>.Shared.Return(deferred.Glyphs);
                 }
                 else
                 {
-                    Array.Copy(m_Shaped, run.GlyphStart, m_ShapedMerged, at, run.GlyphCount);
+                    Array.Copy(m_Shaped, run.GlyphStart, m_Aside.ShapedMerged, at, run.GlyphCount);
                     glyphs = run.GlyphCount;
                 }
                 run.GlyphStart = at;
@@ -200,16 +194,16 @@ namespace FirstSymbol.Lettera
                 at += glyphs;
             }
             ShapedGlyph[] swap = m_Shaped;
-            m_Shaped = m_ShapedMerged;
-            m_ShapedMerged = swap;
+            m_Shaped = m_Aside.ShapedMerged;
+            m_Aside.ShapedMerged = swap;
             m_ShapedCount = at;
         }
 
         void StoreMissedParagraphs(int baseLevel, string language)
         {
-            for (int s = 0; s < m_Slots.Count; s++)
+            for (int s = 0; s < m_Aside.Slots.Count; s++)
             {
-                ParagraphSlot slot = m_Slots[s];
+                ParagraphSlot slot = m_Aside.Slots[s];
                 if (!slot.Cacheable || slot.Hit || slot.RunCount == 0) continue;
                 int firstGlyph = m_Runs[slot.FirstRun].GlyphStart;
                 StoreParagraph(slot.Hash, new Paragraph { Start = slot.Start, ContentEnd = slot.ContentEnd, End = slot.End, Level = m_Paragraphs[s].Level }, slot.Start, slot.End - slot.Start, baseLevel, language, slot.FirstRun, firstGlyph, slot.FirstRun + slot.RunCount);
@@ -219,22 +213,22 @@ namespace FirstSymbol.Lettera
         // Paragraphs a long text left for later, shaped side by side as a whole text is, at the end of the runs and glyphs. The caller moves them into place.
         void ShapePendingInParallel(int first, int end, int runs, int glyphs)
         {
-            int baseLevel = m_DeferBaseLevel;
-            m_Slots.Clear();
+            int baseLevel = m_Aside.DeferBaseLevel;
+            m_Aside.Slots.Clear();
             for (int p = first; p < end; p++)
             {
                 Paragraph paragraph = m_Paragraphs[p];
                 AddSlot(paragraph.Start, paragraph.ContentEnd, paragraph.End, baseLevel);
             }
             BaseLevelForSlots = baseLevel;
-            LetteraWorkers.Run(m_Slots.Count, m_AnalyzeOne ?? (m_AnalyzeOne = AnalyzeSlot));
+            LetteraWorkers.Run(m_Aside.Slots.Count, m_Aside.AnalyzeOne ?? (m_Aside.AnalyzeOne = AnalyzeSlot));
 
-            m_DeferShaping = true;
-            m_Deferred.Clear();
+            m_Aside.DeferShaping = true;
+            m_Aside.Deferred.Clear();
             string language = LanguageOf(-1);
-            for (int s = 0; s < m_Slots.Count; s++)
+            for (int s = 0; s < m_Aside.Slots.Count; s++)
             {
-                ParagraphSlot slot = m_Slots[s];
+                ParagraphSlot slot = m_Aside.Slots[s];
                 var paragraph = new Paragraph { Start = slot.Start, ContentEnd = slot.ContentEnd, End = slot.End, Level = slot.Level };
                 slot.FirstRun = m_Runs.Count;
                 if (slot.Hit)
@@ -243,38 +237,38 @@ namespace FirstSymbol.Lettera
                 }
                 else if (slot.End > slot.Start)
                 {
-                    m_DeferParagraphStart = slot.Start;
-                    m_DeferParagraphLength = slot.End - slot.Start;
+                    m_Aside.DeferParagraphStart = slot.Start;
+                    m_Aside.DeferParagraphLength = slot.End - slot.Start;
                     BuildRuns(paragraph);
                 }
                 slot.RunCount = m_Runs.Count - slot.FirstRun;
-                m_Slots[s] = slot;
+                m_Aside.Slots[s] = slot;
                 int p = first + s;
                 if (slot.ContentEnd == slot.Start && baseLevel < 0 && p > 0) paragraph.Level = m_Paragraphs[p - 1].Level;
                 m_Paragraphs[p] = paragraph;
             }
-            m_DeferShaping = false;
-            LetteraWorkers.Run(m_Deferred.Count, m_ShapeOne ?? (m_ShapeOne = ShapeDeferred));
+            m_Aside.DeferShaping = false;
+            LetteraWorkers.Run(m_Aside.Deferred.Count, m_Aside.ShapeOne ?? (m_Aside.ShapeOne = ShapeDeferred));
 
             // Restored runs went in as they came, and shaped ones wait in their own buffers: all of them in reading order after the glyphs before.
             int total = m_ShapedCount - glyphs;
-            foreach (DeferredRun deferred in m_Deferred) total += deferred.Count;
-            EnsureSize(ref m_ShapedMerged, total);
+            foreach (DeferredRun deferred in m_Aside.Deferred) total += deferred.Count;
+            EnsureSize(ref m_Aside.ShapedMerged, total);
             int at = 0, next = 0;
             for (int r = runs; r < m_Runs.Count; r++)
             {
                 Run run = m_Runs[r];
                 int count;
-                if (next < m_Deferred.Count && m_Deferred[next].RunIndex == r)
+                if (next < m_Aside.Deferred.Count && m_Aside.Deferred[next].RunIndex == r)
                 {
-                    DeferredRun deferred = m_Deferred[next++];
-                    Array.Copy(deferred.Glyphs, 0, m_ShapedMerged, at, deferred.Count);
+                    DeferredRun deferred = m_Aside.Deferred[next++];
+                    Array.Copy(deferred.Glyphs, 0, m_Aside.ShapedMerged, at, deferred.Count);
                     count = deferred.Count;
                     ArrayPool<ShapedGlyph>.Shared.Return(deferred.Glyphs);
                 }
                 else
                 {
-                    Array.Copy(m_Shaped, run.GlyphStart, m_ShapedMerged, at, run.GlyphCount);
+                    Array.Copy(m_Shaped, run.GlyphStart, m_Aside.ShapedMerged, at, run.GlyphCount);
                     count = run.GlyphCount;
                 }
                 run.GlyphStart = glyphs + at;
@@ -282,14 +276,14 @@ namespace FirstSymbol.Lettera
                 m_Runs[r] = run;
                 at += count;
             }
-            m_Deferred.Clear();
+            m_Aside.Deferred.Clear();
             EnsureSize(ref m_Shaped, glyphs + at);
-            Array.Copy(m_ShapedMerged, 0, m_Shaped, glyphs, at);
+            Array.Copy(m_Aside.ShapedMerged, 0, m_Shaped, glyphs, at);
             m_ShapedCount = glyphs + at;
 
-            for (int s = 0; s < m_Slots.Count; s++)
+            for (int s = 0; s < m_Aside.Slots.Count; s++)
             {
-                ParagraphSlot slot = m_Slots[s];
+                ParagraphSlot slot = m_Aside.Slots[s];
                 if (!slot.Cacheable || slot.Hit || slot.RunCount == 0) continue;
                 StoreParagraph(slot.Hash, m_Paragraphs[first + s], slot.Start, slot.End - slot.Start, baseLevel, language, slot.FirstRun, m_Runs[slot.FirstRun].GlyphStart,
                     slot.FirstRun + slot.RunCount);
@@ -303,7 +297,7 @@ namespace FirstSymbol.Lettera
             if (language != null && !s_LanguageBytes.ContainsKey(language)) s_LanguageBytes[language] = FontFace.NullTerminated(language);
             run.GlyphStart = 0;
             run.GlyphCount = 0;
-            m_Deferred.Add(new DeferredRun { RunIndex = m_Runs.Count, ParagraphStart = m_DeferParagraphStart, ParagraphLength = m_DeferParagraphLength });
+            m_Aside.Deferred.Add(new DeferredRun { RunIndex = m_Runs.Count, ParagraphStart = m_Aside.DeferParagraphStart, ParagraphLength = m_Aside.DeferParagraphLength });
         }
     }
 }

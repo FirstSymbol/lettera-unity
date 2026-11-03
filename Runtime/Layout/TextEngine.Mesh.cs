@@ -100,11 +100,11 @@ namespace FirstSymbol.Lettera
             m_SegmentCustom = null;
             m_SegmentStart = 0;
             m_FilterRow = 0;
-            m_SolidBoxes.Clear();
+            m_Aside.SolidBoxes.Clear();
             m_AllTakeBase = true;
-            m_RecordOwners = HasPoseConsumers || m_RevealSpans.Count > 0 || (m_Marquee != null && m_MarqueeScrolling) || NeedsRestState;
-            m_WindowBaked = false;
-            if (m_StageHooks.Count > 0) m_CoverQuads.Clear();
+            m_RecordOwners = HasPoseConsumers || m_Aside.RevealSpans.Count > 0 || (m_Aside.Marquee != null && m_Aside.MarqueeScrolling) || NeedsRestState;
+            m_Aside.WindowBaked = false;
+            if (m_Aside.StageHooks.Count > 0) m_Aside.CoverQuads.Clear();
             m_CurrentOwner = -1;
             m_DrawBase = m_Host.BaseColor;
             InkKnown = false;
@@ -191,8 +191,8 @@ namespace FirstSymbol.Lettera
                 m_WantsPose = false;
                 BakeWindowOffset();
             }
-            InkKnown = m_TrackInk && VertexCount > 0 && m_InkQuads * 4 == VertexCount && !m_RecordOwners && !m_WindowBaked && m_StageHooks.Count == 0 &&
-                       m_MotionSpans.Count == 0 && m_MarqueeCopies <= 1 && !m_MarqueeScrolling;
+            InkKnown = m_TrackInk && VertexCount > 0 && m_InkQuads * 4 == VertexCount && !m_RecordOwners && !m_Aside.WindowBaked && m_Aside.StageHooks.Count == 0 &&
+                       m_Aside.MotionSpans.Count == 0 && m_Aside.MarqueeCopies <= 1 && !m_Aside.MarqueeScrolling;
             UpdateHubMembership();
         }
 
@@ -257,7 +257,7 @@ namespace FirstSymbol.Lettera
                 if (boost > 0) density = GlyphAtlas.Boost(g.Instance, g.Glyph, density << boost);
                 if (g.Special == SpecialRule)
                 {
-                    MathSpecial rule = m_MathSpecials[g.SpecialIndex];
+                    MathSpecial rule = m_Aside.MathSpecials[g.SpecialIndex];
                     m_PlacedAtlas[i] = m_SolidsOnly ? default : GlyphAtlas.GetRule(rule.Thickness, rule.Vertical, density, m_PlacedReach[i], m_Host.Data.RenderMode == LetteraRenderMode.MSDF);
                     continue;
                 }
@@ -426,7 +426,7 @@ namespace FirstSymbol.Lettera
 
         // Faces with nothing on them but a colour: no fill to replace them, no filter, warp, paint, fade or motion. Most text is this.
         bool PlainFaces() => m_Faces.Count == 0 && m_Attributes.Filters.Count == 0 && m_Attributes.Warps.Count == 0 && !Styled && !m_FadeActive && !m_TrackBase &&
-                             m_MotionSpans.Count == 0;
+                             m_Aside.MotionSpans.Count == 0;
 
         // What DrawFace and AddQuad write for such a face, in one loop with nothing asked per glyph that the text answers once.
         // A formula's part, a colour glyph and a turned glyph take the usual way.
@@ -489,7 +489,7 @@ namespace FirstSymbol.Lettera
             ref PlacedGlyph g = ref m_Placed[i];
             ref AtlasGlyph atlas = ref m_PlacedAtlas[i];
             if (atlas.Kind == AtlasGlyph.Empty) return;
-            if (m_FaceQuad.Length > i && m_MotionSpans.Count > 0) m_FaceQuad[i] = VertexCount / 4;
+            if (m_Aside.FaceQuad.Length > i && m_Aside.MotionSpans.Count > 0) m_Aside.FaceQuad[i] = VertexCount / 4;
             if (FirstFill(g.Cluster, atlas.Kind, out int record))
             {
                 DrawLayer(i, m_Attributes.Layers[record]);
@@ -566,7 +566,6 @@ namespace FirstSymbol.Lettera
         // wholly outside, a shadow that lies inside the glyph's quad and reads nothing of its neighbours in the atlas, and nothing else on the text.
         // Layer order is left apart: there a glyph's face cannot join its layers, which its neighbours' layers lie between, and joining only its
         // stroke and shadow saves a third of the quads while every quad then carries two more streams, which cost the GPU more than they saved.
-        LayerGroup m_MergeStroke, m_MergeShadow;
 
         /// <summary>The last mesh drew its layers merged.</summary>
         internal bool LayersMerged { get; private set; }
@@ -590,17 +589,17 @@ namespace FirstSymbol.Lettera
         bool CanMergeLayers(List<LayerGroup> groups)
         {
             if (NoMergedLayersForTests || !(m_Host is LetteraText host) || !host.UsesDefaultMaterial || m_Faces.Count > 0 || m_Attributes.Filters.Count > 0 || m_Attributes.Warps.Count > 0 || m_Attributes.Decorations.Count > 0 ||
-                m_FadeActive || m_RecordOwners || m_MotionSpans.Count > 0 || m_StageHooks.Count > 0 || HasInlineSprites || m_Host.Data.RenderMode == LetteraRenderMode.MSDF ||
+                m_FadeActive || m_RecordOwners || m_Aside.MotionSpans.Count > 0 || m_Aside.StageHooks.Count > 0 || HasInlineSprites || m_Host.Data.RenderMode == LetteraRenderMode.MSDF ||
                 m_PlacedCount == 0)
                 return Refuse("text");
-            m_MergeStroke = m_MergeShadow = null;
+            m_Aside.MergeStroke = m_Aside.MergeShadow = null;
             foreach (LayerGroup group in groups)
             {
-                if (group.Layer == LayerKind.Stroke && group.Band == LetteraLayerBand.Rim && m_MergeStroke == null) m_MergeStroke = group;
-                else if (group.Layer == LayerKind.Shadow && group.Band == LetteraLayerBand.Back && m_MergeShadow == null) m_MergeShadow = group;
+                if (group.Layer == LayerKind.Stroke && group.Band == LetteraLayerBand.Rim && m_Aside.MergeStroke == null) m_Aside.MergeStroke = group;
+                else if (group.Layer == LayerKind.Shadow && group.Band == LetteraLayerBand.Back && m_Aside.MergeShadow == null) m_Aside.MergeShadow = group;
                 else return Refuse("layer");
             }
-            if (m_MergeStroke == null && m_MergeShadow == null) return Refuse("none");
+            if (m_Aside.MergeStroke == null && m_Aside.MergeShadow == null) return Refuse("none");
             List<LayerRecord> records = m_Attributes.Layers;
             for (int i = 0; i < m_PlacedCount; i++)
             {
@@ -609,9 +608,9 @@ namespace FirstSymbol.Lettera
                 if (atlas.Kind == AtlasGlyph.Empty) continue;
                 if (atlas.Kind != AtlasGlyph.Sdf || atlas.Pixel || atlas.Spread <= 0 || g.Special != 0 || g.Angle != 0 || g.Size <= 0) return Refuse("glyph", i);
                 if (i > 0 && IsConnected(m_Placed[i - 1].Cluster, g.Cluster)) return Refuse("joined");
-                int stroke = m_MergeStroke != null ? m_MergeStroke.Cover[g.Cluster] - 1 : -1;
+                int stroke = m_Aside.MergeStroke != null ? m_Aside.MergeStroke.Cover[g.Cluster] - 1 : -1;
                 if (stroke >= 0 && (!MergeablePaint(records[stroke]) || records[stroke].Align != 1)) return Refuse("stroke", i);
-                int shadow = m_MergeShadow != null ? m_MergeShadow.Cover[g.Cluster] - 1 : -1;
+                int shadow = m_Aside.MergeShadow != null ? m_Aside.MergeShadow.Cover[g.Cluster] - 1 : -1;
                 if (shadow >= 0 && (!MergeablePaint(records[shadow]) || !ShadowFits(g, atlas, records[shadow]))) return Refuse("shadow", i);
             }
             LayersRefused = null;
@@ -677,7 +676,7 @@ namespace FirstSymbol.Lettera
                 var parameters = new Vector4(Pack(face.r, face.g), 0, 0, 0);
                 var colors = new Vector4();
                 var extra = new Vector4(0, 0, 0, Pack(face.b, face.a));
-                int stroke = m_MergeStroke != null ? m_MergeStroke.Cover[g.Cluster] - 1 : -1;
+                int stroke = m_Aside.MergeStroke != null ? m_Aside.MergeStroke.Cover[g.Cluster] - 1 : -1;
                 if (stroke >= 0)
                 {
                     LayerRecord record = records[stroke];
@@ -691,7 +690,7 @@ namespace FirstSymbol.Lettera
                         colors.y = Pack(c.b, c.a);
                     }
                 }
-                int shadow = m_MergeShadow != null ? m_MergeShadow.Cover[g.Cluster] - 1 : -1;
+                int shadow = m_Aside.MergeShadow != null ? m_Aside.MergeShadow.Cover[g.Cluster] - 1 : -1;
                 if (shadow >= 0)
                 {
                     LayerRecord record = records[shadow];
@@ -1071,18 +1070,16 @@ namespace FirstSymbol.Lettera
             Uv1[v] = Uv1[v + 1] = Uv1[v + 2] = Uv1[v + 3] = parameters;
             SetColor(v, color);
             if (Styled) SetPaint(v, paint, paintRect, paintDx, paintDy, extra);
-            if (m_FadeActive && g.Line == m_FadeLine) ApplyFade(v);
+            if (m_FadeActive && g.Line == m_Aside.FadeLine) ApplyFade(v);
         }
 
         // Alpha falls off towards a truncated edge, per vertex, so it runs smoothly across a glyph.
         bool m_FadeActive;
-        int m_FadeLine;
-        float m_FadeCut, m_FadeDistance, m_FadeSign;
 
         void PrepareFade()
         {
             m_FadeActive = false;
-            foreach (Removal removal in m_Removals)
+            foreach (Removal removal in m_Aside.Removals)
             {
                 if (removal.FadeDistance.IsZero) continue;
                 float size = CurrentFontSize;
@@ -1095,10 +1092,10 @@ namespace FirstSymbol.Lettera
                     if (removal.Start < line.Start || removal.Start > line.End) continue;
                     bool rtl = (m_Paragraphs[line.Paragraph].Level & 1) != 0;
                     m_FadeActive = true;
-                    m_FadeLine = l;
-                    m_FadeSign = rtl ? -1 : 1;
-                    m_FadeDistance = distance;
-                    m_FadeCut = (rtl ? line.X : line.X + line.Width) - m_FadeSign * removal.FadeShift.Of(size);
+                    m_Aside.FadeLine = l;
+                    m_Aside.FadeSign = rtl ? -1 : 1;
+                    m_Aside.FadeDistance = distance;
+                    m_Aside.FadeCut = (rtl ? line.X : line.X + line.Width) - m_Aside.FadeSign * removal.FadeShift.Of(size);
                     return;
                 }
             }
@@ -1108,8 +1105,8 @@ namespace FirstSymbol.Lettera
         {
             for (int i = 0; i < 4; i++)
             {
-                float toCut = (m_FadeCut - Vertices[v + i].x) * m_FadeSign;
-                float fade = Mathf.Clamp01(toCut / m_FadeDistance);
+                float toCut = (m_Aside.FadeCut - Vertices[v + i].x) * m_Aside.FadeSign;
+                float fade = Mathf.Clamp01(toCut / m_Aside.FadeDistance);
                 Colors[v + i].a = (byte)(Colors[v + i].a * fade);
                 m_OwnAlpha[v + i] = Colors[v + i].a;
             }
@@ -1189,7 +1186,7 @@ namespace FirstSymbol.Lettera
             if (m_RecordOwners)
             {
                 EnsureOwnerSize(v / 4 + 1);
-                m_QuadOwner[v / 4] = m_CurrentOwner;
+                m_Aside.QuadOwner[v / 4] = m_CurrentOwner;
             }
             int i = IndexCount;
             Indices[i] = v;
@@ -1244,16 +1241,16 @@ namespace FirstSymbol.Lettera
                     Colors[i].b = baseColor.b;
                 }
             }
-            if (!m_WantsPose || m_Dirty >= DirtyLevel.Mesh || m_RestColors.Length < VertexCount) return;
+            if (!m_WantsPose || m_Dirty >= DirtyLevel.Mesh || m_Aside.RestColors.Length < VertexCount) return;
             // The fade goes under whatever a pose does to alpha.
             for (int i = 0; i < VertexCount; i++)
             {
-                m_RestColors[i].a = Colors[i].a;
+                m_Aside.RestColors[i].a = Colors[i].a;
                 if (m_AllTakeBase || (m_TrackBase && m_TakesBase[i]))
                 {
-                    m_RestColors[i].r = baseColor.r;
-                    m_RestColors[i].g = baseColor.g;
-                    m_RestColors[i].b = baseColor.b;
+                    m_Aside.RestColors[i].r = baseColor.r;
+                    m_Aside.RestColors[i].g = baseColor.g;
+                    m_Aside.RestColors[i].b = baseColor.b;
                 }
             }
         }
@@ -1270,7 +1267,7 @@ namespace FirstSymbol.Lettera
         /// </summary>
         public DirtyLevel LevelForColorChange()
         {
-            bool others = m_Attributes.Decorations.Count > 0 || m_Attributes.Layers.Count > 0 || m_Attributes.Highlights.Count > 0 || m_MarqueeCopies > 1 || m_StageHooks.Count > 0;
+            bool others = m_Attributes.Decorations.Count > 0 || m_Attributes.Layers.Count > 0 || m_Attributes.Highlights.Count > 0 || m_Aside.MarqueeCopies > 1 || m_Aside.StageHooks.Count > 0;
             if (others) return DirtyLevel.Mesh;
             if (m_TrackBase || (m_AllTakeBase && VertexCount > 0)) return DirtyLevel.Tint;
             m_TrackBase = true;

@@ -7,18 +7,11 @@ namespace FirstSymbol.Lettera
     // Effects that ask for it get called at the stages of a rebuild, and each frame for a pose. Others pay one count check per pass.
     internal sealed partial class TextEngine
     {
-        List<(LetteraEffect effect, int start, int end)> m_PoseHooks = Rare<(LetteraEffect effect, int start, int end)>.List;
-        List<(LetteraEffect effect, int start, int end)> m_StageHooks = Rare<(LetteraEffect effect, int start, int end)>.List;
-        List<Vector2Int> m_HookedHidden = Rare<Vector2Int>.List;
-        HashSet<LetteraEffect> m_HookFailed;
-        DirtyLevel m_HookStale;
-        bool m_HookRanBreak;
-
         void ClearStageHooks()
         {
-            m_PoseHooks.Clear();
-            m_StageHooks.Clear();
-            m_HookedHidden.Clear();
+            m_Aside.PoseHooks.Clear();
+            m_Aside.StageHooks.Clear();
+            m_Aside.HookedHidden.Clear();
         }
 
         void RegisterStages(LetteraEffect effect, int start, int end)
@@ -31,21 +24,21 @@ namespace FirstSymbol.Lettera
             if (effect == null) return;
             LetteraStages stages = effect.Stages;
             if (stages == LetteraStages.None) return;
-            if ((stages & ~LetteraStages.Pose) != 0) Own(ref m_StageHooks).Add((effect, start, end));
-            if ((stages & LetteraStages.Pose) != 0) Own(ref m_PoseHooks).Add((effect, start, end));
+            if ((stages & ~LetteraStages.Pose) != 0) Own(ref m_Aside.StageHooks).Add((effect, start, end));
+            if ((stages & LetteraStages.Pose) != 0) Own(ref m_Aside.PoseHooks).Add((effect, start, end));
         }
 
         void HookFailed(LetteraEffect effect, Exception e)
         {
-            if ((m_HookFailed ?? (m_HookFailed = new HashSet<LetteraEffect>())).Add(effect)) Debug.LogException(e, m_Host.Owner);
+            if ((m_Aside.HookFailed ?? (m_Aside.HookFailed = new HashSet<LetteraEffect>())).Add(effect)) Debug.LogException(e, m_Host.Owner);
         }
 
         void RunAnalyzedHooks()
         {
-            if (m_StageHooks.Count == 0) return;
-            for (int h = 0; h < m_StageHooks.Count; h++)
+            if (m_Aside.StageHooks.Count == 0) return;
+            for (int h = 0; h < m_Aside.StageHooks.Count; h++)
             {
-                (LetteraEffect effect, int start, int end) = m_StageHooks[h];
+                (LetteraEffect effect, int start, int end) = m_Aside.StageHooks[h];
                 if ((effect.Stages & LetteraStages.Analyzed) == 0) continue;
                 var view = new LetteraAnalysisView(this, start, end);
                 try { effect.OnAnalyzed(ref view); }
@@ -55,10 +48,10 @@ namespace FirstSymbol.Lettera
 
         void RunShapedHooks()
         {
-            if (m_StageHooks.Count == 0) return;
-            for (int h = 0; h < m_StageHooks.Count; h++)
+            if (m_Aside.StageHooks.Count == 0) return;
+            for (int h = 0; h < m_Aside.StageHooks.Count; h++)
             {
-                (LetteraEffect effect, int start, int end) = m_StageHooks[h];
+                (LetteraEffect effect, int start, int end) = m_Aside.StageHooks[h];
                 if ((effect.Stages & LetteraStages.Shaped) == 0) continue;
                 var view = new LetteraShapedView(this, start, end);
                 try { effect.OnShaped(ref view); }
@@ -69,17 +62,17 @@ namespace FirstSymbol.Lettera
         // The rest of a hook's asks wait for lines: a forced break means breaking them once more.
         void RunLinesHooks(float size, float width, bool wrap)
         {
-            if (m_StageHooks.Count == 0) return;
-            m_HookRanBreak = false;
-            for (int h = 0; h < m_StageHooks.Count; h++)
+            if (m_Aside.StageHooks.Count == 0) return;
+            m_Aside.HookRanBreak = false;
+            for (int h = 0; h < m_Aside.StageHooks.Count; h++)
             {
-                (LetteraEffect effect, int start, int end) = m_StageHooks[h];
+                (LetteraEffect effect, int start, int end) = m_Aside.StageHooks[h];
                 if ((effect.Stages & LetteraStages.LinesBroken) == 0) continue;
                 var view = new LetteraLinesView(this, start, end);
                 try { effect.OnLinesBroken(ref view); }
                 catch (Exception e) { HookFailed(effect, e); }
             }
-            if (!m_HookRanBreak) return;
+            if (!m_Aside.HookRanBreak) return;
             LineStats stats = BreakLines(m_Lines, size, width, wrap, true);
             m_ContentWidth = stats.MaxWidth;
             m_ContentHeight = stats.Height;
@@ -89,7 +82,7 @@ namespace FirstSymbol.Lettera
         {
             if (cp <= 0 || cp >= m_TextLength) return;
             m_Breaks[cp - 1] = Unicode.LineBreakOpportunity.Mandatory;
-            m_HookRanBreak = true;
+            m_Aside.HookRanBreak = true;
         }
 
         internal void HookGapBefore(int line, float units)
@@ -106,25 +99,25 @@ namespace FirstSymbol.Lettera
 
         internal void HookHide(int start, int end)
         {
-            Own(ref m_HookedHidden).Add(new Vector2Int(start, end));
+            Own(ref m_Aside.HookedHidden).Add(new Vector2Int(start, end));
         }
 
         // Hidden clusters go the way an elided one goes, after each layout clears those.
         void ApplyHookRemovals()
         {
-            for (int i = 0; i < m_HookedHidden.Count; i++)
+            for (int i = 0; i < m_Aside.HookedHidden.Count; i++)
             {
-                Vector2Int span = m_HookedHidden[i];
-                Own(ref m_Removals).Add(new Removal { Start = span.x, End = span.y, Anchor = span.x });
+                Vector2Int span = m_Aside.HookedHidden[i];
+                Own(ref m_Aside.Removals).Add(new Removal { Start = span.x, End = span.y, Anchor = span.x });
             }
         }
 
         void RunPlacedHooks()
         {
-            if (m_StageHooks.Count == 0) return;
-            for (int h = 0; h < m_StageHooks.Count; h++)
+            if (m_Aside.StageHooks.Count == 0) return;
+            for (int h = 0; h < m_Aside.StageHooks.Count; h++)
             {
-                (LetteraEffect effect, int start, int end) = m_StageHooks[h];
+                (LetteraEffect effect, int start, int end) = m_Aside.StageHooks[h];
                 if ((effect.Stages & LetteraStages.Placed) == 0) continue;
                 var view = new LetteraPlacedView(this, start, end);
                 try { effect.OnPlaced(ref view); }
@@ -134,11 +127,11 @@ namespace FirstSymbol.Lettera
 
         void RunMeshHooks()
         {
-            if (m_StageHooks.Count == 0) return;
+            if (m_Aside.StageHooks.Count == 0) return;
             m_CurrentOwner = -1;
-            for (int h = 0; h < m_StageHooks.Count; h++)
+            for (int h = 0; h < m_Aside.StageHooks.Count; h++)
             {
-                (LetteraEffect effect, int start, int end) = m_StageHooks[h];
+                (LetteraEffect effect, int start, int end) = m_Aside.StageHooks[h];
                 if ((effect.Stages & LetteraStages.Mesh) == 0) continue;
                 var view = new LetteraMeshView(this, start, end);
                 try { effect.OnMesh(ref view); }
@@ -148,10 +141,10 @@ namespace FirstSymbol.Lettera
 
         void RunPoseHooks()
         {
-            if (m_PoseHooks.Count == 0) return;
-            for (int h = 0; h < m_PoseHooks.Count; h++)
+            if (m_Aside.PoseHooks.Count == 0) return;
+            for (int h = 0; h < m_Aside.PoseHooks.Count; h++)
             {
-                (LetteraEffect effect, int start, int end) = m_PoseHooks[h];
+                (LetteraEffect effect, int start, int end) = m_Aside.PoseHooks[h];
                 var view = new LetteraPoseView(this, start, end);
                 try { effect.OnPose(ref view); }
                 catch (Exception e) { HookFailed(effect, e); }
@@ -166,17 +159,15 @@ namespace FirstSymbol.Lettera
                 m_PoseDirty = true;
                 return;
             }
-            m_EarlyHookLevel = level;
+            m_Aside.EarlyHookLevel = level;
         }
-
-        DirtyLevel m_EarlyHookLevel;
 
         // A rerun a hook asked for goes to the next frame, so it can never loop inside one.
         void ApplyHookStale()
         {
-            if (m_EarlyHookLevel == DirtyLevel.None) return;
-            DirtyLevel level = m_EarlyHookLevel;
-            m_EarlyHookLevel = DirtyLevel.None;
+            if (m_Aside.EarlyHookLevel == DirtyLevel.None) return;
+            DirtyLevel level = m_Aside.EarlyHookLevel;
+            m_Aside.EarlyHookLevel = DirtyLevel.None;
             SetDirty(level);
             m_Host.RequestRebuild(level);
         }
@@ -205,29 +196,29 @@ namespace FirstSymbol.Lettera
         internal LetteraLine LineForHooks(int line) => m_Lines[line];
         internal int PlacedCountForHooks => m_PlacedCount;
         internal ref PlacedGlyph PlacedForHooks(int i) => ref m_Placed[i];
-        internal void HookPose(int glyph, in LetteraGlyphPose pose) => m_GlyphPoses[glyph] = pose.After(m_GlyphPoses[glyph]);
-        internal LetteraGlyphPose HookPoseOf(int glyph) => m_GlyphPoses[glyph];
+        internal void HookPose(int glyph, in LetteraGlyphPose pose) => m_Aside.GlyphPoses[glyph] = pose.After(m_Aside.GlyphPoses[glyph]);
+        internal LetteraGlyphPose HookPoseOf(int glyph) => m_Aside.GlyphPoses[glyph];
         internal void HookSolid(float left, float bottom, float right, float top, Color32 color)
         {
             UseSegment(s_NoPaint);
             AddSolid(left, bottom, right, top, color, s_NoPaint, default, 0, 0);
         }
-        internal void HookInvalidateActive() => m_ActiveRectsValid = false;
+        internal void HookInvalidateActive() => m_Aside.ActiveRectsValid = false;
 
         // For tests.
-        internal int HookFailureCount => m_HookFailed?.Count ?? 0;
+        internal int HookFailureCount => m_Aside.HookFailed?.Count ?? 0;
         internal Unicode.LineBreakOpportunity BreakAfterForTests(int cp) => m_Breaks[cp];
-        internal int MotionBodiesForTests(int span) => m_MotionSpans[span].BodyCount;
+        internal int MotionBodiesForTests(int span) => m_Aside.MotionSpans[span].BodyCount;
         internal int DocCharOfLineForTests(int line) => SourceAt(m_Lines[line].Start);
         internal FontChain ChainForTests => m_Chain;
         internal LetteraAttributes AttributesForTests => m_Attributes;
         internal int HoldCount => m_Holds.Count;
-        internal int OwnerOfQuad(int quad) => m_QuadOwner[quad];
+        internal int OwnerOfQuad(int quad) => m_Aside.QuadOwner[quad];
         internal int ClusterOfGlyph(int glyph) => m_Placed[glyph].Cluster;
         internal float MotionValueForTests(int span, int slot)
         {
             if (m_WantsPose) RunPosePass();
-            return m_MotionSpans[span].Effective[slot];
+            return m_Aside.MotionSpans[span].Effective[slot];
         }
         internal int SourceOfRenderedForTests(int cp) => SourceAt(cp);
         internal uint ShapedGlyphIdForTests(int i) => m_Shaped[i].Glyph;

@@ -29,10 +29,10 @@ namespace FirstSymbol.Lettera
         // Each thing a formula draws is a glyph only the mesh sees, so color, layers, reveal and motion reach it with nothing further.
         void PlaceFormulas()
         {
-            m_MathSpecials.Clear();
-            for (int i = 0; i < m_InlineItems.Count; i++)
+            m_Aside.MathSpecials.Clear();
+            for (int i = 0; i < m_Aside.InlineItems.Count; i++)
             {
-                InlineItem item = m_InlineItems[i];
+                InlineItem item = m_Aside.InlineItems[i];
                 if (item.Math == null) continue;
                 int glyph = FirstGlyphOf(item.Cp);
                 if (glyph < 0) continue;
@@ -53,9 +53,9 @@ namespace FirstSymbol.Lettera
                     };
                     bool colored = part.Color > 0 && part.Color <= item.Math.Colors.Length;
                     // A glyph holds this in the room a plain text already pays for. Past it, a part draws plain.
-                    if (m_MathSpecials.Count >= ushort.MaxValue)
+                    if (m_Aside.MathSpecials.Count >= ushort.MaxValue)
                     {
-                        if (part.Kind != MathItemKind.Rule) Own(ref m_VirtualGlyphs).Add(placed);
+                        if (part.Kind != MathItemKind.Rule) Own(ref m_Aside.VirtualGlyphs).Add(placed);
                         continue;
                     }
                     if (part.Kind == MathItemKind.Rule)
@@ -73,16 +73,16 @@ namespace FirstSymbol.Lettera
                         placed.Special = SpecialRule;
                         placed.Size = em;
                         placed.Unit = em / 1000;
-                        placed.SpecialIndex = (ushort)m_MathSpecials.Count;
-                        Own(ref m_MathSpecials).Add(new MathSpecial { Length = part.Length * 1000, Thickness = part.Thickness * 1000, Vertical = part.Vertical, HasColor = colored, Color = colored ? item.Math.Colors[part.Color - 1] : default });
+                        placed.SpecialIndex = (ushort)m_Aside.MathSpecials.Count;
+                        Own(ref m_Aside.MathSpecials).Add(new MathSpecial { Length = part.Length * 1000, Thickness = part.Thickness * 1000, Vertical = part.Vertical, HasColor = colored, Color = colored ? item.Math.Colors[part.Color - 1] : default });
                     }
                     else if (part.Cropped || colored)
                     {
                         placed.Special = part.Cropped ? SpecialCrop : SpecialColor;
-                        placed.SpecialIndex = (ushort)m_MathSpecials.Count;
-                        Own(ref m_MathSpecials).Add(new MathSpecial { Low = part.CropLow, High = part.CropHigh, Vertical = part.Vertical, HasColor = colored, Color = colored ? item.Math.Colors[part.Color - 1] : default });
+                        placed.SpecialIndex = (ushort)m_Aside.MathSpecials.Count;
+                        Own(ref m_Aside.MathSpecials).Add(new MathSpecial { Low = part.CropLow, High = part.CropHigh, Vertical = part.Vertical, HasColor = colored, Color = colored ? item.Math.Colors[part.Color - 1] : default });
                     }
-                    Own(ref m_VirtualGlyphs).Add(placed);
+                    Own(ref m_Aside.VirtualGlyphs).Add(placed);
                 }
             }
         }
@@ -138,14 +138,10 @@ namespace FirstSymbol.Lettera
             public Color32 Color;
         }
 
-        List<MathSpecial> m_MathSpecials = Rare<MathSpecial>.List;
-
-        int m_FormulaCount;
-
         /// <summary>A rule's three quads, a part cut at its seam, or a glyph in a color of its own. Plain text never comes here.</summary>
         void AddSpecialQuad(in PlacedGlyph g, in AtlasGlyph atlas, Color32 color, float mode, float threshold, float softness, float upper, in ResolvedPaint paint, in Rect paintRect, float paintDx, float paintDy, Vector4 extra)
         {
-            MathSpecial special = m_MathSpecials[g.SpecialIndex];
+            MathSpecial special = m_Aside.MathSpecials[g.SpecialIndex];
             if (special.HasColor)
             {
                 byte alpha = color.a;
@@ -189,18 +185,15 @@ namespace FirstSymbol.Lettera
             }
         }
 
-        List<InlineItem> m_InlineItems = Rare<InlineItem>.List;
-        Dictionary<int, int> m_InlineByCp = Rare<int, int>.Map;
-
-        internal IReadOnlyList<InlineItem> InlineItems => m_InlineItems;
-        public bool HasInline => m_InlineItems.Count > 0;
+        internal IReadOnlyList<InlineItem> InlineItems => m_Aside.InlineItems;
+        public bool HasInline => m_Aside.InlineItems.Count > 0;
 
         bool HasInlineSprites
         {
             get
             {
-                for (int i = 0; i < m_InlineItems.Count; i++)
-                    if (m_InlineItems[i].Entry?.Sprite != null)
+                for (int i = 0; i < m_Aside.InlineItems.Count; i++)
+                    if (m_Aside.InlineItems[i].Entry?.Sprite != null)
                         return true;
                 return false;
             }
@@ -212,21 +205,21 @@ namespace FirstSymbol.Lettera
         // After effects ran. An item's width and line room reach layout through the same extras any spacing effect uses.
         void CollectInlineItems()
         {
-            bool had = m_InlineItems.Count > 0;
-            m_InlineItems.Clear();
-            m_InlineByCp.Clear();
-            m_FormulaCount = 0;
+            bool had = m_Aside.InlineItems.Count > 0;
+            m_Aside.InlineItems.Clear();
+            m_Aside.InlineByCp.Clear();
+            m_Aside.FormulaCount = 0;
             List<LetteraAttributes.InlineRequest> requests = m_Attributes.InlineRequests;
             for (int r = 0; r < requests.Count; r++)
             {
                 LetteraAttributes.InlineRequest request = requests[r];
                 if (request.Start >= m_TextLength || m_Text[request.Start] != 0xFFFC) continue;
                 InlineItem item = request.Effect.ResolveIn(this, request.Slots, request.Start);
-                if (item.Math != null) m_FormulaCount++;
-                Own(ref m_InlineByCp)[item.Cp] = m_InlineItems.Count;
-                Own(ref m_InlineItems).Add(item);
+                if (item.Math != null) m_Aside.FormulaCount++;
+                Own(ref m_Aside.InlineByCp)[item.Cp] = m_Aside.InlineItems.Count;
+                Own(ref m_Aside.InlineItems).Add(item);
             }
-            if (m_InlineItems.Count > 0 || had) m_InlinePlacedPending = true;
+            if (m_Aside.InlineItems.Count > 0 || had) m_InlinePlacedPending = true;
         }
 
         bool m_InlinePlacedPending;
@@ -234,9 +227,9 @@ namespace FirstSymbol.Lettera
         // The extra width in em, for the cluster at a codepoint.
         internal bool TryInlineAdvance(int cp, out float em)
         {
-            if (m_InlineItems.Count > 0 && m_InlineByCp.TryGetValue(cp, out int item))
+            if (m_Aside.InlineItems.Count > 0 && m_Aside.InlineByCp.TryGetValue(cp, out int item))
             {
-                em = m_InlineItems[item].Advance;
+                em = m_Aside.InlineItems[item].Advance;
                 return true;
             }
             em = 0;
@@ -246,10 +239,10 @@ namespace FirstSymbol.Lettera
         // Room a line keeps for what stands in it, in em of the size given.
         internal void InlineLineExtents(int start, int end, float size, ref float ascent, ref float descent)
         {
-            if (m_InlineItems.Count == 0) return;
-            for (int i = 0; i < m_InlineItems.Count; i++)
+            if (m_Aside.InlineItems.Count == 0) return;
+            for (int i = 0; i < m_Aside.InlineItems.Count; i++)
             {
-                InlineItem item = m_InlineItems[i];
+                InlineItem item = m_Aside.InlineItems[i];
                 if (item.Cp < start || item.Cp >= end) continue;
                 ascent = Mathf.Max(ascent, item.Above * size);
                 descent = Mathf.Max(descent, item.Below * size);
@@ -261,9 +254,9 @@ namespace FirstSymbol.Lettera
         {
             box = default;
             glyph = FirstGlyphOf(cp);
-            if (glyph < 0 || !m_InlineByCp.TryGetValue(cp, out int index)) return false;
+            if (glyph < 0 || !m_Aside.InlineByCp.TryGetValue(cp, out int index)) return false;
             ref PlacedGlyph g = ref m_Placed[glyph];
-            InlineItem item = m_InlineItems[index];
+            InlineItem item = m_Aside.InlineItems[index];
             float em = g.Size;
             box = new Rect(g.X, g.Y + item.Lift * em, item.BoxSize.x * em, item.BoxSize.y * em);
             return true;
@@ -272,10 +265,10 @@ namespace FirstSymbol.Lettera
         // Sprites draw with the face, one quad to a glyph with a texture paint, so motion, reveal and alpha need nothing further.
         void DrawInlineSprites()
         {
-            if (m_InlineItems.Count == 0) return;
-            for (int i = 0; i < m_InlineItems.Count; i++)
+            if (m_Aside.InlineItems.Count == 0) return;
+            for (int i = 0; i < m_Aside.InlineItems.Count; i++)
             {
-                InlineItem item = m_InlineItems[i];
+                InlineItem item = m_Aside.InlineItems[i];
                 Sprite sprite = item.Entry?.Sprite;
                 if (sprite == null || !TryInlineBox(item.Cp, out Rect box, out int glyph)) continue;
                 if (m_RecordOwners) m_CurrentOwner = glyph;
@@ -298,20 +291,20 @@ namespace FirstSymbol.Lettera
         // What takes its width from the item, not from any font: shaped with no glyph to draw, in the primary face.
         void PrepareInlineShaping()
         {
-            for (int i = 0; i < m_InlineItems.Count; i++) m_ShapeText[m_InlineItems[i].Cp] = 0xA0;
+            for (int i = 0; i < m_Aside.InlineItems.Count; i++) m_ShapeText[m_Aside.InlineItems[i].Cp] = 0xA0;
         }
 
         void AddInlineExtras()
         {
-            for (int i = 0; i < m_InlineItems.Count; i++)
+            for (int i = 0; i < m_Aside.InlineItems.Count; i++)
             {
-                InlineItem item = m_InlineItems[i];
+                InlineItem item = m_Aside.InlineItems[i];
                 m_CpExtraEm[item.Cp] += item.Advance - m_CpAdvanceEm[item.Cp];
             }
         }
 
         // No pixels of the fallback box go out, whatever a font does for this character.
-        bool IsInlineCp(int cp) => m_InlineItems.Count > 0 && m_InlineByCp.ContainsKey(cp);
+        bool IsInlineCp(int cp) => m_Aside.InlineItems.Count > 0 && m_Aside.InlineByCp.ContainsKey(cp);
 
         void AddSpriteQuad(in Rect box, Sprite sprite, Color32 tint)
         {
@@ -332,47 +325,47 @@ namespace FirstSymbol.Lettera
 
         internal bool SpanHasInline(int start, int end)
         {
-            for (int i = 0; i < m_InlineItems.Count; i++)
-                if (m_InlineItems[i].Cp >= start && m_InlineItems[i].Cp < end)
+            for (int i = 0; i < m_Aside.InlineItems.Count; i++)
+                if (m_Aside.InlineItems[i].Cp >= start && m_Aside.InlineItems[i].Cp < end)
                     return true;
             return false;
         }
 
         internal bool SpanHasSprite(int start, int end)
         {
-            for (int i = 0; i < m_InlineItems.Count; i++)
-                if (m_InlineItems[i].Cp >= start && m_InlineItems[i].Cp < end && m_InlineItems[i].Math == null)
+            for (int i = 0; i < m_Aside.InlineItems.Count; i++)
+                if (m_Aside.InlineItems[i].Cp >= start && m_Aside.InlineItems[i].Cp < end && m_Aside.InlineItems[i].Math == null)
                     return true;
             return false;
         }
 
         internal bool SpanHasFormula(int start, int end)
         {
-            if (m_FormulaCount == 0) return false;
-            for (int i = 0; i < m_InlineItems.Count; i++)
-                if (m_InlineItems[i].Cp >= start && m_InlineItems[i].Cp < end && m_InlineItems[i].Math != null)
+            if (m_Aside.FormulaCount == 0) return false;
+            for (int i = 0; i < m_Aside.InlineItems.Count; i++)
+                if (m_Aside.InlineItems[i].Cp >= start && m_Aside.InlineItems[i].Cp < end && m_Aside.InlineItems[i].Math != null)
                     return true;
             return false;
         }
 
-        internal bool IsFormulaAt(int cp) => m_FormulaCount > 0 && m_InlineByCp.TryGetValue(cp, out int item) && m_InlineItems[item].Math != null;
+        internal bool IsFormulaAt(int cp) => m_Aside.FormulaCount > 0 && m_Aside.InlineByCp.TryGetValue(cp, out int item) && m_Aside.InlineItems[item].Math != null;
 
-        internal string FormulaSourceAt(int cp) => m_InlineByCp.TryGetValue(cp, out int item) ? m_InlineItems[item].MathSource : null;
+        internal string FormulaSourceAt(int cp) => m_Aside.InlineByCp.TryGetValue(cp, out int item) ? m_Aside.InlineItems[item].MathSource : null;
 
-        internal bool FormulaIsDisplay(int cp) => m_InlineByCp.TryGetValue(cp, out int item) && m_InlineItems[item].MathDisplay;
+        internal bool FormulaIsDisplay(int cp) => m_Aside.InlineByCp.TryGetValue(cp, out int item) && m_Aside.InlineItems[item].MathDisplay;
 
         /// <summary>What a formula says to a screen reader: its alternative text, else its source.</summary>
         internal string FormulaLabelAt(int cp)
         {
-            if (!m_InlineByCp.TryGetValue(cp, out int item)) return null;
-            return string.IsNullOrEmpty(m_InlineItems[item].Alt) ? m_InlineItems[item].MathSource : m_InlineItems[item].Alt;
+            if (!m_Aside.InlineByCp.TryGetValue(cp, out int item)) return null;
+            return string.IsNullOrEmpty(m_Aside.InlineItems[item].Alt) ? m_Aside.InlineItems[item].MathSource : m_Aside.InlineItems[item].Alt;
         }
 
         internal void CollectFormulas(List<LetteraFormulaInfo> output)
         {
-            for (int i = 0; i < m_InlineItems.Count; i++)
+            for (int i = 0; i < m_Aside.InlineItems.Count; i++)
             {
-                InlineItem item = m_InlineItems[i];
+                InlineItem item = m_Aside.InlineItems[i];
                 if (item.Math == null) continue;
                 int glyph = FirstGlyphOf(item.Cp);
                 Rect box = default;
@@ -390,7 +383,7 @@ namespace FirstSymbol.Lettera
 
         void RaiseInlinePlaced()
         {
-            if (m_InlineItems.Count == 0 && !m_InlinePlacedPending) return;
+            if (m_Aside.InlineItems.Count == 0 && !m_InlinePlacedPending) return;
             m_InlinePlacedPending = false;
             // Most texts never hold an inline object, so what looks after them comes with the first.
             if (InlinePlaced == null && m_Host is Component) LetteraInlineObjects.Attach(this, m_Host.Owner);

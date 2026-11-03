@@ -6,7 +6,7 @@ using UnityEngine.Rendering;
 namespace FirstSymbol.Lettera
 {
     [Flags]
-    public enum LetteraSurfaceTier { None = 0, UiPlain = 1, UiStyled = 2, WorldPlain = 4, WorldStyled = 8, WorldLit = 16, WorldLitStyled = 32, All = 63 }
+    public enum LetteraSurfaceTier { None = 0, UiPlain = 1, UiStyled = 2, WorldPlain = 4, WorldStyled = 8, WorldLit = 16, WorldLitStyled = 32, UiMerged = 64, All = 127 }
 
     public struct LetteraWarmUpOptions
     {
@@ -74,6 +74,8 @@ namespace FirstSymbol.Lettera
         {
             GlyphAtlasRegistration.EnsureRegistered();
             _ = LetteraMaterials.Ui;
+            // The merged variant too: a first Canvas text with a stroke and a shadow in glyph order would make its material in its frame.
+            _ = LetteraMaterials.Variant(LetteraMaterials.Ui, true, LetteraBlend.Normal, null, true);
             TextEngine.PrepareFor(font, stack, characters ?? Latin, size);
             GlyphAtlas.Flush();
         }
@@ -89,12 +91,12 @@ namespace FirstSymbol.Lettera
         public static List<LetteraShaderVariant> AllVariantsOf(LetteraSurfaceTier tiers, LetteraWarmUpOptions options = default)
         {
             var variants = new List<LetteraShaderVariant>();
-            foreach (LetteraSurfaceTier tier in new[] { LetteraSurfaceTier.UiPlain, LetteraSurfaceTier.UiStyled, LetteraSurfaceTier.WorldPlain, LetteraSurfaceTier.WorldStyled, LetteraSurfaceTier.WorldLit, LetteraSurfaceTier.WorldLitStyled })
+            foreach (LetteraSurfaceTier tier in new[] { LetteraSurfaceTier.UiPlain, LetteraSurfaceTier.UiStyled, LetteraSurfaceTier.UiMerged, LetteraSurfaceTier.WorldPlain, LetteraSurfaceTier.WorldStyled, LetteraSurfaceTier.WorldLit, LetteraSurfaceTier.WorldLitStyled })
             {
                 if ((tiers & tier) == 0) continue;
                 variants.Add(new LetteraShaderVariant(tier, false, false));
                 // Clipping is a keyword of the UI shaders only.
-                if (tier != LetteraSurfaceTier.UiPlain && tier != LetteraSurfaceTier.UiStyled) continue;
+                if (tier != LetteraSurfaceTier.UiPlain && tier != LetteraSurfaceTier.UiStyled && tier != LetteraSurfaceTier.UiMerged) continue;
                 if (options.Clip) variants.Add(new LetteraShaderVariant(tier, true, false));
                 if (options.AlphaClip) variants.Add(new LetteraShaderVariant(tier, false, true));
             }
@@ -168,11 +170,12 @@ namespace FirstSymbol.Lettera
 
         static void Draw(in LetteraShaderVariant variant, RenderTextureFormat format)
         {
-            bool styled = variant.Tier == LetteraSurfaceTier.UiStyled || variant.Tier == LetteraSurfaceTier.WorldStyled || variant.Tier == LetteraSurfaceTier.WorldLitStyled;
-            Material source = variant.Tier == LetteraSurfaceTier.UiPlain || variant.Tier == LetteraSurfaceTier.UiStyled ? LetteraMaterials.Ui
+            bool merged = variant.Tier == LetteraSurfaceTier.UiMerged;
+            bool styled = merged || variant.Tier == LetteraSurfaceTier.UiStyled || variant.Tier == LetteraSurfaceTier.WorldStyled || variant.Tier == LetteraSurfaceTier.WorldLitStyled;
+            Material source = variant.Tier == LetteraSurfaceTier.UiPlain || variant.Tier == LetteraSurfaceTier.UiStyled || merged ? LetteraMaterials.Ui
                 : variant.Tier == LetteraSurfaceTier.WorldPlain || variant.Tier == LetteraSurfaceTier.WorldStyled ? LetteraMaterials.World : LetteraMaterials.WorldLit;
             if (source == null) return;
-            var material = new Material(LetteraMaterials.Variant(source, styled, LetteraBlend.Normal, null)) { hideFlags = HideFlags.HideAndDontSave };
+            var material = new Material(LetteraMaterials.Variant(source, styled, LetteraBlend.Normal, null, merged)) { hideFlags = HideFlags.HideAndDontSave };
             if (variant.Clip) material.EnableKeyword("UNITY_UI_CLIP_RECT");
             if (variant.AlphaClip) material.EnableKeyword("UNITY_UI_ALPHACLIP");
 
