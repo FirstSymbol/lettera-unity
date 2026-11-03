@@ -276,17 +276,22 @@ namespace FirstSymbol.Lettera
                 // The face looks along -Z; a mirrored text still has its normal towards the viewer.
                 Vector3 normal = m.MultiplyVector(Vector3.back).normalized;
                 if (m.determinant < 0) normal = -normal;
-                for (int i = 0; i < e.VertexCount; i++)
+                PlaceVertices(e.Vertices, s_Vertices, vertexCount, e.VertexCount, m);
+                Array.Fill(s_Normals, normal, vertexCount, e.VertexCount);
+                Array.Copy(e.Colors, 0, s_Colors, vertexCount, e.VertexCount);
+                Array.Copy(e.Uv0, 0, s_Uv0, vertexCount, e.VertexCount);
+                Array.Copy(e.Uv1, 0, s_Uv1, vertexCount, e.VertexCount);
+                if (e.Styled)
                 {
-                    s_Vertices[vertexCount + i] = m.MultiplyPoint3x4(e.Vertices[i]);
-                    s_Normals[vertexCount + i] = normal;
-                    s_Colors[vertexCount + i] = e.Colors[i];
-                    s_Uv0[vertexCount + i] = e.Uv0[i];
-                    s_Uv1[vertexCount + i] = e.Uv1[i];
-                    s_Uv2[vertexCount + i] = e.Styled ? e.Uv2[i] : default;
-                    s_Uv3[vertexCount + i] = e.Styled ? e.Uv3[i] : default;
+                    Array.Copy(e.Uv2, 0, s_Uv2, vertexCount, e.VertexCount);
+                    Array.Copy(e.Uv3, 0, s_Uv3, vertexCount, e.VertexCount);
                 }
-                for (int i = 0; i < e.IndexCount; i++) s_Indices[indexCount + i] = e.Indices[i] + vertexCount;
+                else
+                {
+                    Array.Clear(s_Uv2, vertexCount, e.VertexCount);
+                    Array.Clear(s_Uv3, vertexCount, e.VertexCount);
+                }
+                Offset(e.Indices, s_Indices, indexCount, e.IndexCount, vertexCount);
                 s_ShardStyled |= e.Styled;
                 foreach (MeshSegment segment in e.Segments) AddRun(indexCount + segment.IndexStart, segment.IndexCount, e.Styled, segment.Blend, segment.Texture, segment.Custom);
                 vertexCount += e.VertexCount;
@@ -297,6 +302,28 @@ namespace FirstSymbol.Lettera
             {
                 if (batch.Shards[i].Mesh != null) batch.Shards[i].Mesh.Clear(false);
             }
+        }
+
+        // A text's vertices into the shard's, with the matrix read once: thousands of texts merge in one frame when a scene starts.
+        [Unity.IL2CPP.CompilerServices.Il2CppSetOption(Unity.IL2CPP.CompilerServices.Option.ArrayBoundsChecks, false)]
+        static void PlaceVertices(Vector3[] from, Vector3[] to, int at, int count, in Matrix4x4 m)
+        {
+            float m00 = m.m00, m01 = m.m01, m02 = m.m02, m03 = m.m03;
+            float m10 = m.m10, m11 = m.m11, m12 = m.m12, m13 = m.m13;
+            float m20 = m.m20, m21 = m.m21, m22 = m.m22, m23 = m.m23;
+            if (at + count > to.Length || count > from.Length) throw new ArgumentOutOfRangeException(nameof(count));
+            for (int i = 0; i < count; i++)
+            {
+                Vector3 p = from[i];
+                to[at + i] = new Vector3(m00 * p.x + m01 * p.y + m02 * p.z + m03, m10 * p.x + m11 * p.y + m12 * p.z + m13, m20 * p.x + m21 * p.y + m22 * p.z + m23);
+            }
+        }
+
+        [Unity.IL2CPP.CompilerServices.Il2CppSetOption(Unity.IL2CPP.CompilerServices.Option.ArrayBoundsChecks, false)]
+        static void Offset(int[] from, int[] to, int at, int count, int offset)
+        {
+            if (at + count > to.Length || count > from.Length) throw new ArgumentOutOfRangeException(nameof(count));
+            for (int i = 0; i < count; i++) to[at + i] = from[i] + offset;
         }
 
         static readonly Comparison<Entry> s_BySortingOrder = (a, b) =>

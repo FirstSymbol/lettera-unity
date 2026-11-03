@@ -178,6 +178,7 @@ namespace FirstSymbol.Lettera
             if (Application.isPlaying) Destroy(m_Mesh);
             else DestroyImmediate(m_Mesh);
             m_Mesh = null;
+            m_MeshInStreams = false;
         }
 
         protected override void OnCanvasHierarchyChanged()
@@ -550,7 +551,11 @@ namespace FirstSymbol.Lettera
 
         void UploadMesh()
         {
-            if (m_Mesh == null) m_Mesh = new Mesh { name = "Lettera Text", hideFlags = HideFlags.HideAndDontSave };
+            if (m_Mesh == null)
+            {
+                m_Mesh = new Mesh { name = "Lettera Text", hideFlags = HideFlags.HideAndDontSave };
+                m_MeshInStreams = false;
+            }
             TextEngine e = Engine;
             if (!e.Styled)
             {
@@ -590,8 +595,15 @@ namespace FirstSymbol.Lettera
             {
                 m_Mesh.Clear(false);
                 m_MeshInStreams = true;
+                m_StreamRoom = m_StreamIndices = -1;
             }
-            m_Mesh.SetVertexBufferParams(count, s_Streams);
+            // Sizing the buffer is what costs, not writing it: the same count keeps it, and a long text keeps some room, so a scroll that changes
+            // its count a little each frame writes vertices only. What lies past the count is no quad's, since no index reaches it.
+            if (count > m_StreamRoom || count < m_StreamRoom - StreamSlack(m_StreamRoom))
+            {
+                m_StreamRoom = count + StreamSlack(count) / 2;
+                m_Mesh.SetVertexBufferParams(m_StreamRoom, s_Streams);
+            }
             m_Mesh.SetVertexBufferData(e.Vertices, 0, 0, count, 0, QuietUpload);
             m_Mesh.SetVertexBufferData(e.Colors, 0, 0, count, 1, QuietUpload);
             m_Mesh.SetVertexBufferData(e.Uv0, 0, 0, count, 2, QuietUpload);
@@ -599,17 +611,28 @@ namespace FirstSymbol.Lettera
             int segments = e.Segments.Count;
             if (segments <= 1)
             {
-                m_Mesh.subMeshCount = 1;
-                m_Mesh.SetIndices(e.Indices, 0, e.IndexCount, MeshTopology.Triangles, 0, false);
+                // Quads written in order have the same indices for the same count, and those are already there.
+                if (e.IndexCount != m_StreamIndices || e.IndexCount * 2 != count * 3)
+                {
+                    m_Mesh.subMeshCount = 1;
+                    m_Mesh.SetIndices(e.Indices, 0, e.IndexCount, MeshTopology.Triangles, 0, false);
+                    m_StreamIndices = e.IndexCount * 2 == count * 3 ? e.IndexCount : -1;
+                }
             }
             else
             {
+                m_StreamIndices = -1;
                 m_Mesh.subMeshCount = segments;
                 for (int i = 0; i < segments; i++)
                     m_Mesh.SetIndices(e.Indices, e.Segments[i].IndexStart, e.Segments[i].IndexCount, MeshTopology.Triangles, i, false);
             }
             m_Mesh.bounds = e.MeshBounds;
         }
+
+        int m_StreamRoom = -1, m_StreamIndices = -1;
+
+        // A short text's buffer is exact; a long one keeps an eighth to spare.
+        static int StreamSlack(int vertices) => vertices >= 2048 ? vertices / 8 & ~3 : 0;
 
         // The materials of the last rebuild's stretches, to see when the renderer needs new ones.
         readonly System.Collections.Generic.List<MeshSegment> m_LastSegments = new System.Collections.Generic.List<MeshSegment>();
