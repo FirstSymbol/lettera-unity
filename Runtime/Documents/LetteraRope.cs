@@ -1003,7 +1003,7 @@ namespace FirstSymbol.Lettera
         /// <summary>Takes every character through Step, for a test that holds the stretches to it.</summary>
         internal static bool NoPlainStretches;
 
-        static bool IsPlainAscii(char c) => c != '<' && c != '>' && c != '\n' && c != '\r' && c != ' ' && c != '\t';
+        static bool IsPlainAscii(char c) => c != '<' && c != '>' && c != '\n' && c != '\r';
 
         internal static List<LetteraRope.Block> SplitChars(ReadOnlySpan<char> text, LetteraMarkupTriggers triggers)
         {
@@ -1021,11 +1021,12 @@ namespace FirstSymbol.Lettera
             while (i < text.Length)
             {
                 char first = text[i];
-                // A stretch of letters with nothing Step looks at: each one starts a cluster and counts one, and the block's limit is the only cut.
-                if (first < 128 && !NoPlainStretches && IsPlainAscii(first))
+                // A stretch of letters and spaces with nothing else Step looks at: each one starts a cluster and counts one, a space outside a tag
+                // is a place to cut, and the block's limit is the only cut that can come.
+                if (first < 128 && !NoPlainStretches && !c.InTag && IsPlainAscii(first))
                 {
                     int limit = Math.Min(text.Length, i + LetteraRope.LimitChars - c.Chars);
-                    int j = i;
+                    int j = i, afterSpace = -1;
                     bool trigger = triggers == null;
                     while (j < limit)
                     {
@@ -1033,10 +1034,16 @@ namespace FirstSymbol.Lettera
                         if (next >= 128 || !IsPlainAscii(next)) break;
                         if (!trigger && triggers.Contains(next)) trigger = true;
                         j++;
+                        if (next == ' ' || next == '\t') afterSpace = j;
                     }
                     if (j > i)
                     {
                         int n = j - i;
+                        if (afterSpace >= 0)
+                        {
+                            int upTo = afterSpace - i;
+                            c.AtBreak = new Mark { Position = afterSpace, Chars = c.Chars + upTo, Codepoints = c.Codepoints + upTo, Paragraphs = c.Paragraphs, Set = true };
+                        }
                         c.AtCluster = new Mark { Position = j - 1, Chars = c.Chars + n - 1, Codepoints = c.Codepoints + n - 1, Paragraphs = c.Paragraphs, Set = c.Chars + n - 1 > 0 };
                         c.Chars += n;
                         c.Codepoints += n;
