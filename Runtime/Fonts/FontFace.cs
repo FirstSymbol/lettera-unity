@@ -154,7 +154,7 @@ namespace FirstSymbol.Lettera
         public static FontFace FromBytes(byte[] bytes, int index, LetteraFontSource source = LetteraFontSource.InMemory)
         {
             if (bytes == null || bytes.Length == 0) return null;
-            if (LetteraNative.Version >= 99)
+            if (LetteraNative.Version >= 4)
             {
                 var pin = System.Runtime.InteropServices.GCHandle.Alloc(bytes, System.Runtime.InteropServices.GCHandleType.Pinned);
                 IntPtr borrowed = LetteraNative.lt_face_create_borrowed((byte*)pin.AddrOfPinnedObject(), bytes.Length, index);
