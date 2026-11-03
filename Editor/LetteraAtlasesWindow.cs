@@ -83,8 +83,7 @@ namespace FirstSymbol.Lettera.Editor
 
         static long Bytes()
         {
-            const long Page = 2048L * 2048;
-            return GlyphAtlas.SdfPageCount * Page + GlyphAtlas.MsdfPageCount * Page * 4 + GlyphAtlas.ColorPageCount * Page * 4;
+            return GlyphAtlas.PageBytes;
         }
 
         void Refresh()

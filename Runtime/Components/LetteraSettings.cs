@@ -61,6 +61,7 @@ namespace FirstSymbol.Lettera
         [SerializeField] LetteraPlatformSettings m_Platform = new LetteraPlatformSettings();
         [SerializeField] LetteraFontMemorySettings m_FontMemory = new LetteraFontMemorySettings();
         [SerializeField] LetteraMemorySettings m_Memory = new LetteraMemorySettings();
+        [SerializeField] LetteraAtlasSettings m_Atlas = new LetteraAtlasSettings();
         [SerializeField] LetteraMathSettings m_Math = new LetteraMathSettings();
         [SerializeField] LetteraSolidSettings m_Solid3D = new LetteraSolidSettings();
         [Tooltip("Word lists for scripts written without spaces. Empty costs nothing: only what is listed reaches a player.")]
@@ -124,6 +125,9 @@ namespace FirstSymbol.Lettera
 
         /// <summary>When Lettera gives back what it keeps for speed. See <see cref="LetteraMemory"/>.</summary>
         public LetteraMemorySettings Memory => m_Memory ?? (m_Memory = new LetteraMemorySettings());
+
+        /// <summary>The size of the glyph atlas's pages. See <see cref="LetteraAtlasSettings"/>.</summary>
+        public LetteraAtlasSettings Atlas => m_Atlas ?? (m_Atlas = new LetteraAtlasSettings());
 
         public LetteraPlatformSettings Platform => m_Platform ?? (m_Platform = new LetteraPlatformSettings());
 

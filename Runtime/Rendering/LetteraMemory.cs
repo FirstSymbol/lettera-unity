@@ -3,6 +3,27 @@ using UnityEngine;
 
 namespace FirstSymbol.Lettera
 {
+    public enum LetteraAtlasPageSize { Size2048, Size1024 }
+
+    /// <summary>
+    /// The side of the glyph atlas's pages, per kind. A page of 1024 holds a quarter of what a page of 2048 holds and costs a quarter of its
+    /// memory, so a game with few glyphs, such as Latin at a few sizes, pays 1 MB a page where it paid 4; one with thousands of glyphs makes more
+    /// pages. A size takes effect when that kind's pages are next made from nothing: at start, after <see cref="GlyphAtlas.Clear"/>, or after a
+    /// release with no text left. A glyph tile larger than a page is not drawn, which a page of 1024 reaches only with glyphs far larger than text uses.
+    /// </summary>
+    [Serializable]
+    public class LetteraAtlasSettings
+    {
+        [Tooltip("Pages of distance-field glyphs, most text: 2048 costs 4 MB a page, 1024 costs 1 MB.")]
+        public LetteraAtlasPageSize SdfPageSize = LetteraAtlasPageSize.Size2048;
+
+        [Tooltip("Pages of colour glyphs, such as emoji: 2048 costs 16 MB a page, 1024 costs 4 MB.")]
+        public LetteraAtlasPageSize ColorPageSize = LetteraAtlasPageSize.Size2048;
+
+        [Tooltip("Pages of multi-channel distance fields: 2048 costs 16 MB a page, 1024 costs 4 MB.")]
+        public LetteraAtlasPageSize MsdfPageSize = LetteraAtlasPageSize.Size2048;
+    }
+
     /// <summary>When Lettera gives back what it keeps only for speed.</summary>
     [Serializable]
     public class LetteraMemorySettings

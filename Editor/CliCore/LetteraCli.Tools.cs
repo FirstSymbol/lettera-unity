@@ -306,7 +306,6 @@ namespace FirstSymbol.Lettera.Editor.Cli
 
         internal static object Atlas() => Run(() =>
         {
-            const long Page = 2048L * 2048;
             return new Dictionary<string, object>
             {
                 ["glyphs"] = GlyphAtlas.GlyphCount,
@@ -315,7 +314,7 @@ namespace FirstSymbol.Lettera.Editor.Cli
                 ["colorPages"] = GlyphAtlas.ColorPageCount,
                 ["sdfLimit"] = GlyphAtlas.PageLimits.sdf,
                 ["colorLimit"] = GlyphAtlas.PageLimits.color,
-                ["bytes"] = GlyphAtlas.SdfPageCount * Page + GlyphAtlas.MsdfPageCount * Page * 4 + GlyphAtlas.ColorPageCount * Page * 4,
+                ["bytes"] = GlyphAtlas.PageBytes,
             };
         });
 
