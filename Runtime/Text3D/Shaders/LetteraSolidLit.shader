@@ -285,6 +285,172 @@ Shader "Lettera/Solid Lit"
         }
     }
 
+    // The High Definition pipeline: its own forward light loop, shadows, probes, fog and normal buffer, through its pass templates.
+    SubShader
+    {
+        PackageRequirements { "com.unity.render-pipelines.high-definition" }
+        Tags { "RenderPipeline"="HDRenderPipeline" "RenderType"="Opaque" "Queue"="Geometry" }
+
+        HLSLINCLUDE
+        #pragma target 4.5
+        #pragma only_renderers d3d11 playstation xboxone xboxseries vulkan metal switch switch2
+        #define _DISABLE_DECALS
+        #define _DISABLE_SSR
+        #define _DISABLE_SSR_TRANSPARENT
+        #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/Common.hlsl"
+        #include "Packages/com.unity.render-pipelines.high-definition/Runtime/ShaderLibrary/ShaderVariables.hlsl"
+        #include "Packages/com.unity.render-pipelines.high-definition/Runtime/RenderPipeline/ShaderPass/FragInputs.hlsl"
+        #include "Packages/com.unity.render-pipelines.high-definition/Runtime/RenderPipeline/ShaderPass/ShaderPass.cs.hlsl"
+
+        TEXTURE2D(_BaseMap);
+        SAMPLER(sampler_BaseMap);
+
+        CBUFFER_START(UnityPerMaterial)
+            float4 _BaseMap_ST;
+            float4 _BaseColor;
+            float4 _EmissionColor;
+            float _Metallic;
+            float _Smoothness;
+            float _LightInfluence;
+            float _TextureSpace;
+        CBUFFER_END
+        ENDHLSL
+
+        Pass
+        {
+            Name "ScenePickingPass"
+            Tags { "LightMode"="Picking" }
+            Cull Back
+
+            HLSLPROGRAM
+            #pragma multi_compile_instancing
+            #pragma editor_sync_compilation
+            #define SHADERPASS SHADERPASS_DEPTH_ONLY
+            #define SCENEPICKINGPASS
+            #include "Packages/com.unity.render-pipelines.high-definition/Runtime/ShaderLibrary/PickingSpaceTransforms.hlsl"
+            #include "Packages/com.unity.render-pipelines.high-definition/Runtime/Material/Material.hlsl"
+            #include "Packages/com.unity.render-pipelines.high-definition/Runtime/Material/Lit/Lit.hlsl"
+            #include "LetteraSolidHDRP.hlsl"
+            #include "Packages/com.unity.render-pipelines.high-definition/Runtime/RenderPipeline/ShaderPass/ShaderPassDepthOnly.hlsl"
+            #pragma vertex Vert
+            #pragma fragment Frag
+            ENDHLSL
+        }
+
+        Pass
+        {
+            Name "SceneSelectionPass"
+            Tags { "LightMode"="SceneSelectionPass" }
+            Cull Off
+
+            HLSLPROGRAM
+            #pragma multi_compile_instancing
+            #pragma editor_sync_compilation
+            #define SHADERPASS SHADERPASS_DEPTH_ONLY
+            #define SCENESELECTIONPASS
+            #include "Packages/com.unity.render-pipelines.high-definition/Runtime/ShaderLibrary/PickingSpaceTransforms.hlsl"
+            #include "Packages/com.unity.render-pipelines.high-definition/Runtime/Material/Material.hlsl"
+            #include "Packages/com.unity.render-pipelines.high-definition/Runtime/Material/Lit/Lit.hlsl"
+            #include "LetteraSolidHDRP.hlsl"
+            #include "Packages/com.unity.render-pipelines.high-definition/Runtime/RenderPipeline/ShaderPass/ShaderPassDepthOnly.hlsl"
+            #pragma vertex Vert
+            #pragma fragment Frag
+            ENDHLSL
+        }
+
+        Pass
+        {
+            Name "ShadowCaster"
+            Tags { "LightMode"="ShadowCaster" }
+            Cull Back
+            ZWrite On
+            ZTest LEqual
+            ColorMask 0
+
+            HLSLPROGRAM
+            #pragma multi_compile_instancing
+            #pragma instancing_options renderinglayer
+            #define SHADERPASS SHADERPASS_SHADOWS
+            #include "Packages/com.unity.render-pipelines.high-definition/Runtime/Material/Material.hlsl"
+            #include "Packages/com.unity.render-pipelines.high-definition/Runtime/Material/Lit/Lit.hlsl"
+            #include "LetteraSolidHDRP.hlsl"
+            #include "Packages/com.unity.render-pipelines.high-definition/Runtime/RenderPipeline/ShaderPass/ShaderPassDepthOnly.hlsl"
+            #pragma vertex Vert
+            #pragma fragment Frag
+            ENDHLSL
+        }
+
+        Pass
+        {
+            Name "DepthForwardOnly"
+            Tags { "LightMode"="DepthForwardOnly" }
+            Cull Back
+            ZWrite On
+
+            HLSLPROGRAM
+            #pragma multi_compile_instancing
+            #pragma instancing_options renderinglayer
+            #pragma multi_compile _ WRITE_NORMAL_BUFFER
+            #pragma multi_compile_fragment _ WRITE_MSAA_DEPTH
+            #pragma multi_compile _ WRITE_DECAL_BUFFER WRITE_RENDERING_LAYER
+            #define SHADERPASS SHADERPASS_DEPTH_ONLY
+            #include "Packages/com.unity.render-pipelines.high-definition/Runtime/Material/Material.hlsl"
+            #include "Packages/com.unity.render-pipelines.high-definition/Runtime/Material/Lit/Lit.hlsl"
+            #include "LetteraSolidHDRP.hlsl"
+            #include "Packages/com.unity.render-pipelines.high-definition/Runtime/RenderPipeline/ShaderPass/ShaderPassDepthOnly.hlsl"
+            #pragma vertex Vert
+            #pragma fragment Frag
+            ENDHLSL
+        }
+
+        Pass
+        {
+            Name "ForwardOnly"
+            Tags { "LightMode"="ForwardOnly" }
+            // Clears what the deferred passes would read here, as the pipeline's own forward materials do.
+            Stencil
+            {
+                WriteMask 3
+                Ref 0
+                Comp Always
+                Pass Replace
+            }
+            Cull Back
+            ZWrite On
+            ZTest LEqual
+
+            HLSLPROGRAM
+            #pragma multi_compile_instancing
+            #pragma instancing_options renderinglayer
+            #pragma multi_compile_fragment _ SHADOWS_SHADOWMASK
+            #pragma multi_compile_fragment _ PROBE_VOLUMES_L1 PROBE_VOLUMES_L2
+            #pragma multi_compile_fragment SCREEN_SPACE_SHADOWS_OFF SCREEN_SPACE_SHADOWS_ON
+            #pragma multi_compile_fragment PUNCTUAL_SHADOW_LOW PUNCTUAL_SHADOW_MEDIUM PUNCTUAL_SHADOW_HIGH
+            #pragma multi_compile_fragment DIRECTIONAL_SHADOW_LOW DIRECTIONAL_SHADOW_MEDIUM DIRECTIONAL_SHADOW_HIGH
+            #pragma multi_compile_fragment AREA_SHADOW_MEDIUM AREA_SHADOW_HIGH
+            #pragma multi_compile_fragment USE_FPTL_LIGHTLIST USE_CLUSTERED_LIGHTLIST
+            #ifndef SHADER_STAGE_FRAGMENT
+            #define SHADOW_LOW
+            #ifndef USE_FPTL_LIGHTLIST
+            #define USE_FPTL_LIGHTLIST
+            #endif
+            #endif
+            #define SHADERPASS SHADERPASS_FORWARD
+            #define SHADERPASS_FORWARD_BYPASS_ALPHA_TEST
+            #include "Packages/com.unity.render-pipelines.high-definition/Runtime/Material/Material.hlsl"
+            #include "Packages/com.unity.render-pipelines.high-definition/Runtime/Lighting/Lighting.hlsl"
+            #define HAS_LIGHTLOOP
+            #include "Packages/com.unity.render-pipelines.high-definition/Runtime/Lighting/LightLoop/LightLoopDef.hlsl"
+            #include "Packages/com.unity.render-pipelines.high-definition/Runtime/Material/Lit/Lit.hlsl"
+            #include "Packages/com.unity.render-pipelines.high-definition/Runtime/Lighting/LightLoop/LightLoop.hlsl"
+            #include "LetteraSolidHDRP.hlsl"
+            #include "Packages/com.unity.render-pipelines.high-definition/Runtime/RenderPipeline/ShaderPass/ShaderPassForward.hlsl"
+            #pragma vertex Vert
+            #pragma fragment Frag
+            ENDHLSL
+        }
+    }
+
     SubShader
     {
         Tags { "RenderType"="Opaque" "Queue"="Geometry" }
