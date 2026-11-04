@@ -16,7 +16,7 @@ namespace FirstSymbol.Lettera.Unicode
             boundaries[0] = true;
             boundaries[n] = true;
             var prev = UnicodeData.Gcb(text[0]);
-            int regional = 0, picto = 0, incb = 0; // picto: 1 = ExtPict Extend*, 2 = + ZWJ. incb: 1 = consonant, 2 = + linker.
+            int regional = 0, picto = 0, incb = 0; // picto: 1 = ExtPict Extend*, 2 = + ZWJ. incb: 2 = Linker Extend*.
 
             for (int i = 1; i < n; i++)
             {
@@ -31,9 +31,8 @@ namespace FirstSymbol.Lettera.Unicode
                 else picto = 0;
 
                 var prevInCB = UnicodeData.InCB(prevCp);
-                if (prevInCB == IndicConjunctBreak.Consonant) incb = 1;
-                else if (incb != 0 && prevInCB == IndicConjunctBreak.Linker) incb = 2;
-                else if (incb != 0 && prevInCB != IndicConjunctBreak.Extend) incb = 0;
+                if (prevInCB == IndicConjunctBreak.Linker) incb = 2;
+                else if (prevInCB != IndicConjunctBreak.Extend) incb = 0;
 
                 boundaries[i] = IsBreak(prev, cur, regional, picto, incb, cp);
                 prev = cur;

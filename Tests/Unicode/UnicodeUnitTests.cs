@@ -264,6 +264,54 @@ namespace FirstSymbol.Lettera.Unicode.Tests
             CollectionAssert.AreEqual(new[] { 0, 1, 3, 2 }, visual);
         }
 
+        static LineBreakOpportunity[] Breaks(params int[] text)
+        {
+            var r = new LineBreakOpportunity[text.Length];
+            LineBreaker.FindBreaks(text, r);
+            return r;
+        }
+
+        static bool[] Clusters(params int[] text)
+        {
+            var r = new bool[text.Length + 1];
+            GraphemeBreaker.FindBoundaries(text, r);
+            return r;
+        }
+
+        [Test]
+        public void Unicode18Changes()
+        {
+            Assert.AreEqual("18.0.0", LetteraUnicode.Version);
+
+            Assert.AreEqual(LineBreakClass.HH, LetteraUnicode.GetLineBreakClass(0x2010), "hyphen");
+            Assert.AreEqual(LineBreakClass.HH, LetteraUnicode.GetLineBreakClass(0x00AD), "soft hyphen");
+            Assert.AreEqual(LineBreakClass.BA, LetteraUnicode.GetLineBreakClass(0x2013), "en dash");
+
+            // LB12a: an en dash keeps a following no-break space.
+            Assert.AreEqual(LineBreakOpportunity.None, Breaks('a', 0x2013, 0x00A0, 'b')[1]);
+            // LB20a: a word-initial hyphen stays with a Hebrew letter too.
+            Assert.AreEqual(LineBreakOpportunity.None, Breaks('a', ' ', '-', 0x05D0)[2]);
+            Assert.AreEqual(LineBreakOpportunity.None, Breaks('a', ' ', 0x2010, 'b')[2]);
+            // LB21 and LB31: no break before a soft hyphen, a break after it.
+            var shy = Breaks('a', 'b', 0x00AD, 'c', 'd');
+            Assert.AreEqual(LineBreakOpportunity.None, shy[1]);
+            Assert.AreEqual(LineBreakOpportunity.Allowed, shy[2]);
+
+            // GB9c: a linker joins the next consonant whatever stands before the linker.
+            CollectionAssert.AreEqual(new[] { true, false, true }, Clusters(0x094D, 0x0915));
+            CollectionAssert.AreEqual(new[] { true, false, false, true }, Clusters(0x0905, 0x094D, 0x0915));
+            CollectionAssert.AreEqual(new[] { true, false, false, false, true }, Clusters(0x0915, 0x094D, 0x0937, 0x093F));
+
+            // Scripts added in 17.0 and 18.0.
+            Assert.AreEqual(UnicodeScript.TaiYo, LetteraUnicode.GetScript(0x1E6C0));
+            Assert.AreEqual(UnicodeScript.Jurchen, LetteraUnicode.GetScript(0x18E00));
+            Assert.AreEqual(UnicodeScript.Seal, LetteraUnicode.GetScript(0x3D000));
+            Assert.AreEqual(UnicodeScript.ProtoCuneiform, LetteraUnicode.GetScript(0x125A8));
+            Assert.AreEqual(0x5461796Fu, LetteraUnicode.ScriptToOpenTypeTag(UnicodeScript.TaiYo), "Tayo");
+            Assert.AreEqual(0x5365616Cu, LetteraUnicode.ScriptToOpenTypeTag(UnicodeScript.Seal), "Seal");
+            Assert.AreEqual(GeneralCategory.Lo, LetteraUnicode.GetCategory(0x3D000));
+        }
+
         [Test]
         public void LineBreakUsage()
         {

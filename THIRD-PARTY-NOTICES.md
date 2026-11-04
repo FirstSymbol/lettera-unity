@@ -51,9 +51,9 @@ ON AN "AS IS" BASIS, AND THE COPYRIGHT HOLDER HAS NO OBLIGATION TO
 PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS, OR MODIFICATIONS.
 ```
 
-## Unicode Character Database 16.0.0
+## Unicode Character Database 18.0.0
 
-`Runtime/Unicode/UnicodeData.g.cs` is generated from the Unicode Character Database, and `Tests/Unicode/Conformance~` holds Unicode conformance test files. Copyright (c) 1991-2024 Unicode, Inc. Used under the Unicode License v3: https://www.unicode.org/license.txt
+`Runtime/Unicode/UnicodeData.g.cs` is generated from the Unicode Character Database, and `Tests/Unicode/Conformance~` holds Unicode conformance test files. Copyright (c) 1991-2026 Unicode, Inc. Used under the Unicode License v3: https://www.unicode.org/license.txt
 
 ## Noto Sans Math
 

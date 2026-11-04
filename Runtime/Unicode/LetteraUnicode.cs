@@ -4,7 +4,7 @@ namespace FirstSymbol.Lettera.Unicode
 {
     public static class LetteraUnicode
     {
-        public const string Version = "16.0.0";
+        public const string Version = "18.0.0";
 
         public static GeneralCategory GetCategory(int cp) => UnicodeData.Gc(cp);
         public static UnicodeScript GetScript(int cp) => (UnicodeScript)UnicodeData.Script(cp);

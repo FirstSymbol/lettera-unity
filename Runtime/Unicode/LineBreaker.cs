@@ -5,7 +5,7 @@ namespace FirstSymbol.Lettera.Unicode
 {
     public enum LineBreakOpportunity : byte { None, Allowed, Mandatory }
 
-    /// <summary>UAX #14 default algorithm, Unicode 16 rules. Rules are evaluated per unit, a unit being a base plus its LB9 CM/ZWJ.</summary>
+    /// <summary>UAX #14 default algorithm, Unicode 18 rules. Rules are evaluated per unit, a unit being a base plus its LB9 CM/ZWJ.</summary>
     public static class LineBreaker
     {
         const C Sot = (C)255;
@@ -124,7 +124,7 @@ namespace FirstSymbol.Lettera.Unicode
 
             if (b == C.WJ || a == C.WJ) return No; // LB11
             if (a == C.GL) return No; // LB12
-            if (b == C.GL && a != C.SP && a != C.BA && a != C.HY) return No; // LB12a
+            if (b == C.GL && a != C.SP && a != C.HY && a != C.HH) return No; // LB12a
             if (b == C.CL || b == C.CP || b == C.EX || b == C.SY) return No; // LB13
             if (s.OpRun) return No; // LB14
             if (s.PiRun) return No; // LB15a
@@ -155,11 +155,11 @@ namespace FirstSymbol.Lettera.Unicode
             if (a == C.QU && (!bEA || s.Before == Sot || !s.BeforeEastAsian)) return No;
 
             if (a == C.CB || b == C.CB) return Yes; // LB20
-            if ((a == C.HY || aCp == 0x2010) && b == C.AL && (s.Before == Sot || IsHardBreak(s.Before) || s.Before == C.SP || s.Before == C.ZW
+            if ((a == C.HY || a == C.HH) && (b == C.AL || b == C.HL) && (s.Before == Sot || IsHardBreak(s.Before) || s.Before == C.SP || s.Before == C.ZW
                 || s.Before == C.CB || s.Before == C.GL)) return No; // LB20a
-            if (b == C.BA || b == C.HY || b == C.NS) return No; // LB21
+            if (b == C.BA || b == C.HH || b == C.HY || b == C.NS) return No; // LB21
             if (a == C.BB) return No;
-            if (s.Before == C.HL && (a == C.HY || (a == C.BA && !s.EastAsian)) && b != C.HL) return No; // LB21a
+            if (s.Before == C.HL && (a == C.HY || a == C.HH) && b != C.HL) return No; // LB21a
             if (a == C.SY && b == C.HL) return No; // LB21b
             if (b == C.IN) return No; // LB22
 

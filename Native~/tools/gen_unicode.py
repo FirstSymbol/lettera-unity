@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generates Runtime/Unicode/UnicodeData.g.cs and Tests/Unicode/Conformance~/*.gz from the Unicode 16.0.0 UCD.
+"""Generates Runtime/Unicode/UnicodeData.g.cs and Tests/Unicode/Conformance~/*.gz from the Unicode 18.0.0 UCD.
 
 Usage: gen_unicode.py <cache-dir>
 Downloaded files are cached in <cache-dir>; outputs are written relative to this script's package.
@@ -13,8 +13,8 @@ import struct
 import sys
 import urllib.request
 
-UCD = "https://www.unicode.org/Public/16.0.0/ucd/"
-VERSION = "16.0.0"
+UCD = "https://www.unicode.org/Public/18.0.0/ucd/"
+VERSION = "18.0.0"
 FILES = [
     "UnicodeData.txt", "Scripts.txt", "ScriptExtensions.txt", "PropertyValueAliases.txt",
     "extracted/DerivedBidiClass.txt", "BidiMirroring.txt", "BidiBrackets.txt", "LineBreak.txt",
@@ -30,7 +30,7 @@ N = 0x110000
 GC = "Lu Ll Lt Lm Lo Mn Mc Me Nd Nl No Pc Pd Ps Pe Pi Pf Po Sm Sc Sk So Zs Zl Zp Cc Cf Cs Co Cn".split()
 BC = "L R AL EN ES ET AN CS NSM BN B S WS ON LRE LRO RLE RLO PDF LRI RLI FSI PDI".split()
 LB = ("XX AI AK AL AP AS B2 BA BB BK CB CJ CL CM CP CR EB EM EX GL H2 H3 HL HY ID IN IS JL JT JV LF NL NS NU OP "
-      "PO PR QU RI SA SG SP SY VF VI WJ ZW ZWJ").split()
+      "PO PR QU RI SA SG SP SY VF VI WJ ZW ZWJ HH").split()
 GCB = "Other CR LF Control Extend ZWJ Regional_Indicator Prepend SpacingMark L V T LV LVT".split()
 WB = ("Other CR LF Newline Extend ZWJ Regional_Indicator Format Katakana Hebrew_Letter ALetter Single_Quote "
       "Double_Quote MidNumLet MidLetter MidNum Numeric ExtendNumLet WSegSpace").split()
@@ -161,7 +161,7 @@ def main():
     for f in lines(p["BidiBrackets.txt"]):
         cp = int(f[0], 16)
         bracket[cp] = BRACKET[f[2]]
-        # Accessors reuse the mirror glyph as the paired bracket; true for all of Unicode 16.
+        # Accessors reuse the mirror glyph as the paired bracket; true for all of Unicode 18.
         assert mirror.get(cp) == int(f[1], 16), f
 
     lb = bytearray([LB.index("XX")]) * N
@@ -318,14 +318,10 @@ def main():
     for name, kind, data in tables:
         type_name, code, width, suffix = cs_type[kind]
         values = struct.unpack("<%d%s" % (len(data) // width, code), data)
-        w("        internal static readonly %s[] %s =
-        {
-" % (type_name, name))
+        w("        internal static readonly %s[] %s =\n        {\n" % (type_name, name))
         for i in range(0, len(values), 32):
-            w("            " + ", ".join(str(v) + suffix for v in values[i:i + 32]) + ",
-")
-        w("        };
-")
+            w("            " + ", ".join(str(v) + suffix for v in values[i:i + 32]) + ",\n")
+        w("        };\n")
     w("""
         internal const uint FExtPict = 1u << 18, FEmoji = 1u << 19, FEmojiPres = 1u << 20, FEmojiMod = 1u << 21,
             FEmojiBase = 1u << 22, FRegional = 1u << 23, FDefaultIgnorable = 1u << 24, FWhiteSpace = 1u << 25;
