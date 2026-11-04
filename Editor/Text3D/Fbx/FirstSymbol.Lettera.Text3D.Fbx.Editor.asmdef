@@ -1,0 +1,21 @@
+{
+    "name": "FirstSymbol.Lettera.Text3D.Fbx.Editor",
+    "rootNamespace": "FirstSymbol.Lettera.Editor",
+    "references": [
+        "FirstSymbol.Lettera",
+        "FirstSymbol.Lettera.Text3D",
+        "FirstSymbol.Lettera.Text3D.Editor",
+        "Unity.Formats.Fbx.Editor"
+    ],
+    "includePlatforms": ["Editor"],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": ["LETTERA_FBX", "!LETTERA_NO_3D"],
+    "versionDefines": [
+        { "name": "com.unity.formats.fbx", "expression": "4.0.0", "define": "LETTERA_FBX" }
+    ],
+    "noEngineReferences": false
+}

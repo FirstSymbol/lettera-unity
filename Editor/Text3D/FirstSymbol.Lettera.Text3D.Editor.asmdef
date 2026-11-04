@@ -16,6 +16,8 @@
     "precompiledReferences": [],
     "autoReferenced": true,
     "defineConstraints": ["!LETTERA_NO_3D"],
-    "versionDefines": [],
+    "versionDefines": [
+        { "name": "com.unity.modules.physics", "expression": "1.0.0", "define": "LETTERA_PHYSICS" }
+    ],
     "noEngineReferences": false
 }

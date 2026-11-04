@@ -409,7 +409,11 @@ namespace FirstSymbol.Lettera
             ResolveMaterials();
             WriteMesh();
             LetteraSolidFlatChild.Update(this);
+            SolidsWritten?.Invoke(true);
         }
+
+        /// <summary>After the solids were built (true) or only moved (false): what follows the drawn text listens here.</summary>
+        internal event Action<bool> SolidsWritten;
 
         int[] m_SurfaceToSubmesh = new int[5];
         Material[] m_Given;
@@ -493,6 +497,7 @@ namespace FirstSymbol.Lettera
             if (m_Mesh == null || m_MeshIsShared || m_SolidsDirty) return;
             m_Builder.ApplyPose(Engine, m_Mesh);
             LetteraSolidFlatChild.Update(this);
+            SolidsWritten?.Invoke(false);
         }
 
 #if UNITY_EDITOR
@@ -646,6 +651,9 @@ namespace FirstSymbol.Lettera
         internal Bounds Bounds { get; private set; }
         internal int FailedGlyphs { get; private set; }
         internal IReadOnlyList<Placement> Placed => m_Placed;
+        /// <summary>Where each vertex stands before motion and deformers, and where it is drawn now.</summary>
+        internal NativeArray<LetteraSolidMeshVertex> RestVertices => m_Rest;
+        internal NativeArray<LetteraSolidMeshVertex> PosedVertices => m_Posed;
         internal static int IndexWrites { get; private set; }
         /// <summary>Whether a deformer moves with time, which makes every frame a pose frame.</summary>
         internal bool DeformAnimated => m_Chain.Any && m_Chain.Animated;

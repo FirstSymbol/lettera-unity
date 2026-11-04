@@ -21,6 +21,12 @@
     "precompiledReferences": ["nunit.framework.dll"],
     "autoReferenced": false,
     "defineConstraints": ["UNITY_INCLUDE_TESTS", "!LETTERA_NO_3D"],
-    "versionDefines": [],
+    "versionDefines": [
+        {
+            "name": "com.unity.modules.physics",
+            "expression": "1.0.0",
+            "define": "LETTERA_PHYSICS"
+        }
+    ],
     "noEngineReferences": false
 }
