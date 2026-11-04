@@ -188,7 +188,8 @@ label.Text = "Energy is <math>E = mc^2</math>, and <math=display>\\sum_{i=0}^n i
 ```
 
 - A formula is written in a linear subset of TeX, inside `<math>`. `<math=display>` makes a paragraph of its own. `<math=inline,x squared>x^2</math>` gives it words for a screen reader.
-- **Commands:** fractions and binomials, roots, scripts and limits, large operators, `\left \right` and sized delimiters, accents, bars, braces, arrows, matrices, `cases`, `aligned`, `array`, `\text`, spacing, `\color`, alphabets such as `\mathbb`, and about 475 symbols. No macros, no `\def`, no `\ce`.
+- **Commands:** fractions and binomials, roots, scripts and limits, large operators, `\left \right` and sized delimiters, accents, bars, braces, arrows, matrices, `cases`, `aligned`, `array`, `\text`, spacing, `\color`, alphabets such as `\mathbb`, and about 475 symbols. No macros and no `\def`.
+- **Chemistry and quantities** as mhchem writes them: `\ce{2H2 + O2 -> 2H2O}`, `\ce{SO4^2-}`, `\ce{^{227}_{90}Th}`, `\ce{C6H5-CHO}`, `\ce{A <=>[H2O][\Delta] B}`, `\ce{BaSO4 v}`, and `\pu{1.2e3 kJ//mol}`. Numbers become subscripts and signs charges, states such as `(aq)` stay upright, arrows of every kind carry text above and below, and units take their thin spaces and multiplication dots.
 - A formula that cannot be read draws what was written in a frame, and the text around it renders. `LetteraMath.Validate` checks one, and `LetteraMath.Failed` tells of each.
 - **Equation numbers.** In `<math=display>`, `align`, `gather`, `equation` and `multline` number themselves, (1), (2) and on, counted per text. `\tag{x}` puts a label in a number's place and `\tag*{x}` drops its parentheses, `\notag` or `\nonumber` leaves a row without, and `\setcounter{equation}{n}` makes the next number n + 1. A number stands at the line's right edge, on the left in a right-to-left text, centred on its row; `LetteraFormulaInfo.Tags` lists them.
 - A formula is one object in its line: it does not break, and selects, copies and deletes whole. It takes color, size, alpha, stroke, shadow, glow and motion like text, and moves as one piece.
@@ -196,6 +197,17 @@ label.Text = "Energy is <math>E = mc^2</math>, and <math=display>\\sum_{i=0}^n i
 - **Which font.** In order: the style's `LetteraMathEffect.Font`, the project's `LetteraSettings.Math.Font`, the text's font if it holds a math table, a system math font (Cambria Math on Windows; on the web, Android and iOS there is none), and last the text's font with fallback layout, which is readable but plain.
 - **The bundled font.** Noto Sans Math is in the package and enters a build only when something references it. **Lettera > Math > Use Bundled Font** sets it for the project, at 343 KB in every build. On a style it costs only where that style is used. A build for the web, Android or iOS warns when a scene holds a formula and no font is set. Any font with a MATH table works: STIX Two Math and Latin Modern Math look more classic.
 - `LETTERA_NO_MATH` compiles formulas out. `<math>x</math>` then shows `x`.
+
+## LaTeX tables
+
+```csharp
+label.Text = "Prices: \\begin{tabular}{|l|r|}\\hline Apples & 1.20 \\\\ Pears & 0.95 \\\\ \\hline\\end{tabular} today.";
+```
+
+- `tabular`, `tabular*`, `tabularx`, `tabulary` and `longtable` in ordinary text, and a `table` float around one with `\caption` and `\centering`. A `tabular` stands in its line, centred on it or by `[t]` and `[b]`; `longtable` and `table` stand on a line of their own.
+- Columns `l c r`, `p{} m{} b{}` with a width, `X`, `L C R J`, `|` rules, `@{}`, `>{\bfseries}` and `*{n}{...}`. Rows take `\hline`, `\cline`, booktabs rules and `\\[space]`; cells take `\multicolumn`, `\multirow`, `\textbf` and its kin, `$...$` formulas and tables of their own. longtable shows its first head and its last foot.
+- **Widths.** Columns size as CSS's automatic table layout does: each as wide as its content wants when that fits, else each between its narrowest and widest in proportion, and narrower still if it must. A table never runs past the text's width, and lays out again when the text resizes. `tabularx` and `tabular*` fill their set width, held to the text's.
+- Copying gives the table's source. Huge sizes are cut back with one warning: `LetteraTableLimits`.
 
 ## 3D text
 
