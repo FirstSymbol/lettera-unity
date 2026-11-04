@@ -114,6 +114,11 @@ namespace FirstSymbol.Lettera.Editor.Tests
             LetteraFontChains.Invalidate();
             Assert.GreaterOrEqual(Drawn(font, 'a').Face.Weight, 700, "regular text of a system font draws bold");
             Assert.AreEqual(400, Drawn(Latin, 'a').Face.Weight, "a project's own font does not move");
+            LetteraSettings.Instance.DisableSystemFontFallback = false;
+            LetteraFontChains.Invalidate();
+            FontChain chain = LetteraFontChains.Get(font, null);
+            FontFace face = chain.Resolve(new[] { 0x0915 }, false, null, null, out FontChain.Family family);
+            if (face != null && face != chain.PrimaryFace) Assert.AreEqual(700, FontChain.WeightFor(0, family), "a substituted face is shifted once");
             Assert.AreEqual(1000, FontChain.Shifted(900, 300));
             Assert.AreEqual(700, FontChain.Shifted(0, 300));
             Assert.AreEqual(0, FontChain.Shifted(0, 0));

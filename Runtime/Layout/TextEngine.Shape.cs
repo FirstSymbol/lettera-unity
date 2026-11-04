@@ -489,7 +489,7 @@ namespace FirstSymbol.Lettera
                 int before = g.XAdvance;
                 if (tuning.SpaceWidth > 0)
                 {
-                    int cp = m_Text[g.Cluster];
+                    int cp = m_ShapeText[g.Cluster];
                     if (cp == ' ' || cp == 0xA0) g.XAdvance = tuning.SpaceWidth;
                 }
                 if (glyphs != null && glyphs.TryGetValue(g.Glyph, out FaceTuning.Glyph own))

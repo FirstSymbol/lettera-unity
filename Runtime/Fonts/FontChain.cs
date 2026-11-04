@@ -100,7 +100,7 @@ namespace FirstSymbol.Lettera
             Primary = m_Families.Count > 0 ? m_Families[0] : null;
             // Faces the system substitutes draw at the weight of the system font they stand in for, shifted as the system shifts its own.
             int systemShift = LetteraSystemFonts.WeightShift;
-            m_SystemWeight = Shifted(Primary != null && Primary.Asset is LetteraSystemFont ? Primary.Weight : 0, systemShift);
+            m_SystemWeight = Primary != null && Primary.Asset is LetteraSystemFont ? Primary.Weight : Shifted(0, systemShift);
             m_SystemShift = systemShift;
         }
 
