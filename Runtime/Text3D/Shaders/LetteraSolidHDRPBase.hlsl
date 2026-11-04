@@ -22,4 +22,9 @@ CBUFFER_START(UnityPerMaterial)
     float _TextureSpace;
 CBUFFER_END
 
+// What the editor's selection and picking passes read.
+int _ObjectId;
+int _PassValue;
+float4 _SelectionID;
+
 #endif
