@@ -203,12 +203,14 @@ solid.Depth = 0.25f;
 solid.FrontBevel = new LetteraBevel { Shape = LetteraBevelShape.Round, Width = 0.03f, Height = 0.03f, Roundness = 0.5f, Segments = 4 };
 ```
 
-- Real geometry, lit and shadowed, drawn by the object's own `MeshRenderer`: nine edge shapes and a curve of your own, five material slots that fall back to one another, and a `Lettera/Solid Lit` shader for Built-in and URP.
+- Real geometry, lit and shadowed, drawn by the object's own `MeshRenderer`: nine edge shapes and a curve of your own, five material slots that fall back to one another, and a `Lettera/Solid Lit` shader for Built-in, URP and HDRP, where it goes through the pipeline's own light loop. World text draws under HDRP too, lit or not.
 - Markup, fonts, fallback, bidi, Arabic and Indic shaping, wrapping and auto size are the same as a world text's. So is motion: every motion moves the solids, and a fade goes through a screen dither, so nothing needs sorting.
 - Each glyph is built once, whatever the text's depth, and shared by every text with the same font and edges. Identical texts share one mesh, so they can instance.
-- `<depth=2>` and `<bevel=chamfer,0.03,0.03>` act on a range. `LetteraSolidLook` holds a depth, edges and materials to give at once.
+- `<depth=2>` and `<bevel=chamfer,0.03,0.03>` act on a range. `LetteraSolidLook` holds a depth, edges, materials and layers to give at once.
+- **Layers** are extra solids per glyph, word, line or text: an outline grown or shrunk, a rounded plate, or a neon tube along each outline, as a band or with the letters cut through or engraved, each with its own depth, edge, colour and materials. `solid.AddLayer(LetteraSolidLayer.Preset(LetteraSolidLayerPreset.Badge))`.
+- **Deformers** bend (360 degrees makes a ring), twist, taper, wave, wrap onto a ball or follow a path, in order, and take the layers and underlines along: `solid.AddDeformer(LetteraDeformer.Bend(360))`. A range takes its own: `<bend=90>`, `<twist=180>`, `<taper=0.5>`, `<ripple=0.1,1.5>`, `<sphere=120>`.
 - Underline and strikethrough extrude. Formulas extrude, with their bars as boxes. A color glyph draws flat on the front plane, or not at all.
-- **What it does not do:** 2D layers (stroke, shadow, glow) do not draw on a solid. No selection or editing. No HDRP material: assign an opaque one of your own.
+- **What it does not do:** 2D layers (stroke, shadow, glow) do not draw on a solid. No selection or editing.
 - **In a Canvas.** It is not a Graphic, since a Canvas has no light: it draws as a scene object, without masks or layout, and not at all under Screen Space Overlay. For solids in a UI, point a camera at the text, with a `RenderTexture` as its target, and show that in a `RawImage`. The 3D sample does this.
 - **In a build.** A scene's component brings its material and shader. A build with none holds neither. A text made from a script with no material needs **Lettera > 3D > Allow Creating From Scripts**, which puts the shader in every build. `LETTERA_NO_3D` removes the module.
 - Its context menu has **Bake To Mesh Asset** and **Export OBJ**, and a world text's has **Convert To Text 3D**.
@@ -269,7 +271,7 @@ In **Window > Package Manager > Lettera > Samples**. Each is built from code: ad
 - **Motion:** every motion, a typewriter, a ticker, a link, a spoiler, a hover rule and an inline sprite.
 - **Documents:** 200 000 lines in a scrolling view, searched and jumped through.
 - **Math:** formulas in a sentence and by themselves, every construct beside its source, a field that shows what is typed. Assign a font on the web.
-- **3D Text:** a line per edge shape, each look, a formula, 500 shared labels, and solid text in a Canvas. Assign a material with the Lettera/Solid Lit shader.
+- **3D Text:** a line per edge shape, each look, a formula, a plate, neon, a twist and a ring, 500 shared labels, and solid text in a Canvas. Assign a material with the Lettera/Solid Lit shader.
 - **Device Check:** one guided session per device, and one text block to copy or share.
 - **Emoji:** flags, joined sequences, skin tones, keycaps, alpha and color on emoji, and a small color font of its own.
 - **Layout:** one box of text with a live control for alignment, wrap, overflow, auto size, line height, trim, curve and padding.

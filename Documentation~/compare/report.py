@@ -121,7 +121,7 @@ MATRIX_EN = """| Feature | Lettera | TextMesh Pro | Behind it |
 | Timeline | Tracks exist, not played end to end yet | With setup | — |
 | Migration from the other | Yes, Lettera from TextMesh Pro | — | `MigrationTests` |
 | Built-in, URP | Yes | Yes | builds |
-| HDRP | Solid text with a material of your own | Unity documents it; not run here | — |
+| HDRP | Yes: solid, world and lit world text | Unity documents it; not run here | a Windows player |
 | Native plugin needed | Yes | No | build |
 | Years in the field | New | Long | — |
 """
@@ -165,7 +165,7 @@ MATRIX_RU = """| Возможность | Lettera | TextMesh Pro | Чем под
 | Timeline | Дорожки есть, целиком ещё не проигрывались | С настройкой | — |
 | Переход с другого движка | Да, на Lettera с TextMesh Pro | — | `MigrationTests` |
 | Built-in, URP | Да | Да | сборки |
-| HDRP | Сплошной текст со своим материалом | Заявлено Unity; здесь не запускалось | — |
+| HDRP | Да: объёмный, мировой и освещённый мировой текст | Заявлено Unity; здесь не запускалось | плеер Windows |
 | Нужен нативный плагин | Да | Нет | сборка |
 | Годы в работе | Новый | Долго | — |
 """
@@ -240,7 +240,6 @@ The same scene in each engine, at 1200 × 700. Lettera on the left, TextMesh Pro
 - **Numbers that change every frame on many labels.** 64 labels take {r3} here and {r3t} there.
 - **Scrolling one very long text, once it is open.** {r10} a frame here, {r10t} there. Opening it is the other way round, by a long way.
 - **A build that must stay small, or no native plugin.** TextMesh Pro is {tmp_kb} KB of managed code and nothing else.
-- **HDRP,** where Lettera has no materials of its own.
 - **You rely on `textInfo`,** or on years of field use. Lettera is new, and parts of it have not been seen on a real phone.
 - **Latin only, and a static atlas you already have.** Then most of what Lettera adds, you will not use.
 
@@ -318,7 +317,6 @@ R12 замеряет только работу: арабский у TextMesh Pro
 - **Числа, которые меняются каждый кадр на многих подписях.** 64 подписи: {r3} здесь и {r3t} там.
 - **Прокрутка одного очень длинного текста, когда он уже открыт.** {r10} за кадр здесь, {r10t} там. Само открытие наоборот, причём с большим отрывом.
 - **Билд должен оставаться маленьким или без нативного плагина.** TextMesh Pro — это {tmp_kb} КБ управляемого кода, и больше ничего.
-- **HDRP,** где у Lettera нет своих материалов.
 - **Вы опираетесь на `textInfo`** или на годы работы в реальных проектах. Lettera новый, и часть его ещё не видели на настоящем телефоне.
 - **Только латиница и уже готовый статический атлас.** Тогда большая часть того, что добавляет Lettera, вам не пригодится.
 
