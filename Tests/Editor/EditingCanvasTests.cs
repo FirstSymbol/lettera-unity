@@ -679,6 +679,103 @@ namespace FirstSymbol.Lettera.Editor.Tests
             Assert.IsTrue(selectable.Selection.IsCaret);
         }
 
+        LetteraEditable FieldInGroup(GameObject scrollObject, out CanvasGroup group)
+        {
+            var groupObject = new GameObject("Group", typeof(RectTransform), typeof(CanvasGroup));
+            groupObject.transform.SetParent(scrollObject.transform, false);
+            group = groupObject.GetComponent<CanvasGroup>();
+            LetteraText text = CanvasText("one two three", 400, 100, groupObject.transform);
+            var field = text.gameObject.AddComponent<LetteraEditable>();
+            field.Selectable.NoHandles = true;
+            field.Selectable.NoLoupe = true;
+            return field;
+        }
+
+        [Test]
+        public void ANonInteractableGroupStopsCaretSelectionAndMenuAndTheDragScrolls([Values(false, true)] bool touch)
+        {
+            if (touch) LetteraSelectable.ClassifyOverride = _ => LetteraPointerKind.Touch;
+            var scrollObject = new GameObject("Scroll", typeof(RectTransform), typeof(ScrollRect));
+            scrollObject.transform.SetParent(Root, false);
+            LetteraEditable field = FieldInGroup(scrollObject, out CanvasGroup group);
+            LetteraSelectable selectable = field.Selectable;
+            int menus = 0;
+            selectable.MenuRequested += (in LetteraMenuPlacement placement, ref bool handled) => menus++;
+            group.interactable = false;
+            Assert.IsFalse(selectable.IsInteractable);
+
+            int id = touch ? 0 : -1;
+            var press = Pointer(ScreenOf(selectable, 5), id: id);
+            selectable.OnPointerDown(press);
+            Now += 0.1;
+            selectable.OnPointerUp(press);
+            selectable.OnPointerDown(press);
+            Now += 1;
+            selectable.Tick();
+            selectable.OnPointerUp(press);
+            Assert.IsFalse(selectable.HasFocus, "no caret: the field never took the keyboard");
+            Assert.IsTrue(selectable.Selection.IsCaret);
+            Assert.AreEqual(0, selectable.Selection.Head);
+
+            var secondary = Pointer(ScreenOf(selectable, 5), PointerEventData.InputButton.Right);
+            selectable.OnPointerDown(secondary);
+            selectable.OnPointerUp(secondary);
+            Assert.AreEqual(0, menus, "no menu");
+            Assert.IsFalse(selectable.IsMenuShown);
+            Assert.IsTrue(selectable.Selection.IsCaret, "a right click selects no word");
+
+            ((ISelectHandler)selectable).OnSelect(new BaseEventData(null));
+            Assert.IsFalse(selectable.HasFocus, "navigation cannot focus it either");
+
+            var drag = Pointer(ScreenOf(selectable, 2), id: id);
+            selectable.OnPointerDown(drag);
+            selectable.OnInitializePotentialDrag(drag);
+            drag.position = ScreenOf(selectable, 9);
+            selectable.OnBeginDrag(drag);
+            Assert.AreSame(scrollObject, drag.pointerDrag, "the drag belongs to the scroll view");
+            selectable.OnDrag(drag);
+            selectable.OnPointerUp(drag);
+            Assert.IsTrue(selectable.Selection.IsCaret);
+            Assert.IsFalse(selectable.IsSelecting);
+
+            group.interactable = true;
+            Assert.IsTrue(selectable.IsInteractable);
+            var again = Pointer(ScreenOf(selectable, 5), id: id);
+            Now += 2;
+            selectable.OnPointerDown(again);
+            selectable.OnPointerUp(again);
+            Assert.IsTrue(selectable.HasFocus, "an interactable group lets the field work again");
+            // A finger lands on the edge of the word.
+            Assert.AreEqual(touch ? 4 : 5, selectable.Selection.Head);
+        }
+
+        [Test]
+        public void AGroupThatIgnoresItsParentsDecidesForItself()
+        {
+            var scrollObject = new GameObject("Scroll", typeof(RectTransform), typeof(ScrollRect));
+            scrollObject.transform.SetParent(Root, false);
+            CanvasGroup outer = scrollObject.AddComponent<CanvasGroup>();
+            outer.interactable = false;
+            LetteraEditable field = FieldInGroup(scrollObject, out CanvasGroup inner);
+            Assert.IsFalse(field.Selectable.IsInteractable, "the outer group reaches the field");
+            inner.ignoreParentGroups = true;
+            Assert.IsTrue(field.Selectable.IsInteractable);
+            inner.enabled = false;
+            Assert.IsFalse(field.Selectable.IsInteractable, "a disabled group counts for nothing");
+        }
+
+        [Test]
+        public void AGroupTurningOffUnderASessionEndsIt()
+        {
+            var scrollObject = new GameObject("Scroll", typeof(RectTransform), typeof(ScrollRect));
+            scrollObject.transform.SetParent(Root, false);
+            LetteraEditable field = FieldInGroup(scrollObject, out CanvasGroup group);
+            field.Selectable.Activate();
+            Assert.IsTrue(field.Selectable.HasFocus);
+            group.interactable = false;
+            Assert.IsFalse(field.Selectable.HasFocus, "Unity tells the hierarchy when a group changes");
+        }
+
         // ------------------------------------------------------------- inspectors
 
         static void AssertCustom(UnityEditor.Editor editor)

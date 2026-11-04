@@ -571,7 +571,7 @@ namespace FirstSymbol.Lettera
 
         void ISelectHandler.OnSelect(BaseEventData eventData)
         {
-            if (Editable != null && !Editable.Interactable) return;
+            if (Editable != null && !Editable.Interactable || !GroupsAllowInteraction()) return;
             BeginSession();
         }
 

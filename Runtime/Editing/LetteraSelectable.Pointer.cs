@@ -51,11 +51,52 @@ namespace FirstSymbol.Lettera
 
         static EventSystem s_NoEvents;
 
-        bool Interactive => Host != null && Host.IsVisible && (Editable == null || Editable.Interactable);
+        bool Interactive => Host != null && Host.IsVisible && (Editable == null || Editable.Interactable) && GroupsAllowInteraction();
+
+        /// <summary>False when the text is hidden, the field is off, or a Canvas Group above it is not interactable. A press then places nothing and a drag goes to what is above.</summary>
+        public bool IsInteractable => Interactive;
+
+        static readonly System.Collections.Generic.List<CanvasGroup> s_Groups = new System.Collections.Generic.List<CanvasGroup>();
+
+        // The same walk uGUI's own controls make: up to a group that ignores its parents.
+        bool GroupsAllowInteraction()
+        {
+            bool allowed = true;
+            for (Transform t = transform; t != null && allowed; t = t.parent)
+            {
+                t.GetComponents(s_Groups);
+                bool stop = false;
+                for (int i = 0; i < s_Groups.Count; i++)
+                {
+                    CanvasGroup group = s_Groups[i];
+                    if (!group.enabled) continue;
+                    allowed &= group.interactable;
+                    stop |= group.ignoreParentGroups;
+                }
+                if (stop) break;
+            }
+            s_Groups.Clear();
+            return allowed;
+        }
+
+        // A group above went off under a session: the text gives the keyboard up, as uGUI's own fields do.
+        void OnCanvasGroupChanged()
+        {
+            if (m_HasFocus && !GroupsAllowInteraction()) EndSession(LetteraBlurReason.Code);
+        }
+
+        void OnTransformParentChanged() => OnCanvasGroupChanged();
 
         public void OnPointerDown(PointerEventData data)
         {
-            if (!Interactive) return;
+            if (!Interactive)
+            {
+                // Nothing is placed, and a drag from here belongs to whatever scrolls.
+                m_PointerId = data.pointerId;
+                m_Pressed = false;
+                m_Passing = true;
+                return;
+            }
             if (m_Pressed && data.pointerId != m_PointerId)
             {
                 // A second finger cancels the first, without a click.
@@ -239,6 +280,11 @@ namespace FirstSymbol.Lettera
 
         public void OnBeginDrag(PointerEventData data)
         {
+            if (m_Passing && !m_Pressed)
+            {
+                PassDrag(data);
+                return;
+            }
             if (m_Cancelled) return;
             m_Moved = true;
             if (m_Touch && !m_SelectionDrag && !m_LongPressed)
@@ -251,14 +297,17 @@ namespace FirstSymbol.Lettera
                 // A swipe that did not hold first belongs to whatever scrolls.
                 m_Passing = true;
                 m_Pressed = false;
-                Transform parent = transform.parent;
-                GameObject target = parent != null ? ExecuteEvents.GetEventHandler<IDragHandler>(parent.gameObject) : null;
-                if (target != null)
-                {
-                    ExecuteEvents.Execute(target, data, ExecuteEvents.beginDragHandler);
-                    data.pointerDrag = target;
-                }
+                PassDrag(data);
             }
+        }
+
+        void PassDrag(PointerEventData data)
+        {
+            Transform parent = transform.parent;
+            GameObject target = parent != null ? ExecuteEvents.GetEventHandler<IDragHandler>(parent.gameObject) : null;
+            if (target == null) return;
+            ExecuteEvents.Execute(target, data, ExecuteEvents.beginDragHandler);
+            data.pointerDrag = target;
         }
 
 #if UNITY_WEBGL && !UNITY_EDITOR
