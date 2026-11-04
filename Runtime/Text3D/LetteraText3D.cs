@@ -651,6 +651,7 @@ namespace FirstSymbol.Lettera
         internal LetteraSolidRanges Ranges => m_Ranges;
         internal LetteraSolidPoser Poser => m_Poser;
         int m_GlyphPlacements;
+        NativeArray<float3> m_Reach;
         readonly List<LetteraDeformer> m_TextDeformers = new List<LetteraDeformer>();
         // Layers made per word, line or text belong to this text alone, and are kept while their glyphs are the same.
         Dictionary<ulong, LetteraSolidEntry> m_Groups = new Dictionary<ulong, LetteraSolidEntry>(), m_GroupsBefore = new Dictionary<ulong, LetteraSolidEntry>();
@@ -683,6 +684,7 @@ namespace FirstSymbol.Lettera
             m_Groups.Clear();
             m_Chain.Dispose();
             m_Ranges.Dispose();
+            if (m_Reach.IsCreated) m_Reach.Dispose();
             if (m_Maps.IsCreated) m_Maps.Dispose();
         }
 
@@ -1296,15 +1298,14 @@ namespace FirstSymbol.Lettera
                 }
                 ranges[p] = range;
             }
-            var reach = new NativeArray<float3>(2, Allocator.TempJob);
-            new PoseJob { Rest = m_Rest, Posed = m_Posed, Ranges = ranges, Reach = reach }.Run();
+            if (!m_Reach.IsCreated) m_Reach = new NativeArray<float3>(2, Allocator.Persistent);
+            new PoseJob { Rest = m_Rest, Posed = m_Posed, Ranges = ranges, Reach = m_Reach, Measure = deep && !m_Chain.Any }.Run();
             // Depth can carry a glyph out of the box it rests in, and what is outside a renderer's bounds is culled.
             if (deep && !m_Chain.Any)
             {
-                Bounds = new Bounds((Vector3)((reach[0] + reach[1]) * 0.5f), (Vector3)(reach[1] - reach[0]));
+                Bounds = new Bounds((Vector3)((m_Reach[0] + m_Reach[1]) * 0.5f), (Vector3)(m_Reach[1] - m_Reach[0]));
                 mesh.bounds = Bounds;
             }
-            reach.Dispose();
             ranges.Dispose();
             if (m_Chain.Any)
             {
@@ -1336,6 +1337,7 @@ namespace FirstSymbol.Lettera
             public NativeArray<LetteraSolidMeshVertex> Posed;
             [ReadOnly] public NativeArray<PoseRange> Ranges;
             public NativeArray<float3> Reach;
+            public bool Measure;
 
             public void Execute()
             {
@@ -1360,6 +1362,7 @@ namespace FirstSymbol.Lettera
                         v.Normal = new float3(x.x * v.Normal.x - x.y * v.Normal.y, x.y * v.Normal.x + x.x * v.Normal.y, v.Normal.z);
                         v.Color.a = (byte)(v.Color.a * range.Alpha);
                         Posed[i] = v;
+                        if (!Measure) continue;
                         low = math.min(low, v.Position);
                         high = math.max(high, v.Position);
                     }

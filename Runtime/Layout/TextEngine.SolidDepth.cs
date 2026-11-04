@@ -5,6 +5,8 @@ namespace FirstSymbol.Lettera
     {
         internal int MotionSpanCountForSolids => m_Aside.MotionSpans.Count;
 
+        internal LetteraMotionEffect MotionEffectForSolids(int span) => m_Aside.MotionSpans[span].Effect;
+
         /// <summary>A motion over a range, as the last pose pass resolved it, or null when it rests now.</summary>
         internal LetteraMotionEffect MotionForSolids(int span, out LetteraMotionValues values, out float time, out int linkStart, out int linkCount, out int bodyCount)
         {

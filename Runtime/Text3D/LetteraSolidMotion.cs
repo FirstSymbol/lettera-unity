@@ -331,7 +331,7 @@ namespace FirstSymbol.Lettera
         {
             if (hook != null || engine.RevealsForSolids) return true;
             for (int s = 0; s < engine.MotionSpanCountForSolids; s++)
-                if (engine.MotionForSolids(s, out _, out _, out _, out _, out _) is LetteraSolidMotion)
+                if (engine.MotionEffectForSolids(s) is LetteraSolidMotion)
                     return true;
             return false;
         }
