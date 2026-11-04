@@ -1369,10 +1369,11 @@ namespace FirstSymbol.Lettera
                     float exponent = math.max(0.25f, math.pow(4, math.clamp(roundness, 0.02f, 0.98f) * 2 - 1) * 2);
                     for (int i = 0; i <= segments; i++)
                     {
+                        // cos of a right angle comes out a hair below zero, and a negative number to a fractional power is NaN,
+                        // which took the face with it for every roundness but 0.5. The ends are exact by construction.
                         float angle = 0.5f * math.PI * i / segments;
-                        float t = 1 - math.pow(math.cos(angle), 2 / exponent);
-                        float h = math.pow(math.sin(angle), 2 / exponent);
-                        output.Add(new float2(t, h));
+                        float c = i == segments ? 0 : math.saturate(math.cos(angle)), s = i == segments ? 1 : math.saturate(math.sin(angle));
+                        output.Add(new float2(1 - math.pow(c, 2 / exponent), math.pow(s, 2 / exponent)));
                     }
                     break;
                 }
