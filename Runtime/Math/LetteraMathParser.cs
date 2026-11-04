@@ -73,14 +73,15 @@ namespace FirstSymbol.Lettera
     }
 
     /// <summary>Reads the notation in one pass, with one token of lookahead, and never goes back. So its time is linear in what it is given, whatever that is.</summary>
-    internal sealed class LetteraMathParser
+    internal sealed partial class LetteraMathParser
     {
         internal const byte FlagLimits = 1, FlagNoLimits = 2, FlagDisplayLimits = 4, FlagWide = 8, FlagForceClass = 16;
         internal const int RowHline = 1, RowDashed = 2;
         /// <summary>A row's flags: its \tag is starred; it takes no number.</summary>
         internal const byte RowTagStar = 1, RowNoNumber = 2;
 
-        readonly string m_Source;
+        // Chemistry reads its own rewritten source in place of this one, and puts it back.
+        string m_Source;
         readonly MathTree m_Tree = new MathTree();
         int m_At, m_Depth;
         MathAlphabet m_Alphabet;
@@ -537,6 +538,9 @@ namespace FirstSymbol.Lettera
                 case "underleftarrow": return Stretched(0x2190, false, MathClass.Ord);
                 case "xrightarrow": return Arrow(0x2192);
                 case "xleftarrow": return Arrow(0x2190);
+                case "xleftrightarrow": return Arrow(0x2194);
+                case "xrightleftharpoons": return Arrow(0x21CC);
+                case "xrightleftarrows": return Arrow(0x21C4);
                 case "overset": return Stack(0);
                 case "underset": return Stack(1);
                 case "stackrel": return Stack(2);
@@ -601,10 +605,7 @@ namespace FirstSymbol.Lettera
                 case "|": return CharNode(0x2225, MathClass.Ord);
                 case "backslash": return CharNode('\\', MathClass.Ord);
                 case "dots": return DotsNode();
-                case "ce": case "pu":
-                    m_At = position;
-                    Fail("\\" + name + " is not supported in this version.");
-                    return -1;
+                case "ce": case "pu": return Chemistry(name == "pu", position);
                 case "sin": case "cos": case "tan": case "cot": case "sec": case "csc": case "arcsin": case "arccos": case "arctan": case "sinh": case "cosh": case "tanh": case "coth": case "log": case "ln": case "lg": case "exp": case "arg": case "deg": case "dim": case "hom": case "ker": case "mod":
                     return OperatorNode(name, false);
                 case "lim": case "liminf": case "limsup": case "sup": case "inf": case "min": case "max": case "det": case "gcd": case "Pr":
@@ -861,6 +862,7 @@ namespace FirstSymbol.Lettera
             n.B = below;
             n.Cp = cp;
             n.Class = MathClass.Rel;
+            n.Value = m_Chemistry > 0 ? LetteraChemistry.ArrowEm : 0;
             return node;
         }
 

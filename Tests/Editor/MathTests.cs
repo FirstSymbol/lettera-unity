@@ -105,7 +105,7 @@ namespace FirstSymbol.Lettera.Editor.Tests
         [TestCase("\\begin{nosuch}x\\end{nosuch}", "no environment")]
         [TestCase("\\begin{matrix}x", "\\end")]
         [TestCase("\\begin{matrix}x\\end{cases}", "closes")]
-        [TestCase("\\ce{H2O}", "not supported")]
+        [TestCase("\\ce{H2O $x}", "\\ce")]
         [TestCase("\\def\\a{b}", "no command")]
         [TestCase("\\newcommand{\\a}{b}", "no command")]
         public void ItRefusesWhatItCannotRead(string source, string part)

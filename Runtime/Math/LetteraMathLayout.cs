@@ -1313,7 +1313,7 @@ namespace FirstSymbol.Lettera
             Box below = n.B >= 0 ? ListBox(n.B, annotation, true) : default;
             bool hasBelow = n.B >= 0;
             float pad = 0.3f * ScaleOf(style);
-            float need = Mathf.Max(above.Width, hasBelow ? below.Width : 0) + 2 * pad;
+            float need = Mathf.Max(Mathf.Max(above.Width, hasBelow ? below.Width : 0) + 2 * pad, n.Value * ScaleOf(style));
             Box arrow = StretchTo(n.Cp, false, need, style);
             float width = Mathf.Max(arrow.Width, need);
             float a = C(MathConstant.AxisHeight, style);
