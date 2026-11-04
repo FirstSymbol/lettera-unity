@@ -16,9 +16,9 @@ MonoBehaviour:
   m_Depth: 0.3
   m_FrontBevel:
     Shape: 2
-    Width: 0.04
-    Height: 0.04
-    Roundness: 0.7
+    Width: 0.028
+    Height: 0.028
+    Roundness: 0.5
     Segments: 4
     Curve:
       serializedVersion: 2
@@ -46,9 +46,9 @@ MonoBehaviour:
       m_RotationOrder: 4
   m_BackBevel:
     Shape: 2
-    Width: 0.04
-    Height: 0.04
-    Roundness: 0.7
+    Width: 0.028
+    Height: 0.028
+    Roundness: 0.5
     Segments: 4
     Curve:
       serializedVersion: 2

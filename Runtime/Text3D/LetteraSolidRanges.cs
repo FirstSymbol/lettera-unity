@@ -133,14 +133,14 @@ namespace FirstSymbol.Lettera
         }
 
         readonly List<SurfaceMap> m_Maps = new List<SurfaceMap>();
-        readonly List<LetteraSolidRangePose> m_Poses = new List<LetteraSolidRangePose>();
+        int m_Posed;
         int[] m_GlyphPose = Array.Empty<int>(), m_Main = Array.Empty<int>();
         NativeArray<RestItem> m_Items;
         ulong m_Hash;
 
         /// <summary>Surface maps the ranges asked for, after the text's own and its layers'.</summary>
         internal IReadOnlyList<SurfaceMap> Maps => m_Maps;
-        internal bool HasPoses => m_Poses.Count > 0;
+        internal bool HasPoses => m_Posed > 0;
         internal ulong HashOf() => m_Hash;
 
         public void Dispose()
@@ -164,7 +164,7 @@ namespace FirstSymbol.Lettera
         internal void Assign(TextEngine engine, List<LetteraSolidMeshBuilder.Placement> placed, int glyphPlacements, int firstMap)
         {
             m_Maps.Clear();
-            m_Poses.Clear();
+            m_Posed = 0;
             m_Hash = 0;
             ValueList<LetteraAttributes.ExtraRange> extras = engine.ExtrasForSolids;
             if (extras.Count == 0) return;
@@ -201,7 +201,7 @@ namespace FirstSymbol.Lettera
                 {
                     m_GlyphPose[place.GlyphIndex] = pose;
                     m_Main[place.GlyphIndex] = p;
-                    if (!m_Poses.Contains((LetteraSolidRangePose)extras[pose - 1].Payload)) m_Poses.Add((LetteraSolidRangePose)extras[pose - 1].Payload);
+                    m_Posed++;
                 }
                 unchecked
                 {
@@ -233,7 +233,7 @@ namespace FirstSymbol.Lettera
         /// <summary>Turns the posed glyphs where they rest, and their layers with them. Bounds and each placement's ends follow.</summary>
         internal void PoseRest(TextEngine engine, List<LetteraSolidMeshBuilder.Placement> placed, NativeArray<LetteraSolidMeshVertex> rest, NativeArray<float3> ends, ref float3 min, ref float3 max)
         {
-            if (m_Poses.Count == 0) return;
+            if (m_Posed == 0) return;
             ValueList<LetteraAttributes.ExtraRange> extras = engine.ExtrasForSolids;
             int glyphs = engine.PlacedSpan.Length;
             if (!m_Items.IsCreated || m_Items.Length < placed.Count)
