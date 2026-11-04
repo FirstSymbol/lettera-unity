@@ -109,6 +109,90 @@ namespace FirstSymbol.Lettera.Editor
             LtUI.Field("Segments", bevel.FindPropertyRelative("Segments")),
             LtUI.Field("Curve", bevel.FindPropertyRelative("Curve"), "Custom only: height from the side to the face."));
 
+        static readonly string[] ShapeNames = { "Outline", "Plate", "Tube" };
+        static readonly string[] ScopeNames = { "Glyph", "Word", "Line", "Text" };
+        static readonly string[] CutNames = { "None", "Through", "Engraved" };
+        static readonly string[] KindNames = { "Bend", "Twist", "Taper", "Wave", "Sphere", "Path" };
+
+        VisualElement LayerRow(SerializedProperty layer, int index)
+        {
+            SerializedProperty R(string name) => layer.FindPropertyRelative(name);
+            string title = R("Name").stringValue;
+            return new LtFold(string.IsNullOrEmpty(title) ? "Layer " + (index + 1) : title, () => LtUI.El("",
+                LtUI.Row("On", LetteraTextEditorBase.Holder(LtUI.Switch(R("Enabled")))),
+                LtUI.Field("Name", R("Name")),
+                LtUI.Row("Shape", LtUI.Segments(R("Shape"), ShapeNames), "The glyphs' outline grown or shrunk, a rounded plate around the ink, or a round tube along each outline."),
+                LtUI.Row("Around", LtUI.Segments(R("Scope"), ScopeNames), "One per glyph, word, line, or one for the whole text."),
+                LtUI.Field("Offset", R("Offset"), "Outline: how far it grows, in em, or shrinks when negative. Plate: room around the ink. Tube: how far inside the outline it runs."),
+                LtUI.Field("Radius", R("Radius"), "Plate: corners. Tube: the tube. In em."),
+                LtUI.Field("Band", R("Band"), "Above zero, only a ring this wide along its edge, in em."),
+                LtUI.Row("Letters", LtUI.Segments(R("Cut"), CutNames), "The glyphs cut right through it, or sunk into its front."),
+                LtUI.Field("Cut Depth", R("CutDepth"), "Engraved: how deep the glyphs go, in em."),
+                LtUI.Field("Depth", R("Depth"), "Its own depth, in em. A tube is as deep as it is wide."),
+                LtUI.Row("From", LtUI.Segments(R("Anchor"), "Front", "Back"), "Which face of the text its place in depth is measured from."),
+                LtUI.Field("Z", R("Z"), "How far behind that face its front sits, in em. Negative stands in front."),
+                LtUI.Field("Shift", R("Shift"), "Moves it across the text's plane, in em."),
+                LtUI.Text("Edge", "lt-subtitle"),
+                BevelFields(R("Bevel")),
+                LtUI.Field("Color", R("Color")),
+                LtUI.Field("Material", R("Material"), "Its front, edges and back. Empty takes the text's."),
+                LtUI.Field("Side Material", R("SideMaterial"), "Its sides. Empty takes its Material, then the text's."),
+                LtUI.Field("Detail", R("Detail"), "Cells per em of the field it is traced from: more is finer and slower to build.")));
+        }
+
+        VisualElement DeformerRow(SerializedProperty deformer, int index)
+        {
+            SerializedProperty R(string name) => deformer.FindPropertyRelative(name);
+            var kind = (LetteraDeformKind)R("Kind").enumValueIndex;
+            SerializedProperty points = R("Points");
+            return new LtFold(kind + (R("Off").boolValue ? " (off)" : ""), () => LtUI.El("",
+                LtUI.Row("Kind", LtUI.Segments(R("Kind"), KindNames)),
+                LtUI.Row("Off", LetteraTextEditorBase.Holder(LtUI.Switch(R("Off"))), "Kept in the chain, doing nothing."),
+                LtUI.Field("Amount", R("Amount"), "Bend, twist, sphere: degrees over the text's width; 360 closes a bend in a ring. Taper: how much narrower the end is. Wave: height in em."),
+                LtUI.Row("Moves", LtUI.Segments(R("Axis"), "Depth", "Up", "Both"), "Which way it moves the text: a bend into depth or in its plane, a wave and a taper likewise."),
+                LtUI.Field("Center", R("Center"), "Bend, twist, sphere: where along the width it holds still."),
+                LtUI.Field("Wavelength", R("Wavelength"), "Wave: one wave's length, in em."),
+                LtUI.Field("Phase", R("Phase"), "Wave: degrees. Path: where the text starts along it, 0 to 1."),
+                LtUI.Field("Speed", R("Speed"), "Wave: degrees a second, in Play Mode."),
+                new LtList("Path Points", points, (point, i) => LtUI.Field("", point), "Path only: points in the text's own space.")));
+        }
+
+        void AddLayer(LetteraSolidLayerPreset preset)
+        {
+            foreach (Object selected in targets)
+            {
+                Undo.RecordObject(selected, "Add Layer");
+                ((LetteraText3D)selected).AddLayer(LetteraSolidLayer.Preset(preset));
+                EditorUtility.SetDirty(selected);
+            }
+            serializedObject.Update();
+        }
+
+        void AddDeformer(LetteraDeformKind kind)
+        {
+            foreach (Object selected in targets)
+            {
+                Undo.RecordObject(selected, "Add Deformer");
+                LetteraDeformer deformer;
+                switch (kind)
+                {
+                    case LetteraDeformKind.Bend: deformer = LetteraDeformer.Bend(90); break;
+                    case LetteraDeformKind.Twist: deformer = LetteraDeformer.Twist(90); break;
+                    case LetteraDeformKind.Taper: deformer = LetteraDeformer.Taper(0.5f); break;
+                    case LetteraDeformKind.Wave: deformer = LetteraDeformer.Wave(0.1f, 2); break;
+                    case LetteraDeformKind.Sphere: deformer = LetteraDeformer.Sphere(90); break;
+                    default:
+                        var rect = ((LetteraText3D)selected).transform as RectTransform;
+                        float w = rect != null ? rect.rect.width : 10;
+                        deformer = LetteraDeformer.Path(new Vector3(-w / 2, 0, 0), new Vector3(0, w / 4, w / 4), new Vector3(w / 2, 0, 0));
+                        break;
+                }
+                ((LetteraText3D)selected).AddDeformer(deformer);
+                EditorUtility.SetDirty(selected);
+            }
+            serializedObject.Update();
+        }
+
         VisualElement MaterialRow(string label, string property, LetteraSolidSurface surface, string fallsBackTo)
         {
             VisualElement holder = LtUI.El("");
@@ -146,7 +230,6 @@ namespace FirstSymbol.Lettera.Editor
             Label selectable = Chip("A selectable does nothing on a solid text.");
             Label overlay = Chip("Under a Screen Space Overlay canvas this does not show. Use a Camera canvas or a render texture.");
             Label canvas = Chip("Under a canvas this draws as a scene object: no masks, no batching, no layout.");
-            Label hdrp = Chip("HDRP has no default material for this. Assign an opaque HDRP material of your own.");
             Label instancing = Chip("Many texts share this mesh, but its material has GPU Instancing off.");
             Label over = Chip("Over the most vertices one text draws. Glyphs past it draw nothing.");
             Label failed = Chip("");
@@ -158,7 +241,6 @@ namespace FirstSymbol.Lettera.Editor
                 Canvas parent = text.GetComponentInParent<Canvas>();
                 overlay.style.display = parent != null && parent.renderMode == RenderMode.ScreenSpaceOverlay ? DisplayStyle.Flex : DisplayStyle.None;
                 canvas.style.display = parent != null && parent.renderMode != RenderMode.ScreenSpaceOverlay ? DisplayStyle.Flex : DisplayStyle.None;
-                hdrp.style.display = UnityEngine.Rendering.GraphicsSettings.currentRenderPipeline != null && UnityEngine.Rendering.GraphicsSettings.currentRenderPipeline.GetType().Name.Contains("HD") && text.FaceMaterial == null ? DisplayStyle.Flex : DisplayStyle.None;
                 Material face = text.GetSurfaceMaterial(LetteraSolidSurface.Face);
                 instancing.style.display = text.ShareMesh && LetteraSharedSolidMeshes.ReferencesOf(text.CurrentMesh) > 16 && face != null && !face.enableInstancing ? DisplayStyle.Flex : DisplayStyle.None;
                 LetteraSolidMeshBuilder builder = text.Builder;
@@ -208,6 +290,41 @@ namespace FirstSymbol.Lettera.Editor
                         MaterialRow("Side", "m_SideMaterial", LetteraSolidSurface.Side, "Face"),
                         MaterialRow("Back Bevel", "m_BackBevelMaterial", LetteraSolidSurface.BackBevel, "Bevel"),
                         MaterialRow("Back", "m_BackMaterial", LetteraSolidSurface.Back, "Face")));
+
+                    page.Add(LtUI.Card("Layers",
+                        LtUI.Text("Extra solids around the glyphs, each with its own depth, edge, colour and materials.", "lt-subtitle"),
+                        new LtList("Layers", P("m_Layers"), LayerRow, "No layers. Add an outline, a plate or a tube around the glyphs.", list =>
+                        {
+                            var menu = new GenericMenu();
+                            foreach (LetteraSolidLayerPreset preset in System.Enum.GetValues(typeof(LetteraSolidLayerPreset)))
+                            {
+                                LetteraSolidLayerPreset chosen = preset;
+                                menu.AddItem(new GUIContent(ObjectNames.NicifyVariableName(preset.ToString())), false, () =>
+                                {
+                                    AddLayer(chosen);
+                                    list.Rebuild();
+                                });
+                            }
+                            menu.ShowAsContext();
+                        })));
+
+                    page.Add(LtUI.Card("Deform",
+                        LtUI.Text("A chain over the whole text, its layers and lines. A range takes its own by tags: bend, twist, taper, ripple, sphere.", "lt-subtitle"),
+                        new LtList("Deformers", P("m_Deformers"), DeformerRow, "Nothing deforms this text.", list =>
+                        {
+                            var menu = new GenericMenu();
+                            foreach (LetteraDeformKind kind in System.Enum.GetValues(typeof(LetteraDeformKind)))
+                            {
+                                LetteraDeformKind chosen = kind;
+                                menu.AddItem(new GUIContent(kind.ToString()), false, () =>
+                                {
+                                    AddDeformer(chosen);
+                                    list.Rebuild();
+                                });
+                            }
+                            menu.ShowAsContext();
+                        }),
+                        LtUI.Field("Detail", P("m_DeformDetail"), "With a deformer, no edge across the text is longer than this, in em. Less is smoother and heavier.")));
 
                     var look = new UnityEditor.UIElements.ObjectField { objectType = typeof(LetteraSolidLook), allowSceneObjects = false };
                     look.AddToClassList("lt-field");
@@ -276,6 +393,18 @@ namespace FirstSymbol.Lettera.Editor
                 LtUI.Field("Side", P("m_SideMaterial")),
                 LtUI.Field("Back Bevel", P("m_BackBevelMaterial")),
                 LtUI.Field("Back", P("m_BackMaterial"))));
+            page.Add(LtUI.Card("Layers",
+                LtUI.Text("A text takes copies of these with the look. None leaves a text's own as they are.", "lt-subtitle"),
+                new LtList("Layers", P("m_Layers"), (layer, index) => LtUI.El("",
+                    LtUI.Field("Name", layer.FindPropertyRelative("Name")),
+                    LtUI.Row("Shape", LtUI.Segments(layer.FindPropertyRelative("Shape"), "Outline", "Plate", "Tube")),
+                    LtUI.Row("Around", LtUI.Segments(layer.FindPropertyRelative("Scope"), "Glyph", "Word", "Line", "Text")),
+                    LtUI.Field("Offset", layer.FindPropertyRelative("Offset")),
+                    LtUI.Field("Radius", layer.FindPropertyRelative("Radius")),
+                    LtUI.Field("Depth", layer.FindPropertyRelative("Depth")),
+                    LtUI.Field("Z", layer.FindPropertyRelative("Z")),
+                    LtUI.Field("Color", layer.FindPropertyRelative("Color")),
+                    LtUI.Field("Material", layer.FindPropertyRelative("Material"))), "No layers.")));
             root.Bind(serializedObject);
             return root;
         }

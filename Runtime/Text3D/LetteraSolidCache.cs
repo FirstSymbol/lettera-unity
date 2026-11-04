@@ -66,14 +66,16 @@ namespace FirstSymbol.Lettera
         public int Instance;
         public uint Glyph;
         public int Edges;
+        /// <summary>0 for the glyph itself, else the shape of a layer made around it.</summary>
+        public int Layer;
 
-        public bool Equals(LetteraSolidKey other) => Instance == other.Instance && Glyph == other.Glyph && Edges == other.Edges;
+        public bool Equals(LetteraSolidKey other) => Instance == other.Instance && Glyph == other.Glyph && Edges == other.Edges && Layer == other.Layer;
         public override bool Equals(object obj) => obj is LetteraSolidKey other && Equals(other);
         public override int GetHashCode()
         {
             unchecked
             {
-                return (Instance * 397) ^ (int)(Glyph * 2654435761u) ^ Edges;
+                return (Instance * 397) ^ (int)(Glyph * 2654435761u) ^ Edges ^ (Layer * 486187739);
             }
         }
     }
@@ -84,6 +86,8 @@ namespace FirstSymbol.Lettera
         public LetteraBevel Front, Back;
         public float Tolerance, SmoothingCos;
         public LetteraSolidFaces Faces;
+        /// <summary>Above zero, no edge across the plane is longer than this, in em, so that a deformer can curve it.</summary>
+        public float MaxEdge;
 
         public int HashOf()
         {
@@ -94,6 +98,7 @@ namespace FirstSymbol.Lettera
                 hash = hash * 31 + Tolerance.GetHashCode();
                 hash = hash * 31 + SmoothingCos.GetHashCode();
                 hash = hash * 31 + (int)Faces;
+                if (MaxEdge > 0) hash = hash * 31 + MaxEdge.GetHashCode();
                 return hash;
             }
         }
@@ -152,6 +157,31 @@ namespace FirstSymbol.Lettera
                 s_Entries[key] = entry;
                 s_Bytes += entry.Bytes;
                 // Held before the cache trims, or a full cache gives back the solid it was just asked for.
+                entry.References++;
+                entry.LastUse = ++s_Clock;
+                Trim();
+                return entry;
+            }
+            entry.References++;
+            entry.LastUse = ++s_Clock;
+            return entry;
+        }
+
+        /// <summary>A layer's solid around one glyph, shared like the glyph's own. The caller holds one reference.</summary>
+        internal static LetteraSolidEntry AcquireLayer(FontInstance instance, uint glyph, LetteraSolidLayer layer, int part, in LetteraSolidRecipe recipe)
+        {
+            Hook();
+            var key = new LetteraSolidKey { Instance = instance != null ? instance.Id : 0, Glyph = glyph, Edges = recipe.HashOf(), Layer = layer.ShapeHash(part) };
+            if (!s_Entries.TryGetValue(key, out LetteraSolidEntry entry))
+            {
+                var segments = new NativeList<float4>(256, Allocator.Temp);
+                float2 low = new float2(float.MaxValue), high = new float2(float.MinValue);
+                LetteraSolidLayerBuilder.AddGlyph(instance, glyph, float2.zero, 1, 1, 1, 0, ref segments, ref low, ref high);
+                entry = LetteraSolidLayerBuilder.Build(key, segments, low, high, layer, part, recipe) ?? new LetteraSolidEntry { Key = key };
+                segments.Dispose();
+                Builds++;
+                s_Entries[key] = entry;
+                s_Bytes += entry.Bytes;
                 entry.References++;
                 entry.LastUse = ++s_Clock;
                 Trim();
@@ -238,10 +268,12 @@ namespace FirstSymbol.Lettera
             NativeList<LetteraSolidVertex> m_Vertices;
             NativeList<int> m_Indices;
             NativeArray<int> m_Starts, m_Report;
+            readonly float m_MaxEdge;
 
             public PendingBuild(in LetteraSolidKey key, float[] commands, int count, float scale, in LetteraSolidRecipe recipe)
             {
                 m_Key = key;
+                m_MaxEdge = recipe.MaxEdge;
                 Builds++;
                 m_Input = new NativeArray<float>(Mathf.Max(count, 1), Allocator.TempJob);
                 NativeArray<float>.Copy(commands, m_Input, count);
@@ -286,6 +318,8 @@ namespace FirstSymbol.Lettera
                 }
                 else
                 {
+                    if (m_MaxEdge > 0)
+                        new LetteraSolidSubdivideJob { Vertices = m_Vertices, Indices = m_Indices, SurfaceStarts = m_Starts, MaxEdge = m_MaxEdge, MaxTriangles = 400000 }.Run();
                     entry.Vertices = new NativeArray<LetteraSolidVertex>(m_Vertices.AsArray(), Allocator.Persistent);
                     entry.Indices = new NativeArray<int>(m_Indices.AsArray(), Allocator.Persistent);
                     for (int i = 0; i < 6; i++) entry.SurfaceStarts[i] = m_Starts[i];

@@ -31,10 +31,38 @@ namespace FirstSymbol.Lettera
         }
     }
 
+    /// <summary>
+    /// Deforms a range of a solid text by its own box: <c>&lt;bend=90&gt;</c>, <c>&lt;bend=60,up&gt;</c>, <c>&lt;twist=180&gt;</c>, <c>&lt;taper=0.5&gt;</c>,
+    /// <c>&lt;ripple=0.1,1.5&gt;</c> for a wave of a height and a length in em, <c>&lt;sphere=120&gt;</c>. It runs before the text's own chain.
+    /// </summary>
+    [Serializable, UnityEngine.Scripting.Preserve]
+    public class SolidDeformEffect : LetteraEffect
+    {
+        public LetteraDeformKind Kind;
+
+        public override void Apply(LetteraAttributes attributes, int start, int end, in LetteraSlots slots)
+        {
+            System.Globalization.CultureInfo invariant = System.Globalization.CultureInfo.InvariantCulture;
+            if (!float.TryParse(slots[0], System.Globalization.NumberStyles.Float, invariant, out float amount)) return;
+            var deformer = new LetteraDeformer { Kind = Kind, Amount = amount, Center = 0.5f, Axis = Kind == LetteraDeformKind.Taper ? LetteraDeformAxis.Up : LetteraDeformAxis.Depth, Wavelength = 1 };
+            string second = slots[1];
+            if (Kind == LetteraDeformKind.Wave)
+            {
+                if (float.TryParse(second, System.Globalization.NumberStyles.Float, invariant, out float length)) deformer.Wavelength = Mathf.Max(length, 0.01f);
+                if (Enum.TryParse(slots[2], true, out LetteraDeformAxis waveAxis)) deformer.Axis = waveAxis;
+            }
+            else if (Enum.TryParse(second, true, out LetteraDeformAxis axis))
+            {
+                deformer.Axis = axis;
+            }
+            attributes.AddExtra(LetteraSolidEffects.DeformKey, start, end, 0, deformer);
+        }
+    }
+
     /// <summary>The range effects only a solid text has, added to its own styles first, so that the shared vocabulary stays as it was.</summary>
     internal static class LetteraSolidEffects
     {
-        internal static readonly object DepthKey = new object(), BevelKey = new object();
+        internal static readonly object DepthKey = new object(), BevelKey = new object(), DeformKey = new object();
 
         static List<LetteraStyle> s_Styles;
 
@@ -43,7 +71,21 @@ namespace FirstSymbol.Lettera
         {
             LetteraStyle.ForTag(new SolidDepthEffect(), "depth"),
             LetteraStyle.ForTag(new SolidBevelEffect(), "bevel"),
+            LetteraStyle.ForTag(new SolidDeformEffect { Kind = LetteraDeformKind.Bend }, "bend"),
+            LetteraStyle.ForTag(new SolidDeformEffect { Kind = LetteraDeformKind.Twist }, "twist"),
+            LetteraStyle.ForTag(new SolidDeformEffect { Kind = LetteraDeformKind.Taper }, "taper"),
+            LetteraStyle.ForTag(new SolidDeformEffect { Kind = LetteraDeformKind.Wave }, "ripple"),
+            LetteraStyle.ForTag(new SolidDeformEffect { Kind = LetteraDeformKind.Sphere }, "sphere"),
         });
+
+        internal static bool HasDeform(TextEngine engine)
+        {
+            ValueList<LetteraAttributes.ExtraRange> extras = engine.ExtrasForSolids;
+            for (int i = 0; i < extras.Count; i++)
+                if (extras[i].Key == DeformKey)
+                    return true;
+            return false;
+        }
 
         // What a range's effects change for one glyph. Nearly every text has none of these, and pays one count.
         internal static void Read(TextEngine engine, int cluster, ref LetteraSolidRecipe recipe, ref float depth)

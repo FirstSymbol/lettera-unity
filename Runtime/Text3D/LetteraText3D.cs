@@ -58,6 +58,9 @@ namespace FirstSymbol.Lettera
         [SerializeField] bool m_RaycastTarget = true;
 
         [SerializeField] Material m_FaceMaterial, m_BevelMaterial, m_SideMaterial, m_BackBevelMaterial, m_BackMaterial;
+        [SerializeField, Tooltip("Extra solids around the glyphs: outlines, plates and tubes.")] List<LetteraSolidLayer> m_Layers = new List<LetteraSolidLayer>();
+        [SerializeField, Tooltip("Bends, twists, tapers, waves, a ball or a path, applied in order.")] List<LetteraDeformer> m_Deformers = new List<LetteraDeformer>();
+        [SerializeField, Min(0.005f), Tooltip("With a deformer, no edge across the text is longer than this, in em. Less is smoother and heavier.")] float m_DeformDetail = 0.05f;
 
         TextEngine m_Engine;
         RectTransform m_Rect;
@@ -152,6 +155,82 @@ namespace FirstSymbol.Lettera
         public Material BackBevelMaterial { get => m_BackBevelMaterial; set { m_BackBevelMaterial = value; MarkSolidsDirty(); } }
         public Material BackMaterial { get => m_BackMaterial; set { m_BackMaterial = value; MarkSolidsDirty(); } }
 
+        /// <summary>The extra solids built around the glyphs, in order. After changing one in place, call RefreshSolids.</summary>
+        public IReadOnlyList<LetteraSolidLayer> Layers => m_Layers;
+
+        public void AddLayer(LetteraSolidLayer layer)
+        {
+            if (layer == null) throw new ArgumentNullException(nameof(layer));
+            m_Layers.Add(layer);
+            MarkSolidsDirty();
+        }
+
+        public void InsertLayer(int index, LetteraSolidLayer layer)
+        {
+            if (layer == null) throw new ArgumentNullException(nameof(layer));
+            m_Layers.Insert(index, layer);
+            MarkSolidsDirty();
+        }
+
+        public void RemoveLayerAt(int index)
+        {
+            m_Layers.RemoveAt(index);
+            MarkSolidsDirty();
+        }
+
+        public void ClearLayers()
+        {
+            if (m_Layers.Count == 0) return;
+            m_Layers.Clear();
+            MarkSolidsDirty();
+        }
+
+        /// <summary>The chain of deformers the whole text goes through, in order. A range's own come from its tags, first.</summary>
+        public IReadOnlyList<LetteraDeformer> Deformers => m_Deformers;
+
+        public void AddDeformer(LetteraDeformer deformer)
+        {
+            m_Deformers.Add(deformer);
+            MarkSolidsDirty();
+        }
+
+        public void SetDeformer(int index, LetteraDeformer deformer)
+        {
+            m_Deformers[index] = deformer;
+            MarkSolidsDirty();
+        }
+
+        public void RemoveDeformerAt(int index)
+        {
+            m_Deformers.RemoveAt(index);
+            MarkSolidsDirty();
+        }
+
+        public void ClearDeformers()
+        {
+            if (m_Deformers.Count == 0) return;
+            m_Deformers.Clear();
+            MarkSolidsDirty();
+        }
+
+        /// <summary>With a deformer, no edge across the text is longer than this, in em.</summary>
+        public float DeformDetail { get => m_DeformDetail; set { value = Mathf.Max(value, 0.005f); if (m_DeformDetail == value) return; m_DeformDetail = value; MarkSolidsDirty(); } }
+
+        /// <summary>Builds the solids again, after a layer was changed in place.</summary>
+        public void RefreshSolids() => MarkSolidsDirty();
+
+        // Whether anything deforms this text: its own chain, or a range's tag.
+        internal bool Deforms
+        {
+            get
+            {
+                for (int i = 0; i < m_Deformers.Count; i++)
+                    if (!m_Deformers[i].Off)
+                        return true;
+                return m_Engine != null && LetteraSolidEffects.HasDeform(m_Engine);
+            }
+        }
+
         /// <summary>The material a surface ends up with, after falling back through the slots.</summary>
         public Material GetSurfaceMaterial(LetteraSolidSurface surface)
         {
@@ -172,6 +251,7 @@ namespace FirstSymbol.Lettera
             Tolerance = m_CurveTolerance,
             SmoothingCos = Mathf.Cos(m_SmoothingAngle * Mathf.Deg2Rad),
             Faces = (m_FrontFace ? LetteraSolidFaces.Front : 0) | (m_BackFace ? LetteraSolidFaces.Back : 0) | (m_Sides ? LetteraSolidFaces.Sides : 0),
+            MaxEdge = Deforms ? m_DeformDetail : 0,
         };
 
         // ------------------------------------------------------------------ life
@@ -182,6 +262,7 @@ namespace FirstSymbol.Lettera
             m_Filter = GetComponent<MeshFilter>();
             m_Renderer = GetComponent<MeshRenderer>();
             if (m_Builder == null) m_Builder = new LetteraSolidMeshBuilder();
+            m_Builder.SetOwner(this);
             m_SolidsDirty = true;
             m_ColorsDirty = false;
             AddListeners();
@@ -214,7 +295,12 @@ namespace FirstSymbol.Lettera
             }
         }
 
-        void LateUpdate() => RebuildIfDirty();
+        void LateUpdate()
+        {
+            RebuildIfDirty();
+            // A wave with a speed moves every frame, with or without any motion of the text's own.
+            if (m_Builder != null && m_Builder.DeformAnimated && Application.isPlaying && !m_Hidden) ApplyPose();
+        }
 
         internal void RebuildIfDirty()
         {
@@ -325,24 +411,36 @@ namespace FirstSymbol.Lettera
             LetteraSolidFlatChild.Update(this);
         }
 
-        readonly Material[] m_SurfaceSlots = new Material[5];
-        readonly int[] m_SurfaceToSubmesh = new int[5];
+        int[] m_SurfaceToSubmesh = new int[5];
         Material[] m_Given;
+
+        /// <summary>The material a layer's surface ends up with: its own, then the text's.</summary>
+        public Material GetLayerMaterial(LetteraSolidLayer layer, LetteraSolidSurface surface)
+        {
+            if (layer == null) return GetSurfaceMaterial(surface);
+            if (surface == LetteraSolidSurface.Side && layer.SideMaterial != null) return layer.SideMaterial;
+            return layer.Material != null ? layer.Material : GetSurfaceMaterial(surface);
+        }
+
+        int Submesh(Material material)
+        {
+            int index = m_Materials.IndexOf(material);
+            if (index >= 0) return index;
+            m_Materials.Add(material);
+            return m_Materials.Count - 1;
+        }
 
         void ResolveMaterials()
         {
             m_Materials.Clear();
-            for (int s = 0; s < 5; s++)
+            int maps = 5 * (1 + m_Layers.Count);
+            if (m_SurfaceToSubmesh.Length != maps) m_SurfaceToSubmesh = new int[maps];
+            for (int s = 0; s < 5; s++) m_SurfaceToSubmesh[s] = Submesh(GetSurfaceMaterial((LetteraSolidSurface)s));
+            for (int l = 0; l < m_Layers.Count; l++)
             {
-                Material material = GetSurfaceMaterial((LetteraSolidSurface)s);
-                m_SurfaceSlots[s] = material;
-                int index = m_Materials.IndexOf(material);
-                if (index < 0)
-                {
-                    index = m_Materials.Count;
-                    m_Materials.Add(material);
-                }
-                m_SurfaceToSubmesh[s] = index;
+                LetteraSolidLayer layer = m_Layers[l];
+                bool used = layer != null && layer.Enabled;
+                for (int s = 0; s < 5; s++) m_SurfaceToSubmesh[5 + l * 5 + s] = used ? Submesh(GetLayerMaterial(layer, (LetteraSolidSurface)s)) : 0;
             }
             m_SubmeshCount = m_Materials.Count;
             // A renderer hands out a new array each time it is asked, so what it was given is remembered here.
@@ -357,7 +455,7 @@ namespace FirstSymbol.Lettera
 
         void WriteMesh()
         {
-            bool share = m_ShareMesh && !Engine.PosesObjects && !m_Builder.HasMotion;
+            bool share = m_ShareMesh && !Engine.PosesObjects && !m_Builder.HasMotion && !m_Builder.HasGroupLayers && !m_Builder.DeformAnimated;
             if (share)
             {
                 ulong hash = m_Builder.ContentHash(m_SubmeshCount, m_SurfaceToSubmesh);
@@ -524,15 +622,23 @@ namespace FirstSymbol.Lettera
             public float X, Y, SizeX, SizeY, SizeZ, Cos, Sin, Depth, BevelDepth, ZOffset, Unit;
             public Color32 Color;
             public int VertexStart, VertexCount;
-            public int[] OverrideSurface;
+            /// <summary>Which surface map it takes: 0 the text's, 1 and on its layers'.</summary>
+            public int Map;
         }
 
         readonly List<Placement> m_Placed = new List<Placement>();
         NativeArray<LetteraSolidMeshVertex> m_Rest, m_Posed;
         NativeArray<CopyItem> m_Items;
         NativeArray<IndexItem> m_IndexItems;
+        NativeArray<float3> m_ItemEnds;
         int m_VertexCount, m_IndexCount;
         bool m_Over;
+        float m_Scale;
+        Bounds m_RestBounds;
+        readonly LetteraDeformChain m_Chain = new LetteraDeformChain();
+        readonly List<LetteraDeformer> m_TextDeformers = new List<LetteraDeformer>();
+        // Layers made per word, line or text belong to this text alone, and are kept while their glyphs are the same.
+        Dictionary<ulong, LetteraSolidEntry> m_Groups = new Dictionary<ulong, LetteraSolidEntry>(), m_GroupsBefore = new Dictionary<ulong, LetteraSolidEntry>();
         internal bool HasMotion { get; private set; }
         internal int VertexCount => m_VertexCount;
         internal int TriangleCount => m_IndexCount / 3;
@@ -541,6 +647,12 @@ namespace FirstSymbol.Lettera
         internal int FailedGlyphs { get; private set; }
         internal IReadOnlyList<Placement> Placed => m_Placed;
         internal static int IndexWrites { get; private set; }
+        /// <summary>Whether a deformer moves with time, which makes every frame a pose frame.</summary>
+        internal bool DeformAnimated => m_Chain.Any && m_Chain.Animated;
+        internal bool Deformed => m_Chain.Any;
+        /// <summary>Layers made per word, line or text are this text's own, so its mesh is too.</summary>
+        internal bool HasGroupLayers => m_Groups.Count > 0;
+        internal int GroupLayerCount => m_Groups.Count;
 
         public void Dispose()
         {
@@ -548,6 +660,11 @@ namespace FirstSymbol.Lettera
             if (m_Posed.IsCreated) m_Posed.Dispose();
             if (m_Items.IsCreated) m_Items.Dispose();
             if (m_IndexItems.IsCreated) m_IndexItems.Dispose();
+            if (m_ItemEnds.IsCreated) m_ItemEnds.Dispose();
+            foreach (LetteraSolidEntry entry in m_Groups.Values) entry.Release();
+            m_Groups.Clear();
+            m_Chain.Dispose();
+            if (m_Maps.IsCreated) m_Maps.Dispose();
         }
 
         internal void Begin(TextEngine engine, in LetteraSolidRecipe recipe, float depth, LetteraSolidPivot pivot, bool flatColor, LetteraText3D owner, List<LetteraSolidEntry> held)
@@ -557,6 +674,8 @@ namespace FirstSymbol.Lettera
             HasMotion = engine.HasMotionForSolids;
             ReadOnlySpan<TextEngine.PlacedGlyph> glyphs = engine.PlacedSpan;
             int vertices = 0, limit = LetteraSettings.Instance.Solid3D.MaxVertices;
+            float scale = engine.CurrentFontSize > 0 ? engine.CurrentFontSize : owner.FontSize;
+            m_Scale = scale;
             LetteraSolidCache.BuildAhead(engine, recipe);
             m_Over = false;
             for (int i = 0; i < glyphs.Length; i++)
@@ -603,7 +722,6 @@ namespace FirstSymbol.Lettera
                     size = g.Unit * thickness;
                 }
                 float bevels = entry.FrontHeight + entry.BackHeight;
-                float scaleZ = g.Size;
                 float zOffset = pivot == LetteraSolidPivot.Front ? 0 : pivot == LetteraSolidPivot.Back ? -depthEm * g.Size : -depthEm * g.Size * 0.5f;
                 m_Placed.Add(new Placement
                 {
@@ -614,7 +732,7 @@ namespace FirstSymbol.Lettera
                     Y = g.Y,
                     SizeX = sizeX,
                     SizeY = size,
-                    SizeZ = scaleZ,
+                    SizeZ = g.Size,
                     Cos = g.Angle != 0 ? Mathf.Cos(g.Angle) : 1,
                     Sin = g.Angle != 0 ? Mathf.Sin(g.Angle) : 0,
                     Depth = depthEm,
@@ -627,27 +745,36 @@ namespace FirstSymbol.Lettera
                 });
                 vertices += entry.Vertices.Length;
             }
+            int glyphPlacements = m_Placed.Count;
             ValueList<TextEngine.SolidBox> boxes = engine.SolidBoxes;
             for (int b = 0; b < boxes.Count; b++)
             {
                 TextEngine.SolidBox box = boxes[b];
                 LetteraSolidEntry unit = LetteraSolidCache.Acquire(null, LetteraSolidCache.UnitBoxGlyph, recipe);
                 held.Add(unit);
-                if (vertices + unit.Vertices.Length > limit)
-                {
-                    m_Over = true;
-                    continue;
-                }
+                // A deformer curves a line only where it has corners, so a long one goes in short pieces.
+                int pieces = recipe.MaxEdge > 0 ? Mathf.Clamp(Mathf.CeilToInt(box.Rect.width / Mathf.Max(recipe.MaxEdge * box.Em, 1e-4f)), 1, 512) : 1;
                 float zOffset = pivot == LetteraSolidPivot.Front ? 0 : pivot == LetteraSolidPivot.Back ? -depth * box.Em : -depth * box.Em * 0.5f;
-                m_Placed.Add(new Placement
+                for (int piece = 0; piece < pieces; piece++)
                 {
-                    Entry = unit, Cluster = -1, GlyphIndex = box.Glyph,
-                    X = box.Rect.x, Y = box.Rect.y, SizeX = box.Rect.width, SizeY = box.Rect.height, SizeZ = box.Em,
-                    Cos = 1, Sin = 0, Depth = depth, BevelDepth = 0, ZOffset = zOffset, Color = box.Color,
-                    VertexStart = vertices, VertexCount = unit.Vertices.Length,
-                });
-                vertices += unit.Vertices.Length;
+                    if (vertices + unit.Vertices.Length > limit)
+                    {
+                        m_Over = true;
+                        break;
+                    }
+                    float w = box.Rect.width / pieces;
+                    m_Placed.Add(new Placement
+                    {
+                        Entry = unit, Cluster = -1, GlyphIndex = box.Glyph,
+                        X = box.Rect.x + w * piece, Y = box.Rect.y, SizeX = w, SizeY = box.Rect.height, SizeZ = box.Em,
+                        Cos = 1, Sin = 0, Depth = depth, BevelDepth = 0, ZOffset = zOffset, Color = box.Color,
+                        VertexStart = vertices, VertexCount = unit.Vertices.Length,
+                    });
+                    vertices += unit.Vertices.Length;
+                }
             }
+            PlaceLayers(engine, recipe, depth, pivot, owner.Layers, glyphPlacements, scale, held, ref vertices, limit);
+
             m_VertexCount = vertices;
             if (m_Rest.Length < vertices)
             {
@@ -667,7 +794,9 @@ namespace FirstSymbol.Lettera
             if (!m_Items.IsCreated || m_Items.Length < m_Placed.Count)
             {
                 if (m_Items.IsCreated) m_Items.Dispose();
+                if (m_ItemEnds.IsCreated) m_ItemEnds.Dispose();
                 m_Items = new NativeArray<CopyItem>(Mathf.Max(m_Placed.Count, 64), Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
+                m_ItemEnds = new NativeArray<float3>(Mathf.Max(m_Placed.Count, 64) * 2, Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
             }
             for (int p = 0; p < m_Placed.Count; p++)
             {
@@ -683,13 +812,264 @@ namespace FirstSymbol.Lettera
                 indices += place.Entry.Indices.Length;
             }
             var ends = new NativeArray<float3>(2, Allocator.TempJob);
-            new CopyJob { Items = m_Items, Count = m_Placed.Count, Target = m_Rest, Ends = ends }.Run();
+            new CopyJob { Items = m_Items, Count = m_Placed.Count, Target = m_Rest, Ends = ends, ItemEnds = m_ItemEnds }.Run();
             float3 min = ends[0], max = ends[1];
             ends.Dispose();
             m_IndexCount = indices;
             if (m_VertexCount > 0) m_Posed.GetSubArray(0, m_VertexCount).CopyFrom(m_Rest.GetSubArray(0, m_VertexCount));
-            Bounds = m_VertexCount == 0 ? new Bounds(Vector3.zero, Vector3.zero) : new Bounds((min + max) * 0.5f, max - min);
+            m_RestBounds = m_VertexCount == 0 ? new Bounds(Vector3.zero, Vector3.zero) : new Bounds((min + max) * 0.5f, max - min);
+            Bounds = m_RestBounds;
+            PrepareDeform(engine, owner.Deformers, Application.isPlaying ? Time.time : 0);
+            if (m_Chain.Any) Bounds = m_Chain.Run(m_Posed, m_VertexCount, m_Scale);
         }
+
+        // ------------------------------------------------------------------ layers
+
+        void PlaceLayers(TextEngine engine, in LetteraSolidRecipe recipe, float depth, LetteraSolidPivot pivot, IReadOnlyList<LetteraSolidLayer> layers, int glyphPlacements, float scale, List<LetteraSolidEntry> held, ref int vertices, int limit)
+        {
+            Dictionary<ulong, LetteraSolidEntry> swap = m_GroupsBefore;
+            m_GroupsBefore = m_Groups;
+            m_Groups = swap;
+            m_Groups.Clear();
+            if (layers != null)
+            {
+                for (int l = 0; l < layers.Count; l++)
+                {
+                    LetteraSolidLayer layer = layers[l];
+                    if (layer == null || !layer.Enabled) continue;
+                    LetteraSolidRecipe own = LetteraSolidLayerBuilder.RecipeOf(layer, recipe);
+                    int parts = layer.Cut == LetteraSolidLayerCut.Engraved && !layer.IsTube ? 2 : 1;
+                    if (layer.Scope == LetteraSolidLayerScope.Glyph)
+                    {
+                        for (int p = 0; p < glyphPlacements; p++)
+                        {
+                            Placement glyph = m_Placed[p];
+                            ref readonly TextEngine.PlacedGlyph g = ref engine.PlacedSpan[glyph.GlyphIndex];
+                            if (g.Special == TextEngine.SpecialRuleForSolids || g.Instance == null) continue;
+                            for (int part = 0; part < parts; part++)
+                            {
+                                LetteraSolidEntry entry = LetteraSolidCache.AcquireLayer(g.Instance, g.Glyph, layer, part, own);
+                                held.Add(entry);
+                                if (!entry.Vertices.IsCreated || entry.Vertices.Length == 0) continue;
+                                if (vertices + entry.Vertices.Length > limit)
+                                {
+                                    m_Over = true;
+                                    continue;
+                                }
+                                Color32 color = layer.Color;
+                                color.a = (byte)(color.a * glyph.Color.a / 255);
+                                AddLayer(layer, l, part, entry, glyph.Cluster, glyph.GlyphIndex, glyph.X + layer.Shift.x * g.Size, glyph.Y + layer.Shift.y * g.Size, glyph.SizeX, glyph.SizeY, g.Size, glyph.Cos, glyph.Sin, depth, pivot, color, ref vertices);
+                            }
+                        }
+                        continue;
+                    }
+                    PlaceGroups(engine, layer, l, parts, own, depth, pivot, scale, ref vertices, limit);
+                }
+            }
+            foreach (KeyValuePair<ulong, LetteraSolidEntry> old in m_GroupsBefore)
+                if (!m_Groups.ContainsKey(old.Key))
+                    old.Value.Release();
+            m_GroupsBefore.Clear();
+        }
+
+        void AddLayer(LetteraSolidLayer layer, int index, int part, LetteraSolidEntry entry, int cluster, int glyph, float x, float y, float sizeX, float sizeY, float sizeZ, float cos, float sin, float textDepth, LetteraSolidPivot pivot, Color32 color, ref int vertices)
+        {
+            float front = pivot == LetteraSolidPivot.Front ? 0 : pivot == LetteraSolidPivot.Back ? -textDepth * sizeZ : -textDepth * sizeZ * 0.5f;
+            float anchor = layer.Anchor == LetteraSolidLayerAnchor.Front ? front : front + textDepth * sizeZ;
+            float z = anchor + layer.Z * sizeZ;
+            float own = layer.SolidDepth;
+            if (layer.Cut == LetteraSolidLayerCut.Engraved && !layer.IsTube)
+            {
+                float cut = Mathf.Clamp(layer.CutDepth, 0.001f, Mathf.Max(own - 0.001f, 0.001f));
+                if (part == 0) own = cut;
+                else
+                {
+                    z += cut * sizeZ;
+                    own = Mathf.Max(own - cut, 0.001f);
+                }
+            }
+            m_Placed.Add(new Placement
+            {
+                Entry = entry, Cluster = cluster, GlyphIndex = glyph,
+                X = x, Y = y, SizeX = sizeX, SizeY = sizeY, SizeZ = sizeZ, Cos = cos, Sin = sin,
+                Depth = own, BevelDepth = entry.FrontHeight + entry.BackHeight, ZOffset = z, Color = color,
+                VertexStart = vertices, VertexCount = entry.Vertices.Length, Map = index + 1,
+            });
+            vertices += entry.Vertices.Length;
+        }
+
+        readonly List<int> m_GroupGlyphs = new List<int>();
+
+        // Glyphs in reading order, cut where a space, a line or nothing ends a word or a line.
+        void PlaceGroups(TextEngine engine, LetteraSolidLayer layer, int index, int parts, in LetteraSolidRecipe recipe, float depth, LetteraSolidPivot pivot, float scale, ref int vertices, int limit)
+        {
+            ReadOnlySpan<TextEngine.PlacedGlyph> glyphs = engine.PlacedSpan;
+            ReadOnlySpan<int> text = engine.ShownCodepoints;
+            m_GroupGlyphs.Clear();
+            int line = int.MinValue;
+            for (int i = 0; i <= glyphs.Length; i++)
+            {
+                bool cut = i == glyphs.Length;
+                bool skip = false;
+                if (!cut)
+                {
+                    ref readonly TextEngine.PlacedGlyph g = ref glyphs[i];
+                    bool space = g.Cluster >= 0 && g.Cluster < text.Length && LetteraUnicode.IsWhiteSpace(text[g.Cluster]);
+                    skip = space || g.Instance == null || g.Special == TextEngine.SpecialRuleForSolids || engine.IsDrawnFlatForSolids(i);
+                    if (layer.Scope == LetteraSolidLayerScope.Word && space) cut = true;
+                    if (layer.Scope != LetteraSolidLayerScope.Text && line != int.MinValue && g.Line != line && m_GroupGlyphs.Count > 0) cut = true;
+                }
+                if (cut && m_GroupGlyphs.Count > 0)
+                {
+                    BuildGroup(engine, layer, index, parts, recipe, depth, pivot, scale, ref vertices, limit);
+                    m_GroupGlyphs.Clear();
+                }
+                if (i < glyphs.Length && !skip)
+                {
+                    m_GroupGlyphs.Add(i);
+                    line = glyphs[i].Line;
+                }
+            }
+        }
+
+        void BuildGroup(TextEngine engine, LetteraSolidLayer layer, int index, int parts, in LetteraSolidRecipe recipe, float depth, LetteraSolidPivot pivot, float scale, ref int vertices, int limit)
+        {
+            ReadOnlySpan<TextEngine.PlacedGlyph> glyphs = engine.PlacedSpan;
+            ref readonly TextEngine.PlacedGlyph first = ref glyphs[m_GroupGlyphs[0]];
+            float2 origin = new float2(first.X, first.Y);
+            float inverse = 1f / Mathf.Max(scale, 1e-4f);
+            for (int part = 0; part < parts; part++)
+            {
+                ulong hash = 14695981039346656037UL;
+                unchecked
+                {
+                    void Mix(ulong v) => hash = (hash ^ v) * 1099511628211UL;
+                    Mix((ulong)(uint)layer.ShapeHash(part));
+                    Mix((ulong)(uint)recipe.HashOf());
+                    Mix((ulong)(uint)scale.GetHashCode());
+                    foreach (int gi in m_GroupGlyphs)
+                    {
+                        ref readonly TextEngine.PlacedGlyph g = ref glyphs[gi];
+                        Mix((ulong)(uint)g.Instance.Id);
+                        Mix(g.Glyph);
+                        Mix((ulong)(uint)(g.X - origin.x).GetHashCode());
+                        Mix((ulong)(uint)(g.Y - origin.y).GetHashCode());
+                        Mix((ulong)(uint)(g.Size * (1 + g.XScale)).GetHashCode());
+                        Mix((ulong)(uint)g.Angle.GetHashCode());
+                    }
+                }
+                if (!m_Groups.TryGetValue(hash, out LetteraSolidEntry entry))
+                {
+                    if (!m_GroupsBefore.TryGetValue(hash, out entry))
+                    {
+                        var segments = new NativeList<float4>(1024, Allocator.Temp);
+                        float2 low = new float2(float.MaxValue), high = new float2(float.MinValue);
+                        foreach (int gi in m_GroupGlyphs)
+                        {
+                            ref readonly TextEngine.PlacedGlyph g = ref glyphs[gi];
+                            float cos = g.Angle != 0 ? Mathf.Cos(g.Angle) : 1, sin = g.Angle != 0 ? Mathf.Sin(g.Angle) : 0;
+                            LetteraSolidLayerBuilder.AddGlyph(g.Instance, g.Glyph, (new float2(g.X, g.Y) - origin) * inverse, g.Size * (1 + g.XScale) * inverse, g.Size * inverse, cos, sin, ref segments, ref low, ref high);
+                        }
+                        var key = new LetteraSolidKey { Instance = -1, Glyph = (uint)index, Edges = recipe.HashOf(), Layer = layer.ShapeHash(part) };
+                        entry = LetteraSolidLayerBuilder.Build(key, segments, low, high, layer, part, recipe) ?? new LetteraSolidEntry { Key = key };
+                        segments.Dispose();
+                    }
+                    m_Groups[hash] = entry;
+                }
+                if (!entry.Vertices.IsCreated || entry.Vertices.Length == 0) continue;
+                if (vertices + entry.Vertices.Length > limit)
+                {
+                    m_Over = true;
+                    continue;
+                }
+                AddLayer(layer, index, part, entry, -1, -1, origin.x + layer.Shift.x * scale, origin.y + layer.Shift.y * scale, scale, scale, scale, 1, 0, depth, pivot, layer.Color, ref vertices);
+            }
+        }
+
+        // ------------------------------------------------------------------ deform
+
+        readonly Dictionary<ulong, int2> m_RangeSets = new Dictionary<ulong, int2>();
+        readonly List<int> m_RangeOps = new List<int>();
+
+        void PrepareDeform(TextEngine engine, IReadOnlyList<LetteraDeformer> deformers, float time)
+        {
+            m_Chain.Begin();
+            if (m_VertexCount == 0) return;
+            float3 min = m_RestBounds.min, max = m_RestBounds.max;
+            if (deformers != null)
+                for (int d = 0; d < deformers.Count; d++)
+                    m_Chain.AddText(deformers[d], min, max, m_Scale, time);
+            ValueList<LetteraAttributes.ExtraRange> extras = engine.ExtrasForSolids;
+            if (extras.Count == 0) return;
+            // Each range measures by its own glyphs, and a glyph in several takes them in order.
+            m_RangeOps.Clear();
+            int ranges = 0;
+            for (int e = 0; e < extras.Count && ranges < 64; e++)
+            {
+                LetteraAttributes.ExtraRange extra = extras[e];
+                if (extra.Key != LetteraSolidEffects.DeformKey || !(extra.Payload is LetteraDeformer deformer)) continue;
+                float3 low = new float3(float.MaxValue), high = new float3(float.MinValue);
+                for (int p = 0; p < m_Placed.Count; p++)
+                {
+                    int cluster = m_Placed[p].Cluster;
+                    if (cluster < extra.Start || cluster >= extra.End || m_Placed[p].VertexCount == 0) continue;
+                    low = math.min(low, m_ItemEnds[p * 2]);
+                    high = math.max(high, m_ItemEnds[p * 2 + 1]);
+                }
+                if (low.x > high.x) continue;
+                m_RangeOps.Add(e);
+                m_RangeOps.Add(m_Chain.AddRange(deformer, low, high, m_Scale, time));
+                ranges++;
+            }
+            if (m_RangeOps.Count == 0) return;
+            m_RangeSets.Clear();
+            for (int p = 0; p < m_Placed.Count; p++)
+            {
+                int cluster = m_Placed[p].Cluster;
+                if (cluster < 0) continue;
+                ulong set = 0;
+                for (int r = 0; r < m_RangeOps.Count; r += 2)
+                {
+                    LetteraAttributes.ExtraRange extra = extras[m_RangeOps[r]];
+                    if (cluster >= extra.Start && cluster < extra.End && m_RangeOps[r + 1] >= 0) set |= 1UL << (r / 2);
+                }
+                if (set == 0) continue;
+                if (!m_RangeSets.TryGetValue(set, out int2 ops))
+                {
+                    // Ops a glyph takes lie side by side; a glyph in one range uses the range's own.
+                    int count = math.countbits(set);
+                    if (count == 1)
+                    {
+                        ops = new int2(m_RangeOps[math.tzcnt(set) * 2 + 1], 1);
+                    }
+                    else
+                    {
+                        int start = -1;
+                        for (int r = 0; r < m_RangeOps.Count / 2; r++)
+                        {
+                            if ((set & (1UL << r)) == 0) continue;
+                            int extraIndex = m_RangeOps[r * 2];
+                            LetteraAttributes.ExtraRange extra = extras[extraIndex];
+                            float3 low = new float3(float.MaxValue), high = new float3(float.MinValue);
+                            for (int q = 0; q < m_Placed.Count; q++)
+                            {
+                                int c = m_Placed[q].Cluster;
+                                if (c < extra.Start || c >= extra.End || m_Placed[q].VertexCount == 0) continue;
+                                low = math.min(low, m_ItemEnds[q * 2]);
+                                high = math.max(high, m_ItemEnds[q * 2 + 1]);
+                            }
+                            int op = m_Chain.AddRange((LetteraDeformer)extra.Payload, low, high, m_Scale, time);
+                            if (start < 0) start = op;
+                        }
+                        ops = new int2(start, count);
+                    }
+                    m_RangeSets[set] = ops;
+                }
+                m_Chain.AddSpan(m_Placed[p].VertexStart, m_Placed[p].VertexCount, ops.x, ops.y);
+            }
+        }
+
+        // ------------------------------------------------------------------ copy
 
         unsafe struct CopyItem
         {
@@ -706,6 +1086,7 @@ namespace FirstSymbol.Lettera
             public int Count;
             [NativeDisableParallelForRestriction] public NativeArray<LetteraSolidMeshVertex> Target;
             public NativeArray<float3> Ends;
+            public NativeArray<float3> ItemEnds;
 
             public void Execute()
             {
@@ -713,6 +1094,7 @@ namespace FirstSymbol.Lettera
                 for (int p = 0; p < Count; p++)
                 {
                     CopyItem item = Items[p];
+                    float3 low = new float3(float.MaxValue), high = new float3(float.MinValue);
                     // Bevels deeper than the text fold flat rather than through each other.
                     float squeeze = item.BevelDepth > 0 && item.Depth < item.BevelDepth ? math.max(item.Depth, 0) / item.BevelDepth : 1;
                     float extra = math.max(item.Extra, 0);
@@ -722,8 +1104,8 @@ namespace FirstSymbol.Lettera
                         float lx = v.Position.x * item.SizeX, ly = v.Position.y * item.SizeY;
                         float3 normal = v.Normal;
                         float3 position = new float3(item.X + lx * item.Cos - ly * item.Sin, item.Y + lx * item.Sin + ly * item.Cos, (v.Position.z * squeeze + v.Weight * extra) * item.SizeZ + item.ZOffset);
-                        min = math.min(min, position);
-                        max = math.max(max, position);
+                        low = math.min(low, position);
+                        high = math.max(high, position);
                         Target[item.Start + i] = new LetteraSolidMeshVertex
                         {
                             Position = position,
@@ -733,6 +1115,10 @@ namespace FirstSymbol.Lettera
                             Uv1 = new float2(item.X + lx, item.Y + ly),
                         };
                     }
+                    ItemEnds[p * 2] = low;
+                    ItemEnds[p * 2 + 1] = high;
+                    min = math.min(min, low);
+                    max = math.max(max, high);
                 }
                 Ends[0] = min;
                 Ends[1] = max;
@@ -740,7 +1126,7 @@ namespace FirstSymbol.Lettera
         }
 
         /// <summary>A hash of everything that shows, so identical texts find each other.</summary>
-        internal ulong ContentHash(int submeshes, int[] surfaceToSubmesh)
+        internal ulong ContentHash(int submeshes, int[] maps)
         {
             ulong h = 14695981039346656037UL;
             unchecked
@@ -748,11 +1134,13 @@ namespace FirstSymbol.Lettera
                 void Mix(ulong value) => h = (h ^ value) * 1099511628211UL;
                 Mix((ulong)m_VertexCount);
                 Mix((ulong)submeshes);
-                for (int s = 0; s < 5; s++) Mix((ulong)surfaceToSubmesh[s]);
+                for (int s = 0; s < maps.Length; s++) Mix((ulong)maps[s]);
+                if (m_Chain.Any) Mix(m_Chain.HashOf());
                 for (int p = 0; p < m_Placed.Count; p++)
                 {
                     Placement place = m_Placed[p];
                     Mix((ulong)(uint)place.Entry.Key.GetHashCode());
+                    Mix((ulong)place.Map);
                     Mix(BitConverter.DoubleToInt64Bits(place.X) == 0 ? 0 : (ulong)BitConverter.DoubleToInt64Bits(place.X));
                     Mix((ulong)BitConverter.DoubleToInt64Bits(place.Y));
                     Mix((ulong)BitConverter.DoubleToInt64Bits(place.SizeX));
@@ -766,7 +1154,10 @@ namespace FirstSymbol.Lettera
             return h;
         }
 
-        internal void Write(Mesh mesh, int submeshes, int[] surfaceToSubmesh)
+        NativeArray<int> m_Maps;
+
+        /// <summary>Writes the mesh. Maps hold five submeshes a surface map, the text's first, then each layer's.</summary>
+        internal void Write(Mesh mesh, int submeshes, int[] maps)
         {
             IndexWrites++;
             Mesh.MeshDataArray array = Mesh.AllocateWritableMeshData(1);
@@ -779,7 +1170,7 @@ namespace FirstSymbol.Lettera
                 new VertexAttributeDescriptor(VertexAttribute.TexCoord0, VertexAttributeFormat.Float32, 2),
                 new VertexAttributeDescriptor(VertexAttribute.TexCoord1, VertexAttributeFormat.Float32, 2));
             data.SetIndexBufferParams(m_IndexCount, small ? IndexFormat.UInt16 : IndexFormat.UInt32);
-            if (m_VertexCount > 0) data.GetVertexData<LetteraSolidMeshVertex>().CopyFrom(m_Rest.GetSubArray(0, m_VertexCount));
+            if (m_VertexCount > 0) data.GetVertexData<LetteraSolidMeshVertex>().CopyFrom(m_Posed.GetSubArray(0, m_VertexCount));
 
             if (!m_IndexItems.IsCreated || m_IndexItems.Length < m_Placed.Count)
             {
@@ -794,21 +1185,25 @@ namespace FirstSymbol.Lettera
                 {
                     Source = (int*)place.Entry.Indices.GetUnsafeReadOnlyPtr(),
                     VertexStart = place.VertexStart,
+                    Map = place.Map * 5 < maps.Length ? place.Map : 0,
                     S0 = starts[0], S1 = starts[1], S2 = starts[2], S3 = starts[3], S4 = starts[4], S5 = starts[5],
                 };
             }
             data.subMeshCount = submeshes;
             var ranges = new NativeArray<int>(submeshes + 1, Allocator.TempJob);
-            var map = new NativeArray<int>(5, Allocator.TempJob);
-            for (int i = 0; i < 5; i++) map[i] = surfaceToSubmesh[i];
-            var job = new IndexJob { Items = m_IndexItems, Count = m_Placed.Count, Map = map, Submeshes = submeshes, Ranges = ranges, Small = small };
+            if (!m_Maps.IsCreated || m_Maps.Length < maps.Length)
+            {
+                if (m_Maps.IsCreated) m_Maps.Dispose();
+                m_Maps = new NativeArray<int>(Mathf.Max(maps.Length, 5), Allocator.Persistent);
+            }
+            for (int i = 0; i < maps.Length; i++) m_Maps[i] = maps[i];
+            var job = new IndexJob { Items = m_IndexItems, Count = m_Placed.Count, Map = m_Maps, Submeshes = submeshes, Ranges = ranges, Small = small };
             if (small) job.Target16 = data.GetIndexData<ushort>();
             else job.Target32 = data.GetIndexData<int>();
             job.Run();
             for (int submesh = 0; submesh < submeshes; submesh++)
                 data.SetSubMesh(submesh, new SubMeshDescriptor(ranges[submesh], ranges[submesh + 1] - ranges[submesh]), MeshUpdateFlags.DontRecalculateBounds | MeshUpdateFlags.DontValidateIndices);
             ranges.Dispose();
-            map.Dispose();
             Mesh.ApplyAndDisposeWritableMeshData(array, mesh, MeshUpdateFlags.DontRecalculateBounds | MeshUpdateFlags.DontValidateIndices);
             mesh.bounds = Bounds;
         }
@@ -816,7 +1211,7 @@ namespace FirstSymbol.Lettera
         unsafe struct IndexItem
         {
             [NativeDisableUnsafePtrRestriction] public int* Source;
-            public int VertexStart, S0, S1, S2, S3, S4, S5;
+            public int VertexStart, Map, S0, S1, S2, S3, S4, S5;
         }
 
         [BurstCompile]
@@ -841,9 +1236,10 @@ namespace FirstSymbol.Lettera
                     {
                         IndexItem item = Items[p];
                         edges[0] = item.S0; edges[1] = item.S1; edges[2] = item.S2; edges[3] = item.S3; edges[4] = item.S4; edges[5] = item.S5;
+                        int map = item.Map * 5;
                         for (int s = 0; s < 5; s++)
                         {
-                            if (Map[s] != submesh) continue;
+                            if (Map[map + s] != submesh) continue;
                             for (int i = edges[s]; i < edges[s + 1]; i++)
                             {
                                 int index = item.Source[i] + item.VertexStart;
@@ -870,8 +1266,18 @@ namespace FirstSymbol.Lettera
             }
             new PoseJob { Rest = m_Rest, Posed = m_Posed, Ranges = ranges }.Run();
             ranges.Dispose();
+            if (m_Chain.Any)
+            {
+                if (m_Chain.Animated) PrepareDeform(engine, m_Owner != null ? m_Owner.Deformers : null, Time.time);
+                Bounds = m_Chain.Run(m_Posed, m_VertexCount, m_Scale);
+                mesh.bounds = Bounds;
+            }
             mesh.SetVertexBufferData(m_Posed, 0, 0, m_VertexCount, 0, MeshUpdateFlags.DontRecalculateBounds | MeshUpdateFlags.DontValidateIndices);
         }
+
+        LetteraText3D m_Owner;
+
+        internal void SetOwner(LetteraText3D owner) => m_Owner = owner;
 
         struct PoseRange
         {
