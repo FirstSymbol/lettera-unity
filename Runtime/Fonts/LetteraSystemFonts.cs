@@ -84,7 +84,153 @@ namespace FirstSymbol.Lettera
 #endif
         }
 
-        static bool AndroidCutsOf(FontFace face, List<(string, int)> cuts) => false;
+        // ---- Android: the system's own font configuration ----
+
+        static AndroidFontConfig s_AndroidConfig;
+        static bool s_AndroidRead;
+        static string[] s_AndroidLanguages;
+        static bool? s_AndroidTall;
+
+        /// <summary>What a test puts in place of the device's configuration, languages and variant; null reads the device.</summary>
+        internal static AndroidFontConfig AndroidConfigForTests;
+        internal static string[] AndroidLanguagesForTests;
+        internal static bool? AndroidTallForTests;
+
+        static readonly string[] s_AndroidFontFolders = { "/system/fonts", "/product/fonts", "/system/font", "/data/fonts" };
+
+        /// <summary>The device's font configuration with a vendor's changes on it, or null where none can be read.</summary>
+        internal static AndroidFontConfig AndroidConfig()
+        {
+            if (AndroidConfigForTests != null) return AndroidConfigForTests;
+            if (s_AndroidRead) return s_AndroidConfig;
+            s_AndroidRead = true;
+            try
+            {
+                foreach (string file in AndroidFontConfig.BaseFiles)
+                {
+                    if (!File.Exists(file)) continue;
+                    s_AndroidConfig = AndroidFontConfig.Parse(File.ReadAllText(file));
+                    if (s_AndroidConfig.Families.Count > 0) break;
+                    s_AndroidConfig = null;
+                }
+                if (s_AndroidConfig != null && File.Exists(AndroidFontConfig.CustomizationFile)) s_AndroidConfig.Customize(File.ReadAllText(AndroidFontConfig.CustomizationFile));
+            }
+            catch (Exception)
+            {
+                s_AndroidConfig = null; // Unreadable: the file names decide, as before.
+            }
+            return s_AndroidConfig;
+        }
+
+        /// <summary>The device's languages, first first: Android's locale list.</summary>
+        internal static string[] AndroidLanguages()
+        {
+            if (AndroidLanguagesForTests != null) return AndroidLanguagesForTests;
+            if (s_AndroidLanguages != null) return s_AndroidLanguages;
+            string tags = null;
+#if UNITY_ANDROID && !UNITY_EDITOR
+            try
+            {
+                using (var list = new AndroidJavaClass("android.os.LocaleList"))
+                using (AndroidJavaObject locales = list.CallStatic<AndroidJavaObject>("getDefault"))
+                    tags = locales.Call<string>("toLanguageTags");
+            }
+            catch (Exception) { } // Before Android 7 there is one language, which the culture names.
+#endif
+            if (string.IsNullOrEmpty(tags)) tags = System.Globalization.CultureInfo.CurrentUICulture.Name;
+            s_AndroidLanguages = tags.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries);
+            return s_AndroidLanguages;
+        }
+
+        /// <summary>Whether the device draws the tall variants of scripts such as Arabic and Thai: Android 15, for an app made for it.</summary>
+        internal static bool AndroidTall()
+        {
+            if (AndroidTallForTests.HasValue) return AndroidTallForTests.Value;
+            if (s_AndroidTall.HasValue) return s_AndroidTall.Value;
+            bool tall = false;
+#if UNITY_ANDROID && !UNITY_EDITOR
+            try
+            {
+                int sdk;
+                using (var version = new AndroidJavaClass("android.os.Build$VERSION")) sdk = version.GetStatic<int>("SDK_INT");
+                using (var player = new AndroidJavaClass("com.unity3d.player.UnityPlayer"))
+                using (AndroidJavaObject activity = player.GetStatic<AndroidJavaObject>("currentActivity"))
+                using (AndroidJavaObject info = activity.Call<AndroidJavaObject>("getApplicationInfo"))
+                    tall = AndroidFontConfig.UsesTallVariants(sdk, info.Get<int>("targetSdkVersion"));
+            }
+            catch (Exception) { } // Compact, as before Android 15.
+#endif
+            s_AndroidTall = tall;
+            return tall;
+        }
+
+        static string LocateAndroidFont(string file)
+        {
+            if (Path.IsPathRooted(file)) return File.Exists(file) ? file : null;
+            foreach (string folder in s_AndroidFontFolders)
+            {
+                string path = Path.Combine(folder, file);
+                if (File.Exists(path)) return path;
+            }
+            return null;
+        }
+
+        /// <summary>The fallback fonts in the order the device tries them, as files and faces of collections; a family whose file is missing is passed over.</summary>
+        internal static List<(string path, int index)> AndroidFallbackFiles(AndroidFontConfig config, IList<string> languages, bool tall, Func<string, string> locate)
+        {
+            var files = new List<(string, int)>();
+            foreach (AndroidFontConfig.Family family in config.Fallbacks(languages, tall))
+            {
+                AndroidFontConfig.Font font = AndroidFontConfig.Pick(family, 400, false);
+                string path = font != null ? locate(font.File) : null;
+                if (path != null && !files.Contains((path, font.Index))) files.Add((path, font.Index));
+            }
+            return files;
+        }
+
+        /// <summary>The faces of a named family, the regular one first, each file and face once.</summary>
+        internal static List<(string path, int index)> AndroidFamilyFiles(AndroidFontConfig.Family family, Func<string, string> locate)
+        {
+            var files = new List<(string, int)>();
+            if (family == null) return files;
+            AndroidFontConfig.Font regular = AndroidFontConfig.Pick(family, 400, false);
+            string first = regular != null ? locate(regular.File) : null;
+            if (first != null) files.Add((first, regular.Index));
+            foreach (AndroidFontConfig.Font font in family.Fonts)
+            {
+                if (font.FallbackFor != null) continue;
+                string path = locate(font.File);
+                if (path != null && !files.Contains((path, font.Index))) files.Add((path, font.Index));
+            }
+            return files;
+        }
+
+        static bool AndroidCutsOf(FontFace face, List<(string, int)> cuts)
+        {
+            AndroidFontConfig config = AndroidConfig();
+            if (config == null) return false;
+            string file = Path.GetFileName(face.FilePath);
+            foreach (AndroidFontConfig.Family family in config.Families)
+            {
+                if (family.Name == null || !family.Fonts.Exists(f => string.Equals(f.File, file, StringComparison.OrdinalIgnoreCase) && f.Index == face.FileIndex)) continue;
+                foreach ((string path, int index) in AndroidFamilyFiles(family, LocateAndroidFont))
+                    if (!(string.Equals(path, face.FilePath, StringComparison.OrdinalIgnoreCase) && index == face.FileIndex))
+                        cuts.Add((path, index));
+                return true;
+            }
+            return false;
+        }
+
+        static FontFace AndroidNamed(string name)
+        {
+            AndroidFontConfig config = AndroidConfig();
+            if (config == null) return null;
+            AndroidFontConfig.Family family = config.Named(name, out int weight);
+            if (family == null) return null;
+            AndroidFontConfig.Font font = AndroidFontConfig.Pick(family, weight, false);
+            string path = font != null ? LocateAndroidFont(font.File) : null;
+            return path != null ? GetEntry(path, font.Index).Load() : null;
+        }
 
         /// <summary>True when this platform exposes OS font files at all (WebGL does not).</summary>
         public static bool IsSupported => Host() != Os.None;
@@ -284,7 +430,17 @@ namespace FirstSymbol.Lettera
             if (s_Entries != null) return;
             AllFiles();
             var entries = new List<Entry>(s_Order.Count);
-            foreach (string file in s_Order) entries.Add(GetEntry(file, 0));
+            // On Android the system's own order comes first, with the face of a collection each language takes; then every other file.
+            AndroidFontConfig config = Host() == Os.Android ? AndroidConfig() : null;
+            if (config != null)
+                foreach ((string path, int index) in AndroidFallbackFiles(config, AndroidLanguages(), AndroidTall(), LocateAndroidFont))
+                    entries.Add(GetEntry(path, index));
+            var listed = new HashSet<Entry>(entries);
+            foreach (string file in s_Order)
+            {
+                Entry entry = GetEntry(file, 0);
+                if (listed.Add(entry)) entries.Add(entry);
+            }
             s_Entries = entries;
         }
 
@@ -332,7 +488,16 @@ namespace FirstSymbol.Lettera
             FontFace system = FaceFromCoreText(IosFonts.DefaultPath(), 'a');
             if (system != null) faces.Add(system);
 #endif
-            foreach (string stem in DefaultStems())
+            AndroidFontConfig config = Host() == Os.Android ? AndroidConfig() : null;
+            if (config != null)
+            {
+                foreach ((string path, int index) in AndroidFamilyFiles(config.Named("sans-serif", out _), LocateAndroidFont))
+                {
+                    FontFace face = GetEntry(path, index).Load();
+                    if (face != null && !face.IsColor) faces.Add(face);
+                }
+            }
+            foreach (string stem in faces.Count > 0 ? Array.Empty<string>() : DefaultStems())
             {
                 string file = FindFile(stem);
                 FontFace face = file == null ? null : GetEntry(file, 0).Load();
@@ -387,8 +552,9 @@ namespace FirstSymbol.Lettera
             if (string.IsNullOrEmpty(name) || !IsSupported) return null;
             if (s_Named.TryGetValue(name, out var cached)) return cached;
             string compact = name.Replace(" ", "");
-            FontFace found = null;
-            string file = FindFile(name) ?? FindFile(compact);
+            // On Android a family name or alias of the system's configuration comes first: sans-serif, serif, monospace, Roboto.
+            FontFace found = Host() == Os.Android ? AndroidNamed(name) : null;
+            string file = found != null ? null : FindFile(name) ?? FindFile(compact);
             if (file != null) found = GetEntry(file, 0).Load();
             if (found == null)
             {
@@ -438,6 +604,17 @@ namespace FirstSymbol.Lettera
         static FontFace FindCjkForLanguage(int codepoint, string language)
         {
             if (string.IsNullOrEmpty(language)) return null;
+            AndroidFontConfig config = Host() == Os.Android ? AndroidConfig() : null;
+            if (config != null)
+            {
+                foreach (AndroidFontConfig.Family family in config.ForLanguage(language))
+                {
+                    AndroidFontConfig.Font font = AndroidFontConfig.Pick(family, 400, false);
+                    string path = font != null ? LocateAndroidFont(font.File) : null;
+                    FontFace face = path != null ? GetEntry(path, font.Index).Load() : null;
+                    if (face != null && face.HasGlyph(codepoint)) return face;
+                }
+            }
             string[] stems;
             int collectionIndex;
             string lang = language.ToLowerInvariant();

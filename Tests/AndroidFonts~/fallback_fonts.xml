@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A fixture in the format of Android 4's /system/etc/fallback_fonts.xml, written for Lettera's tests. -->
+<familyset>
+    <family>
+        <fileset>
+            <file variant="elegant">DroidNaskh-Regular.ttf</file>
+        </fileset>
+    </family>
+    <family>
+        <fileset>
+            <file>DroidSansHebrew-Regular.ttf</file>
+            <file>DroidSansHebrew-Bold.ttf</file>
+        </fileset>
+    </family>
+    <family>
+        <fileset>
+            <file lang="ja">MTLmr3m.ttf</file>
+        </fileset>
+    </family>
+    <family>
+        <fileset>
+            <file>DroidSansFallback.ttf</file>
+        </fileset>
+    </family>
+</familyset>

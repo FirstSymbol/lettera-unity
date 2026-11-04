@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A fixture in the format of a vendor's /product/etc/fonts_customization.xml, written for Lettera's tests. -->
+<fonts-modification version="1">
+    <family customizationType="new-named-family" name="vendor-sans">
+        <font weight="400" style="normal">VendorSans-Regular.ttf</font>
+        <font weight="700" style="normal">VendorSans-Bold.ttf</font>
+    </family>
+    <alias name="vendor-sans-bold" to="vendor-sans" weight="700" />
+    <family customizationType="new-named-family" name="monospace">
+        <font weight="400" style="normal">VendorMono-Regular.ttf</font>
+    </family>
+    <family customizationType="new-locale-family" operation="prepend" lang="ja">
+        <font weight="400" style="normal">VendorJapanese-Regular.ttf</font>
+    </family>
+</fonts-modification>

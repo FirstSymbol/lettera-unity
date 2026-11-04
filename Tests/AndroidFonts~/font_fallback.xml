@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A fixture in the format of Android 15's /system/etc/font_fallback.xml, written for Lettera's tests: one variable file a family, weights as attributes. -->
+<familyset>
+    <family name="sans-serif" supportedAxes="wght,ital">
+        <font supportedAxes="wght" weight="400" style="normal">Roboto-Regular.ttf</font>
+        <font supportedAxes="wght" weight="400" style="italic">Roboto-Italic.ttf</font>
+    </family>
+    <alias name="sans-serif-black" to="sans-serif" weight="900" />
+    <family name="serif">
+        <font weight="400" style="normal">NotoSerif.ttf</font>
+    </family>
+    <family lang="und-Arab" variant="elegant">
+        <font weight="400" style="normal">NotoNaskhArabic-Regular.ttf</font>
+    </family>
+    <family lang="und-Arab" variant="compact">
+        <font weight="400" style="normal">NotoNaskhArabicUI-Regular.ttf</font>
+    </family>
+    <family lang="zh-Hans">
+        <font weight="400" style="normal" index="2">NotoSansCJK-Regular.ttc</font>
+    </family>
+    <family lang="zh-Hant zh-Bopo">
+        <font weight="400" style="normal" index="3">NotoSansCJK-Regular.ttc</font>
+    </family>
+    <family lang="ja">
+        <font weight="400" style="normal" index="0">NotoSansCJK-Regular.ttc</font>
+    </family>
+    <family lang="ko">
+        <font weight="400" style="normal" index="1">NotoSansCJK-Regular.ttc</font>
+    </family>
+</familyset>
