@@ -39,6 +39,53 @@ namespace FirstSymbol.Lettera
         static FontFace s_Emoji;
         static bool s_EmojiSearched;
 
+        static int s_WeightShift = int.MinValue;
+
+        /// <summary>
+        /// What the system adds to the weight of its own fonts: on Android 12 and later the user's bold text setting, 300 when it is on,
+        /// read once at the first text. 0 elsewhere. System faces, a system font asset's faces and the faces the system falls back to
+        /// draw shifted by it; a font of the project's own does not.
+        /// </summary>
+        public static int WeightShift
+        {
+            get
+            {
+                if (s_WeightShift == int.MinValue) s_WeightShift = ReadWeightShift();
+                return s_WeightShift;
+            }
+            internal set => s_WeightShift = value;
+        }
+
+        static int ReadWeightShift()
+        {
+#if UNITY_ANDROID && !UNITY_EDITOR
+            try
+            {
+                using (var version = new AndroidJavaClass("android.os.Build$VERSION"))
+                {
+                    if (version.GetStatic<int>("SDK_INT") < 31) return 0;
+                }
+                using (var player = new AndroidJavaClass("com.unity3d.player.UnityPlayer"))
+                using (AndroidJavaObject activity = player.GetStatic<AndroidJavaObject>("currentActivity"))
+                using (AndroidJavaObject resources = activity.Call<AndroidJavaObject>("getResources"))
+                using (AndroidJavaObject configuration = resources.Call<AndroidJavaObject>("getConfiguration"))
+                {
+                    int shift = configuration.Get<int>("fontWeightAdjustment");
+                    // Configuration.FONT_WEIGHT_ADJUSTMENT_UNDEFINED.
+                    return shift == int.MaxValue ? 0 : shift;
+                }
+            }
+            catch (Exception)
+            {
+                return 0; // A device that will not say draws its fonts as they are.
+            }
+#else
+            return 0;
+#endif
+        }
+
+        static bool AndroidCutsOf(FontFace face, List<(string, int)> cuts) => false;
+
         /// <summary>True when this platform exposes OS font files at all (WebGL does not).</summary>
         public static bool IsSupported => Host() != Os.None;
 
@@ -355,6 +402,36 @@ namespace FirstSymbol.Lettera
             }
             s_Named[name] = found;
             return found;
+        }
+
+        /// <summary>
+        /// The other cuts of a system face's family, as files: its weights and slopes. Found by the files whose name starts as this one's
+        /// does and whose family is the same, each opened once to read its name. Empty for a face that is not from a file.
+        /// </summary>
+        internal static List<(string path, int index)> CutsOf(FontFace face)
+        {
+            var cuts = new List<(string, int)>();
+            if (face == null || face.FilePath == null || !IsSupported) return cuts;
+            if (Host() == Os.Android && AndroidCutsOf(face, cuts)) return cuts;
+            List<string> files = AllFiles();
+            string stem = Path.GetFileNameWithoutExtension(face.FilePath);
+            int dash = stem.IndexOf('-');
+            // "NotoSans-Bold" names its family before the dash; "segoeuib" and "seguisb" share only their start.
+            string prefix = dash > 0 ? stem.Substring(0, dash + 1) : stem.Substring(0, Math.Min(3, stem.Length));
+            int probed = 0;
+            for (int i = 0; i < files.Count && probed < 64; i++)
+            {
+                if (!s_Stems[i].StartsWith(prefix, StringComparison.OrdinalIgnoreCase) || string.Equals(files[i], face.FilePath, StringComparison.OrdinalIgnoreCase)) continue;
+                probed++;
+                FontFace probe = null;
+                try { probe = FontFace.FromFile(files[i], 0); }
+                catch (Exception) { } // A file the system will not open is no cut.
+                if (probe == null) continue;
+                bool same = !probe.IsColor && string.Equals(probe.Family, face.Family, StringComparison.OrdinalIgnoreCase);
+                probe.Dispose();
+                if (same) cuts.Add((files[i], 0));
+            }
+            return cuts;
         }
 
         // CJK families share codepoints, so the language picks the regional file or collection face.

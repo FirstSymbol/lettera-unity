@@ -71,12 +71,43 @@ namespace FirstSymbol.Lettera
         {
             FontFace face = LoadedFace;
             if (face == null) return;
-            face.PixelGrid = m_FontPixelsPerEm;
-            face.PixelSnap = m_SnapToFontPixels;
-            if (m_OverrideMetrics) face.OverrideMetrics(m_MetricAscender, m_MetricDescender, m_MetricLineGap);
+            PushTo(face);
+            PushToCuts();
+        }
+
+        internal void PushTo(FontFace face)
+        {
+            RasterHere(out int grid, out bool snap);
+            face.PixelGrid = grid;
+            face.PixelSnap = snap;
+            if (MetricsHere(out int ascender, out int descender, out int lineGap)) face.OverrideMetrics(ascender, descender, lineGap);
             else face.OverrideMetrics(null, null, null);
             face.Tune(FaceTuning.Build(face, m_SpacingOffset, m_SpaceWidth, m_GlyphOverrides));
         }
+
+        /// <summary>The vertical lines written by hand that apply on this platform; false keeps the file's.</summary>
+        internal virtual bool MetricsHere(out int ascender, out int descender, out int lineGap)
+        {
+            ascender = m_MetricAscender;
+            descender = m_MetricDescender;
+            lineGap = m_MetricLineGap;
+            return m_OverrideMetrics;
+        }
+
+        /// <summary>The pixel grid and snapping that apply on this platform.</summary>
+        internal virtual void RasterHere(out int pixelsPerEm, out bool snap)
+        {
+            pixelsPerEm = m_FontPixelsPerEm;
+            snap = m_SnapToFontPixels;
+        }
+
+        /// <summary>The CSS weight a text with no weight of its own draws this font at here; 0 draws the face as it is.</summary>
+        internal virtual int DefaultWeight => 0;
+
+        /// <summary>Other faces of this font's family that a text may pick by weight and slope, besides the one <see cref="LoadFace"/> gives.</summary>
+        internal virtual void AddCuts(List<FontFace> faces) { }
+
+        protected virtual void PushToCuts() { }
 
         internal virtual FontFace LoadedFace => null;
 

@@ -16,6 +16,13 @@ namespace FirstSymbol.Lettera
             public string Name = "";
             public string Language = "";
             public LetteraFontAsset Asset;
+
+            /// <summary>The CSS weight a text with no weight of its own draws this family at; 0 draws its faces as they are.</summary>
+            public int Weight;
+
+            /// <summary>What the system adds to every weight of its own faces, as a user's bold text setting does; 0 for none.</summary>
+            public int Shift;
+
             public readonly List<FontFace> Faces = new List<FontFace>();
             public readonly List<LetteraFontAsset> FaceAssets = new List<LetteraFontAsset>();
         }
@@ -74,7 +81,8 @@ namespace FirstSymbol.Lettera
                 FontFace[] defaults = LetteraSystemFonts.DefaultFaces();
                 if (defaults.Length > 0)
                 {
-                    var family = new Family { Name = defaults[0].Family };
+                    int shift = LetteraSystemFonts.WeightShift;
+                    var family = new Family { Name = defaults[0].Family, Shift = shift, Weight = Shifted(0, shift) };
                     foreach (FontFace face in defaults)
                     {
                         family.Faces.Add(face);
@@ -90,6 +98,28 @@ namespace FirstSymbol.Lettera
                 }
             }
             Primary = m_Families.Count > 0 ? m_Families[0] : null;
+            // Faces the system substitutes draw at the weight of the system font they stand in for, shifted as the system shifts its own.
+            int systemShift = LetteraSystemFonts.WeightShift;
+            m_SystemWeight = Shifted(Primary != null && Primary.Asset is LetteraSystemFont ? Primary.Weight : 0, systemShift);
+            m_SystemShift = systemShift;
+        }
+
+        int m_SystemWeight, m_SystemShift;
+
+        /// <summary>A weight with the system's shift on it; 0 stays 0 when there is no shift.</summary>
+        internal static int Shifted(int weight, int shift)
+        {
+            if (shift == 0) return weight;
+            int shifted = (weight > 0 ? weight : 400) + shift;
+            return shifted < 1 ? 1 : shifted > 1000 ? 1000 : shifted;
+        }
+
+        /// <summary>The weight a cluster of a family is drawn at: its own request, else the family's, shifted as the system asks for its faces.</summary>
+        internal static int WeightFor(int requested, Family family)
+        {
+            if (family == null) return requested;
+            if (requested <= 0) return family.Weight;
+            return family.Shift == 0 ? requested : Shifted(requested, family.Shift);
         }
 
         Family AddAsset(LetteraFontAsset asset, string name, string language)
@@ -104,6 +134,14 @@ namespace FirstSymbol.Lettera
             var family = new Family { Name = string.IsNullOrEmpty(name) ? face.Family : name, Language = language ?? "", Asset = asset };
             family.Faces.Add(face);
             family.FaceAssets.Add(asset);
+            if (asset is LetteraSystemFont)
+            {
+                family.Shift = LetteraSystemFonts.WeightShift;
+                family.Weight = Shifted(asset.DefaultWeight, family.Shift);
+                int before = family.Faces.Count;
+                asset.AddCuts(family.Faces);
+                for (int i = before; i < family.Faces.Count; i++) family.FaceAssets.Add(asset);
+            }
             m_Families.Add(family);
             return family;
         }
@@ -204,7 +242,7 @@ namespace FirstSymbol.Lettera
                 }
                 if (system != null)
                 {
-                    m_System = m_System ?? new Family();
+                    m_System = m_System ?? new Family { Weight = m_SystemWeight, Shift = m_SystemShift };
                     family = m_System;
                     return system;
                 }

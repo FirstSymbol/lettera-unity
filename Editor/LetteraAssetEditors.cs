@@ -536,6 +536,12 @@ namespace FirstSymbol.Lettera.Editor
                     })), "On: this platform tries its own names first, then Common."));
                 }
                 if (index == 0 || names.arraySize > 0) page.Add(new LtList("Names To Try", names, (element, row) => LtUI.Field("", element), "No names here."));
+                if (index == 0)
+                {
+                    page.Add(LtUI.Field("Weight", serializedObject.FindProperty("m_Weight"), "The CSS weight, 100 to 900, a text with no weight of its own draws at: the nearest installed cut, or that point of a variable font. Faces the system falls back to draw at it too. 0 draws the face as it is."));
+                    return;
+                }
+                page.Add(PlatformPage(serializedObject.FindProperty(field + "Settings"), name));
             }
             for (int i = 0; i < s_Platforms.Length; i++)
             {
@@ -549,6 +555,7 @@ namespace FirstSymbol.Lettera.Editor
             LtStatus status = new LtStatus()
                 .Line("Answers With", () => font.ResolveFailed ? "No name here matches: the system's default face" : !string.IsNullOrEmpty(font.ResolvedFamily) ? font.ResolvedFamily : "Not looked up yet", () => font.ResolveFailed ? LtStatus.State.Warn : !string.IsNullOrEmpty(font.ResolvedFamily) ? LtStatus.State.Good : LtStatus.State.None)
                 .Line("Face", () => font.LoadFace() == null ? "None" : font.LoadFace().Family + (string.IsNullOrEmpty(font.LoadFace().StyleName) ? "" : ", " + font.LoadFace().StyleName))
+                .Line("Weight Here", () => font.DefaultWeight > 0 ? font.DefaultWeight + (LetteraSystemFonts.WeightShift != 0 ? ", and the system adds " + LetteraSystemFonts.WeightShift : "") : "As the face is")
                 .Line("Size", () => font.LoadFace() == null ? "" : (font.LoadFace().MappedBytes + font.LoadFace().RetainedBytes) / 1024 + " KB");
             status.Refresh();
             root.Add(LtUI.Card("Status", status, LtUI.Clickable("Re-Resolve", "lt-add lt-add--small", "Looks the names up again.", () =>
@@ -560,7 +567,33 @@ namespace FirstSymbol.Lettera.Editor
             root.Add(LtUI.Card("By Platform", tabs, page));
             Show(Mathf.Clamp((int)LtPrefs.GetFloat(TabKey, 0), 0, s_Platforms.Length - 1));
             root.Add(FontCommon());
+            root.Add(SpacingCard(font));
+            root.Add(PixelCard(font));
+            root.Add(MetricsCard(font));
+            root.Add(GlyphOverridesCard(font));
             root.Add(LetteraFindUses.Card(font));
+        }
+
+        // A platform's own weight, lines and raster settings, each part on a switch of its own.
+        static VisualElement PlatformPage(SerializedProperty settings, string platform)
+        {
+            SerializedProperty metrics = settings.FindPropertyRelative("OverrideMetrics");
+            SerializedProperty raster = settings.FindPropertyRelative("OverrideRaster");
+            VisualElement lines = LtUI.El("lt-list",
+                LtUI.Field("Ascender", settings.FindPropertyRelative("Ascender"), "Font units above the baseline."),
+                LtUI.Field("Descender", settings.FindPropertyRelative("Descender"), "Font units below it, negative."),
+                LtUI.Field("Line Gap", settings.FindPropertyRelative("LineGap"), "Font units between lines."));
+            VisualElement grid = LtUI.El("lt-list",
+                LtUI.Field("Pixels Per Em", settings.FindPropertyRelative("PixelsPerEm"), "The size of the font's pixel grid on " + platform + "; 0 renders it as an ordinary font."),
+                LtUI.Field("Snap", settings.FindPropertyRelative("SnapToPixels"), "Keeps glyphs on the font's grid."));
+            LetteraTextInspector.ShowWhen(lines, metrics, p => p.boolValue);
+            LetteraTextInspector.ShowWhen(grid, raster, p => p.boolValue);
+            return LtUI.El("lt-list",
+                LtUI.Field("Weight", settings.FindPropertyRelative("Weight"), "The CSS weight a text with no weight of its own draws at on " + platform + ". 0 takes Common's."),
+                LtUI.Field("Own Lines", metrics, "Writes the vertical lines on " + platform + ", for a face whose own are wrong there. Off takes the Metrics card's."),
+                lines,
+                LtUI.Field("Own Raster", raster, "Sets the pixel grid on " + platform + ". Off takes the Pixel Font card's."),
+                grid);
         }
     }
 

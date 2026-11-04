@@ -272,7 +272,7 @@ namespace FirstSymbol.Lettera
                 lastFace = face;
                 lastOwner = owner;
                 AxisSet axes = attr.Axes >= 0 ? m_Attributes.AxisSets[attr.Axes] : null;
-                FontInstance instance = face == null ? null : FontChain.Style(face, owner, attr.Weight, attr.BoldMode, attr.Italic, attr.Slant, axes);
+                FontInstance instance = face == null ? null : FontChain.Style(face, owner, owner == null ? attr.Weight : FontChain.WeightFor(attr.Weight, owner), attr.BoldMode, attr.Italic, attr.Slant, axes);
 
                 float sizeMul = attr.SizeMul, shift = 0;
                 byte faceFeature = 0;
