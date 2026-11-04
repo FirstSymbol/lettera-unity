@@ -472,8 +472,36 @@ namespace FirstSymbol.Lettera
                 m_Shaped[m_ShapedCount + i] = new ShapedGlyph { Glyph = g.Glyph, Cluster = cluster, XAdvance = g.XAdvance, XOffset = g.XOffset, YOffset = g.YOffset };
                 m_CpAdvanceEm[cluster] += g.XAdvance * run.UnitEm;
             }
+            if (run.Instance.Face.Tuning != null) TuneShaped(run, m_Shaped, m_ShapedCount, count);
             run.GlyphCount = count;
             m_ShapedCount += count;
+        }
+
+        // A font asset's own spacing and glyph overrides, on what shaping gave. Only a face with some pays for this pass.
+        void TuneShaped(in Run run, ShapedGlyph[] shaped, int from, int count)
+        {
+            FaceTuning tuning = run.Instance.Face.Tuning;
+            int spacing = IsCursive(run.Script) ? 0 : tuning.SpacingOffset;
+            Dictionary<uint, FaceTuning.Glyph> glyphs = tuning.Glyphs;
+            for (int i = from; i < from + count; i++)
+            {
+                ref ShapedGlyph g = ref shaped[i];
+                int before = g.XAdvance;
+                if (tuning.SpaceWidth > 0)
+                {
+                    int cp = m_Text[g.Cluster];
+                    if (cp == ' ' || cp == 0xA0) g.XAdvance = tuning.SpaceWidth;
+                }
+                if (glyphs != null && glyphs.TryGetValue(g.Glyph, out FaceTuning.Glyph own))
+                {
+                    g.XAdvance += own.Advance;
+                    g.XOffset += own.OffsetX;
+                    g.YOffset += own.OffsetY;
+                }
+                // Marks stand on their base and take none.
+                if (spacing != 0 && g.XAdvance != 0) g.XAdvance += spacing;
+                if (g.XAdvance != before) m_CpAdvanceEm[g.Cluster] += (g.XAdvance - before) * run.UnitEm;
+            }
         }
     }
 }

@@ -206,6 +206,7 @@ namespace FirstSymbol.Lettera
                 shaped[i] = new ShapedGlyph { Glyph = g.Glyph, Cluster = cluster, XAdvance = g.XAdvance, XOffset = g.XOffset, YOffset = g.YOffset };
                 m_CpAdvanceEm[cluster] += g.XAdvance * run.UnitEm;
             }
+            if (run.Instance.Face.Tuning != null) TuneShaped(run, shaped, 0, count);
             deferred.Glyphs = shaped;
             deferred.Count = count;
             lock (m_Aside.Deferred) m_Aside.Deferred[index] = deferred;

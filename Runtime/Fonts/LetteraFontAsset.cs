@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace FirstSymbol.Lettera
@@ -25,11 +26,28 @@ namespace FirstSymbol.Lettera
         [SerializeField] bool m_SnapToFontPixels = true;
         [SerializeField] bool m_OverrideMetrics;
         [SerializeField] int m_MetricAscender, m_MetricDescender, m_MetricLineGap;
+        [Tooltip("Font units added to the advance of every glyph, for a face that sets too tight or too loose. Joined scripts such as Arabic keep theirs.")]
+        [SerializeField] int m_SpacingOffset;
+        [Tooltip("The advance of a space and a no-break space, in font units. 0 keeps the font's own.")]
+        [SerializeField, Min(0)] int m_SpaceWidth;
+        [SerializeField] List<LetteraGlyphOverride> m_GlyphOverrides = new List<LetteraGlyphOverride>();
 
         public float FontScale { get => m_FontScale; set { m_FontScale = value; NotifyChanged(); } }
         public bool NormalizeSize { get => m_NormalizeSize; set { m_NormalizeSize = value; NotifyChanged(); } }
         public float SyntheticItalicSlant { get => m_SyntheticItalicSlant; set { m_SyntheticItalicSlant = value; NotifyChanged(); } }
         public float SyntheticBoldStrength { get => m_SyntheticBoldStrength; set { m_SyntheticBoldStrength = value; NotifyChanged(); } }
+
+        /// <summary>Font units added to every glyph's advance. Joined scripts keep theirs.</summary>
+        public int SpacingOffset { get => m_SpacingOffset; set { m_SpacingOffset = value; NotifyChanged(); } }
+
+        /// <summary>The advance of a space and a no-break space in font units; 0 keeps the font's own.</summary>
+        public int SpaceWidth { get => m_SpaceWidth; set { m_SpaceWidth = Math.Max(0, value); NotifyChanged(); } }
+
+        /// <summary>Glyphs set apart by character. After changing the list, call <see cref="GlyphOverridesChanged"/>.</summary>
+        public List<LetteraGlyphOverride> GlyphOverrides => m_GlyphOverrides;
+
+        /// <summary>Applies a changed <see cref="GlyphOverrides"/> list: texts using this font lay out and draw again.</summary>
+        public void GlyphOverridesChanged() => NotifyChanged();
 
         public int FontPixelsPerEm { get => m_FontPixelsPerEm; set { m_FontPixelsPerEm = value; NotifyChanged(); } }
         public bool SnapToFontPixels { get => m_SnapToFontPixels; set { m_SnapToFontPixels = value; NotifyChanged(); } }
@@ -57,6 +75,7 @@ namespace FirstSymbol.Lettera
             face.PixelSnap = m_SnapToFontPixels;
             if (m_OverrideMetrics) face.OverrideMetrics(m_MetricAscender, m_MetricDescender, m_MetricLineGap);
             else face.OverrideMetrics(null, null, null);
+            face.Tune(FaceTuning.Build(face, m_SpacingOffset, m_SpaceWidth, m_GlyphOverrides));
         }
 
         internal virtual FontFace LoadedFace => null;

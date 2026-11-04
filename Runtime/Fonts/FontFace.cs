@@ -93,6 +93,10 @@ namespace FirstSymbol.Lettera
         public bool IsVirtual { get; private set; }
         public bool IsColor => HasColorLayers || HasColorBitmaps || HasColorPaint || IsVirtual;
 
+        /// <summary>The file a face was opened from, and its face in a collection; null for one in memory.</summary>
+        public string FilePath { get; private set; }
+        public int FileIndex { get; private set; }
+
         /// <summary>Where this face's bytes are.</summary>
         public LetteraFontSource Source { get; private set; } = LetteraFontSource.Virtual;
 
@@ -190,7 +194,7 @@ namespace FirstSymbol.Lettera
                 {
                     // Only a figure: the face is open.
                 }
-                return new FontFace(face) { Source = source, MappedBytes = length };
+                return new FontFace(face) { Source = source, MappedBytes = length, FilePath = path, FileIndex = index };
             }
         }
 
@@ -296,6 +300,20 @@ namespace FirstSymbol.Lettera
                 return true;
             }
             return false;
+        }
+
+        /// <summary>Spacing and glyph overrides an asset sets on this face; null when it sets none.</summary>
+        public FaceTuning Tuning { get; private set; }
+
+        public void Tune(FaceTuning tuning)
+        {
+            int was = Tuning != null && Tuning.Draws ? Tuning.DrawKey : 0;
+            int now = tuning != null && tuning.Draws ? tuning.DrawKey : 0;
+            Tuning = tuning;
+            if (was == now || IsVirtual) return;
+            // The atlas keeps glyphs by instance, so new instances make them again at their new size or density.
+            m_Instances.Clear();
+            Regular = CreateInstance(-1, 0, 0);
         }
 
         /// <summary>The font's pixel grid per em, or 0 for an ordinary font.</summary>

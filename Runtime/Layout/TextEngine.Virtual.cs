@@ -86,14 +86,30 @@ namespace FirstSymbol.Lettera
             result.Instance = instance;
             result.UnitEm = unitEm;
             result.Rtl = rtl;
+            FaceTuning tuning = instance.Face.Tuning;
             for (int i = 0; i < shaped; i++)
             {
                 NativeGlyph g = output[i];
-                Own(ref m_Aside.InlineGlyphs).Add(new ShapedGlyph { Glyph = g.Glyph, Cluster = (int)g.Cluster, XAdvance = g.XAdvance, XOffset = g.XOffset, YOffset = g.YOffset });
-                result.WidthEm += g.XAdvance * unitEm;
+                var glyph = new ShapedGlyph { Glyph = g.Glyph, Cluster = (int)g.Cluster, XAdvance = g.XAdvance, XOffset = g.XOffset, YOffset = g.YOffset };
+                if (tuning != null) TuneInline(tuning, ref glyph, codepoints[Math.Min((int)g.Cluster, count - 1)], IsCursive(script));
+                Own(ref m_Aside.InlineGlyphs).Add(glyph);
+                result.WidthEm += glyph.XAdvance * unitEm;
             }
             result.Count = Math.Max(shaped, 0);
             return result;
+        }
+
+        // A marker or a reading honours its font's spacing and overrides as the text does.
+        static void TuneInline(FaceTuning tuning, ref ShapedGlyph g, int cp, bool cursive)
+        {
+            if (tuning.SpaceWidth > 0 && (cp == ' ' || cp == 0xA0)) g.XAdvance = tuning.SpaceWidth;
+            if (tuning.Glyphs != null && tuning.Glyphs.TryGetValue(g.Glyph, out FaceTuning.Glyph own))
+            {
+                g.XAdvance += own.Advance;
+                g.XOffset += own.OffsetX;
+                g.YOffset += own.OffsetY;
+            }
+            if (!cursive && g.XAdvance != 0) g.XAdvance += tuning.SpacingOffset;
         }
 
         void PrepareVirtual()

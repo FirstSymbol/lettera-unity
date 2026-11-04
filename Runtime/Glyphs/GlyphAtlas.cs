@@ -226,7 +226,9 @@ namespace FirstSymbol.Lettera
                 pixelsPerEm = grid;
                 multi = false;
             }
-            else if (s_MinDensity.Count > 0 && s_MinDensity.TryGetValue(((ulong)(uint)instance.Id << 32) | glyph, out int raised) && raised > pixelsPerEm)
+            else if (instance.Face.Tuning != null && instance.Face.Tuning.TryDraw(glyph, out FaceTuning.Glyph tune) && tune.PixelsPerEm > 0)
+                pixelsPerEm = tune.PixelsPerEm;
+            if (grid == 0 && s_MinDensity.Count > 0 && s_MinDensity.TryGetValue(((ulong)(uint)instance.Id << 32) | glyph, out int raised) && raised > pixelsPerEm)
                 pixelsPerEm = raised;
             ulong key = ((ulong)(uint)instance.Id << 36) | ((ulong)glyph << 8) | (uint)(pixelsPerEm >> 2 & 0x7F) | (multi ? 0x80u : 0);
             return s_Glyphs.TryGetValue(key, out entry) && !(entry.HasDistance && entry.Spread < reach);
@@ -244,12 +246,16 @@ namespace FirstSymbol.Lettera
         {
             instance.Face.LastUsedFrame = s_Frame;
             int grid = instance.Face.PixelGrid;
+            FaceTuning.Glyph tune = default;
+            bool tuned = instance.Face.Tuning != null && instance.Face.Tuning.TryDraw(glyph, out tune);
             if (grid > 0)
             {
                 pixelsPerEm = grid;
                 multi = false;
             }
-            else if (s_MinDensity.Count > 0 && s_MinDensity.TryGetValue(((ulong)(uint)instance.Id << 32) | glyph, out int raised) && raised > pixelsPerEm)
+            else if (tuned && tune.PixelsPerEm > 0)
+                pixelsPerEm = tune.PixelsPerEm;
+            if (grid == 0 && s_MinDensity.Count > 0 && s_MinDensity.TryGetValue(((ulong)(uint)instance.Id << 32) | glyph, out int raised) && raised > pixelsPerEm)
                 pixelsPerEm = raised;
             ulong key = ((ulong)(uint)instance.Id << 36) | ((ulong)glyph << 8) | (uint)(pixelsPerEm >> 2 & 0x7F) | (multi ? 0x80u : 0);
             ref Memo memo = ref s_Memo[(int)(key ^ key >> 13 ^ key >> 36) & (s_Memo.Length - 1)];
@@ -269,6 +275,7 @@ namespace FirstSymbol.Lettera
                     if (entry.Spread < reach)
                     {
                         AtlasGlyph wider = grid > 0 ? CreatePixel(instance, glyph, grid, SpreadFor(reach)) : CreateSdf(instance, glyph, pixelsPerEm, SpreadFor(reach), multi);
+                        if (tuned) wider = Scaled(wider, tune.Scale);
                         if (wider.HasDistance)
                         {
                             s_Glyphs[key] = wider;
@@ -282,8 +289,20 @@ namespace FirstSymbol.Lettera
                 return entry;
             }
             entry = grid > 0 ? CreatePixel(instance, glyph, grid, SpreadFor(reach)) : Create(instance, glyph, pixelsPerEm, SpreadFor(reach), multi);
+            if (tuned) entry = Scaled(entry, tune.Scale);
             s_Glyphs[key] = entry;
             GlyphsChanged();
+            return entry;
+        }
+
+        // A glyph override's size: the same pixels on a larger or smaller quad, from the glyph's origin.
+        static AtlasGlyph Scaled(AtlasGlyph entry, float scale)
+        {
+            if (scale == 1 || entry.Kind == AtlasGlyph.Empty) return entry;
+            entry.Left *= scale;
+            entry.Right *= scale;
+            entry.Bottom *= scale;
+            entry.Top *= scale;
             return entry;
         }
 

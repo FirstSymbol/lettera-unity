@@ -52,6 +52,69 @@ namespace FirstSymbol.Lettera.Editor
                 Field("Bold Strength", "m_SyntheticBoldStrength"));
         }
 
+        // The face's own spacing, in its units, for a face that sets too tight or too loose.
+        protected VisualElement SpacingCard(LetteraFontAsset font)
+        {
+            FontFace face = font.LoadFace();
+            string units = face != null ? "Of " + face.Metrics.Upem + " units per em." : "In font units.";
+            return LtUI.Card("Spacing",
+                LtUI.Field("Spacing Offset", serializedObject.FindProperty("m_SpacingOffset"), "Font units added to every glyph's advance. Negative tightens. Joined scripts such as Arabic keep theirs. " + units),
+                LtUI.Field("Space Width", serializedObject.FindProperty("m_SpaceWidth"), "The advance of a space and a no-break space. 0 keeps the font's own" + (face != null && face.HasGlyph(' ') ? ", which is " + SpaceOf(face) + "." : ".") + " " + units));
+        }
+
+        static unsafe int SpaceOf(FontFace face)
+        {
+            uint glyph = LetteraNative.lt_font_glyph(face.Regular.Font, ' ', 0);
+            int text = ' ';
+            NativeGlyph* output = stackalloc NativeGlyph[4];
+            int count = LetteraNative.lt_shape(face.Regular.Font, &text, 1, 0, 1, 4, LetteraNative.Tag("Latn"), null, null, 0, output, 4);
+            return count > 0 && glyph != 0 ? output[0].XAdvance : 0;
+        }
+
+        // Glyphs set apart by character: a row each, and a character to add one for.
+        protected VisualElement GlyphOverridesCard(LetteraFontAsset font)
+        {
+            SerializedProperty list = serializedObject.FindProperty("m_GlyphOverrides");
+            var input = new TextField { value = "" };
+            input.AddToClassList("lt-text-input");
+            var rows = new LtList("Glyph Overrides", list, OverrideRow, "No glyph is set apart. Type a character below and add it.", added =>
+            {
+                string text = string.IsNullOrEmpty(input.value) ? "A" : input.value;
+                int codepoint = char.ConvertToUtf32(text, 0);
+                serializedObject.Update();
+                for (int i = 0; i < list.arraySize; i++)
+                    if (list.GetArrayElementAtIndex(i).FindPropertyRelative("Codepoint").intValue == codepoint)
+                        return;
+                list.arraySize++;
+                SerializedProperty row = list.GetArrayElementAtIndex(list.arraySize - 1);
+                row.FindPropertyRelative("Codepoint").intValue = codepoint;
+                row.FindPropertyRelative("Advance").intValue = 0;
+                row.FindPropertyRelative("Offset").vector2IntValue = Vector2Int.zero;
+                row.FindPropertyRelative("Scale").floatValue = 1;
+                row.FindPropertyRelative("PixelsPerEm").intValue = 0;
+                serializedObject.ApplyModifiedProperties();
+                added.Rebuild();
+            });
+            return LtUI.Card("", rows, LtUI.Row("Character", input, "The character + Add sets apart. Its glyph in this font is the one changed."));
+        }
+
+        static VisualElement OverrideRow(SerializedProperty element, int index)
+        {
+            int codepoint = element.FindPropertyRelative("Codepoint").intValue;
+            string shown = codepoint > 0 && codepoint <= 0x10FFFF && (codepoint < 0xD800 || codepoint > 0xDFFF) ? char.ConvertFromUtf32(codepoint) : "?";
+            SerializedProperty offset = element.FindPropertyRelative("Offset");
+            var x = new LtNumber("X", offset.FindPropertyRelative("x"));
+            var y = new LtNumber("Y", offset.FindPropertyRelative("y"));
+            x.AddToClassList("lt-vector__axis");
+            y.AddToClassList("lt-vector__axis");
+            return LtUI.El("lt-list",
+                LtUI.Text(shown + "   U+" + codepoint.ToString("X4"), "lt-row__label"),
+                LtUI.Field("Advance", element.FindPropertyRelative("Advance"), "Font units added to its advance."),
+                LtUI.Row("Offset", LtUI.El("lt-vector", x, y), "Font units it is drawn moved by, right and up. Its advance stays."),
+                LtUI.Field("Scale", element.FindPropertyRelative("Scale"), "The size it is drawn at, from its origin. 1 is as designed."),
+                LtUI.Field("Pixels Per Em", element.FindPropertyRelative("PixelsPerEm"), "Atlas pixels per em it is rasterized at. 0 takes what the text asks."));
+        }
+
         protected VisualElement PixelCard(LetteraFontAsset font)
         {
             var grid = serializedObject.FindProperty("m_FontPixelsPerEm");
@@ -238,9 +301,11 @@ namespace FirstSymbol.Lettera.Editor
                 Field("Face Index", "m_FaceIndex", "The face inside a .ttc or .otc file."),
                 Field("Keep Inline", "m_KeepInline", "Keeps this font inside its asset in every build, whatever the project's packaging says.")));
             root.Add(FontCommon());
+            root.Add(SpacingCard(font));
             root.Add(PixelCard(font));
             root.Add(MetricsCard(font));
             root.Add(AxesCard(font));
+            root.Add(GlyphOverridesCard(font));
             root.Add(LetteraGlyphGrid.Card(font));
             root.Add(LetteraSubsetCard.Create(font));
 #if !LETTERA_NO_MATH
@@ -376,8 +441,10 @@ namespace FirstSymbol.Lettera.Editor
             })));
             root.Add(LtUI.Card("Reported As", Field("Family", "m_Family"), Field("Weight", "m_Weight"), Field("Italic", "m_Italic")));
             root.Add(FontCommon());
+            root.Add(SpacingCard(variant));
             root.Add(PixelCard(variant));
             root.Add(MetricsCard(variant));
+            root.Add(GlyphOverridesCard(variant));
             root.Add(LetteraGlyphGrid.Card(variant));
             root.Add(LetteraFindUses.Card(variant));
         }
