@@ -1,7 +1,10 @@
 using System;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.LowLevel;
+using UnityEngine.PlayerLoop;
 using UnityEngine.Rendering;
+using UnityEngine.UI;
 
 namespace FirstSymbol.Lettera
 {
@@ -79,6 +82,105 @@ namespace FirstSymbol.Lettera
             _ = LetteraMaterials.Variant(LetteraMaterials.Ui, false, LetteraBlend.Normal, null, false, true);
             TextEngine.PrepareFor(font, stack, characters ?? Latin, size);
             GlyphAtlas.Flush();
+        }
+    }
+
+    /// <summary>
+    /// What the first text of a session would pay for once, readied by a player over its first frames, a step a frame: Lettera's hooks into the frame, its Canvas
+    /// material, the first glyph job, Unity's first graphic on a canvas and the first draw of the text shader. No font is opened and no glyph or atlas page is made,
+    /// so a player that never shows text keeps nothing but a material. <see cref="LetteraMemorySettings.ReadyAtStart"/> turns it off.
+    /// </summary>
+    internal static class LetteraStartUp
+    {
+#if !UNITY_WEBGL || UNITY_EDITOR
+        struct LetteraStartUpStep { }
+
+        static Steps s_Steps;
+
+        // Nothing here reads the settings or loads the native library, which would wait for loads still going on Unity's loading thread and on the
+        // start-up thread: a step of the frame's own is added, and the steps begin in a frame where those have ended.
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
+        static void Begin()
+        {
+            if (Application.isEditor || SystemInfo.graphicsDeviceType == GraphicsDeviceType.Null) return;
+            s_Steps = new Steps();
+            PlayerLoopSystem root = PlayerLoop.GetCurrentPlayerLoop();
+            for (int i = 0; i < root.subSystemList.Length; i++)
+            {
+                if (root.subSystemList[i].type != typeof(PostLateUpdate)) continue;
+                PlayerLoopSystem post = root.subSystemList[i];
+                var systems = new PlayerLoopSystem[post.subSystemList.Length + 1];
+                // First in its phase, so the graphic of the second step is in this frame's canvas update.
+                systems[0] = new PlayerLoopSystem { type = typeof(LetteraStartUpStep), updateDelegate = Tick };
+                Array.Copy(post.subSystemList, 0, systems, 1, post.subSystemList.Length);
+                post.subSystemList = systems;
+                root.subSystemList[i] = post;
+                PlayerLoop.SetPlayerLoop(root);
+                return;
+            }
+        }
+
+        // Once the steps are done this stays in the loop and returns at once: taking it out from inside the loop it runs in is not worth the risk.
+        static void Tick()
+        {
+            if (s_Steps == null) return;
+            if (!s_Steps.Begun)
+            {
+                if (!LetteraSettings.LoadedAhead || !LetteraMaterials.UiLoadedAhead) return;
+                if (!LetteraSettings.Instance.Memory.ReadyAtStart)
+                {
+                    s_Steps = null;
+                    return;
+                }
+            }
+            if (!s_Steps.Next()) s_Steps = null;
+        }
+#endif
+
+        internal sealed class Steps
+        {
+            int m_Step;
+            GameObject m_Canvas;
+
+            public bool Begun => m_Step > 0;
+
+            /// <summary>One step; false when all are done.</summary>
+            internal bool Next()
+            {
+                switch (m_Step++)
+                {
+                    case 0:
+                        GlyphAtlasRegistration.EnsureRegistered();
+                        _ = LetteraMaterials.Variant(LetteraMaterials.Ui, true, LetteraBlend.Normal, null, true);
+                        _ = LetteraMaterials.Variant(LetteraMaterials.Ui, false, LetteraBlend.Normal, null, false, true);
+                        GlyphAtlas.WarmJob();
+                        return true;
+                    case 1:
+                        // Unity's first graphic on a canvas, of any kind, costs a player some milliseconds. An empty one on a hidden canvas takes that here,
+                        // with this frame's canvas update, and goes in the next step.
+                        m_Canvas = new GameObject("Lettera Start-Up", typeof(RectTransform), typeof(Canvas)) { hideFlags = HideFlags.HideAndDontSave };
+                        m_Canvas.GetComponent<Canvas>().renderMode = RenderMode.ScreenSpaceOverlay;
+                        var graphic = new GameObject("Graphic", typeof(RectTransform)) { hideFlags = HideFlags.HideAndDontSave };
+                        graphic.transform.SetParent(m_Canvas.transform, false);
+                        ((RectTransform)graphic.transform).sizeDelta = Vector2.zero;
+                        graphic.AddComponent<Image>().raycastTarget = false;
+                        return true;
+                    case 2:
+                        LetteraShaderWarmUp.Run(LetteraSurfaceTier.UiPlain);
+                        return true;
+                    default:
+                        Finish();
+                        return false;
+                }
+            }
+
+            internal void Finish()
+            {
+                if (m_Canvas == null) return;
+                if (Application.isPlaying) UnityEngine.Object.Destroy(m_Canvas);
+                else UnityEngine.Object.DestroyImmediate(m_Canvas);
+                m_Canvas = null;
+            }
         }
     }
 
