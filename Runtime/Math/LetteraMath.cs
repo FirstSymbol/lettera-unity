@@ -16,6 +16,8 @@ namespace FirstSymbol.Lettera
         public bool Failed;
         public string Message;
         public int ErrorPosition;
+        /// <summary>The numbers and labels a display formula draws at the line's edge, top to bottom, as "(1)" or a \tag's text, or null.</summary>
+        public string[] Tags;
     }
 
     /// <summary>What a formula that cannot be read shows.</summary>
@@ -396,7 +398,7 @@ namespace FirstSymbol.Lettera
             bool display = string.Equals(slots[0], "display", StringComparison.OrdinalIgnoreCase);
             FontFace text = engine.PrimaryFaceForMath;
             FontFace face = ResolveFace(m_Font, text);
-            var item = new TextEngine.InlineItem { Effect = this, Cp = cp, Size = 1, Alt = slots[1], MathDisplay = display, MathSource = source };
+            var item = new TextEngine.InlineItem { Effect = this, Cp = cp, Size = 1, Alt = slots[1], MathDisplay = display, MathSource = source, MathFace = face };
             if (face == null) return item;
             LetteraMathLayout layout = LetteraMathCache.Get(source, display, face, text);
             float scale = m_Scale * LetteraSettings.Instance.Math.Scale;

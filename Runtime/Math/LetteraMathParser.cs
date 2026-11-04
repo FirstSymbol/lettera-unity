@@ -51,6 +51,11 @@ namespace FirstSymbol.Lettera
         public readonly List<string> Strings = new List<string>();
         public int Root = -1;
         public string Error;
+        /// <summary>A \tag outside any table: the formula's own, as a string index, or -1. Starred draws it with no parentheses.</summary>
+        public int Tag = -1;
+        public bool TagStar;
+        /// <summary>The count \setcounter{equation} left, or -1.</summary>
+        public int CounterSet = -1;
         public int ErrorPosition = -1;
 
         public int Add(MathNodeKind kind)
@@ -72,12 +77,17 @@ namespace FirstSymbol.Lettera
     {
         internal const byte FlagLimits = 1, FlagNoLimits = 2, FlagDisplayLimits = 4, FlagWide = 8, FlagForceClass = 16;
         internal const int RowHline = 1, RowDashed = 2;
+        /// <summary>A row's flags: its \tag is starred; it takes no number.</summary>
+        internal const byte RowTagStar = 1, RowNoNumber = 2;
 
         readonly string m_Source;
         readonly MathTree m_Tree = new MathTree();
         int m_At, m_Depth;
         MathAlphabet m_Alphabet;
         bool m_InTable;
+        // What the row being read said of its number. Outside a table it is the formula's.
+        int m_Tag = -1;
+        bool m_TagStar, m_NoNumber;
 
         LetteraMathParser(string source) => m_Source = source;
 
@@ -93,6 +103,8 @@ namespace FirstSymbol.Lettera
                 return tree;
             }
             tree.Root = parser.ParseList(EndOfSource);
+            tree.Tag = parser.m_Tag;
+            tree.TagStar = parser.m_TagStar;
             if (tree.Error == null)
             {
                 parser.SkipSpace();
@@ -561,11 +573,27 @@ namespace FirstSymbol.Lettera
                 case "not": return Wrap(MathNodeKind.Not, 0);
                 case "textcolor": return TextColor();
                 case "color": return ColorRest(end);
-                case "tag": case "tag*":
-                    // A number's place on the line is a text's, and this version draws no tags.
-                    ReadRawGroup();
+                case "tag":
+                {
+                    // A number's place on the line is a text's: the label is kept, and the text draws it.
+                    bool bare = m_At < m_Source.Length && m_Source[m_At] == '*';
+                    if (bare) m_At++;
+                    string label = ReadRawGroup();
+                    if (label == null) return -1;
+                    if (m_Tag >= 0)
+                    {
+                        m_At = position;
+                        Fail("Only one \\tag goes on a line.");
+                        return -1;
+                    }
+                    m_Tag = m_Tree.Keep(label);
+                    m_TagStar = bare;
                     return -1;
-                case "notag": case "nonumber": return -1;
+                }
+                case "notag": case "nonumber":
+                    m_NoNumber = true;
+                    return -1;
+                case "setcounter": return SetCounter(position);
                 case "%": case "_": case "#": case "$": case "&":
                     return CharNode(name[0], MathClass.Ord);
                 case "{": return CharNode('{', MathClass.Open);
@@ -992,6 +1020,27 @@ namespace FirstSymbol.Lettera
             return true;
         }
 
+        int SetCounter(int position)
+        {
+            string counter = ReadRawGroup();
+            string value = counter != null ? ReadRawGroup() : null;
+            if (value == null) return -1;
+            if (counter.Trim() != "equation")
+            {
+                m_At = position;
+                Fail("Only the equation counter can be set.");
+                return -1;
+            }
+            if (!int.TryParse(value.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out int count) || count < 0 || count > 1000000)
+            {
+                m_At = position;
+                Fail("An equation count is a whole number from 0 to 1000000.");
+                return -1;
+            }
+            m_Tree.CounterSet = count;
+            return -1;
+        }
+
         int Environment()
         {
             string name = ReadRawGroup();
@@ -1035,6 +1084,8 @@ namespace FirstSymbol.Lettera
             m_Tree.Nodes[table].Class = MathClass.Inner;
             bool wasTable = m_InTable;
             m_InTable = true;
+            int outerTag = m_Tag;
+            bool outerStar = m_TagStar, outerNoNumber = m_NoNumber;
             int lastRow = -1, rows = 0, cells = 0;
             while (!Failed)
             {
@@ -1042,6 +1093,8 @@ namespace FirstSymbol.Lettera
                 ReadHorizontalRules(ref rule);
                 int row = NewNode(MathNodeKind.Row);
                 m_Tree.Nodes[row].Info = rule;
+                m_Tag = -1;
+                m_TagStar = m_NoNumber = false;
                 if (lastRow < 0) m_Tree.Nodes[table].A = row;
                 else m_Tree.Nodes[lastRow].Next = row;
                 lastRow = row;
@@ -1078,6 +1131,8 @@ namespace FirstSymbol.Lettera
                     }
                     break;
                 }
+                m_Tree.Nodes[row].Text = m_Tag;
+                m_Tree.Nodes[row].Flags = (byte)((m_TagStar ? RowTagStar : 0) | (m_NoNumber ? RowNoNumber : 0));
                 if (Failed) break;
                 SkipSpace();
                 if (m_At < m_Source.Length && m_Source[m_At] == '\\' && PeekCommand(out int after) == "\\")
@@ -1100,6 +1155,9 @@ namespace FirstSymbol.Lettera
                 break;
             }
             m_InTable = wasTable;
+            m_Tag = outerTag;
+            m_TagStar = outerStar;
+            m_NoNumber = outerNoNumber;
             return table;
         }
 

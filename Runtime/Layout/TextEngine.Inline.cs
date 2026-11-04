@@ -22,6 +22,10 @@ namespace FirstSymbol.Lettera
             public float MathScale;
             public bool MathDisplay;
             public string MathSource, Alt;
+            public FontFace MathFace;
+            /// <summary>A display formula's numbers and labels as this text counts them, one per tag of its layout, or null.</summary>
+            public LetteraMathLayout[] Tags;
+            public string[] TagLabels;
         }
 
         internal FontFace PrimaryFaceForMath => LetteraFontChains.Get(m_Host.Data.Font, m_Host.Data.FontStack).PrimaryFace;
@@ -38,52 +42,75 @@ namespace FirstSymbol.Lettera
                 if (glyph < 0) continue;
                 PlacedGlyph at = m_Placed[glyph];
                 float em = at.Size * item.MathScale;
-                float cos = at.Angle != 0 ? Mathf.Cos(at.Angle) : 1, sin = at.Angle != 0 ? Mathf.Sin(at.Angle) : 0;
-                LetteraMathItem[] items = item.Math.Items;
-                for (int k = 0; k < items.Length; k++)
+                PlaceFormulaParts(item.Math, at, em, 0, 0, item.Cp);
+                if (item.Tags == null) continue;
+                for (int t = 0; t < item.Tags.Length; t++)
                 {
-                    LetteraMathItem part = items[k];
-                    FontInstance instance = item.Math.Faces[part.Face];
-                    float px = part.X * em, py = part.Y * em;
-                    var placed = new PlacedGlyph
-                    {
-                        Glyph = part.Glyph, Instance = instance, Cluster = item.Cp, Line = at.Line,
-                        X = at.X + px * cos - py * sin, Y = at.Y + px * sin + py * cos,
-                        Size = em * part.Scale, Unit = em * part.Scale / instance.Face.Metrics.Upem, Angle = at.Angle, Pen = at.X, Marker = true,
-                    };
-                    bool colored = part.Color > 0 && part.Color <= item.Math.Colors.Length;
-                    // A glyph holds this in the room a plain text already pays for. Past it, a part draws plain.
-                    if (m_Aside.MathSpecials.Count >= ushort.MaxValue)
-                    {
-                        if (part.Kind != MathItemKind.Rule) Own(ref m_Aside.VirtualGlyphs).Add(placed);
-                        continue;
-                    }
-                    if (part.Kind == MathItemKind.Rule)
-                    {
-                        // Thin rules read as missing, so one under a pixel draws at a pixel, around the same middle. Nothing moves in the layout.
-                        // Only a canvas knows its pixels: a world unit is whatever a camera makes of it.
-                        float least = m_Host.Owner is LetteraText ? LetteraSettings.Instance.Math.MinRulePixels / (Mathf.Max(m_Host.RasterScale, 0.01f) * Mathf.Max(em, 0.01f)) : 0;
-                        if (part.Thickness < least)
-                        {
-                            float grow = (least - part.Thickness) / 2 * em;
-                            if (part.Vertical) placed.X -= grow * cos;
-                            else placed.Y -= grow * cos;
-                            part.Thickness = least;
-                        }
-                        placed.Special = SpecialRule;
-                        placed.Size = em;
-                        placed.Unit = em / 1000;
-                        placed.SpecialIndex = (ushort)m_Aside.MathSpecials.Count;
-                        Own(ref m_Aside.MathSpecials).Add(new MathSpecial { Length = part.Length * 1000, Thickness = part.Thickness * 1000, Vertical = part.Vertical, HasColor = colored, Color = colored ? item.Math.Colors[part.Color - 1] : default });
-                    }
-                    else if (part.Cropped || colored)
-                    {
-                        placed.Special = part.Cropped ? SpecialCrop : SpecialColor;
-                        placed.SpecialIndex = (ushort)m_Aside.MathSpecials.Count;
-                        Own(ref m_Aside.MathSpecials).Add(new MathSpecial { Low = part.CropLow, High = part.CropHigh, Vertical = part.Vertical, HasColor = colored, Color = colored ? item.Math.Colors[part.Color - 1] : default });
-                    }
-                    Own(ref m_Aside.VirtualGlyphs).Add(placed);
+                    TagOffset(item, t, at, em, out float dx, out float dy);
+                    PlaceFormulaParts(item.Tags[t], at, em, dx, dy, item.Cp);
                 }
+            }
+        }
+
+        // A number stands at the box's edge on the side the text reads from, centred on its row. How far it is from the formula is the text's to say.
+        void TagOffset(in InlineItem item, int t, in PlacedGlyph at, float em, out float dx, out float dy)
+        {
+            LetteraMathLayout tag = item.Tags[t];
+            LetteraDirection direction = m_Host.Data.BaseDirection;
+            bool rtl = m_Attributes.DirectionOverride >= 0 ? m_Attributes.DirectionOverride == 1
+                : direction == LetteraDirection.RightToLeft || (direction != LetteraDirection.LeftToRight && m_Paragraphs.Count > 0 && (m_Paragraphs[0].Level & 1) != 0);
+            float x = rtl ? m_Box.xMin : m_Box.xMax - tag.Width * em;
+            dx = x - at.X;
+            dy = (item.Math.Tags[t].Middle - (tag.Ascent - tag.Descent) / 2) * em;
+        }
+
+        void PlaceFormulaParts(LetteraMathLayout math, in PlacedGlyph at, float em, float dx, float dy, int cp)
+        {
+            float cos = at.Angle != 0 ? Mathf.Cos(at.Angle) : 1, sin = at.Angle != 0 ? Mathf.Sin(at.Angle) : 0;
+            LetteraMathItem[] items = math.Items;
+            for (int k = 0; k < items.Length; k++)
+            {
+                LetteraMathItem part = items[k];
+                FontInstance instance = math.Faces[part.Face];
+                float px = part.X * em + dx, py = part.Y * em + dy;
+                var placed = new PlacedGlyph
+                {
+                    Glyph = part.Glyph, Instance = instance, Cluster = cp, Line = at.Line,
+                    X = at.X + px * cos - py * sin, Y = at.Y + px * sin + py * cos,
+                    Size = em * part.Scale, Unit = em * part.Scale / instance.Face.Metrics.Upem, Angle = at.Angle, Pen = at.X, Marker = true,
+                };
+                bool colored = part.Color > 0 && part.Color <= math.Colors.Length;
+                // A glyph holds this in the room a plain text already pays for. Past it, a part draws plain.
+                if (m_Aside.MathSpecials.Count >= ushort.MaxValue)
+                {
+                    if (part.Kind != MathItemKind.Rule) Own(ref m_Aside.VirtualGlyphs).Add(placed);
+                    continue;
+                }
+                if (part.Kind == MathItemKind.Rule)
+                {
+                    // Thin rules read as missing, so one under a pixel draws at a pixel, around the same middle. Nothing moves in the layout.
+                    // Only a canvas knows its pixels: a world unit is whatever a camera makes of it.
+                    float least = m_Host.Owner is LetteraText ? LetteraSettings.Instance.Math.MinRulePixels / (Mathf.Max(m_Host.RasterScale, 0.01f) * Mathf.Max(em, 0.01f)) : 0;
+                    if (part.Thickness < least)
+                    {
+                        float grow = (least - part.Thickness) / 2 * em;
+                        if (part.Vertical) placed.X -= grow * cos;
+                        else placed.Y -= grow * cos;
+                        part.Thickness = least;
+                    }
+                    placed.Special = SpecialRule;
+                    placed.Size = em;
+                    placed.Unit = em / 1000;
+                    placed.SpecialIndex = (ushort)m_Aside.MathSpecials.Count;
+                    Own(ref m_Aside.MathSpecials).Add(new MathSpecial { Length = part.Length * 1000, Thickness = part.Thickness * 1000, Vertical = part.Vertical, HasColor = colored, Color = colored ? math.Colors[part.Color - 1] : default });
+                }
+                else if (part.Cropped || colored)
+                {
+                    placed.Special = part.Cropped ? SpecialCrop : SpecialColor;
+                    placed.SpecialIndex = (ushort)m_Aside.MathSpecials.Count;
+                    Own(ref m_Aside.MathSpecials).Add(new MathSpecial { Low = part.CropLow, High = part.CropHigh, Vertical = part.Vertical, HasColor = colored, Color = colored ? math.Colors[part.Color - 1] : default });
+                }
+                Own(ref m_Aside.VirtualGlyphs).Add(placed);
             }
         }
 
@@ -219,10 +246,80 @@ namespace FirstSymbol.Lettera
                 Own(ref m_Aside.InlineByCp)[item.Cp] = m_Aside.InlineItems.Count;
                 Own(ref m_Aside.InlineItems).Add(item);
             }
+#if !LETTERA_NO_MATH
+            if (m_Aside.FormulaCount > 0) NumberFormulas();
+#endif
             if (m_Aside.InlineItems.Count > 0 || had) m_InlinePlacedPending = true;
         }
 
         bool m_InlinePlacedPending;
+
+#if !LETTERA_NO_MATH
+        // One count per text, from 1, in the order formulas stand. A \setcounter in a formula sets it from there on.
+        void NumberFormulas()
+        {
+            List<InlineItem> items = m_Aside.InlineItems;
+            ValueList<int> order = s_Numbered;
+            order.Clear();
+            for (int i = 0; i < items.Count; i++)
+            {
+                LetteraMathLayout math = items[i].Math;
+                if (math == null || (math.CounterSet < 0 && (math.Tags == null || !items[i].MathDisplay))) continue;
+                // Items nearly always come in text order, where this sort only looks once at each.
+                int at = order.Count;
+                order.Add(i);
+                while (at > 0 && items[order[at - 1]].Cp > items[i].Cp)
+                {
+                    order[at] = order[at - 1];
+                    order[--at] = i;
+                }
+            }
+            int counter = 0;
+            for (int o = 0; o < order.Count; o++)
+            {
+                int next = order[o];
+                InlineItem item = items[next];
+                if (item.Math.CounterSet >= 0) counter = item.Math.CounterSet;
+                if (item.Math.Tags == null || !item.MathDisplay || item.MathFace == null) continue;
+                LetteraMathTag[] tags = item.Math.Tags;
+                item.Tags = new LetteraMathLayout[tags.Length];
+                item.TagLabels = new string[tags.Length];
+                for (int t = 0; t < tags.Length; t++)
+                {
+                    string label = tags[t].Label == null ? "(" + (++counter).ToString(System.Globalization.CultureInfo.InvariantCulture) + ")" : tags[t].Bare ? tags[t].Label : "(" + tags[t].Label + ")";
+                    item.TagLabels[t] = label;
+                    item.Tags[t] = LetteraMathCache.Get("\\text{" + label + "}", false, item.MathFace, PrimaryFaceForMath);
+                }
+                items[next] = item;
+            }
+            order.Clear();
+        }
+
+        // Formulas live on the main thread, as their shared cache does.
+        static readonly ValueList<int> s_Numbered = new ValueList<int>();
+#endif
+
+        internal ReadOnlySpan<PlacedGlyph> PlacedForTests => new ReadOnlySpan<PlacedGlyph>(m_Placed, 0, m_PlacedCount);
+
+        /// <summary>Each equation number or label a text draws, with its box in local space. For tests.</summary>
+        internal void CollectFormulaTags(List<(int Cp, string Label, Rect Box)> output)
+        {
+            for (int i = 0; i < m_Aside.InlineItems.Count; i++)
+            {
+                InlineItem item = m_Aside.InlineItems[i];
+                if (item.Tags == null) continue;
+                int glyph = FirstGlyphOf(item.Cp);
+                if (glyph < 0) continue;
+                PlacedGlyph at = m_Placed[glyph];
+                float em = at.Size * item.MathScale;
+                for (int t = 0; t < item.Tags.Length; t++)
+                {
+                    TagOffset(item, t, at, em, out float dx, out float dy);
+                    LetteraMathLayout tag = item.Tags[t];
+                    output.Add((item.Cp, item.TagLabels[t], new Rect(at.X + dx, at.Y + dy - tag.Descent * em, tag.Width * em, (tag.Ascent + tag.Descent) * em)));
+                }
+            }
+        }
 
         // The extra width in em, for the cluster at a codepoint.
         internal bool TryInlineAdvance(int cp, out float em)
@@ -375,7 +472,7 @@ namespace FirstSymbol.Lettera
                     float em = at.Size * item.MathScale;
                     box = new Rect(at.X, at.Y - item.Math.Descent * em, item.Math.Width * em, (item.Math.Ascent + item.Math.Descent) * em);
                 }
-                output.Add(new LetteraFormulaInfo { CodePoint = item.Cp, Source = item.MathSource, Display = item.MathDisplay, Box = box, Failed = item.Math.Failed, Message = item.Math.Message, ErrorPosition = item.Math.ErrorPosition });
+                output.Add(new LetteraFormulaInfo { CodePoint = item.Cp, Source = item.MathSource, Display = item.MathDisplay, Box = box, Failed = item.Math.Failed, Message = item.Math.Message, ErrorPosition = item.Math.ErrorPosition, Tags = item.TagLabels });
             }
         }
 

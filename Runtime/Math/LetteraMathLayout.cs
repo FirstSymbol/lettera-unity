@@ -32,7 +32,22 @@ namespace FirstSymbol.Lettera
         public bool Display, Failed;
         public string Source, Message;
         public int ErrorPosition = -1;
-        public long Bytes => 128 + (Items?.Length ?? 0) * 48 + (Source?.Length ?? 0) * 2;
+        /// <summary>A display formula's numbers and labels, one per row that has one, or null. Which number is a text's to say.</summary>
+        public LetteraMathTag[] Tags;
+        /// <summary>The count a \setcounter{equation} in it leaves, or -1.</summary>
+        public int CounterSet = -1;
+        public long Bytes => 128 + (Items?.Length ?? 0) * 48 + (Source?.Length ?? 0) * 2 + (Tags?.Length ?? 0) * 32;
+    }
+
+    /// <summary>Where a display formula's row wants a number or a label, in em from the formula's baseline.</summary>
+    internal struct LetteraMathTag
+    {
+        /// <summary>The middle of the row the tag is centred on.</summary>
+        public float Middle;
+        /// <summary>A \tag's text, or null for the next number.</summary>
+        public string Label;
+        /// <summary>From \tag*: drawn with no parentheses.</summary>
+        public bool Bare;
     }
 
 #if !LETTERA_NO_MATH
@@ -99,11 +114,74 @@ namespace FirstSymbol.Lettera
         {
             Layouts++;
             var builder = new LetteraMathBuilder(tree, font, textFont);
+            if (display) builder.m_NumberedTable = builder.TopTable(tree.Root);
             Box box = builder.ListBox(tree.Root, display ? MathStyle.Display : MathStyle.Text, false);
             if (builder.m_Items.Count > LetteraMathLimits.DrawItems) return null;
             LetteraMathLayout layout = builder.Finish(box, display);
             layout.Source = source;
+            layout.CounterSet = tree.CounterSet;
+            if (display) layout.Tags = builder.TagsOf(box);
             return layout;
+        }
+
+        // The environment that numbers its rows: a table standing alone in a display formula.
+        int m_NumberedTable = -1;
+        readonly ValueList<(int row, float middle)> m_Rows = new ValueList<(int, float)>();
+
+        int TopTable(int list)
+        {
+            if (list < 0) return -1;
+            int found = -1;
+            for (int child = m_Tree.Nodes[list].A; child >= 0; child = m_Tree.Nodes[child].Next)
+            {
+                if (m_Tree.Nodes[child].Kind == MathNodeKind.Space) continue;
+                if (found >= 0 || m_Tree.Nodes[child].Kind != MathNodeKind.Table) return -1;
+                found = child;
+            }
+            if (found < 0) return -1;
+            switch (m_Tree.Strings[m_Tree.Nodes[found].Text])
+            {
+                case "align": case "align*": case "gather": case "gather*": case "multline": case "multline*": case "equation": case "equation*": case "displaymath":
+                    return found;
+                default:
+                    return -1;
+            }
+        }
+
+        // amsmath's rules: align and gather number each row, multline and equation the whole once; a starred one only what \tag labels.
+        LetteraMathTag[] TagsOf(in Box box)
+        {
+            var tags = new List<LetteraMathTag>();
+            float whole = (box.Ascent - box.Descent) / 2;
+            if (m_NumberedTable >= 0 && m_Rows.Count > 0)
+            {
+                string name = m_Tree.Strings[m_Tree.Nodes[m_NumberedTable].Text];
+                bool starred = name.EndsWith("*", StringComparison.Ordinal) || name == "displaymath";
+                bool perRow = name.StartsWith("align", StringComparison.Ordinal) || name.StartsWith("gather", StringComparison.Ordinal);
+                string label = null;
+                bool bare = false, none = false;
+                for (int r = 0; r < m_Rows.Count; r++)
+                {
+                    ref MathNode row = ref m_Tree.Nodes[m_Rows[r].row];
+                    string own = row.Text >= 0 ? m_Tree.Strings[row.Text] : null;
+                    bool ownBare = (row.Flags & LetteraMathParser.RowTagStar) != 0, noNumber = (row.Flags & LetteraMathParser.RowNoNumber) != 0;
+                    if (perRow)
+                    {
+                        if (own != null || (!starred && !noNumber)) tags.Add(new LetteraMathTag { Middle = m_Rows[r].middle, Label = own, Bare = ownBare });
+                        continue;
+                    }
+                    if (own != null)
+                    {
+                        label = own;
+                        bare = ownBare;
+                    }
+                    none |= noNumber;
+                }
+                if (!perRow && (label != null || (!starred && !none)))
+                    tags.Add(new LetteraMathTag { Middle = name.StartsWith("multline", StringComparison.Ordinal) ? m_Rows[m_Rows.Count - 1].middle : whole, Label = label, Bare = bare });
+            }
+            if (tags.Count == 0 && m_Tree.Tag >= 0) tags.Add(new LetteraMathTag { Middle = whole, Label = m_Tree.Strings[m_Tree.Tag], Bare = m_Tree.TagStar });
+            return tags.Count > 0 ? tags.ToArray() : null;
         }
 
         LetteraMathLayout Finish(in Box box, bool display)
@@ -1407,6 +1485,21 @@ namespace FirstSymbol.Lettera
             // The whole table centres on the axis.
             float axis = C(MathConstant.AxisHeight, style);
             float lift = axis + height / 2 - totalUp;
+            if (node == m_NumberedTable)
+            {
+                m_Rows.Clear();
+                int row = n.A;
+                for (int r = 0; r < cells.Count; r++, row = m_Tree.Nodes[row].Next)
+                {
+                    float up = strutUp, down = strutDown;
+                    foreach ((Box box, bool _) in cells[r])
+                    {
+                        up = Mathf.Max(up, box.Ascent);
+                        down = Mathf.Max(down, box.Descent);
+                    }
+                    m_Rows.Add((row, baselines[r] + lift + (up - down) / 2));
+                }
+            }
             for (int r = 0; r < cells.Count; r++)
             {
                 for (int c = 0; c < cells[r].Count; c++)
