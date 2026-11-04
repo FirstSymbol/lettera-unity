@@ -64,6 +64,7 @@ namespace FirstSymbol.Lettera
             // A document cannot be fitted without measuring all of it: it shows at the smallest size, and scrolls.
             if (data.AutoSize) size = IsWindowed ? data.MinFontSize : FitFontSize(data, width, height, wrap);
             CurrentFontSize = size;
+            if (m_Aside.FormulaCount > 0) RefitTables(size, width);
 
             CollectRevealsOnce();
             ApplyRevealRemovals();

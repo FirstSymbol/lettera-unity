@@ -26,6 +26,9 @@ namespace FirstSymbol.Lettera
             /// <summary>A display formula's numbers and labels as this text counts them, one per tag of its layout, or null.</summary>
             public LetteraMathLayout[] Tags;
             public string[] TagLabels;
+            /// <summary>A LaTeX table, drawn through its layout as a formula is, and the room in em it was laid for.</summary>
+            public TableModel Table;
+            public float TableRoom;
         }
 
         internal FontFace PrimaryFaceForMath => LetteraFontChains.Get(m_Host.Data.Font, m_Host.Data.FontStack).PrimaryFace;

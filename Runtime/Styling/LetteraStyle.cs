@@ -109,6 +109,7 @@ namespace FirstSymbol.Lettera
             LetteraStyle.ForTag(new SpoilerEffect(), "spoiler"),
             LetteraStyle.ForMatcher(new InlineMediaMatcher("sprite"), new InlineEffect()),
             LetteraStyle.ForMatcher(new LetteraMathTagMatcher("math"), new LetteraMathEffect()),
+            LetteraStyle.ForMatcher(new LetteraTableMatcher(), new LetteraTableEffect()),
             LetteraStyle.ForMatcher(new InlineMediaMatcher("obj"), new InlineEffect()),
             LetteraStyle.ForTag(new CompositeEffect(new LinkEffect(), new ColorEffect { Color = new Color32(77, 163, 255, 255) }, new UnderlineEffect()), "a"),
             LetteraStyle.ForTag(new WaveMotion(), "wave"),
