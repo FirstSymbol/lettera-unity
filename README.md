@@ -214,6 +214,10 @@ solid.FrontBevel = new LetteraBevel { Shape = LetteraBevelShape.Round, Width = 0
 - **In a Canvas.** It is not a Graphic, since a Canvas has no light: it draws as a scene object, without masks or layout, and not at all under Screen Space Overlay. For solids in a UI, point a camera at the text, with a `RenderTexture` as its target, and show that in a `RawImage`. The 3D sample does this.
 - **In a build.** A scene's component brings its material and shader. A build with none holds neither. A text made from a script with no material needs **Lettera > 3D > Allow Creating From Scripts**, which puts the shader in every build. `LETTERA_NO_3D` removes the module.
 - Its context menu has **Bake To Mesh Asset** and **Export OBJ**, and a world text's has **Convert To Text 3D**.
+- **Colliders:** `LetteraText3DColliders` keeps a box or a convex hull per glyph, or the drawn mesh, matching the text through rebuilds, motion and deformers; a Rigidbody on the text takes them as one compound body. It compiles only with the Physics module.
+- **Rays and places:** `solid.Raycast(ray, out LetteraSolidHit hit)` finds the nearest point of the drawn solids, layers included, with no collider. `solid.TryGetPose(hit.Anchor, out Pose pose)` says where that place is any later frame, through motion and deformers.
+- **Copies on glyphs:** `LetteraGlyphAttachments` puts prefabs on each glyph's top, bottom or front, along its outline, or scattered over what faces up, sized in em, varied by scale, turn and seed. They ride their glyph through motion and deformers, and hide with it.
+- **Bake...** in its context menu also makes a static object, with lightmap UVs if asked, a level-of-detail group, and FBX when the FBX Exporter package is in the project. Materials made only in memory are saved beside the mesh.
 
 ## Platforms
 

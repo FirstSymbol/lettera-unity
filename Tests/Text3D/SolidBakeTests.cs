@@ -132,6 +132,19 @@ namespace FirstSymbol.Lettera.Text3D.Tests
         }
 
         [Test]
+        public void OneUndoTakesTheBakedObjectAway()
+        {
+            LetteraText3D text = Solid("Undo");
+            Undo.IncrementCurrentGroup();
+            GameObject baked = LetteraText3DBake.Bake(text, Folder + "/Undo.asset", new LetteraBakeOptions { StaticObject = true, LodLevels = 2, DisableText = true });
+            Assert.IsNotNull(baked);
+            Assert.IsFalse(text.gameObject.activeSelf);
+            Undo.PerformUndo();
+            Assert.IsTrue(baked == null, "the object is gone");
+            Assert.IsTrue(text.gameObject.activeSelf, "and the text is back");
+        }
+
+        [Test]
         public void FbxIsWrittenWhenTheExporterIsThere()
         {
             LetteraText3D text = Solid("Fbx");

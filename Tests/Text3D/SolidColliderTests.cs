@@ -191,6 +191,15 @@ namespace FirstSymbol.Lettera.Text3D.Tests
         }
 
         [Test]
+        public void FollowingMotionAllocatesNothing()
+        {
+            LetteraText3D text = Solid("<wave>Lettera</wave>");
+            long bytes = SolidAttachmentTests.FollowBytes(text, () => text.gameObject.AddComponent<LetteraText3DColliders>());
+            Assert.AreEqual(7, text.GetComponent<LetteraText3DColliders>().ColliderCount);
+            Assert.LessOrEqual(bytes, 0, "60 pose frames with boxes following");
+        }
+
+        [Test]
         public void TurningItOffTakesThemAway()
         {
             LetteraText3D text = Solid("abc");

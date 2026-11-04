@@ -267,6 +267,32 @@ namespace FirstSymbol.Lettera.Text3D.Tests
             Assert.Greater(moved, 0.5f * Em, "the bend carried them");
         }
 
+        // Bytes the engine's pose frames allocate, less those the same frames allocate without what follows them.
+        internal static long FollowBytes(LetteraText3D text, System.Action add)
+        {
+            long Frames()
+            {
+                for (int i = 0; i < 5; i++) text.Engine.TickPose(0.016f, 0.016f);
+                long before = System.GC.GetAllocatedBytesForCurrentThread();
+                for (int i = 0; i < 60; i++) text.Engine.TickPose(0.016f, 0.016f);
+                return System.GC.GetAllocatedBytesForCurrentThread() - before;
+            }
+            long plain = Frames();
+            add();
+            return Frames() - plain;
+        }
+
+        [Test]
+        public void FollowingMotionAllocatesNothing()
+        {
+            LetteraText3D text = Solid("<wave>Lettera</wave>");
+            long bytes = FollowBytes(text, () => Attach(text,
+                new LetteraGlyphAttachment { Prefab = Prefab(), Place = LetteraGlyphAttachPlace.Top },
+                new LetteraGlyphAttachment { Prefab = Prefab(), Place = LetteraGlyphAttachPlace.Scatter, Density = 60 }));
+            Assert.Greater(text.GetComponent<LetteraGlyphAttachments>().CopyCount, 7);
+            Assert.LessOrEqual(bytes, 0, "60 pose frames with copies following");
+        }
+
         [Test]
         public void AGlyphFadedToNothingHidesItsCopies()
         {
