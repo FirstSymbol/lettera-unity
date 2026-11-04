@@ -428,7 +428,7 @@ namespace FirstSymbol.Lettera
                 Copy copy = m_Copies[i];
                 if (copy.Instance == null) continue;
                 bool found = m_Text.TryGetPoseLocal(ref copy.Anchor, out Pose pose, out float scale);
-                bool shown = found && LetteraSolidRay.AlphaAt(builder, copy.Anchor) > 0 && (!copy.ScaleWithGlyph || scale > 1e-4f);
+                bool shown = found && m_Text.IsVisible && LetteraSolidRay.AlphaAt(builder, copy.Anchor) > 0 && (!copy.ScaleWithGlyph || scale > 1e-4f);
                 if (copy.Instance.activeSelf != shown) copy.Instance.SetActive(shown);
                 m_Copies[i] = copy;
                 if (!shown) continue;

@@ -331,6 +331,7 @@ namespace FirstSymbol.Lettera
             if (m_Hidden) return;
             m_Hidden = true;
             if (m_Renderer != null) m_Renderer.enabled = false;
+            SolidsWritten?.Invoke(false);
         }
 
         /// <summary>Draws again without a rebuild, unless something changed meanwhile.</summary>
@@ -339,6 +340,7 @@ namespace FirstSymbol.Lettera
             if (!m_Hidden) return;
             m_Hidden = false;
             if (m_Renderer != null) m_Renderer.enabled = true;
+            SolidsWritten?.Invoke(false);
         }
 
         /// <summary>Rebuilds now, e.g. before reading results in the same frame.</summary>

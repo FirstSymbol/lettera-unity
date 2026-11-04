@@ -304,6 +304,18 @@ namespace FirstSymbol.Lettera.Text3D.Tests
         }
 
         [Test]
+        public void HidingTheTextHidesItsCopies()
+        {
+            LetteraText3D text = Solid("ab");
+            LetteraGlyphAttachments attachments = Attach(text, new LetteraGlyphAttachment { Prefab = Prefab(), Place = LetteraGlyphAttachPlace.Top });
+            Assert.AreEqual(2, attachments.CopyCount);
+            text.Hide();
+            foreach (GameObject copy in Copies(attachments)) Assert.IsFalse(copy.activeSelf, "hidden with the text");
+            text.Show();
+            foreach (GameObject copy in Copies(attachments)) Assert.IsTrue(copy.activeSelf, "back with the text");
+        }
+
+        [Test]
         public void TurningItOffTakesItsCopiesAway()
         {
             LetteraText3D text = Solid("abc");
