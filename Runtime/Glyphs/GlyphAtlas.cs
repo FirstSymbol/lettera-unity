@@ -68,8 +68,10 @@ namespace FirstSymbol.Lettera
         sealed class PageSet
         {
             public readonly List<IntPtr> Pixels = new List<IntPtr>();
-            public readonly GraphicsFormat Format;
-            public readonly int Bytes;
+            readonly GraphicsFormat m_Narrow, m_WideFormat;
+            readonly int m_NarrowBytes;
+            GraphicsFormat m_Format;
+            int m_Bytes;
             public readonly List<int> LastUsed = new List<int>();
             public int MaxPages;
             public readonly int PropertyId;
@@ -80,15 +82,29 @@ namespace FirstSymbol.Lettera
 
             int m_Size = DefaultPageSize;
 
-            // A set takes the configured size while it holds no page, and keeps it while it has any.
+            // A set takes the configured size and depth while it holds no page, and keeps them while it has any.
             public int Size => Pixels.Count > 0 ? m_Size : (m_Size = ConfiguredSize(this));
+            public GraphicsFormat Format => Pixels.Count > 0 ? m_Format : ConfigureDepth().m_Format;
+            public int Bytes => Pixels.Count > 0 ? m_Bytes : ConfigureDepth().m_Bytes;
 
-            public PageSet(GraphicsFormat format, int bytes, int maxPages, int propertyId)
+            /// <summary>Two bytes a channel.</summary>
+            public bool Wide => Bytes != m_NarrowBytes;
+
+            public PageSet(GraphicsFormat format, int bytes, int maxPages, int propertyId, GraphicsFormat wide = GraphicsFormat.None)
             {
-                Format = format;
-                Bytes = bytes;
+                m_Narrow = m_Format = format;
+                m_NarrowBytes = m_Bytes = bytes;
+                m_WideFormat = wide;
                 MaxPages = maxPages;
                 PropertyId = propertyId;
+            }
+
+            PageSet ConfigureDepth()
+            {
+                bool wide = m_WideFormat != GraphicsFormat.None && ConfiguredWide(this, m_WideFormat);
+                m_Format = wide ? m_WideFormat : m_Narrow;
+                m_Bytes = wide ? m_NarrowBytes * 2 : m_NarrowBytes;
+                return this;
             }
         }
 
@@ -106,9 +122,34 @@ namespace FirstSymbol.Lettera
             return size == LetteraAtlasPageSize.Size1024 ? 1024 : 2048;
         }
 
-        static readonly PageSet s_Sdf = new PageSet(GraphicsFormat.R8_UNorm, 1, DefaultSdfPages, s_SdfAtlasId);
+        /// <summary>Overrides the depth of the distance-field sets for tests: 8 or 16, and 0 reads the settings.</summary>
+        internal static int DepthForTests;
+
+        static bool s_WarnedDepth;
+
+        // 16 bits where the settings ask for them and the graphics device samples and filters the format; else 8, said once.
+        static bool ConfiguredWide(PageSet set, GraphicsFormat wide)
+        {
+            bool asked;
+            if (DepthForTests > 0) asked = DepthForTests == 16;
+            else
+            {
+                LetteraAtlasSettings atlas = LetteraSettings.Instance.Atlas;
+                asked = (set == s_Sdf ? atlas.SdfDepth : atlas.MsdfDepth) == LetteraAtlasDepth.Bits16;
+            }
+            if (!asked) return false;
+            if (SystemInfo.IsFormatSupported(wide, GraphicsFormatUsage.Sample | GraphicsFormatUsage.Linear)) return true;
+            if (!s_WarnedDepth)
+            {
+                s_WarnedDepth = true;
+                Debug.LogWarning($"Lettera: this graphics device cannot filter {wide}, so the atlas stays at 8 bits.");
+            }
+            return false;
+        }
+
+        static readonly PageSet s_Sdf = new PageSet(GraphicsFormat.R8_UNorm, 1, DefaultSdfPages, s_SdfAtlasId, GraphicsFormat.R16_UNorm);
         static readonly PageSet s_Color = new PageSet(GraphicsFormat.R8G8B8A8_SRGB, 4, DefaultColorPages, s_ColorAtlasId);
-        static readonly PageSet s_Msdf = new PageSet(GraphicsFormat.R8G8B8A8_UNorm, 4, DefaultMsdfPages, s_MsdfAtlasId);
+        static readonly PageSet s_Msdf = new PageSet(GraphicsFormat.R8G8B8A8_UNorm, 4, DefaultMsdfPages, s_MsdfAtlasId, GraphicsFormat.R16G16B16A16_UNorm);
         static readonly Dictionary<ulong, AtlasGlyph> s_Glyphs = new Dictionary<ulong, AtlasGlyph>();
 
         // The last entry seen at each of a few slots, so a mesh's repeated letters skip the dictionary. Any change of the dictionary makes every slot old.
@@ -184,6 +225,10 @@ namespace FirstSymbol.Lettera
         public static int SdfPageSize => s_Sdf.Size;
         public static int ColorPageSize => s_Color.Size;
         public static int MsdfPageSize => s_Msdf.Size;
+
+        /// <summary>Bits per channel of the distance-field kinds' pages, as they are or will next be made.</summary>
+        public static int SdfDepth => s_Sdf.Wide ? 16 : 8;
+        public static int MsdfDepth => s_Msdf.Wide ? 16 : 8;
 
         static long SetBytes(PageSet set) => (long)set.Pixels.Count * set.Size * set.Size * set.Bytes;
         public static int ColorPageCount => s_Color.Pixels.Count;
@@ -371,6 +416,7 @@ namespace FirstSymbol.Lettera
                 Target = (byte*)set.Pixels[page],
                 Stride = set.Size * set.Bytes,
                 Multi = multi,
+                Wide = set.Wide,
                 X = x, Y = y, Width = width, Height = height,
                 LineStart = lineStart,
                 LineCount = s_Lines.Length - lineStart,
@@ -470,6 +516,7 @@ namespace FirstSymbol.Lettera
                 Target = (byte*)set.Pixels[page],
                 Stride = set.Size * set.Bytes,
                 Multi = multi,
+                Wide = set.Wide,
                 X = x, Y = y, Width = width, Height = height,
                 LineStart = lineStart,
                 LineCount = s_Lines.Length - lineStart,
@@ -520,6 +567,7 @@ namespace FirstSymbol.Lettera
 
             float toValue = 0.5f / (spread * grid);
             byte* target = (byte*)s_Sdf.Pixels[page];
+            bool wide = s_Sdf.Wide;
             for (int row = 0; row < height; row++)
             {
                 for (int column = 0; column < width; column++)
@@ -540,7 +588,8 @@ namespace FirstSymbol.Lettera
                     if (distance == float.MaxValue) distance = 0;
                     distance = Mathf.Sqrt(distance);
                     float value = inside ? 0.5f + distance * toValue : 0.5f - distance * toValue;
-                    target[(y + row) * s_Sdf.Size + x + column] = (byte)(Mathf.Clamp01(value) * 255f + 0.5f);
+                    if (wide) ((ushort*)target)[(y + row) * s_Sdf.Size + x + column] = (ushort)(Mathf.Clamp01(value) * 65535f + 0.5f);
+                    else target[(y + row) * s_Sdf.Size + x + column] = (byte)(Mathf.Clamp01(value) * 255f + 0.5f);
                 }
             }
             lines.Dispose();
@@ -797,6 +846,7 @@ namespace FirstSymbol.Lettera
                 Target = (byte*)set.Pixels[page],
                 Stride = set.Size * set.Bytes,
                 Multi = multi,
+                Wide = set.Wide,
                 X = x, Y = y, Width = width, Height = height,
                 LineStart = lineStart,
                 LineCount = s_Lines.Length - lineStart,
@@ -1067,9 +1117,9 @@ namespace FirstSymbol.Lettera
 
         static void UploadPending()
         {
-            UploadSet(s_Sdf, ref s_StagingSdf, TextureFormat.R8);
+            UploadSet(s_Sdf, ref s_StagingSdf, s_Sdf.Wide ? TextureFormat.R16 : TextureFormat.R8);
             UploadSet(s_Color, ref s_StagingColor, TextureFormat.RGBA32);
-            UploadSet(s_Msdf, ref s_StagingMsdf, TextureFormat.RGBA32);
+            UploadSet(s_Msdf, ref s_StagingMsdf, s_Msdf.Wide ? TextureFormat.RGBA64 : TextureFormat.RGBA32);
             s_Uploads.Clear();
         }
 
@@ -1089,6 +1139,12 @@ namespace FirstSymbol.Lettera
                 return;
             }
 
+            // Pages made again at another depth need a staging texture of that depth.
+            if (staging != null && staging.format != format)
+            {
+                DestroyTexture(staging);
+                staging = null;
+            }
             if (staging == null)
                 staging = new Texture2D(StagingSize, StagingSize, format, false, FormatOf(set) != GraphicsFormat.R8G8B8A8_SRGB) { hideFlags = HideFlags.HideAndDontSave, filterMode = FilterMode.Point };
 

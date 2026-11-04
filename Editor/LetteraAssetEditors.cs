@@ -212,10 +212,11 @@ namespace FirstSymbol.Lettera.Editor
                 info = set + " atlas: empty";
                 return null;
             }
-            var format = set == Set.Sdf ? TextureFormat.R8 : TextureFormat.RGBA32;
-            var copy = new Texture2D(array.width, array.height, format, false, set != Set.Color) { hideFlags = HideFlags.HideAndDontSave };
+            // The copy takes the page's own format, 8 or 16 bits, or the copy is refused.
+            var copy = new Texture2D(array.width, array.height, array.graphicsFormat, UnityEngine.Experimental.Rendering.TextureCreationFlags.None) { hideFlags = HideFlags.HideAndDontSave };
             Graphics.CopyTexture(array, page, 0, copy, 0, 0);
-            info = $"{set} atlas: {array.depth} of {array.width}x{array.height} pages, {GlyphAtlas.GlyphCount} glyphs in all";
+            string depth = set == Set.Sdf ? ", " + GlyphAtlas.SdfDepth + "-bit" : set == Set.Msdf ? ", " + GlyphAtlas.MsdfDepth + "-bit" : "";
+            info = $"{set} atlas: {array.depth} of {array.width}x{array.height} pages{depth}, {GlyphAtlas.GlyphCount} glyphs in all";
             return copy;
         }
     }

@@ -1,4 +1,6 @@
 using NUnit.Framework;
+using FirstSymbol.Lettera.Outlines;
+using Unity.Jobs;
 using UnityEngine;
 using UnityEngine.UIElements;
 
@@ -179,6 +181,103 @@ namespace FirstSymbol.Lettera.Editor.Tests
             CollectionAssert.Contains(labels, "Spacing Offset");
             CollectionAssert.Contains(labels, "Space Width");
             CollectionAssert.Contains(labels, "Glyph Overrides");
+        }
+
+        // F4: pages of 16 bits cost twice the memory of 8 and draw the same text the same.
+        [TestCase(LetteraRenderMode.SDF)]
+        [TestCase(LetteraRenderMode.MSDF)]
+        public void SixteenBitPagesCostTwiceAndDrawTheSame(LetteraRenderMode mode)
+        {
+            var background = new Color(0.1f, 0.1f, 0.1f, 1);
+            int set = mode == LetteraRenderMode.SDF ? 0 : 1;
+            GlyphAtlas.Clear();
+            LetteraWorldText text = Make("", 300, 60, null, 24);
+            text.RenderMode = mode;
+            text.Text = "Sixteen bits, the same picture";
+            text.ForceRebuild();
+            Texture2D narrow = Render(300, 60, background);
+            Assert.AreEqual(8, mode == LetteraRenderMode.SDF ? GlyphAtlas.SdfDepth : GlyphAtlas.MsdfDepth);
+            long narrowBytes = GlyphAtlas.PageBytes;
+            (int, int) narrowPages = (GlyphAtlas.SdfPageCount, GlyphAtlas.MsdfPageCount);
+            UnityEngine.Experimental.Rendering.GraphicsFormat narrowFormat = GlyphAtlas.TextureOf(set).graphicsFormat;
+            try
+            {
+                GlyphAtlas.DepthForTests = 16;
+                GlyphAtlas.Clear();
+                GlyphAtlas.Flush();
+                text.ForceRebuild();
+                Texture2D wide = Render(300, 60, background);
+                Assert.AreEqual(16, mode == LetteraRenderMode.SDF ? GlyphAtlas.SdfDepth : GlyphAtlas.MsdfDepth);
+                Assert.AreEqual(mode == LetteraRenderMode.SDF ? UnityEngine.Experimental.Rendering.GraphicsFormat.R16_UNorm : UnityEngine.Experimental.Rendering.GraphicsFormat.R16G16B16A16_UNorm, GlyphAtlas.TextureOf(set).graphicsFormat);
+                long wideBytes = GlyphAtlas.PageBytes;
+                TestContext.WriteLine($"{mode}: pages {narrowBytes / 1048576f:0.##} MB at 8 bits ({narrowFormat}), {wideBytes / 1048576f:0.##} MB at 16");
+                Assert.AreEqual(narrowPages, (GlyphAtlas.SdfPageCount, GlyphAtlas.MsdfPageCount), "as many pages");
+                long sdfPage = (long)GlyphAtlas.SdfPageSize * GlyphAtlas.SdfPageSize, msdfPage = (long)GlyphAtlas.MsdfPageSize * GlyphAtlas.MsdfPageSize * 4;
+                Assert.AreEqual(narrowBytes + sdfPage * narrowPages.Item1 + msdfPage * narrowPages.Item2, wideBytes, "each distance-field page costs twice");
+                // An 8-bit step is 1/255 of the field's reach, which the edge's smoothing turns into a few levels of coverage: the two differ by that, and no more.
+                float largest = 0, inkNarrow = 0, inkWide = 0;
+                for (int y = 0; y < 60; y++)
+                    for (int x = 0; x < 300; x++)
+                    {
+                        largest = Mathf.Max(largest, Mathf.Abs(narrow.GetPixel(x, y).r - wide.GetPixel(x, y).r));
+                        inkNarrow += narrow.GetPixel(x, y).r;
+                        inkWide += wide.GetPixel(x, y).r;
+                    }
+                TestContext.WriteLine($"largest difference {largest * 255:0.#} of 255, ink {inkNarrow:0.#} against {inkWide:0.#}");
+                Assert.LessOrEqual(largest, 16 / 255f);
+                Assert.AreEqual(inkNarrow, inkWide, inkNarrow * 0.005f);
+            }
+            finally
+            {
+                GlyphAtlas.DepthForTests = 0;
+                GlyphAtlas.Clear();
+            }
+            Assert.AreEqual(8, GlyphAtlas.SdfDepth);
+        }
+
+        // Far from the edge 8 bits hold a step per 1/255 of the reach; 16 bits keep the field smooth there.
+        [Test]
+        public unsafe void SixteenBitsKeepTheFarFieldSmooth()
+        {
+            const int size = 64;
+            var lines = new NativeList<float4>(8, Unity.Collections.Allocator.TempJob);
+            lines.Add(new float4(24, 24, 40, 24));
+            lines.Add(new float4(40, 24, 40, 40));
+            lines.Add(new float4(40, 40, 24, 40));
+            lines.Add(new float4(24, 40, 24, 24));
+            var narrow = new byte[size * size];
+            var wide = new ushort[size * size];
+            var tiles = new Unity.Collections.NativeArray<SdfTile>(1, Unity.Collections.Allocator.TempJob);
+            try
+            {
+                fixed (byte* target = narrow) tiles[0] = new SdfTile { Target = target, Stride = size, Width = size, Height = size, LineCount = 4, Spread = 20 };
+                new SdfTileJob { Tiles = tiles, Lines = lines.AsArray() }.Run(1);
+                fixed (ushort* target = wide) tiles[0] = new SdfTile { Target = (byte*)target, Stride = size * 2, Width = size, Height = size, LineCount = 4, Spread = 20, Wide = true };
+                new SdfTileJob { Tiles = tiles, Lines = lines.AsArray() }.Run(1);
+            }
+            finally
+            {
+                tiles.Dispose();
+                lines.Dispose();
+            }
+            // The true field of the square, against what each depth keeps of it.
+            double narrowError = 0, wideError = 0;
+            for (int row = 0; row < size; row++)
+            {
+                for (int column = 0; column < size; column++)
+                {
+                    float px = column + 0.5f, py = row + 0.5f;
+                    float dx = Mathf.Max(24 - px, px - 40), dy = Mathf.Max(24 - py, py - 40);
+                    float distance = dx <= 0 && dy <= 0 ? -Mathf.Max(dx, dy) : -new Vector2(Mathf.Max(dx, 0), Mathf.Max(dy, 0)).magnitude;
+                    float exact = Mathf.Clamp01(0.5f + distance * 0.5f / 20);
+                    int i = row * size + column;
+                    Assert.AreEqual(narrow[i] / 255f, wide[i] / 65535f, 0.6f / 255, "the same field");
+                    narrowError += Mathf.Abs(narrow[i] / 255f - exact);
+                    wideError += Mathf.Abs(wide[i] / 65535f - exact);
+                }
+            }
+            TestContext.WriteLine($"mean error {narrowError / (size * size) * 255:0.###} of 1/255 at 8 bits, {wideError / (size * size) * 255:0.###} at 16");
+            Assert.Less(wideError, narrowError / 20);
         }
     }
 }

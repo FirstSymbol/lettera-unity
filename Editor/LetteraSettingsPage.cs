@@ -174,7 +174,7 @@ namespace FirstSymbol.Lettera.Editor
 
             VisualElement atlases = LtUI.El("lt-list", new LtStatus()
                 .Line("Page Size Now", () => "SDF " + GlyphAtlas.SdfPageSize + ", colour " + GlyphAtlas.ColorPageSize + ", MSDF " + GlyphAtlas.MsdfPageSize)
-                .Line("Depth", () => "SDF 8-bit, MSDF 8-bit per channel, colour RGBA, fixed")
+                .Line("Depth Now", () => "SDF " + GlyphAtlas.SdfDepth + "-bit, MSDF " + GlyphAtlas.MsdfDepth + "-bit per channel, colour 8-bit RGBA")
                 .Line("In Use Now", () =>
                 {
                     long bytes = 0;

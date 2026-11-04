@@ -5,10 +5,13 @@ namespace FirstSymbol.Lettera
 {
     public enum LetteraAtlasPageSize { Size2048, Size1024 }
 
+    /// <summary>Bits per channel of a distance-field atlas page.</summary>
+    public enum LetteraAtlasDepth { Bits8, Bits16 }
+
     /// <summary>
-    /// The side of the glyph atlas's pages, per kind. A page of 1024 holds a quarter of what a page of 2048 holds and costs a quarter of its
+    /// The side of the glyph atlas's pages, per kind, and the depth of the distance-field kinds. A page of 1024 holds a quarter of what a page of 2048 holds and costs a quarter of its
     /// memory, so a game with few glyphs, such as Latin at a few sizes, pays 1 MB a page where it paid 4; one with thousands of glyphs makes more
-    /// pages. A size takes effect when that kind's pages are next made from nothing: at start, after <see cref="GlyphAtlas.Clear"/>, or after a
+    /// pages. A size or depth takes effect when that kind's pages are next made from nothing: at start, after <see cref="GlyphAtlas.Clear"/>, or after a
     /// release with no text left. A glyph tile larger than a page is not drawn, which a page of 1024 reaches only with glyphs far larger than text uses.
     /// </summary>
     [Serializable]
@@ -22,6 +25,12 @@ namespace FirstSymbol.Lettera
 
         [Tooltip("Pages of multi-channel distance fields: 2048 costs 16 MB a page, 1024 costs 4 MB.")]
         public LetteraAtlasPageSize MsdfPageSize = LetteraAtlasPageSize.Size2048;
+
+        [Tooltip("Bits per texel of distance-field pages. 16 doubles a page's memory, 8 MB at 2048, and keeps the field smooth far from the edge, where wide outlines, glows and shadows read it; 8 can show steps there.")]
+        public LetteraAtlasDepth SdfDepth = LetteraAtlasDepth.Bits8;
+
+        [Tooltip("Bits per channel of multi-channel pages. 16 doubles a page's memory, 32 MB at 2048; 8 can show steps far from the edge.")]
+        public LetteraAtlasDepth MsdfDepth = LetteraAtlasDepth.Bits8;
     }
 
     /// <summary>When Lettera gives back what it keeps only for speed.</summary>

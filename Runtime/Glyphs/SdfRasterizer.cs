@@ -18,6 +18,9 @@ namespace FirstSymbol.Lettera
 
         /// <summary>Four bytes per pixel: the three color channels of a multi-channel field, and the true distance in alpha.</summary>
         public bool Multi;
+
+        /// <summary>Two bytes per channel, for an atlas of 16 bits.</summary>
+        public bool Wide;
     }
 
     /// <summary>
@@ -152,7 +155,7 @@ namespace FirstSymbol.Lettera
             var directions = (int*)UnsafeUtility.Malloc(math.max(allCount, 1) * (long)sizeof(int), 16, Allocator.Persistent);
             for (int row = 0; row < height; row++)
             {
-                byte* output = tile.Target + (tile.Y + row) * tile.Stride + tile.X;
+                byte* output = tile.Target + (tile.Y + row) * tile.Stride + tile.X * (tile.Wide ? 2 : 1);
                 float py = row + 0.5f;
                 int crossings = RowCrossings(all, allCount, py, xs, directions, out int winding);
                 int next = 0;
@@ -163,7 +166,8 @@ namespace FirstSymbol.Lettera
                     while (next < crossings && xs[next] <= px) winding -= directions[next++];
                     float distance = math.sqrt(rowNearest[column]);
                     if (winding == 0) distance = -distance;
-                    output[column] = (byte)(math.saturate(0.5f + distance * toValue) * 255f + 0.5f);
+                    if (tile.Wide) ((ushort*)output)[column] = (ushort)(math.saturate(0.5f + distance * toValue) * 65535f + 0.5f);
+                    else output[column] = (byte)(math.saturate(0.5f + distance * toValue) * 255f + 0.5f);
                 }
             }
             UnsafeUtility.Free(directions, Allocator.Persistent);
@@ -185,7 +189,7 @@ namespace FirstSymbol.Lettera
             var directions = (int*)UnsafeUtility.Malloc(math.max(allCount, 1) * (long)sizeof(int), 16, Allocator.Persistent);
             for (int row = 0; row < tile.Height; row++)
             {
-                byte* output = tile.Target + (tile.Y + row) * tile.Stride + tile.X * 4;
+                byte* output = tile.Target + (tile.Y + row) * tile.Stride + tile.X * (tile.Wide ? 8 : 4);
                 float py = row + 0.5f;
                 int crossings = RowCrossings(all, allCount, py, xs, directions, out int winding);
                 int next = 0;
@@ -228,6 +232,15 @@ namespace FirstSymbol.Lettera
                     float median = math.max(math.min(bestSigned.x, bestSigned.y), math.min(math.max(bestSigned.x, bestSigned.y), bestSigned.z));
                     if ((median >= 0) != (trueDistance >= 0) || best.x == float.MaxValue || best.y == float.MaxValue || best.z == float.MaxValue)
                         bestSigned = trueDistance;
+                    if (tile.Wide)
+                    {
+                        var wide = (ushort*)output + column * 4;
+                        wide[0] = (ushort)(math.saturate(0.5f + bestSigned.x * toValue) * 65535f + 0.5f);
+                        wide[1] = (ushort)(math.saturate(0.5f + bestSigned.y * toValue) * 65535f + 0.5f);
+                        wide[2] = (ushort)(math.saturate(0.5f + bestSigned.z * toValue) * 65535f + 0.5f);
+                        wide[3] = (ushort)(math.saturate(0.5f + trueDistance * toValue) * 65535f + 0.5f);
+                        continue;
+                    }
                     output[column * 4] = (byte)(math.saturate(0.5f + bestSigned.x * toValue) * 255f + 0.5f);
                     output[column * 4 + 1] = (byte)(math.saturate(0.5f + bestSigned.y * toValue) * 255f + 0.5f);
                     output[column * 4 + 2] = (byte)(math.saturate(0.5f + bestSigned.z * toValue) * 255f + 0.5f);
