@@ -80,6 +80,9 @@ namespace FirstSymbol.Lettera
             LetteraMaterials.LoadAhead();
         }
 
+        /// <summary>True when reading <see cref="Instance"/> would not wait for the load begun at start.</summary>
+        internal static bool LoadedAhead => s_Instance != null || s_Ahead == null || s_Ahead.isDone;
+
         public static LetteraSettings Instance
         {
             get

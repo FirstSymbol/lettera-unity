@@ -25,6 +25,9 @@ namespace FirstSymbol.Lettera
             s_WorldAhead = Resources.LoadAsync<Shader>("Lettera/LetteraWorld");
         }
 
+        /// <summary>True when the UI material would not wait for its shader's load begun at start.</summary>
+        internal static bool UiLoadedAhead => s_Ui != null || s_UiAhead == null || s_UiAhead.isDone;
+
         static Material Create(string resource)
         {
             Shader shader = resource == "Lettera/LetteraUI" ? Take(ref s_UiAhead) : resource == "Lettera/LetteraWorld" ? Take(ref s_WorldAhead) : null;

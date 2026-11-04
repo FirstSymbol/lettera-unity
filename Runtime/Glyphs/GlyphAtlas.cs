@@ -142,6 +142,16 @@ namespace FirstSymbol.Lettera
                 tiles.Dispose();
             }
         }
+        // Unity readies a job type at its first schedule, on the main thread. An empty one at start takes that from the first glyph.
+        internal static void WarmJob()
+        {
+            var tiles = new NativeArray<SdfTile>(0, Allocator.TempJob);
+            var lines = new NativeList<float4>(1, Allocator.TempJob);
+            new SdfTileJob { Tiles = tiles, Lines = lines.AsArray() }.Schedule(0, 4).Complete();
+            lines.Dispose();
+            tiles.Dispose();
+        }
+
         static int s_MemoVersion = 1;
 
         static void GlyphsChanged() => s_MemoVersion++;

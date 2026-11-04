@@ -21,6 +21,25 @@ namespace FirstSymbol.Lettera.Editor.Tests
         }
 
         [Test]
+        public void StartUpStepsLeaveNoObjectNoGlyphAndNoPage()
+        {
+            Assert.IsTrue(new LetteraMemorySettings().ReadyAtStart, "on unless a project turns it off");
+            GlyphAtlas.Clear();
+            GlyphAtlas.Flush();
+            int glyphs = GlyphAtlas.GlyphCount, pages = GlyphAtlas.SdfPageCount, listeners = LetteraTextListeners.Count;
+            var steps = new LetteraStartUp.Steps();
+            int count = 0;
+            while (steps.Next()) Assert.Less(++count, 10, "the steps end");
+            Assert.AreEqual(3, count, "a step a frame, then the last");
+            foreach (GameObject go in Resources.FindObjectsOfTypeAll<GameObject>())
+                Assert.AreNotEqual("Lettera Start-Up", go.name, "the hidden canvas went");
+            Assert.AreEqual(glyphs, GlyphAtlas.GlyphCount);
+            Assert.AreEqual(pages, GlyphAtlas.SdfPageCount);
+            Assert.AreEqual(listeners, LetteraTextListeners.Count);
+            Assert.IsNotNull(LetteraMaterials.Ui);
+        }
+
+        [Test]
         public void PrepareTakesNoTextOutOfTheScene()
         {
             int listeners = LetteraTextListeners.Count;

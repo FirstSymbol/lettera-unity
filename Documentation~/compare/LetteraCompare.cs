@@ -300,9 +300,12 @@ public class LetteraCompare : MonoBehaviour
         return at >= 0 && at + 1 < args.Length ? args[at + 1] : null;
     }
 
+    static double s_BootAt;
+
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
     static void Boot()
     {
+        s_BootAt = Time.realtimeSinceStartupAsDouble * 1000;
         if (Arg("-compare") != null || Arg("-sheets") != null) new GameObject("Compare").AddComponent<LetteraCompare>();
     }
 
@@ -326,6 +329,26 @@ public class LetteraCompare : MonoBehaviour
         Application.targetFrameRate = -1;
         Application.runInBackground = true;
         m_Name = Arg("-compare") ?? "lettera";
+        // A player that carries the engine and draws no text: what it pays to start, and over its first frames.
+        if (Arg("-scenario") == "empty")
+        {
+            Say("R00_start_to_boot", s_BootAt);
+            Say("R00_start_to_first_script", Time.realtimeSinceStartupAsDouble * 1000);
+            new GameObject("Camera").AddComponent<Camera>().clearFlags = CameraClearFlags.SolidColor;
+            var frames = Stopwatch.StartNew();
+            var each = new StringBuilder();
+            double last = 0;
+            for (int i = 0; i < 30; i++)
+            {
+                yield return null;
+                if (i < 8) each.Append((frames.Elapsed.TotalMilliseconds - last).ToString("0.0", System.Globalization.CultureInfo.InvariantCulture)).Append(' ');
+                last = frames.Elapsed.TotalMilliseconds;
+            }
+            Say("R00_first_30_frames", frames.Elapsed.TotalMilliseconds, -1, "first frames " + each);
+            Write(Arg("-out"));
+            Application.Quit();
+            yield break;
+        }
         string fonts = Arg("-fonts");
         Prepare(fonts);
         m_Canvas = new GameObject("Canvas", typeof(Canvas), typeof(CanvasScaler)).GetComponent<Canvas>();
