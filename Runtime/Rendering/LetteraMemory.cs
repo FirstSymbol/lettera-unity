@@ -34,7 +34,7 @@ namespace FirstSymbol.Lettera
         [Tooltip("The same release when the system says memory is low, whatever the time since the last rebuild.")]
         public bool ReleaseOnLowMemory = true;
 
-        [Tooltip("A player readies, over its first frames, what the first text of a session would pay for once: Lettera's hooks into the frame, its Canvas material, the first glyph job, Unity's first Canvas graphic and the first draw of the text shader. About 8 ms of the main thread in all, a step a frame, and no memory beyond the material. Not on the web. Off leaves it to the first text.")]
+        [Tooltip("A player readies, over its first frames, what the first text of a session would pay for once: Lettera's hooks into the frame, its Canvas material, the first glyph job, Unity's first Canvas graphic and the first draw of the text shader. About 13 ms over a player's first frames, once, a step a frame, and no memory beyond the material. Not on the web. Off leaves it to the first text.")]
         public bool ReadyAtStart = true;
     }
 
