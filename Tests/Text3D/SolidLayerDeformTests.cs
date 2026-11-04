@@ -265,11 +265,16 @@ namespace FirstSymbol.Lettera.Text3D.Tests
 
         // ------------------------------------------------------------------ deformers
 
+        // The middle of a placement's box: the same however finely its surfaces were cut.
         static Vector3 Centre(Vector3[] vertices, LetteraSolidMeshBuilder.Placement place)
         {
-            Vector3 sum = Vector3.zero;
-            for (int i = place.VertexStart; i < place.VertexStart + place.VertexCount; i++) sum += vertices[i];
-            return sum / Mathf.Max(place.VertexCount, 1);
+            Vector3 low = Vector3.positiveInfinity, high = Vector3.negativeInfinity;
+            for (int i = place.VertexStart; i < place.VertexStart + place.VertexCount; i++)
+            {
+                low = Vector3.Min(low, vertices[i]);
+                high = Vector3.Max(high, vertices[i]);
+            }
+            return (low + high) * 0.5f;
         }
 
         [Test]

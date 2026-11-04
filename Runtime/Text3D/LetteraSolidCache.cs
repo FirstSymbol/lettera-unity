@@ -174,7 +174,7 @@ namespace FirstSymbol.Lettera
             var key = new LetteraSolidKey { Instance = instance != null ? instance.Id : 0, Glyph = glyph, Edges = recipe.HashOf(), Layer = layer.ShapeHash(part) };
             if (!s_Entries.TryGetValue(key, out LetteraSolidEntry entry))
             {
-                var segments = new NativeList<float4>(256, Allocator.Temp);
+                var segments = new NativeList<float4>(256, Allocator.TempJob);
                 float2 low = new float2(float.MaxValue), high = new float2(float.MinValue);
                 LetteraSolidLayerBuilder.AddGlyph(instance, glyph, float2.zero, 1, 1, 1, 0, ref segments, ref low, ref high);
                 entry = LetteraSolidLayerBuilder.Build(key, segments, low, high, layer, part, recipe) ?? new LetteraSolidEntry { Key = key };

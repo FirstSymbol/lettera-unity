@@ -553,6 +553,8 @@ namespace FirstSymbol.Lettera
             float cell = 1f / Mathf.Clamp(layer.Detail, 8, 96);
             var points = new NativeList<float2>(1024, Allocator.TempJob);
             var loops = new NativeList<int2>(16, Allocator.TempJob);
+            var input = new NativeArray<float4>(math.max(segments.Length, 1), Allocator.TempJob, NativeArrayOptions.UninitializedMemory);
+            for (int i = 0; i < segments.Length; i++) input[i] = segments[i];
             try
             {
                 for (int attempt = 0; attempt < 4; attempt++)
@@ -577,7 +579,7 @@ namespace FirstSymbol.Lettera
                     }
                     var job = new LetteraLayerFieldJob
                     {
-                        Segments = segments.AsArray(),
+                        Segments = input,
                         SegmentCount = segments.Length,
                         Mode = mode,
                         CutGlyphs = cut,
@@ -620,6 +622,7 @@ namespace FirstSymbol.Lettera
             {
                 points.Dispose();
                 loops.Dispose();
+                input.Dispose();
             }
         }
 

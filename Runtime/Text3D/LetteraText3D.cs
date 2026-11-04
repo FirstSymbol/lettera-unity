@@ -962,7 +962,7 @@ namespace FirstSymbol.Lettera
                 {
                     if (!m_GroupsBefore.TryGetValue(hash, out entry))
                     {
-                        var segments = new NativeList<float4>(1024, Allocator.Temp);
+                        var segments = new NativeList<float4>(1024, Allocator.TempJob);
                         float2 low = new float2(float.MaxValue), high = new float2(float.MinValue);
                         foreach (int gi in m_GroupGlyphs)
                         {
