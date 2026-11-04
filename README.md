@@ -151,6 +151,8 @@ field.Submitted += value => Debug.Log(value);
 - Rules hold the policy and run in list order. A filter judges what an edit leaves behind, a validator only reports, and a decorator shows the state on UI you assign.
 - Commands in `field.ToggleEffect<BoldEffect>()` style write the field's own syntax and need a style that writes that effect: they never add one.
 - World text needs a `LetteraWorldRaycaster` on the camera, and every text an `EventSystem` with an input module.
+- Under a Canvas Group that is not interactable, a selectable text or a field takes no press: no caret, no selection, no menu, and a drag goes to the scroll view around it. `IsInteractable` says which.
+- `text.Units(LetteraTextUnit.Word)` walks the clusters, words (by UAX #29 and the installed dictionaries), lines or paragraphs a text shows, all of it or a range, and `CountUnits` counts them, neither allocating. `FindAll` finds every place a string stands, with or without case.
 - Everything reaches the OS through `ILetteraInputSource` and `ILetteraClipboardBackend`, which you can replace.
 
 ## Motion and interaction
@@ -188,6 +190,7 @@ label.Text = "Energy is <math>E = mc^2</math>, and <math=display>\\sum_{i=0}^n i
 - A formula is written in a linear subset of TeX, inside `<math>`. `<math=display>` makes a paragraph of its own. `<math=inline,x squared>x^2</math>` gives it words for a screen reader.
 - **Commands:** fractions and binomials, roots, scripts and limits, large operators, `\left \right` and sized delimiters, accents, bars, braces, arrows, matrices, `cases`, `aligned`, `array`, `\text`, spacing, `\color`, alphabets such as `\mathbb`, and about 475 symbols. No macros, no `\def`, no `\ce`.
 - A formula that cannot be read draws what was written in a frame, and the text around it renders. `LetteraMath.Validate` checks one, and `LetteraMath.Failed` tells of each.
+- **Equation numbers.** In `<math=display>`, `align`, `gather`, `equation` and `multline` number themselves, (1), (2) and on, counted per text. `\tag{x}` puts a label in a number's place and `\tag*{x}` drops its parentheses, `\notag` or `\nonumber` leaves a row without, and `\setcounter{equation}{n}` makes the next number n + 1. A number stands at the line's right edge, on the left in a right-to-left text, centred on its row; `LetteraFormulaInfo.Tags` lists them.
 - A formula is one object in its line: it does not break, and selects, copies and deletes whole. It takes color, size, alpha, stroke, shadow, glow and motion like text, and moves as one piece.
 - Copying gives `$source$` as plain text, MathML with its source as HTML, and the tag to a Lettera field.
 - **Which font.** In order: the style's `LetteraMathEffect.Font`, the project's `LetteraSettings.Math.Font`, the text's font if it holds a math table, a system math font (Cambria Math on Windows; on the web, Android and iOS there is none), and last the text's font with fallback layout, which is readable but plain.
