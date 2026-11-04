@@ -50,6 +50,50 @@ Shader "Lettera/World"
         }
     }
 
+    // The High Definition pipeline: its camera-relative space, its exposure and fog.
+    SubShader
+    {
+        PackageRequirements { "com.unity.render-pipelines.high-definition" }
+        Tags { "RenderPipeline"="HDRenderPipeline" "Queue"="Transparent" "IgnoreProjector"="True" "RenderType"="Transparent" "PreviewType"="Plane" }
+
+        Pass
+        {
+            Name "Text"
+            Tags { "LightMode"="ForwardOnly" }
+            Cull Off
+            ZWrite Off
+            Blend [_SrcBlend] [_DstBlend]
+
+            HLSLPROGRAM
+            #pragma vertex TextVertex
+            #pragma fragment TextFragment
+            #pragma target 4.5
+            #pragma only_renderers d3d11 playstation xboxone xboxseries vulkan metal switch switch2
+            #pragma multi_compile_local _ LETTERA_STYLED
+            #include "LetteraWorldHDRP.hlsl"
+            ENDHLSL
+        }
+
+        Pass
+        {
+            Name "ShadowCaster"
+            Tags { "LightMode"="ShadowCaster" }
+            Cull Off
+            ZWrite On
+            ColorMask 0
+
+            HLSLPROGRAM
+            #pragma vertex TextVertex
+            #pragma fragment ShadowFragment
+            #pragma target 4.5
+            #pragma only_renderers d3d11 playstation xboxone xboxseries vulkan metal switch switch2
+            #define LETTERA_SHADOW_PASS
+            #define SHADERPASS SHADERPASS_SHADOWS
+            #include "LetteraWorldHDRP.hlsl"
+            ENDHLSL
+        }
+    }
+
     SubShader
     {
         Tags { "Queue"="Transparent" "IgnoreProjector"="True" "RenderType"="Transparent" "PreviewType"="Plane" }
