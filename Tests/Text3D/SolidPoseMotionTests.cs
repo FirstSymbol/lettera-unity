@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using NUnit.Framework;
 using UnityEditor;
 using UnityEngine;
+using UnityEngine.UIElements;
 
 namespace FirstSymbol.Lettera.Text3D.Tests
 {
@@ -408,14 +409,10 @@ namespace FirstSymbol.Lettera.Text3D.Tests
 
         // ------------------------------------------------------------------ D13: looks that ship
 
-        const string LooksFolder = "Packages/com.firstsymbol.lettera/Runtime/Text3D/Looks";
-
         [Test]
         public void SevenLooksShipReadyToApply()
         {
-            var looks = new List<LetteraSolidLook>();
-            foreach (string guid in AssetDatabase.FindAssets("t:LetteraSolidLook", new[] { LooksFolder }))
-                looks.Add(AssetDatabase.LoadAssetAtPath<LetteraSolidLook>(AssetDatabase.GUIDToAssetPath(guid)));
+            List<LetteraSolidLook> looks = FirstSymbol.Lettera.Editor.LetteraText3DEditor.ShippedLooks();
             Assert.AreEqual(7, looks.Count);
             bool wholeTextLayer = false;
             foreach (LetteraSolidLook look in looks)
@@ -431,6 +428,18 @@ namespace FirstSymbol.Lettera.Text3D.Tests
                 foreach (LetteraSolidLayer layer in look.Layers) wholeTextLayer |= layer.Scope == LetteraSolidLayerScope.Text;
             }
             Assert.IsTrue(wholeTextLayer, "a look can hold a layer around the whole text");
+        }
+
+        [Test]
+        public void TheInspectorOffersTheShippedLooksAndSurfaceSets()
+        {
+            LetteraText3D text = Solid("x");
+            UnityEditor.Editor editor = UnityEditor.Editor.CreateEditor(text);
+            UnityEngine.UIElements.VisualElement root = editor.CreateInspectorGUI();
+            var labels = new List<string>();
+            root.Query<Label>().ForEach(label => labels.Add(label.text));
+            Object.DestroyImmediate(editor);
+            foreach (string name in new[] { "Plain", "Gold", "Chrome", "Candy", "Stone", "Neon", "Sign", "Surface Sets" }) CollectionAssert.Contains(labels, name);
         }
     }
 }

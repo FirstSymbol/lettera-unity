@@ -65,7 +65,7 @@ namespace FirstSymbol.Lettera.Editor
     }
 
     [CustomEditor(typeof(LetteraText3D)), CanEditMultipleObjects]
-    internal sealed class LetteraText3DEditor : UnityEditor.Editor
+    internal sealed partial class LetteraText3DEditor : UnityEditor.Editor
     {
         void OnSceneGUI()
         {
@@ -291,6 +291,8 @@ namespace FirstSymbol.Lettera.Editor
                         MaterialRow("Back Bevel", "m_BackBevelMaterial", LetteraSolidSurface.BackBevel, "Bevel"),
                         MaterialRow("Back", "m_BackMaterial", LetteraSolidSurface.Back, "Face")));
 
+                    page.Add(SurfaceSetsCard());
+
                     page.Add(LtUI.Card("Layers",
                         LtUI.Text("Extra solids around the glyphs, each with its own depth, edge, colour and materials.", "lt-subtitle"),
                         new LtList("Layers", P("m_Layers"), LayerRow, "No layers. Add an outline, a plate or a tube around the glyphs.", list =>
@@ -329,6 +331,7 @@ namespace FirstSymbol.Lettera.Editor
                     var look = new UnityEditor.UIElements.ObjectField { objectType = typeof(LetteraSolidLook), allowSceneObjects = false };
                     look.AddToClassList("lt-field");
                     page.Add(LtUI.Card("Look",
+                        ShippedLookButtons(),
                         LtUI.Row("Look", look),
                         LtUI.Clickable("Apply Look", "lt-button", "Gives this look's depth, edges and materials to the selected texts.", () =>
                         {
