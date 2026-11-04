@@ -13,7 +13,7 @@ namespace FirstSymbol.Lettera
         Source,
     }
 
-    /// <summary>One place a search found, in chars of the document's source.</summary>
+    /// <summary>One place a search found: in chars of the document's source, or in shown indices from a text's own FindAll.</summary>
     public readonly struct LetteraSearchHit
     {
         public readonly int Start, End;

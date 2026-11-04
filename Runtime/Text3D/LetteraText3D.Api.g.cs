@@ -266,6 +266,22 @@ namespace FirstSymbol.Lettera
             return Engine.LineOf(index, bias);
         }
 
+        /// <summary>
+        /// Walks what the text shows by clusters, words, lines or paragraphs, in shown indices: all of it, or a range, where a unit that crosses
+        /// an edge is cut to it. foreach over it allocates nothing.
+        /// </summary>
+        public LetteraUnitWalk Units(LetteraTextUnit unit, int start = 0, int end = int.MaxValue) => new LetteraUnitWalk(Engine, unit, start, end);
+
+        /// <summary>How many clusters, words, lines or paragraphs the text shows, or a range of it holds. Allocates nothing.</summary>
+        public int CountUnits(LetteraTextUnit unit, int start = 0, int end = int.MaxValue) => new LetteraUnitWalk(Engine, unit, start, end).Count();
+
+        /// <summary>
+        /// Adds every place a string stands in what the text shows, in order and without overlaps, and returns how many. Hits are shown indices,
+        /// as the selection uses; on an open document they are chars of its source, and the whole document is read. A plain text allocates nothing
+        /// for queries up to 256 chars once the list has room. ignoreCase compares by simple case folding.
+        /// </summary>
+        public int FindAll(string query, List<LetteraSearchHit> results, bool ignoreCase = false) => LetteraTextFind.FindAll(Engine, this, query, results, ignoreCase);
+
         public int SourceIndexFromRendered(int rendered) => Engine.SourceIndexFromRendered(rendered);
         public int RenderedIndexFromSource(int source) => Engine.RenderedIndexFromSource(source);
 

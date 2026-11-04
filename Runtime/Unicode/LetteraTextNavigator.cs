@@ -92,6 +92,18 @@ namespace FirstSymbol.Lettera.Unicode
             int count = end - start;
             if (s_Boundaries.Length < count + 1) s_Boundaries = new bool[Math.Max(count + 1, s_Boundaries.Length * 2)];
             var span = new Span<bool>(s_Boundaries, 0, count + 1);
+            FindWordStops(text, start, end, span);
+            return span;
+        }
+
+        /// <summary>
+        /// The word stops the navigator uses, for one paragraph's content: stops[i - start] is true where a word, whitespace run or punctuation run
+        /// begins. Follows UAX #29 and the installed dictionaries. stops needs end - start + 1 entries.
+        /// </summary>
+        public static void FindWordStops(ReadOnlySpan<int> text, int start, int end, Span<bool> stops)
+        {
+            int count = end - start;
+            Span<bool> span = stops.Slice(0, count + 1);
             span.Clear();
             WordBreaker.FindBoundaries(text.Slice(start, count), span);
             for (int i = start + 1; i < end; i++)
@@ -104,12 +116,11 @@ namespace FirstSymbol.Lettera.Unicode
             // Where a dictionary knows a script's words, they part what the line above joined.
             if (LetteraWordSegmenters.Count != 0)
             {
-                if (s_Graphemes.Length < count + 1) s_Graphemes = new bool[s_Boundaries.Length];
+                if (s_Graphemes.Length < count + 1) s_Graphemes = new bool[Math.Max(count + 1, s_Graphemes.Length * 2)];
                 var graphemes = new Span<bool>(s_Graphemes, 0, count + 1);
                 GraphemeBreaker.FindBoundaries(text.Slice(start, count), graphemes);
                 LetteraWordSegmenters.FindWordStarts(text.Slice(start, count), graphemes, span, s_Scratch);
             }
-            return span;
         }
 
         static bool[] s_Graphemes = new bool[64];
