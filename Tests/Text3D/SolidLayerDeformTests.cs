@@ -120,6 +120,9 @@ namespace FirstSymbol.Lettera.Text3D.Tests
         public void APlateWithTheLettersCutThroughLosesTheirArea()
         {
             LetteraText3D text = Solid("Ab");
+            // Without an edge a glyph's face is its whole outline.
+            text.FrontBevel = new LetteraBevel { Shape = LetteraBevelShape.None };
+            text.MirrorBevel = true;
             var whole = new LetteraSolidLayer { Shape = LetteraSolidLayerShape.Plate, Scope = LetteraSolidLayerScope.Word, Offset = 0.1f, Radius = 0.05f, Detail = 64 };
             whole.Bevel.Shape = LetteraBevelShape.None;
             LetteraSolidLayer cut = whole.Clone();
@@ -240,7 +243,8 @@ namespace FirstSymbol.Lettera.Text3D.Tests
             text.Depth = 0.3f;
             text.ForceRebuild();
             Assert.AreEqual(builds, LetteraSolidCache.Builds, "colour and depth build nothing");
-            text.Text = "Same other";
+            // Letters it already has, so that the one build is the changed word's.
+            text.Text = "Same sword";
             text.ForceRebuild();
             Assert.AreEqual(builds + 1, LetteraSolidCache.Builds, "only the changed word");
         }
