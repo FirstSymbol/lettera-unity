@@ -313,3 +313,7 @@ LetteraFontMemory.Sums sums = LetteraFontMemory.Totals;
 ## Тесты
 
 **Window → General → Test Runner**. Набор Unicode прогоняет официальные файлы соответствия для UAX #9, #14 и #29.
+
+## Лицензия
+
+MIT: бесплатно для коммерческого и некоммерческого использования. См. [LICENSE](LICENSE.md). Сторонние компоненты в составе пакета сохраняют свои лицензии; см. [сторонние лицензии](THIRD-PARTY-NOTICES.md).

@@ -317,3 +317,7 @@ With `com.unity.pipeline` installed, `unity command lettera ...` creates, edits 
 ## Tests
 
 **Window → General → Test Runner**. The Unicode suite runs the official conformance files for UAX #9, #14 and #29.
+
+## License
+
+MIT: free for commercial and non-commercial use. See [LICENSE](LICENSE.md). Bundled third-party components keep their own licenses; see [third-party notices](THIRD-PARTY-NOTICES.md).

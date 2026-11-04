@@ -4,6 +4,7 @@
   "displayName": "Lettera Text Engine",
   "description": "Text engine for Unity UI and world space: full OpenType shaping (HarfBuzz), bidirectional text, Unicode line breaking, system fonts and fallback, color emoji, a shared SDF atlas, and styles driven by extensible markup, formulas in the text's flow, and solid lit 3D text.",
   "unity": "6000.0",
+  "license": "MIT",
   "author": {
     "name": "FirstSymbol",
     "email": "firstsymbol.0@gmail.com"
