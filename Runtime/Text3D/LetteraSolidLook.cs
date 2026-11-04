@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace FirstSymbol.Lettera
@@ -13,6 +14,7 @@ namespace FirstSymbol.Lettera
         [SerializeField] LetteraBevel m_BackBevel = LetteraBevel.Default;
         [SerializeField] bool m_MirrorBevel = true;
         [SerializeField] Material m_FaceMaterial, m_BevelMaterial, m_SideMaterial, m_BackBevelMaterial, m_BackMaterial;
+        [SerializeField, Tooltip("Extra solids a text takes with this look. None leaves a text's own as they are.")] List<LetteraSolidLayer> m_Layers = new List<LetteraSolidLayer>();
 
         public float Depth { get => m_Depth; set => m_Depth = value; }
         public LetteraBevel FrontBevel { get => m_FrontBevel; set => m_FrontBevel = value; }
@@ -23,6 +25,8 @@ namespace FirstSymbol.Lettera
         public Material SideMaterial { get => m_SideMaterial; set => m_SideMaterial = value; }
         public Material BackBevelMaterial { get => m_BackBevelMaterial; set => m_BackBevelMaterial = value; }
         public Material BackMaterial { get => m_BackMaterial; set => m_BackMaterial = value; }
+        /// <summary>Extra solids a text takes with this look, as copies. An empty list leaves a text's own as they are.</summary>
+        public List<LetteraSolidLayer> Layers => m_Layers;
 
         /// <summary>Gives this look to a text.</summary>
         public void ApplyTo(LetteraText3D text)
@@ -37,6 +41,11 @@ namespace FirstSymbol.Lettera
             text.SideMaterial = m_SideMaterial;
             text.BackBevelMaterial = m_BackBevelMaterial;
             text.BackMaterial = m_BackMaterial;
+            if (m_Layers.Count == 0) return;
+            text.ClearLayers();
+            foreach (LetteraSolidLayer layer in m_Layers)
+                if (layer != null)
+                    text.AddLayer(layer.Clone());
         }
     }
 

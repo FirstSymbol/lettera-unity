@@ -5,7 +5,7 @@ using UnityEngine.UI;
 namespace FirstSymbol.Lettera.Samples
 {
     /// <summary>
-    /// A camera sweeping over a lit ground: a line per edge shape, each look, a bidirectional line, a wave, a counter with warm digits, a formula, 500 shared labels with a live count, and solid text in a Canvas through a render texture.
+    /// A camera sweeping over a lit ground: a line per edge shape, each look, a bidirectional line, a wave, a counter with warm digits, a formula, a plate, neon, a twist and a ring, 500 shared labels with a live count, and solid text in a Canvas through a render texture.
     /// Add this to an empty object in an empty scene, assign a material with the Lettera/Solid Lit shader, and press Play.
     /// </summary>
     public class LetteraText3DSample : MonoBehaviour
@@ -79,6 +79,17 @@ namespace FirstSymbol.Lettera.Samples
             m_Counter = Word("0", new Vector3(0, -10, 0), new Color(1, 0.5f, 0.45f));
             m_Counter.WarmCharacters = "0123456789";
             Word("<u>Underlined</u>, and <depth=3>deeper</depth>", new Vector3(0, -14, 0), new Color(0.9f, 0.9f, 0.92f));
+            // Extra solids around text, and deformers over it: they ride with the text's own geometry, so motion and depth still apply.
+            LetteraText3D badge = Word("Badge", new Vector3(22, 4, 0), new Color(1, 0.85f, 0.4f));
+            badge.AddLayer(LetteraSolidLayer.Preset(LetteraSolidLayerPreset.Badge));
+            LetteraText3D neon = Word("Neon", new Vector3(22, -1, 0), new Color(0.25f, 0.25f, 0.3f));
+            neon.AddLayer(LetteraSolidLayer.Preset(LetteraSolidLayerPreset.Neon));
+            LetteraText3D twist = Word("Twisted", new Vector3(22, -6, 0), new Color(0.6f, 0.8f, 1f));
+            twist.AddDeformer(LetteraDeformer.Twist(120));
+            LetteraText3D ring = Word("ROUND AND ROUND IT GOES · ", new Vector3(0, 34, 0), new Color(1, 0.6f, 0.4f));
+            ring.AddDeformer(LetteraDeformer.Bend(360));
+            ring.AddLayer(LetteraSolidLayer.Preset(LetteraSolidLayerPreset.Slab));
+
             LetteraText3D formula = Word("", new Vector3(0, 8, 0), new Color(0.95f, 0.85f, 0.4f));
             if (MathFont != null) formula.Styles.Insert(0, LetteraStyle.ForMatcher(new LetteraMathTagMatcher(), new LetteraMathEffect { Font = MathFont }));
             formula.Text = "<math>\\frac{a}{\\sqrt{b+1}} + \\sum_{i=0}^n i</math>";
