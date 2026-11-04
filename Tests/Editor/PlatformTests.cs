@@ -86,6 +86,10 @@ namespace FirstSymbol.Lettera.Editor.Tests
         [TestCase(LetteraNativeFeature.SystemMenu, LetteraPlatformKind.Android, false)]
         [TestCase(LetteraNativeFeature.PasteControl, LetteraPlatformKind.IOS, false)]
         [TestCase(LetteraNativeFeature.Replica, LetteraPlatformKind.Web, true)]
+        [TestCase(LetteraNativeFeature.TextInput, LetteraPlatformKind.TvOS, false)]
+        [TestCase(LetteraNativeFeature.Clipboard, LetteraPlatformKind.VisionOS, false)]
+        [TestCase(LetteraNativeFeature.Clipboard, LetteraPlatformKind.Uwp, false)]
+        [TestCase(LetteraNativeFeature.TextInput, LetteraPlatformKind.Uwp, false)]
         public void AutoReadsTheTable(LetteraNativeFeature feature, LetteraPlatformKind kind, bool wanted)
         {
             LetteraPlatform.KindOverride = kind;
@@ -425,6 +429,44 @@ namespace FirstSymbol.Lettera.Editor.Tests
                 if (step % 200 == 0) Assert.AreEqual(model.ToString(), field.Source, "at step " + step);
             }
             Assert.AreEqual(model.ToString(), field.Source);
+        }
+
+        // ------------------------------------------------------------- plugin import settings
+
+        static UnityEditor.PluginImporter Plugin(string relative)
+        {
+            var importer = UnityEditor.AssetImporter.GetAtPath("Packages/com.firstsymbol.lettera/Plugins/" + relative) as UnityEditor.PluginImporter;
+            Assert.IsNotNull(importer, relative);
+            return importer;
+        }
+
+        [Test]
+        public void TvOSAndVisionOSTakeTheirOwnLibraryAndTheCoreTextLookup()
+        {
+            Assert.IsTrue(Plugin("tvOS/lettera_native.xcframework").GetCompatibleWithPlatform(UnityEditor.BuildTarget.tvOS));
+            Assert.IsFalse(Plugin("tvOS/lettera_native.xcframework").GetCompatibleWithPlatform(UnityEditor.BuildTarget.iOS));
+            Assert.IsTrue(Plugin("visionOS/lettera_native.xcframework").GetCompatibleWithPlatform(UnityEditor.BuildTarget.VisionOS));
+            Assert.IsFalse(Plugin("visionOS/lettera_native.xcframework").GetCompatibleWithPlatform(UnityEditor.BuildTarget.tvOS));
+            Assert.IsFalse(Plugin("iOS/lettera_native.xcframework").GetCompatibleWithPlatform(UnityEditor.BuildTarget.tvOS));
+            var fonts = Plugin("iOS/LetteraFontsIOS.mm");
+            foreach (var target in new[] { UnityEditor.BuildTarget.iOS, UnityEditor.BuildTarget.tvOS, UnityEditor.BuildTarget.VisionOS })
+            {
+                Assert.IsTrue(fonts.GetCompatibleWithPlatform(target), target.ToString());
+                Assert.AreEqual("CoreText;", fonts.GetPlatformData(target, "FrameworkDependencies"), target.ToString());
+            }
+            Assert.IsFalse(Plugin("iOS/LetteraPlatformIOS.mm").GetCompatibleWithPlatform(UnityEditor.BuildTarget.tvOS), "UIKit text input stays iOS only");
+        }
+
+        [Test]
+        public void UwpTakesTheWindowsLibraryOfItsCpu()
+        {
+            var intel = Plugin("Windows/x86_64/lettera_native.dll");
+            var arm = Plugin("Windows/ARM64/lettera_native.dll");
+            Assert.IsTrue(intel.GetCompatibleWithPlatform(UnityEditor.BuildTarget.WSAPlayer));
+            Assert.AreEqual("X64", intel.GetPlatformData(UnityEditor.BuildTarget.WSAPlayer, "CPU"));
+            Assert.IsTrue(arm.GetCompatibleWithPlatform(UnityEditor.BuildTarget.WSAPlayer));
+            Assert.AreEqual("ARM64", arm.GetPlatformData(UnityEditor.BuildTarget.WSAPlayer, "CPU"));
+            Assert.IsFalse(Plugin("Editor/Windows/x86_64/lettera_fonttools.dll").GetCompatibleWithPlatform(UnityEditor.BuildTarget.WSAPlayer), "the font tool stays in the editor");
         }
     }
 }

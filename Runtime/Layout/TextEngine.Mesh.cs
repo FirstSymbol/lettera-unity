@@ -887,7 +887,7 @@ namespace FirstSymbol.Lettera
         /// <summary>Draws layer order as separate quads, for a test that compares the two.</summary>
         internal static bool NoSharedLayersForTests;
 
-        // Direct3D, Vulkan and Metal take flat attributes from a triangle's first vertex, OpenGL ES and WebGL from its last.
+        // Direct3D, Vulkan, Metal and WebGPU take flat attributes from a triangle's first vertex, OpenGL ES and WebGL from its last.
         // Desktop OpenGL can be set either way, so there the quads stay apart.
         static int s_Provoking = -1;
 

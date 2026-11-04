@@ -9,7 +9,7 @@ namespace FirstSymbol.Lettera
 
     public enum LetteraGate { Auto, On, Off }
 
-    public enum LetteraPlatformKind { WindowsPlayer, WindowsEditor, OtherEditor, Web, Android, IOS, MacPlayer, LinuxPlayer }
+    public enum LetteraPlatformKind { WindowsPlayer, WindowsEditor, OtherEditor, Web, Android, IOS, MacPlayer, LinuxPlayer, TvOS, VisionOS, Uwp }
 
     /// <summary>Per feature, whether a project wants what the platform offers. Auto takes the shipped default, which is off for what has never run on a platform.</summary>
     [Serializable]
@@ -75,6 +75,12 @@ namespace FirstSymbol.Lettera
                 return LetteraPlatformKind.Android;
 #elif UNITY_IOS
                 return LetteraPlatformKind.IOS;
+#elif UNITY_TVOS
+                return LetteraPlatformKind.TvOS;
+#elif UNITY_VISIONOS
+                return LetteraPlatformKind.VisionOS;
+#elif UNITY_WSA
+                return LetteraPlatformKind.Uwp;
 #elif UNITY_STANDALONE_WIN
                 return LetteraPlatformKind.WindowsPlayer;
 #elif UNITY_STANDALONE_OSX

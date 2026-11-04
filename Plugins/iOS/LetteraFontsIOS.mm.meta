@@ -18,7 +18,15 @@ PluginImporter:
       enabled: 0
       settings:
         DefaultValueInitialized: true
+    VisionOS:
+      enabled: 1
+      settings:
+        FrameworkDependencies: CoreText;
     iOS:
+      enabled: 1
+      settings:
+        FrameworkDependencies: CoreText;
+    tvOS:
       enabled: 1
       settings:
         FrameworkDependencies: CoreText;

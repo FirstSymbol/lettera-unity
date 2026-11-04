@@ -2,7 +2,7 @@
 
 usage: python build.py [--zig PATH] [--ndk PATH] [target ...]
 
-Targets: win-x64 win-arm64 linux-x64 linux-arm64 macos ios webgl android
+Targets: win-x64 win-arm64 linux-x64 linux-arm64 macos ios tvos visionos webgl android
 Default is every target whose toolchain is available. Android needs the NDK
 that Unity's Android module installs (or --ndk). The compilers are zig and,
 for Android, the NDK's clang.
@@ -169,6 +169,41 @@ def build_ios(zig):
         f.write(XCFRAMEWORK_PLIST)
 
 
+def xcframework_plist(platform, device, simulator):
+    """Info.plist of an XCFramework with one device library and one simulator library."""
+    def entry(identifier, archs, variant):
+        lines = ["\t\t<dict>", "\t\t\t<key>LibraryIdentifier</key>", f"\t\t\t<string>{identifier}</string>",
+                 "\t\t\t<key>LibraryPath</key>", "\t\t\t<string>liblettera_native.a</string>",
+                 "\t\t\t<key>SupportedArchitectures</key>", "\t\t\t<array>"]
+        lines += [f"\t\t\t\t<string>{a}</string>" for a in archs]
+        lines += ["\t\t\t</array>", "\t\t\t<key>SupportedPlatform</key>", f"\t\t\t<string>{platform}</string>"]
+        if variant:
+            lines += ["\t\t\t<key>SupportedPlatformVariant</key>", f"\t\t\t<string>{variant}</string>"]
+        return lines + ["\t\t</dict>"]
+    head = XCFRAMEWORK_PLIST.split("\n\t<array>\n", 1)[0]
+    tail = XCFRAMEWORK_PLIST.split("\n\t</array>\n", 1)[1]
+    body = entry(device[0], device[1], None) + entry(simulator[0], simulator[1], "simulator")
+    return head + "\n\t<array>\n" + "\n".join(body) + "\n\t</array>\n" + tail
+
+
+def build_apple_static(zig, folder, platform, device_triple, simulator_triples):
+    """tvOS and visionOS, built like iOS: zig compiles with macOS headers under the target's own triple."""
+    _, device = ios_archive(zig, device_triple, "arm64")
+    device_id = f"{platform}-arm64"
+    place(device, folder, "lettera_native.xcframework", device_id, "liblettera_native.a")
+    slices = [ios_archive(zig, triple, "x86_64" if triple.startswith("x86_64") else "arm64") for triple in simulator_triples]
+    archs = [arch for arch, _ in slices]
+    simulator_id = f"{platform}-{'_'.join(archs)}-simulator"
+    if len(slices) == 1:
+        simulator = slices[0][1]
+    else:
+        simulator = os.path.join(OUT, f"liblettera_native_{platform}_sim.a")
+        fat(slices, simulator)
+    place(simulator, folder, "lettera_native.xcframework", simulator_id, "liblettera_native.a")
+    with open(os.path.join(PLUGINS, folder, "lettera_native.xcframework", "Info.plist"), "w", encoding="utf-8", newline="\n") as f:
+        f.write(xcframework_plist(platform, (device_id, ["arm64"]), (simulator_id, archs)))
+
+
 def build_webgl():
     """A static archive from the Emscripten in Unity's Web module, so its LLVM matches the player's."""
     root = os.path.join(DEFAULT_EDITOR, "Editor", "Data", "PlaybackEngines", "WebGLSupport", "BuildTools", "Emscripten")
@@ -263,6 +298,8 @@ def main():
         "linux-arm64": lambda: build_linux(args.zig, "aarch64-linux-gnu.2.17", "ARM64"),
         "macos": lambda: build_macos(args.zig),
         "ios": lambda: build_ios(args.zig),
+        "tvos": lambda: build_apple_static(args.zig, "tvOS", "tvos", "arm64-apple-tvos13.0.0", ["arm64-apple-tvos13.0.0-simulator", "x86_64-apple-tvos13.0.0-simulator"]),
+        "visionos": lambda: build_apple_static(args.zig, "visionOS", "xros", "arm64-apple-xros1.0.0", ["arm64-apple-xros1.0.0-simulator"]),
         "webgl": build_webgl,
         "tools": lambda: build_tools(args.zig),
     }

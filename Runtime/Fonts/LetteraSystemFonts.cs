@@ -53,7 +53,8 @@ namespace FirstSymbol.Lettera
                 case RuntimePlatform.OSXEditor:
                 case RuntimePlatform.OSXPlayer: return Os.Apple;
                 case RuntimePlatform.IPhonePlayer:
-                case RuntimePlatform.tvOS: return Os.Mobile;
+                case RuntimePlatform.tvOS:
+                case RuntimePlatform.VisionOS: return Os.Mobile;
                 case RuntimePlatform.Android: return Os.Android;
                 case RuntimePlatform.LinuxEditor:
                 case RuntimePlatform.LinuxPlayer: return Os.Linux;
@@ -280,7 +281,7 @@ namespace FirstSymbol.Lettera
         {
             if (s_DefaultFaces != null) return s_DefaultFaces;
             var faces = new List<FontFace>();
-#if UNITY_IOS && !UNITY_EDITOR
+#if (UNITY_IOS || UNITY_TVOS || UNITY_VISIONOS) && !UNITY_EDITOR
             FontFace system = FaceFromCoreText(IosFonts.DefaultPath(), 'a');
             if (system != null) faces.Add(system);
 #endif
@@ -314,7 +315,7 @@ namespace FirstSymbol.Lettera
             if (!IsSupported) return BrowserEmoji.Face;
             if (s_EmojiSearched) return s_Emoji;
             s_EmojiSearched = true;
-#if UNITY_IOS && !UNITY_EDITOR
+#if (UNITY_IOS || UNITY_TVOS || UNITY_VISIONOS) && !UNITY_EDITOR
             s_Emoji = FaceFromCoreText(IosFonts.NamedPath("AppleColorEmoji"), 0x1F600);
             if (s_Emoji != null) return s_Emoji;
 #endif
@@ -387,7 +388,7 @@ namespace FirstSymbol.Lettera
             if (s_Fallback.TryGetValue(key, out var cached)) return cached;
 
             FontFace found = null;
-#if UNITY_IOS && !UNITY_EDITOR
+#if (UNITY_IOS || UNITY_TVOS || UNITY_VISIONOS) && !UNITY_EDITOR
             found = FaceFromCoreText(IosFonts.FallbackPath(codepoint, language), codepoint);
 #endif
             found = found ?? FindCjkForLanguage(codepoint, language);
@@ -404,7 +405,7 @@ namespace FirstSymbol.Lettera
             return found;
         }
 
-#if UNITY_IOS && !UNITY_EDITOR
+#if (UNITY_IOS || UNITY_TVOS || UNITY_VISIONOS) && !UNITY_EDITOR
         // CoreText names a file; in a collection the face that covers the codepoint is the one wanted.
         static FontFace FaceFromCoreText(string path, int codepoint)
         {

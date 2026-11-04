@@ -456,6 +456,7 @@ namespace FirstSymbol.Lettera.Editor
         static readonly UnityEditor.Build.NamedBuildTarget[] s_Targets =
         {
             UnityEditor.Build.NamedBuildTarget.Standalone, UnityEditor.Build.NamedBuildTarget.Android, UnityEditor.Build.NamedBuildTarget.iOS, UnityEditor.Build.NamedBuildTarget.WebGL,
+            UnityEditor.Build.NamedBuildTarget.tvOS, UnityEditor.Build.NamedBuildTarget.VisionOS, UnityEditor.Build.NamedBuildTarget.WindowsStoreApps,
         };
 
         static bool HasDefine(string define) => System.Array.IndexOf(PlayerSettings.GetScriptingDefineSymbols(s_Targets[0]).Split(';'), define) >= 0;

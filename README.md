@@ -245,6 +245,8 @@ solid.FrontBevel = new LetteraBevel { Shape = LetteraBevelShape.Round, Width = 0
 | macOS universal | prebuilt | yes |
 | Linux x64, ARM64 | prebuilt | yes, read from the font folders |
 | iOS device and simulator | prebuilt XCFramework | yes, through CoreText |
+| tvOS and visionOS, device and simulator | prebuilt XCFramework, not yet run on either | yes, through CoreText |
+| UWP x64, ARM64 | the Windows library, not yet built or run | the Windows font folder, where the app may read it |
 | Android ARM64, ARMv7, x86-64 | prebuilt | yes |
 | Web (WebGL 2), including Safari on iOS | prebuilt | emoji through the browser; text fonts must be assigned |
 

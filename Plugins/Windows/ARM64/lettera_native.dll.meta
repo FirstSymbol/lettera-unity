@@ -24,6 +24,10 @@ PluginImporter:
       enabled: 1
       settings:
         CPU: ARM64
+    WindowsStoreApps:
+      enabled: 1
+      settings:
+        CPU: ARM64
   userData: 
   assetBundleName: 
   assetBundleVariant: 

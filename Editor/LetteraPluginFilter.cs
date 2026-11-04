@@ -24,6 +24,8 @@ namespace FirstSymbol.Lettera.Editor
             if (string.IsNullOrEmpty(path) || !(AssetImporter.GetAtPath(path) is PluginImporter importer)) return;
             importer.SetIncludeInBuildDelegate(_ =>
             {
+                // A UWP build picks its library by its own CPU setting.
+                if (EditorUserBuildSettings.activeBuildTarget == BuildTarget.WSAPlayer) return true;
                 string built = WindowsArchitecture();
                 // Unknown, or both in one player: keep it, as before.
                 return string.IsNullOrEmpty(built) || built.IndexOf(architecture, StringComparison.Ordinal) >= 0;

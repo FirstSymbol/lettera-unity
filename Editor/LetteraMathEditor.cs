@@ -66,7 +66,7 @@ namespace FirstSymbol.Lettera.Editor
 
         internal static string Check(BuildTarget target, IEnumerable<string> scenes)
         {
-            if (target != BuildTarget.WebGL && target != BuildTarget.Android && target != BuildTarget.iOS) return null;
+            if (target != BuildTarget.WebGL && target != BuildTarget.Android && target != BuildTarget.iOS && target != BuildTarget.tvOS && target != BuildTarget.VisionOS) return null;
             if (LetteraSettings.Instance.Math.Font != null) return null;
             foreach (string path in scenes)
                 if (MentionsMath(path))

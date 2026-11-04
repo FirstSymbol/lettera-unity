@@ -37,7 +37,7 @@ namespace FirstSymbol.Lettera
     /// <summary>P/Invoke surface of the lettera_native plugin (Native~/src/lettera_native.cpp).</summary>
     internal static unsafe class LetteraNative
     {
-#if !UNITY_EDITOR && (UNITY_IOS || UNITY_TVOS || UNITY_WEBGL)
+#if !UNITY_EDITOR && (UNITY_IOS || UNITY_TVOS || UNITY_VISIONOS || UNITY_WEBGL)
         const string Lib = "__Internal";
 #else
         const string Lib = "lettera_native";

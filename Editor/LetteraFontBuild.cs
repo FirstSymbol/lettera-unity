@@ -62,7 +62,7 @@ namespace FirstSymbol.Lettera.Editor
         internal static LetteraFont WebFontLeftOut(BuildTarget target)
         {
             if (target != BuildTarget.StandaloneWindows && target != BuildTarget.StandaloneWindows64 && target != BuildTarget.StandaloneOSX
-                && target != BuildTarget.Android && target != BuildTarget.iOS) return null;
+                && target != BuildTarget.Android && target != BuildTarget.iOS && target != BuildTarget.tvOS && target != BuildTarget.VisionOS) return null;
             var web = Resources.Load<LetteraFont>(FontChain.WebFontResource);
             if (web == null || LetteraSettings.Instance.WebGLFallbackFont == web || LetteraSettings.Instance.DefaultFont == web) return null;
             return web;

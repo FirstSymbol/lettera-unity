@@ -1,10 +1,10 @@
-#if UNITY_IOS && !UNITY_EDITOR
+#if (UNITY_IOS || UNITY_TVOS || UNITY_VISIONOS) && !UNITY_EDITOR
 using System.Runtime.InteropServices;
 using System.Text;
 
 namespace FirstSymbol.Lettera
 {
-    /// <summary>Asks CoreText which font files iOS uses (Plugins/iOS/LetteraFontsIOS.mm).</summary>
+    /// <summary>Asks CoreText which font files iOS, tvOS and visionOS use (LetteraFontsIOS.mm in Plugins/iOS, tvOS and visionOS).</summary>
     internal static class IosFonts
     {
         [DllImport("__Internal")] static extern int lt_ios_default_path(byte[] output, int capacity);

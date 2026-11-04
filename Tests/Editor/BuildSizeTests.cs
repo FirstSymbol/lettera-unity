@@ -28,6 +28,9 @@ namespace FirstSymbol.Lettera.Editor.Tests
             Assert.AreEqual(web, LetteraFontBuildProcessor.WebFontLeftOut(BuildTarget.StandaloneOSX));
             Assert.AreEqual(web, LetteraFontBuildProcessor.WebFontLeftOut(BuildTarget.Android));
             Assert.AreEqual(web, LetteraFontBuildProcessor.WebFontLeftOut(BuildTarget.iOS));
+            Assert.AreEqual(web, LetteraFontBuildProcessor.WebFontLeftOut(BuildTarget.tvOS));
+            Assert.AreEqual(web, LetteraFontBuildProcessor.WebFontLeftOut(BuildTarget.VisionOS));
+            Assert.IsNull(LetteraFontBuildProcessor.WebFontLeftOut(BuildTarget.WSAPlayer), "UWP may not reach the font folder");
             Assert.IsNull(LetteraFontBuildProcessor.WebFontLeftOut(BuildTarget.WebGL));
             Assert.IsNull(LetteraFontBuildProcessor.WebFontLeftOut(BuildTarget.StandaloneLinux64));
         }
