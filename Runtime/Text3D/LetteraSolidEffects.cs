@@ -67,7 +67,7 @@ namespace FirstSymbol.Lettera
         static List<LetteraStyle> s_Styles;
 
         // Shared by all solid texts, and never written into a text's own list: a scene saves what its owner put there.
-        internal static IReadOnlyList<LetteraStyle> Styles => s_Styles ?? (s_Styles = new List<LetteraStyle>
+        internal static IReadOnlyList<LetteraStyle> Styles => s_Styles ?? (s_Styles = WithRanges(new List<LetteraStyle>
         {
             LetteraStyle.ForTag(new SolidDepthEffect(), "depth"),
             LetteraStyle.ForTag(new SolidBevelEffect(), "bevel"),
@@ -76,7 +76,13 @@ namespace FirstSymbol.Lettera
             LetteraStyle.ForTag(new SolidDeformEffect { Kind = LetteraDeformKind.Taper }, "taper"),
             LetteraStyle.ForTag(new SolidDeformEffect { Kind = LetteraDeformKind.Wave }, "ripple"),
             LetteraStyle.ForTag(new SolidDeformEffect { Kind = LetteraDeformKind.Sphere }, "sphere"),
-        });
+        }));
+
+        static List<LetteraStyle> WithRanges(List<LetteraStyle> styles)
+        {
+            LetteraSolidRanges.AddStyles(styles);
+            return styles;
+        }
 
         internal static bool HasDeform(TextEngine engine)
         {

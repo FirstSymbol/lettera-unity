@@ -5,7 +5,7 @@ using UnityEngine;
 namespace FirstSymbol.Lettera
 {
     public enum LetteraRevealUnit { Cluster, Word, Line, Paragraph }
-    public enum LetteraEntranceKind { Cut, Fade, Slide, Scale, Spin, Flip, Skew, Stretch, Spiral, Pop, Drop, Rain, Burst, Domino, Swing, Wave, Shake, Glitch, Chaos, Tint }
+    public enum LetteraEntranceKind { Cut, Fade, Slide, Scale, Spin, Flip, Skew, Stretch, Spiral, Pop, Drop, Rain, Burst, Domino, Swing, Wave, Shake, Glitch, Chaos, Tint, TurnIn, FlyIn, Deepen, TumbleIn }
     public enum LetteraEase { Linear, InQuad, OutQuad, InOutQuad, OutCubic, InOutCubic, OutBack, OutBounce }
 
     /// <summary>How a unit arrives. Whatever it does, at 1 it is at rest, which lets one entrance serve both directions.</summary>
@@ -155,8 +155,18 @@ namespace FirstSymbol.Lettera
                 case LetteraEntranceKind.Tint:
                     pose.Tint *= Color.LerpUnclamped(From, Color.white, e);
                     break;
+                // These move in depth on a solid text; flat text has no depth, so they are their fade.
+                case LetteraEntranceKind.TurnIn:
+                case LetteraEntranceKind.FlyIn:
+                case LetteraEntranceKind.Deepen:
+                case LetteraEntranceKind.TumbleIn:
+                    pose.Alpha *= e;
+                    break;
             }
         }
+
+        /// <summary>Whether a solid text moves it in depth rather than taking its flat pose.</summary>
+        public bool InDepth => Kind >= LetteraEntranceKind.TurnIn && Kind <= LetteraEntranceKind.TumbleIn;
 
         public LetteraEntrance Clone() => (LetteraEntrance)MemberwiseClone();
     }

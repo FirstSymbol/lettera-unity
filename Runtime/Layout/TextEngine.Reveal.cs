@@ -301,6 +301,8 @@ namespace FirstSymbol.Lettera
                 RevealSpan s = m_Aside.RevealSpans[span];
                 s.Effect.Resolve(s.Entrance, out LetteraEntrance enter, out LetteraEntrance leave);
                 LetteraEntrance entrance = leave != null && m_Aside.CpTarget[g.Cluster] < v ? leave : enter;
+                // A solid text poses these in depth itself, from the same value.
+                if (m_SolidsOnly && entrance.InDepth) continue;
                 RevealBody body = m_Aside.RevealBodies[BodyKey(g.Cluster)];
                 LetteraGlyphPose pose = LetteraGlyphPose.Identity;
                 entrance.Pose(v, body.Box, body.Em, m_Aside.CpUnit[g.Cluster], s.Effect.Seed, ref pose);

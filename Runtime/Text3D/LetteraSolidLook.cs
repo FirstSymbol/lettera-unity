@@ -49,10 +49,13 @@ namespace FirstSymbol.Lettera
         }
     }
 
-    /// <summary>Reserved for depth motion, deformers and other poses a later phase adds. Nothing calls it yet.</summary>
+    /// <summary>A custom pose in depth for each glyph of a solid text, set as <see cref="LetteraText3D.SolidPose"/>.</summary>
     public interface ILetteraSolidPose
     {
-        /// <summary>Called for each glyph's vertices, with the glyph's centre.</summary>
+        /// <summary>
+        /// Called for each glyph every frame it is posed, with its index among the text's placed glyphs and its centre after its motions,
+        /// in the text's own space. The transform starts as the identity, and acts about that centre.
+        /// </summary>
         void Pose(int glyph, Vector3 centre, ref Matrix4x4 transform);
     }
 }

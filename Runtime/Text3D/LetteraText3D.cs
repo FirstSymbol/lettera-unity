@@ -299,7 +299,7 @@ namespace FirstSymbol.Lettera
         {
             RebuildIfDirty();
             // A wave with a speed moves every frame, with or without any motion of the text's own.
-            if (m_Builder != null && m_Builder.DeformAnimated && Application.isPlaying && !m_Hidden) ApplyPose();
+            if (m_Builder != null && (m_Builder.DeformAnimated || m_SolidPose != null) && Application.isPlaying && !m_Hidden) ApplyPose();
         }
 
         internal void RebuildIfDirty()
@@ -410,6 +410,8 @@ namespace FirstSymbol.Lettera
             previous.Clear();
             ResolveMaterials();
             WriteMesh();
+            // What moves in depth starts where it is now, not at rest for a frame.
+            if (m_SolidPose != null || (m_Builder.HasMotion && LetteraSolidPoser.Wanted(Engine, null))) ApplyPose();
             LetteraSolidFlatChild.Update(this);
             SolidsWritten?.Invoke(true);
         }
@@ -439,8 +441,8 @@ namespace FirstSymbol.Lettera
         void ResolveMaterials()
         {
             m_Materials.Clear();
-            int maps = 5 * (1 + m_Layers.Count);
-            if (m_SurfaceToSubmesh.Length != maps) m_SurfaceToSubmesh = new int[maps];
+            int maps = 5 * (1 + m_Layers.Count), all = maps + RangeMapSlots;
+            if (m_SurfaceToSubmesh.Length != all) m_SurfaceToSubmesh = new int[all];
             for (int s = 0; s < 5; s++) m_SurfaceToSubmesh[s] = Submesh(GetSurfaceMaterial((LetteraSolidSurface)s));
             for (int l = 0; l < m_Layers.Count; l++)
             {
@@ -448,6 +450,7 @@ namespace FirstSymbol.Lettera
                 bool used = layer != null && layer.Enabled;
                 for (int s = 0; s < 5; s++) m_SurfaceToSubmesh[5 + l * 5 + s] = used ? Submesh(GetLayerMaterial(layer, (LetteraSolidSurface)s)) : 0;
             }
+            ResolveRangeMaterials(maps);
             m_SubmeshCount = m_Materials.Count;
             // A renderer hands out a new array each time it is asked, so what it was given is remembered here.
             bool same = m_Given != null && m_Given.Length == m_Materials.Count;
@@ -461,7 +464,7 @@ namespace FirstSymbol.Lettera
 
         void WriteMesh()
         {
-            bool share = m_ShareMesh && !Engine.PosesObjects && !m_Builder.HasMotion && !m_Builder.HasGroupLayers && !m_Builder.DeformAnimated;
+            bool share = m_ShareMesh && !Engine.PosesObjects && !m_Builder.HasMotion && !m_Builder.HasGroupLayers && !m_Builder.DeformAnimated && m_SolidPose == null;
             if (share)
             {
                 ulong hash = m_Builder.ContentHash(m_SubmeshCount, m_SurfaceToSubmesh);
@@ -643,6 +646,11 @@ namespace FirstSymbol.Lettera
         float m_Scale;
         Bounds m_RestBounds;
         readonly LetteraDeformChain m_Chain = new LetteraDeformChain();
+        readonly LetteraSolidRanges m_Ranges = new LetteraSolidRanges();
+        readonly LetteraSolidPoser m_Poser = new LetteraSolidPoser();
+        internal LetteraSolidRanges Ranges => m_Ranges;
+        internal LetteraSolidPoser Poser => m_Poser;
+        int m_GlyphPlacements;
         readonly List<LetteraDeformer> m_TextDeformers = new List<LetteraDeformer>();
         // Layers made per word, line or text belong to this text alone, and are kept while their glyphs are the same.
         Dictionary<ulong, LetteraSolidEntry> m_Groups = new Dictionary<ulong, LetteraSolidEntry>(), m_GroupsBefore = new Dictionary<ulong, LetteraSolidEntry>();
@@ -674,6 +682,7 @@ namespace FirstSymbol.Lettera
             foreach (LetteraSolidEntry entry in m_Groups.Values) entry.Release();
             m_Groups.Clear();
             m_Chain.Dispose();
+            m_Ranges.Dispose();
             if (m_Maps.IsCreated) m_Maps.Dispose();
         }
 
@@ -756,6 +765,8 @@ namespace FirstSymbol.Lettera
                 vertices += entry.Vertices.Length;
             }
             int glyphPlacements = m_Placed.Count;
+            m_GlyphPlacements = glyphPlacements;
+            m_Ranges.Assign(engine, m_Placed, glyphPlacements, 1 + (owner.Layers?.Count ?? 0));
             ValueList<TextEngine.SolidBox> boxes = engine.SolidBoxes;
             for (int b = 0; b < boxes.Count; b++)
             {
@@ -825,6 +836,7 @@ namespace FirstSymbol.Lettera
             new CopyJob { Items = m_Items, Count = m_Placed.Count, Target = m_Rest, Ends = ends, ItemEnds = m_ItemEnds }.Run();
             float3 min = ends[0], max = ends[1];
             ends.Dispose();
+            m_Ranges.PoseRest(engine, m_Placed, m_Rest, m_ItemEnds, ref min, ref max);
             m_IndexCount = indices;
             if (m_VertexCount > 0) m_Posed.GetSubArray(0, m_VertexCount).CopyFrom(m_Rest.GetSubArray(0, m_VertexCount));
             m_RestBounds = m_VertexCount == 0 ? new Bounds(Vector3.zero, Vector3.zero) : new Bounds((min + max) * 0.5f, max - min);
@@ -1146,6 +1158,7 @@ namespace FirstSymbol.Lettera
                 Mix((ulong)submeshes);
                 for (int s = 0; s < maps.Length; s++) Mix((ulong)maps[s]);
                 if (m_Chain.Any) Mix(m_Chain.HashOf());
+                Mix(m_Ranges.HashOf());
                 for (int p = 0; p < m_Placed.Count; p++)
                 {
                     Placement place = m_Placed[p];
@@ -1268,13 +1281,30 @@ namespace FirstSymbol.Lettera
         {
             if (m_VertexCount == 0) return;
             var ranges = new NativeArray<PoseRange>(m_Placed.Count, Allocator.TempJob, NativeArrayOptions.UninitializedMemory);
+            bool deep = m_Poser.Compute(engine, m_Placed, m_GlyphPlacements, m_ItemEnds, m_Owner != null ? m_Owner.SolidPose : null);
             for (int p = 0; p < m_Placed.Count; p++)
             {
                 Placement place = m_Placed[p];
                 LetteraGlyphPose pose = engine.PoseOfForSolids(place.GlyphIndex);
-                ranges[p] = new PoseRange { Start = place.VertexStart, Count = place.VertexCount, Pose = pose, Alpha = Mathf.Clamp01(pose.Alpha * pose.Tint.a) };
+                var range = new PoseRange { Start = place.VertexStart, Count = place.VertexCount, Pose = pose, Alpha = Mathf.Clamp01(pose.Alpha * pose.Tint.a) };
+                if (deep && place.Cluster >= 0 && m_Poser.Has(place.GlyphIndex))
+                {
+                    range.Deep = true;
+                    range.Matrix = m_Poser.Matrix(place.GlyphIndex);
+                    range.Normal = m_Poser.Normal(place.GlyphIndex);
+                    range.Alpha *= m_Poser.Alpha(place.GlyphIndex);
+                }
+                ranges[p] = range;
             }
-            new PoseJob { Rest = m_Rest, Posed = m_Posed, Ranges = ranges }.Run();
+            var reach = new NativeArray<float3>(2, Allocator.TempJob);
+            new PoseJob { Rest = m_Rest, Posed = m_Posed, Ranges = ranges, Reach = reach }.Run();
+            // Depth can carry a glyph out of the box it rests in, and what is outside a renderer's bounds is culled.
+            if (deep && !m_Chain.Any)
+            {
+                Bounds = new Bounds((Vector3)((reach[0] + reach[1]) * 0.5f), (Vector3)(reach[1] - reach[0]));
+                mesh.bounds = Bounds;
+            }
+            reach.Dispose();
             ranges.Dispose();
             if (m_Chain.Any)
             {
@@ -1294,6 +1324,9 @@ namespace FirstSymbol.Lettera
             public int Start, Count;
             public LetteraGlyphPose Pose;
             public float Alpha;
+            public bool Deep;
+            public float4x4 Matrix;
+            public float3x3 Normal;
         }
 
         [BurstCompile]
@@ -1302,9 +1335,11 @@ namespace FirstSymbol.Lettera
             [ReadOnly] public NativeArray<LetteraSolidMeshVertex> Rest;
             public NativeArray<LetteraSolidMeshVertex> Posed;
             [ReadOnly] public NativeArray<PoseRange> Ranges;
+            public NativeArray<float3> Reach;
 
             public void Execute()
             {
+                float3 low = new float3(float.MaxValue), high = new float3(float.MinValue);
                 for (int r = 0; r < Ranges.Length; r++)
                 {
                     PoseRange range = Ranges[r];
@@ -1315,12 +1350,22 @@ namespace FirstSymbol.Lettera
                     for (int i = range.Start; i < range.Start + range.Count; i++)
                     {
                         LetteraSolidMeshVertex v = Rest[i];
+                        // Depth first, about where the glyph rests, then the flat motion over it.
+                        if (range.Deep)
+                        {
+                            v.Position = math.transform(range.Matrix, v.Position);
+                            v.Normal = math.normalizesafe(math.mul(range.Normal, v.Normal), v.Normal);
+                        }
                         v.Position = new float3(a * v.Position.x + c * v.Position.y + tx, b * v.Position.x + d * v.Position.y + ty, v.Position.z);
                         v.Normal = new float3(x.x * v.Normal.x - x.y * v.Normal.y, x.y * v.Normal.x + x.x * v.Normal.y, v.Normal.z);
                         v.Color.a = (byte)(v.Color.a * range.Alpha);
                         Posed[i] = v;
+                        low = math.min(low, v.Position);
+                        high = math.max(high, v.Position);
                     }
                 }
+                Reach[0] = low;
+                Reach[1] = high;
             }
         }
     }
