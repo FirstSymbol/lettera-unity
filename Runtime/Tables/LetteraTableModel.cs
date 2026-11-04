@@ -647,7 +647,7 @@ namespace FirstSymbol.Lettera
             var cells = new List<(int from, int to)>();
             int cellStart = from;
             // Once no $ closes from some place, none closes from any later one: a lone $ costs one search, not one each.
-            bool noDollar = false;
+            bool noDollar = false, noTag = false;
             while (at <= to)
             {
                 bool end = at == to;
@@ -660,6 +660,13 @@ namespace FirstSymbol.Lettera
                 if (!end && c == '%')
                 {
                     while (at < to && s[at] != '\n') at++;
+                    continue;
+                }
+                if (!end && c == '<' && !noTag && Starts(s, at, "<math"))
+                {
+                    int close = s.IndexOf("</math>", at, to - at, StringComparison.OrdinalIgnoreCase);
+                    noTag |= close < 0;
+                    at = close < 0 ? at + 1 : close + 7;
                     continue;
                 }
                 if (!end && c == '$')
@@ -887,7 +894,7 @@ namespace FirstSymbol.Lettera
             string s = m_Text;
             var word = new StringBuilder();
             int at = from;
-            bool noSingle = false, noDouble = false, noParen = false;
+            bool noSingle = false, noDouble = false, noParen = false, noTag = false;
             void Flush()
             {
                 if (word.Length == 0) return;
@@ -954,6 +961,20 @@ namespace FirstSymbol.Lettera
                     word.Append(' ');
                     at++;
                     continue;
+                }
+                // A formula's own tag, as anywhere else in the text.
+                if (c == '<' && !noTag && Starts(s, at, "<math") && at + 5 < to && (s[at + 5] == '>' || s[at + 5] == '='))
+                {
+                    int open = s.IndexOf('>', at, Math.Min(64, to - at));
+                    int close = open < 0 ? -1 : s.IndexOf("</math>", open, to - open, StringComparison.OrdinalIgnoreCase);
+                    if (close >= 0)
+                    {
+                        Flush();
+                        runs.Add(new TableRun { Kind = TableRunKind.Math, Text = s.Substring(open + 1, close - open - 1), Style = style });
+                        at = close + 7;
+                        continue;
+                    }
+                    noTag |= open >= 0;
                 }
                 if (c == '-' && at + 1 < to && s[at + 1] == '-')
                 {

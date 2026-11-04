@@ -411,6 +411,15 @@ Continued \\
         }
 
         [Test]
+        public void AFormulaTagInACellIsAFormula()
+        {
+            TableModel model = Parse(@"\begin{tabular}{ll}<math>x^2</math> & $y$\end{tabular}");
+            Assert.AreEqual("$x^2$", Words(model.Rows[0].Cells[0]));
+            LetteraWorldText label = Make(@"A \begin{tabular}{ll}<math>x^2</math> & b\end{tabular} B");
+            Assert.AreEqual("A ￼ B", Shown(label), "the table holds the formula, and not the other way round");
+        }
+
+        [Test]
         public void WhatIsNotATableStaysText()
         {
             Assert.AreEqual(@"\begin{tabular}{l}x", Shown(Make(@"\begin{tabular}{l}x")), "no \\end");
