@@ -249,6 +249,7 @@ solid.FrontBevel = new LetteraBevel { Shape = LetteraBevelShape.Round, Width = 0
 | UWP x64, ARM64 | the Windows library, not yet built or run | the Windows font folder, where the app may read it |
 | Android ARM64, ARMv7, x86-64 | prebuilt | yes |
 | Web (WebGL 2), including Safari on iOS | prebuilt | emoji through the browser; text fonts must be assigned |
+| Web (WebGPU), alone or listed before WebGL 2 as a fallback | the same as WebGL 2 | as on WebGL 2 |
 
 See [the changelog](CHANGELOG.md) for what each platform has been verified on.
 
