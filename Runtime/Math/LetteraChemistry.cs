@@ -232,6 +232,8 @@ namespace FirstSymbol.Lettera
                 case "<-": command = "\\xleftarrow"; break;
                 case "<->": command = "\\xleftrightarrow"; break;
                 case "<-->": command = "\\xrightleftarrows"; break;
+                case "<=>>": command = "\\cequilibriumright"; break;
+                case "<<=>": command = "\\cequilibriumleft"; break;
                 default: command = "\\xrightleftharpoons"; break;
             }
             m_Out.Append(command);

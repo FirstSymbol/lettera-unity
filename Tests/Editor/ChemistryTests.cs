@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Text;
 using NUnit.Framework;
+using UnityEngine;
 
 namespace FirstSymbol.Lettera.Editor.Tests
 {
@@ -67,6 +68,8 @@ namespace FirstSymbol.Lettera.Editor.Tests
         [TestCase("A <=> B", @"\mathrm{A}\xrightleftharpoons{}\mathrm{B}")]
         [TestCase("A <-> B", @"\mathrm{A}\xleftrightarrow{}\mathrm{B}")]
         [TestCase("A <--> B", @"\mathrm{A}\xrightleftarrows{}\mathrm{B}")]
+        [TestCase("A <=>> B", @"\mathrm{A}\cequilibriumright{}\mathrm{B}")]
+        [TestCase("A <<=> B", @"\mathrm{A}\cequilibriumleft{}\mathrm{B}")]
         [TestCase("A <- B", @"\mathrm{A}\xleftarrow{}\mathrm{B}")]
         [TestCase("A ->[H2O] B", @"\mathrm{A}\xrightarrow{\mathrm{H}_{2}\mathrm{O}}\mathrm{B}")]
         [TestCase("A ->[{text above}][{text below}] B", @"\mathrm{A}\xrightarrow[{\text{textbelow}}]{\text{textabove}}\mathrm{B}")]
@@ -225,6 +228,16 @@ namespace FirstSymbol.Lettera.Editor.Tests
         }
 
         [Test]
+        public void AnUnbalancedEquilibriumHasAShortHarpoon()
+        {
+            // Outside \ce the long-harpoon names are no commands.
+            Assert.IsNotNull(LetteraMathParser.Parse(@"\cequilibriumright{}").Error);
+            LetteraMathLayout even = Lay(@"\ce{A <=> B}"), right = Lay(@"\ce{A <=>> B}");
+            Assert.AreEqual(even.Width, right.Width, 0.01f, "the long one sets the width");
+            Assert.IsNotNull(LetteraMathParser.Parse(@"\ce{A <<=> B}"));
+        }
+
+        [Test]
         public void ChargesAndBondsAreDifferentThings()
         {
             // A bond stands on the baseline between atoms, a charge rises over the last one.
@@ -266,6 +279,49 @@ namespace FirstSymbol.Lettera.Editor.Tests
             {
                 Assert.IsFalse(formula.Failed, formula.Source + ": " + formula.Message);
                 Assert.Greater(formula.Box.width, 0);
+            }
+        }
+
+        [Test]
+        public void ItDraws()
+        {
+            LetteraFontAsset saved = LetteraSettings.Instance.Math.Font;
+            try
+            {
+                LetteraSettings.Instance.Math.Font = LetteraMathMenu.BundledFont();
+                LetteraMathCache.Clear();
+                string source = string.Join("\n", new[]
+                {
+                    @"<math>\ce{CO2 + C -> 2 CO}</math>   <math>\ce{SO4^2- + Ba^2+ -> BaSO4 v}</math>",
+                    @"<math>\ce{^{227}_{90}Th+}</math>   <math>\ce{[AgCl2]-}</math>   <math>\ce{KCr(SO4)2*12H2O}</math>   <math>\ce{C6H5-CHO}</math>   <math>\ce{A-B=C#D}</math>",
+                    @"<math>\ce{Zn^2+ <=>[+ 2OH-][+ 2H+] Zn(OH)2 v}</math>   <math>\ce{A ->[{text above}][{text below}] B}</math>",
+                    @"<math>\ce{A <=>> B <<=> C <--> D <-> E <- F}</math>",
+                    @"<math>\ce{NaOH(aq,$\infty$)}</math>   <math>\ce{x Na(NH4)HPO4 ->[\Delta] (NaPO3)_x + x NH3 ^}</math>",
+                    @"<math>\pu{123 kJ//mol}</math>   <math>\pu{1.2e3 kJ*mol-1}</math>   <math>\pu{12345.6789 km}</math>   <math>\pu{25 °C}</math>   <math>\pu{9.81 m s^-2}</math>",
+                });
+                LetteraWorldText label = Make(source, 760, 560, null, 24);
+                label.Color = Color.white;
+                label.ForceRebuild();
+                var formulas = new List<LetteraFormulaInfo>();
+                label.GetFormulas(formulas);
+                foreach (LetteraFormulaInfo formula in formulas) Assert.IsFalse(formula.Failed, formula.Source + ": " + formula.Message);
+                Texture2D image = Render(800, 600, Color.black);
+                int lit = 0;
+                foreach (Color32 pixel in image.GetPixels32())
+                    if (pixel.r > 128)
+                        lit++;
+                Assert.Greater(lit, 3000, "it draws");
+                string folder = System.Environment.GetEnvironmentVariable("LETTERA_SHOTS");
+                if (!string.IsNullOrEmpty(folder))
+                {
+                    System.IO.Directory.CreateDirectory(folder);
+                    System.IO.File.WriteAllBytes(System.IO.Path.Combine(folder, "chemistry.png"), image.EncodeToPNG());
+                }
+            }
+            finally
+            {
+                LetteraSettings.Instance.Math.Font = saved;
+                LetteraMathCache.Clear();
             }
         }
 

@@ -33,7 +33,7 @@ namespace FirstSymbol.Lettera
         /// <summary>A table's layout for a room in em, made again only when the room, the fonts or the label change.</summary>
         internal static LetteraMathLayout Layout(TableModel model, float room, FontFace text, FontFace math, string label)
         {
-            if (!float.IsInfinity(room)) room = Mathf.Round(room * 64) / 64;
+            if (!float.IsInfinity(room)) room = Mathf.Floor(room * 64) / 64;
             int textId = text.Regular.Id, mathId = math != null ? math.Regular.Id : 0;
             if (model.Laid != null && (model.LaidRoom == room || (float.IsInfinity(room) && float.IsInfinity(model.LaidRoom))) && model.LaidText == textId && model.LaidMath == mathId && model.LaidLabel == label)
                 return model.Laid;

@@ -52,7 +52,7 @@ namespace FirstSymbol.Lettera
 
 #if !LETTERA_NO_MATH
     /// <summary>Computes boxes bottom-up. Every width is worked out once, so time is linear in what a formula draws.</summary>
-    internal sealed class LetteraMathBuilder
+    internal sealed partial class LetteraMathBuilder
     {
         struct Box
         {
@@ -1314,7 +1314,7 @@ namespace FirstSymbol.Lettera
             bool hasBelow = n.B >= 0;
             float pad = 0.3f * ScaleOf(style);
             float need = Mathf.Max(Mathf.Max(above.Width, hasBelow ? below.Width : 0) + 2 * pad, n.Value * ScaleOf(style));
-            Box arrow = StretchTo(n.Cp, false, need, style);
+            Box arrow = n.Info != 0 ? ArrowPair(n.Info, n.Cp, need, style) : StretchTo(n.Cp, false, need, style);
             float width = Mathf.Max(arrow.Width, need);
             float a = C(MathConstant.AxisHeight, style);
             arrow = Centered(arrow, a);

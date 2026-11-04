@@ -470,12 +470,46 @@ Continued \\
                 if (pixel.r > 128)
                     lit++;
             Assert.Greater(lit, 3000, "it draws");
+            Save(image, "tables.png");
+        }
+
+        static void Save(Texture2D image, string name)
+        {
             string folder = Environment.GetEnvironmentVariable("LETTERA_SHOTS");
-            if (!string.IsNullOrEmpty(folder))
-            {
-                Directory.CreateDirectory(folder);
-                File.WriteAllBytes(Path.Combine(folder, "tables.png"), image.EncodeToPNG());
-            }
+            if (string.IsNullOrEmpty(folder)) return;
+            Directory.CreateDirectory(folder);
+            File.WriteAllBytes(Path.Combine(folder, name), image.EncodeToPNG());
+        }
+
+        [Test]
+        public void ALongTableInANarrowTextDraws()
+        {
+            string source = @"Some text before the table.
+\begin{longtable}{@{}lp{9em}r@{}}
+\caption{A longtable with booktabs rules}\\
+\toprule \textbf{Name} & \textbf{Notes} & \textbf{Count} \\ \midrule
+\endfirsthead
+\midrule \textbf{Name} & \textbf{Notes} & \textbf{Count} \\ \midrule
+\endhead
+\bottomrule
+\endlastfoot
+Alpha & A note long enough to wrap in its fixed column & 12 \\
+Beta & Short & 7 \\
+\cmidrule{2-3}
+Gamma--Delta & An averyveryverylongwordthatmustbreak here & 1\,024 \\
+\end{longtable}
+And text after it, \begin{tabular}[t]{|c|}\hline top \\ \hline row \\ \hline\end{tabular} with a [t] table and \begin{tabular}[b]{|c|}\hline bottom \\ \hline row \\ \hline\end{tabular} with a [b] one.";
+            LetteraWorldText label = Make(source, 300, 560, null, 18);
+            label.Color = Color.white;
+            label.ForceRebuild();
+            Assert.LessOrEqual(WidthOf(label), 300.01f, "within the text's width");
+            Texture2D image = Render(340, 600, Color.black);
+            int lit = 0;
+            foreach (Color32 pixel in image.GetPixels32())
+                if (pixel.r > 128)
+                    lit++;
+            Assert.Greater(lit, 2000, "it draws");
+            Save(image, "longtable.png");
         }
     }
 }

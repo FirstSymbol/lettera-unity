@@ -538,9 +538,11 @@ namespace FirstSymbol.Lettera
                 case "underleftarrow": return Stretched(0x2190, false, MathClass.Ord);
                 case "xrightarrow": return Arrow(0x2192);
                 case "xleftarrow": return Arrow(0x2190);
-                case "xleftrightarrow": return Arrow(0x2194);
-                case "xrightleftharpoons": return Arrow(0x21CC);
-                case "xrightleftarrows": return Arrow(0x21C4);
+                case "xleftrightarrow": return Arrow(0x2194, LetteraMathBuilder.PairBothWays);
+                case "xrightleftharpoons": return Arrow(0x21CC, LetteraMathBuilder.PairHarpoons);
+                case "xrightleftarrows": return Arrow(0x21C4, LetteraMathBuilder.PairArrows);
+                case "cequilibriumright" when m_Chemistry > 0: return Arrow(0x21CC, LetteraMathBuilder.PairLongRight);
+                case "cequilibriumleft" when m_Chemistry > 0: return Arrow(0x21CC, LetteraMathBuilder.PairLongLeft);
                 case "overset": return Stack(0);
                 case "underset": return Stack(1);
                 case "stackrel": return Stack(2);
@@ -841,7 +843,7 @@ namespace FirstSymbol.Lettera
             return node;
         }
 
-        int Arrow(int cp)
+        int Arrow(int cp, int pair = 0)
         {
             int node = NewNode(MathNodeKind.Arrow);
             int below = -1;
@@ -863,6 +865,7 @@ namespace FirstSymbol.Lettera
             n.Cp = cp;
             n.Class = MathClass.Rel;
             n.Value = m_Chemistry > 0 ? LetteraChemistry.ArrowEm : 0;
+            n.Info = pair;
             return node;
         }
 
