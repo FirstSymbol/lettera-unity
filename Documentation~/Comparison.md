@@ -114,7 +114,7 @@ Each cell is Yes, With setup, Partly or No. A sheet (S) or a named test stands b
 | Timeline | Tracks exist, not played end to end yet | With setup | — |
 | Migration from the other | Yes, Lettera from TextMesh Pro | — | `MigrationTests` |
 | Built-in, URP | Yes | Yes | builds |
-| HDRP | Solid text with a material of your own | Unity documents it; not run here | — |
+| HDRP | Yes: solid, world and lit world text | Unity documents it; not run here | a Windows player |
 | Native plugin needed | Yes | No | build |
 | Years in the field | New | Long | — |
 
@@ -173,7 +173,6 @@ The same scene in each engine, at 1200 × 700. Lettera on the left, TextMesh Pro
 - **Numbers that change every frame on many labels.** 64 labels take 2.03 ms here and 1.52 ms there.
 - **Scrolling one very long text, once it is open.** 7.48 ms a frame here, 1.77 ms there. Opening it is the other way round, by a long way.
 - **A build that must stay small, or no native plugin.** TextMesh Pro is 437 KB of managed code and nothing else.
-- **HDRP,** where Lettera has no materials of its own.
 - **You rely on `textInfo`,** or on years of field use. Lettera is new, and parts of it have not been seen on a real phone.
 - **Latin only, and a static atlas you already have.** Then most of what Lettera adds, you will not use.
 
