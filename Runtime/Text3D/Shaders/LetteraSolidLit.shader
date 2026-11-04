@@ -16,37 +16,13 @@ Shader "Lettera/Solid Lit"
         PackageRequirements { "com.unity.render-pipelines.universal" }
         Tags { "RenderPipeline"="UniversalPipeline" "RenderType"="Opaque" "Queue"="Geometry" }
 
-        HLSLINCLUDE
-        #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
-
-        TEXTURE2D(_BaseMap);
-        SAMPLER(sampler_BaseMap);
-
-        CBUFFER_START(UnityPerMaterial)
-            float4 _BaseMap_ST;
-            half4 _BaseColor;
-            half4 _EmissionColor;
-            half _Metallic;
-            half _Smoothness;
-            half _LightInfluence;
-            float _TextureSpace;
-        CBUFFER_END
-
-        // Opaque text fades through an ordered screen pattern, so it needs no sorting.
-        void LetteraDither(half alpha, float2 pixel)
-        {
-            static const float pattern[16] = { 0.0625, 0.5625, 0.1875, 0.6875, 0.8125, 0.3125, 0.9375, 0.4375, 0.25, 0.75, 0.125, 0.625, 1.0, 0.5, 0.875, 0.375 };
-            uint2 cell = (uint2)pixel % 4;
-            clip(alpha - pattern[cell.y * 4 + cell.x] + 0.001);
-        }
-        ENDHLSL
-
         Pass
         {
             Name "Forward"
             Tags { "LightMode"="UniversalForward" }
 
             HLSLPROGRAM
+            #include "LetteraSolidURP.hlsl"
             #pragma vertex Vertex
             #pragma fragment Fragment
             #pragma target 3.0
@@ -138,6 +114,7 @@ Shader "Lettera/Solid Lit"
             ColorMask 0
 
             HLSLPROGRAM
+            #include "LetteraSolidURP.hlsl"
             #pragma vertex Vertex
             #pragma fragment Fragment
             #pragma target 3.0
@@ -200,6 +177,7 @@ Shader "Lettera/Solid Lit"
             ColorMask R
 
             HLSLPROGRAM
+            #include "LetteraSolidURP.hlsl"
             #pragma vertex Vertex
             #pragma fragment Fragment
             #pragma target 3.0
@@ -244,6 +222,7 @@ Shader "Lettera/Solid Lit"
             ZWrite On
 
             HLSLPROGRAM
+            #include "LetteraSolidURP.hlsl"
             #pragma vertex Vertex
             #pragma fragment Fragment
             #pragma target 3.0
@@ -291,31 +270,6 @@ Shader "Lettera/Solid Lit"
         PackageRequirements { "com.unity.render-pipelines.high-definition" }
         Tags { "RenderPipeline"="HDRenderPipeline" "RenderType"="Opaque" "Queue"="Geometry" }
 
-        HLSLINCLUDE
-        #pragma target 4.5
-        #pragma only_renderers d3d11 playstation xboxone xboxseries vulkan metal switch switch2
-        #define _DISABLE_DECALS
-        #define _DISABLE_SSR
-        #define _DISABLE_SSR_TRANSPARENT
-        #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/Common.hlsl"
-        #include "Packages/com.unity.render-pipelines.high-definition/Runtime/ShaderLibrary/ShaderVariables.hlsl"
-        #include "Packages/com.unity.render-pipelines.high-definition/Runtime/RenderPipeline/ShaderPass/FragInputs.hlsl"
-        #include "Packages/com.unity.render-pipelines.high-definition/Runtime/RenderPipeline/ShaderPass/ShaderPass.cs.hlsl"
-
-        TEXTURE2D(_BaseMap);
-        SAMPLER(sampler_BaseMap);
-
-        CBUFFER_START(UnityPerMaterial)
-            float4 _BaseMap_ST;
-            float4 _BaseColor;
-            float4 _EmissionColor;
-            float _Metallic;
-            float _Smoothness;
-            float _LightInfluence;
-            float _TextureSpace;
-        CBUFFER_END
-        ENDHLSL
-
         Pass
         {
             Name "ScenePickingPass"
@@ -323,6 +277,9 @@ Shader "Lettera/Solid Lit"
             Cull Back
 
             HLSLPROGRAM
+            #pragma target 4.5
+            #pragma only_renderers d3d11 playstation xboxone xboxseries vulkan metal switch switch2
+            #include "LetteraSolidHDRPBase.hlsl"
             #pragma multi_compile_instancing
             #pragma editor_sync_compilation
             #define SHADERPASS SHADERPASS_DEPTH_ONLY
@@ -344,6 +301,9 @@ Shader "Lettera/Solid Lit"
             Cull Off
 
             HLSLPROGRAM
+            #pragma target 4.5
+            #pragma only_renderers d3d11 playstation xboxone xboxseries vulkan metal switch switch2
+            #include "LetteraSolidHDRPBase.hlsl"
             #pragma multi_compile_instancing
             #pragma editor_sync_compilation
             #define SHADERPASS SHADERPASS_DEPTH_ONLY
@@ -368,6 +328,9 @@ Shader "Lettera/Solid Lit"
             ColorMask 0
 
             HLSLPROGRAM
+            #pragma target 4.5
+            #pragma only_renderers d3d11 playstation xboxone xboxseries vulkan metal switch switch2
+            #include "LetteraSolidHDRPBase.hlsl"
             #pragma multi_compile_instancing
             #pragma instancing_options renderinglayer
             #define SHADERPASS SHADERPASS_SHADOWS
@@ -388,6 +351,9 @@ Shader "Lettera/Solid Lit"
             ZWrite On
 
             HLSLPROGRAM
+            #pragma target 4.5
+            #pragma only_renderers d3d11 playstation xboxone xboxseries vulkan metal switch switch2
+            #include "LetteraSolidHDRPBase.hlsl"
             #pragma multi_compile_instancing
             #pragma instancing_options renderinglayer
             #pragma multi_compile _ WRITE_NORMAL_BUFFER
@@ -420,6 +386,9 @@ Shader "Lettera/Solid Lit"
             ZTest LEqual
 
             HLSLPROGRAM
+            #pragma target 4.5
+            #pragma only_renderers d3d11 playstation xboxone xboxseries vulkan metal switch switch2
+            #include "LetteraSolidHDRPBase.hlsl"
             #pragma multi_compile_instancing
             #pragma instancing_options renderinglayer
             #pragma multi_compile_fragment _ SHADOWS_SHADOWMASK

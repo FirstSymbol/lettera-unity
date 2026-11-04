@@ -5,6 +5,7 @@
 // whatever the exposure, fog is its own, and lit text takes its light loop: every light, its shadows, probes and sky.
 
 #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/Common.hlsl"
+#include "Packages/com.unity.render-pipelines.core/ShaderLibrary/Color.hlsl"
 #include "Packages/com.unity.render-pipelines.high-definition/Runtime/ShaderLibrary/ShaderVariables.hlsl"
 #include "Packages/com.unity.render-pipelines.high-definition/Runtime/RenderPipeline/ShaderPass/FragInputs.hlsl"
 #include "Packages/com.unity.render-pipelines.high-definition/Runtime/RenderPipeline/ShaderPass/ShaderPass.cs.hlsl"
@@ -117,7 +118,11 @@ half4 TextFragment(Varyings input) : SV_Target
     half4 color = LetteraShadePlain(input.uv0, input.params.xy, input.color);
     #endif
     float3 V = GetWorldSpaceNormalizeViewDir(input.positionRWS);
+    #ifdef LETTERA_LIT
     uint2 tile = uint2(input.positionCS.xy) / GetTileSize();
+    #else
+    uint2 tile = uint2(0, 0);
+    #endif
     PositionInputs posInput = GetPositionInput(input.positionCS.xy, _ScreenSize.zw, input.positionCS.z, input.positionCS.w, input.positionRWS, tile);
 
     #ifdef LETTERA_LIT
