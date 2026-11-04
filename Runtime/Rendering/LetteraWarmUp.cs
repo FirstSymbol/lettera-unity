@@ -1,8 +1,6 @@
 using System;
 using System.Collections.Generic;
 using UnityEngine;
-using UnityEngine.LowLevel;
-using UnityEngine.PlayerLoop;
 using UnityEngine.Rendering;
 using UnityEngine.UI;
 
@@ -93,47 +91,36 @@ namespace FirstSymbol.Lettera
     internal static class LetteraStartUp
     {
 #if !UNITY_WEBGL || UNITY_EDITOR
-        struct LetteraStartUpStep { }
-
         static Steps s_Steps;
 
         // Nothing here reads the settings or loads the native library, which would wait for loads still going on Unity's loading thread and on the
-        // start-up thread: a step of the frame's own is added, and the steps begin in a frame where those have ended.
+        // start-up thread, and the player loop is left alone: a hidden object of its own runs the steps, from a frame where those loads have ended.
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         static void Begin()
         {
             if (Application.isEditor || SystemInfo.graphicsDeviceType == GraphicsDeviceType.Null) return;
             s_Steps = new Steps();
-            PlayerLoopSystem root = PlayerLoop.GetCurrentPlayerLoop();
-            for (int i = 0; i < root.subSystemList.Length; i++)
-            {
-                if (root.subSystemList[i].type != typeof(PostLateUpdate)) continue;
-                PlayerLoopSystem post = root.subSystemList[i];
-                var systems = new PlayerLoopSystem[post.subSystemList.Length + 1];
-                // First in its phase, so the graphic of the second step is in this frame's canvas update.
-                systems[0] = new PlayerLoopSystem { type = typeof(LetteraStartUpStep), updateDelegate = Tick };
-                Array.Copy(post.subSystemList, 0, systems, 1, post.subSystemList.Length);
-                post.subSystemList = systems;
-                root.subSystemList[i] = post;
-                PlayerLoop.SetPlayerLoop(root);
-                return;
-            }
+            var driver = new GameObject("Lettera Start-Up Driver") { hideFlags = HideFlags.HideAndDontSave };
+            UnityEngine.Object.DontDestroyOnLoad(driver);
+            driver.AddComponent<LetteraStartUpDriver>();
         }
 
-        // Once the steps are done this stays in the loop and returns at once: taking it out from inside the loop it runs in is not worth the risk.
-        static void Tick()
+        /// <summary>One frame's turn; false when there is nothing left to do.</summary>
+        internal static bool Tick()
         {
-            if (s_Steps == null) return;
+            if (s_Steps == null) return false;
             if (!s_Steps.Begun)
             {
-                if (!LetteraSettings.LoadedAhead || !LetteraMaterials.UiLoadedAhead) return;
+                if (!LetteraSettings.LoadedAhead || !LetteraMaterials.UiLoadedAhead) return true;
                 if (!LetteraSettings.Instance.Memory.ReadyAtStart)
                 {
                     s_Steps = null;
-                    return;
+                    return false;
                 }
             }
-            if (!s_Steps.Next()) s_Steps = null;
+            if (s_Steps.Next()) return true;
+            s_Steps = null;
+            return false;
         }
 #endif
 
