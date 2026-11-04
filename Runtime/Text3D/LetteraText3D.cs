@@ -914,7 +914,7 @@ namespace FirstSymbol.Lettera
                 if (!cut)
                 {
                     ref readonly TextEngine.PlacedGlyph g = ref glyphs[i];
-                    bool space = g.Cluster >= 0 && g.Cluster < text.Length && LetteraUnicode.IsWhiteSpace(text[g.Cluster]);
+                    bool space = g.Cluster >= 0 && g.Cluster < text.Length && FirstSymbol.Lettera.Unicode.LetteraUnicode.IsWhiteSpace(text[g.Cluster]);
                     skip = space || g.Instance == null || g.Special == TextEngine.SpecialRuleForSolids || engine.IsDrawnFlatForSolids(i);
                     if (layer.Scope == LetteraSolidLayerScope.Word && space) cut = true;
                     if (layer.Scope != LetteraSolidLayerScope.Text && line != int.MinValue && g.Line != line && m_GroupGlyphs.Count > 0) cut = true;
