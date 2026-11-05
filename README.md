@@ -126,6 +126,8 @@ label.Text = "<sunset>A gradient across the whole range</sunset>";
 
 A gradient measured on the **Range** runs across a sentence, on the **Glyph** or **Line** it restarts. Solid and gradient paints never split a batch; a texture or a blend other than normal gets its own material, and order is kept.
 
+A slow gradient that shows bands takes **Grain**: finer steps and a fine grain, drawn by a slightly heavier shader that only texts with it use.
+
 Layers draw in bands: shadow and glow, stroke, face, inner shadow. Within a band, later styles draw on top. Filters reach what lies below them in the style list and the face, so a filter last in the list recolors everything.
 
 Change a parameter at the cost of its level, with no parsing:
@@ -144,6 +146,8 @@ Several effects share a style through `CompositeEffect`, whose tag value has one
 **Ranges can come from more than tags:** Markdown (`**bold**`, `- lists`, `[links](url)`, `` `code` ``), bare URLs, trigger words such as `@mentions`, literal strings. Those are not in the default vocabulary, because they change plain text: add them from the picker.
 
 **MSDF:** set **Render Mode** to MSDF for sharp corners at any size, at more atlas memory. **Pixel fonts:** set a font asset's **Pixels Per Em**, or press **Find Pixel Grid**; at multiples of the grid every font pixel is exact, and effects come in whole font pixels.
+
+**Hairline faces:** set a font asset's **Raster Detail** to Fine or Finest, for tiles of at least 128 or 256 pixels per em, at four or sixteen times the atlas room per glyph.
 
 **Your own effect:** **Assets → Create → Lettera → Custom Effect** writes a shader whose one function you edit, for a **Custom Material** style. It works on Canvas and world text, with the Built-in and Universal pipelines.
 

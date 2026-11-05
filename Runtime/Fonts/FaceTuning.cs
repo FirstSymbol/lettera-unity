@@ -55,6 +55,9 @@ namespace FirstSymbol.Lettera
         /// <summary>The atlas draws some glyph of this face otherwise than the text asks.</summary>
         public bool Redraws => Draws || Detail > 0;
 
+        /// <summary>Shaping has something to change: spacing, a space's width or a glyph's advance or offset. A face tuned only in detail skips that pass.</summary>
+        public bool Shapes => SpacingOffset != 0 || SpaceWidth > 0 || Glyphs != null;
+
         public static FaceTuning Build(FontFace face, int spacingOffset, int spaceWidth, List<LetteraGlyphOverride> overrides, int detail = 0)
         {
             bool any = spacingOffset != 0 || spaceWidth > 0 || detail > 0;

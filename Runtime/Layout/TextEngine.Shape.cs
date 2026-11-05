@@ -472,7 +472,7 @@ namespace FirstSymbol.Lettera
                 m_Shaped[m_ShapedCount + i] = new ShapedGlyph { Glyph = g.Glyph, Cluster = cluster, XAdvance = g.XAdvance, XOffset = g.XOffset, YOffset = g.YOffset };
                 m_CpAdvanceEm[cluster] += g.XAdvance * run.UnitEm;
             }
-            if (run.Instance.Face.Tuning != null) TuneShaped(run, m_Shaped, m_ShapedCount, count);
+            if (run.Instance.Face.Tuning != null && run.Instance.Face.Tuning.Shapes) TuneShaped(run, m_Shaped, m_ShapedCount, count);
             run.GlyphCount = count;
             m_ShapedCount += count;
         }
