@@ -137,7 +137,13 @@ namespace FirstSymbol.Lettera.Samples
                 camera.tag = "MainCamera";
                 m_Solids.Add(camera.gameObject);
             }
-            camera.transform.SetPositionAndRotation(new Vector3(0, 2, -24), Quaternion.Euler(4, 0, 0));
+            // Far enough back that about 32 units across fit whichever way the device is held.
+            float tan = Mathf.Tan(camera.fieldOfView * 0.5f * Mathf.Deg2Rad) * Mathf.Min(camera.aspect, 1.6f);
+            float distance = Mathf.Max(24, 16f / Mathf.Max(tan, 0.01f));
+            camera.transform.SetPositionAndRotation(new Vector3(0, 2, -distance), Quaternion.Euler(4, 0, 0));
+            // The ground must lie within the shadow distance, which a mobile quality level keeps short.
+            if (m_ShadowDistance < 0) m_ShadowDistance = QualitySettings.shadowDistance;
+            QualitySettings.shadowDistance = Mathf.Max(m_ShadowDistance, distance + 30);
             var light = new GameObject("Kit Light", typeof(Light)).GetComponent<Light>();
             light.type = LightType.Directional;
             light.shadows = LightShadows.Soft;
@@ -161,8 +167,9 @@ namespace FirstSymbol.Lettera.Samples
                 }
                 else
                 {
-                    solid.FontSize = 0.8f;
-                    go.transform.position = new Vector3(-12 + i % 25, -3 + i / 25 * 0.8f, 0);
+                    // Twenty to a row, apart: "Label" at this size is about 1.4 units wide.
+                    solid.FontSize = 0.5f;
+                    go.transform.position = new Vector3(-15.2f + i % 20 * 1.6f, -3 + i / 20 * 0.6f, 0);
                     solid.Text = "Label";
                 }
                 m_Solids.Add(go);
@@ -184,12 +191,15 @@ namespace FirstSymbol.Lettera.Samples
             return go;
         }
 
+        float m_ShadowDistance = -1;
+
         void ClearSolids()
         {
             foreach (GameObject go in m_Solids)
                 if (go != null)
                     Destroy(go);
             m_Solids.Clear();
+            if (m_ShadowDistance >= 0) QualitySettings.shadowDistance = m_ShadowDistance;
         }
 
         sealed class KitTurn : MonoBehaviour
@@ -208,6 +218,9 @@ namespace FirstSymbol.Lettera.Samples
 
         void Start()
         {
+            // A phone runs at 30 frames a second unless asked: every frame time below would read 33 ms whatever the text cost.
+            if (Application.isMobilePlatform && Application.targetFrameRate <= 0)
+                Application.targetFrameRate = Mathf.Max(30, Mathf.RoundToInt((float)Screen.currentResolution.refreshRateRatio.value));
             if (FindAnyObjectByType<EventSystem>() == null)
             {
                 var events = new GameObject("EventSystem", typeof(EventSystem));
@@ -465,7 +478,8 @@ namespace FirstSymbol.Lettera.Samples
             text.Append("Platform: ").Append(Application.platform).Append(" / ").Append(SystemInfo.operatingSystem).Append('\n');
             text.Append("Device: ").Append(SystemInfo.deviceModel).Append('\n');
             text.Append("Unity: ").Append(Application.unityVersion).Append(", graphics ").Append(SystemInfo.graphicsDeviceType).Append('\n');
-            text.Append("Frame: ").Append((Time.smoothDeltaTime * 1000).ToString("0.0")).Append(" ms\n");
+            // Invariant, so that a block from a device set to a language with a decimal comma reads the same.
+            text.Append("Frame: ").Append((Time.smoothDeltaTime * 1000).ToString("0.0", System.Globalization.CultureInfo.InvariantCulture)).Append(" ms, target ").Append(Application.targetFrameRate).Append(" fps\n");
             text.Append("Memory: ").Append(SystemInfo.systemMemorySize).Append(" MB in the device, ").Append(GC.GetTotalMemory(false) / (1024 * 1024)).Append(" MB managed now\n");
             foreach (LetteraNativeFeature feature in Enum.GetValues(typeof(LetteraNativeFeature)))
                 text.Append(feature).Append(": ").Append(LetteraPlatform.IsActive(feature) ? "on" : "off").Append(" - ").Append(LetteraPlatform.Why(feature)).Append('\n');

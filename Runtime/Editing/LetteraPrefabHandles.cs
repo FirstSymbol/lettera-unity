@@ -73,7 +73,9 @@ namespace FirstSymbol.Lettera
             Canvas canvas = handle.GetComponentInParent<Canvas>();
             float scale = canvas != null && canvas.scaleFactor > 0 ? canvas.scaleFactor : 1;
             handle.anchorMin = handle.anchorMax = Vector2.zero;
-            handle.pivot = new Vector2(0.5f, 1);
+            // A built-in handle's point is where the text is; a project's own handle keeps its middle there.
+            var drop = handle.GetComponent<LetteraHandleGraphic>();
+            handle.pivot = drop != null ? drop.Pivot : new Vector2(0.5f, 1);
             handle.anchoredPosition = screen / scale;
             float size = Mathf.Max(m_Size, 44);
             float pixels = LetteraEditingSettings.Dp(size) / scale;
@@ -106,19 +108,20 @@ namespace FirstSymbol.Lettera
             rootRect.anchorMax = Vector2.one;
             rootRect.offsetMin = rootRect.offsetMax = Vector2.zero;
             var handles = root.AddComponent<LetteraPrefabHandles>();
-            handles.m_Start = MakeHandle(root.transform, "Start");
-            handles.m_End = MakeHandle(root.transform, "End");
-            handles.m_Caret = MakeHandle(root.transform, "Caret");
+            handles.m_Start = MakeHandle(root.transform, "Start", LetteraHandleGraphic.Shape.Start);
+            handles.m_End = MakeHandle(root.transform, "End", LetteraHandleGraphic.Shape.End);
+            handles.m_Caret = MakeHandle(root.transform, "Caret", LetteraHandleGraphic.Shape.Caret);
             handles.m_Start.gameObject.SetActive(false);
             handles.m_End.gameObject.SetActive(false);
             handles.m_Caret.gameObject.SetActive(false);
             return handles;
         }
 
-        static RectTransform MakeHandle(Transform parent, string name)
+        static RectTransform MakeHandle(Transform parent, string name, LetteraHandleGraphic.Shape shape)
         {
             var go = new GameObject(name, typeof(RectTransform), typeof(LetteraHandleGraphic)) { hideFlags = HideFlags.DontSave };
             go.transform.SetParent(parent, false);
+            go.GetComponent<LetteraHandleGraphic>().Kind = shape;
             return (RectTransform)go.transform;
         }
     }
