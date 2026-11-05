@@ -329,7 +329,14 @@ Continued \\
             }
             string small = Body(8000), large = Body(16000);
             Cost(small);
-            double a = Cost(small), b = Cost(large);
+            // A quadratic reading costs four times as much at double the length on every try; a busy machine only on some.
+            double a = 0, b = 0;
+            for (int attempt = 0; attempt < 5; attempt++)
+            {
+                a = Cost(small);
+                b = Cost(large);
+                if (b < Math.Max(a * 2.5, a + 2)) return;
+            }
             Assert.Less(b, Math.Max(a * 2.5, a + 2), $"{token}: {a:0.000} ms then {b:0.000} ms");
         }
 
