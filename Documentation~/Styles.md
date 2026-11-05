@@ -115,6 +115,7 @@ Every coloured surface of a layer takes a **paint**: a solid colour, a gradient 
 - **Gradients** are linear, radial or conic; mix in sRGB, linear light, Oklab, or in steps; and clamp, repeat or mirror past their ends.
 - **Span** says what a paint is measured on: `Glyph` restarts it on each glyph, `Line` on each line, `Range` runs it across the whole range, `Block` across the text's box.
 - **Blend** draws a layer normally or by multiply, screen, additive or exclusion.
+- **Grain** on a gradient (`LetteraGradient.Grain`) takes away the bands of a slow gradient: it draws from a finer ramp and adds a grain of one 8-bit step, through a slightly heavier shader variant that only texts with it use.
 
 ```csharp
 using FirstSymbol.Lettera;

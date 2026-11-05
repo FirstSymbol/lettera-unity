@@ -221,6 +221,7 @@ A font asset carries settings that change how its face sets, without editing the
 | `SpaceWidth` | The advance of a space and a no-break space, in font units. 0 keeps the file's. |
 | Metrics | The **Metrics** card writes an ascender, descender and line gap by hand, with **Reset**. |
 | `GlyphOverrides` | One glyph set apart by its character: an advance added, an offset it is drawn at, a size it is drawn at, and the pixels per em it is rasterized at. |
+| `RasterDetail` | How finely the face's glyphs are drawn: `Standard` as the text asks (64 pixels per em, 128 for large text), `Fine` at least 128, `Finest` at least 256, for a hairline or calligraphic face. Each step takes four times the atlas room per glyph; layout does not move. A glyph override's own pixels per em still wins. |
 
 ```csharp
 using FirstSymbol.Lettera;
