@@ -186,6 +186,23 @@ namespace FirstSymbol.Lettera
                 oldEnd++;
                 newEnd++;
             }
+            if (osCaret < 0)
+            {
+                // With no caret from the system, a letter typed or deleted inside a run of equal letters is taken to be at the field's own caret.
+                // Read as the run's first, it would move the caret back to the run's start, and every later key would go there.
+                int caret = LetteraEditProposal.Utf16Of(current, Mathf.Clamp(Selectable.Selection.End, 0, CountCodepoints(current)));
+                int target = Mathf.Clamp(caret + osText.Length - current.Length, 0, osText.Length);
+                bool insertion = oldEnd == prefix && newEnd > prefix, deletion = newEnd == prefix && oldEnd > prefix;
+                while (newEnd < target && (insertion || deletion))
+                {
+                    char from = insertion ? osText[prefix] : current[prefix];
+                    char to = insertion ? (newEnd < osText.Length ? osText[newEnd] : '\0') : (oldEnd < current.Length ? current[oldEnd] : '\0');
+                    if (from != to || char.IsSurrogate(from)) break;
+                    prefix++;
+                    oldEnd++;
+                    newEnd++;
+                }
+            }
             int start = CountCodepoints(current.Substring(0, prefix)), end = start + CountCodepoints(current.Substring(prefix, oldEnd - prefix));
             string inserted = osText.Substring(prefix, newEnd - prefix);
             string reason = inserted.Length > 0 ? "user.type" : "user.delete.back";

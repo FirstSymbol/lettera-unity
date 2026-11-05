@@ -1160,6 +1160,35 @@ namespace FirstSymbol.Lettera.Editor.Tests
             Assert.AreEqual(1, field.Selectable.Selection.Head);
         }
 
+        // Seen on an Android phone through Unity's keyboard box, which gives no caret: a run of equal letters read as typed before itself sent the
+        // caret back to the run's start, and the next word landed there.
+        [Test]
+        public void WithNoOsCaretEqualLettersGoAtTheFieldsCaret()
+        {
+            LetteraEditable field = Field("hi a");
+            field.Selectable.PlaceCaret(4);
+            var sink = (ILetteraKeyboardSink)field.Selectable;
+            string box = "hi a";
+            for (int i = 0; i < 40; i++)
+            {
+                box += "a";
+                sink.Reconcile(box);
+                Assert.AreEqual(box.Length, field.Selectable.Selection.Head, "after letter " + (i + 1));
+            }
+            box += " next";
+            sink.Reconcile(box);
+            Assert.AreEqual("hi " + new string('a', 41) + " next", field.Source);
+
+            field.Selectable.PlaceCaret(5);
+            sink.Reconcile(box.Remove(4, 1));
+            Assert.AreEqual(4, field.Selectable.Selection.Head, "a delete inside the run is at the caret too");
+
+            LetteraEditable other = Field("abcd");
+            other.Selectable.PlaceCaret(4);
+            ((ILetteraKeyboardSink)other.Selectable).Reconcile("abXd");
+            Assert.AreEqual("abXd", other.Source, "a change away from the caret is still the smallest one");
+        }
+
         [Test]
         public void AnOsTextBoxThatARuleRefusesStaysOut()
         {

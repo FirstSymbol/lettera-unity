@@ -540,6 +540,8 @@ namespace FirstSymbol.Lettera.Editor.Tests
             Assert.AreEqual((4, 7), (reader.Selection.Start, reader.Selection.End));
             reader.OnPointerUp(data);
 
+            // On Apple systems a long press in a field places the caret, and the finger moves it.
+            LetteraKeyTable.FamilyOverride = LetteraPlatformFamily.Apple;
             LetteraText other = CanvasText("one two three");
             var field = other.gameObject.AddComponent<LetteraEditable>();
             field.Selectable.NoHandles = true;
@@ -557,6 +559,33 @@ namespace FirstSymbol.Lettera.Editor.Tests
             field.Selectable.OnDrag(data);
             Assert.AreEqual(9, field.Selectable.Selection.Head, "the finger moves the caret");
             field.Selectable.OnPointerUp(data);
+
+            // Elsewhere, as on Android, it selects the word, and the finger then goes on by words.
+            LetteraKeyTable.FamilyOverride = LetteraPlatformFamily.Pc;
+            LetteraText third = CanvasText("one two three");
+            var android = third.gameObject.AddComponent<LetteraEditable>();
+            android.Selectable.NoHandles = true;
+            android.Selectable.NoLoupe = true;
+            android.Selectable.Commands.Clear();
+            data = Pointer(ScreenOf(android.Selectable, 5) + new Vector2(2, 0), id: 0);
+            Now += 2;
+            android.Selectable.OnPointerDown(data);
+            Now += 0.6;
+            android.Selectable.Tick();
+            Assert.AreEqual((4, 7), (android.Selectable.Selection.Start, android.Selectable.Selection.End), "the word under the finger");
+            data.position = ScreenOf(android.Selectable, 10);
+            android.Selectable.OnBeginDrag(data);
+            android.Selectable.OnDrag(data);
+            Assert.AreEqual((4, 13), (android.Selectable.Selection.Start, android.Selectable.Selection.End), "by words");
+            android.Selectable.OnPointerUp(data);
+
+            Now += 2;
+            data = Pointer(ScreenOf(android.Selectable, 3) + new Vector2(2, 0), id: 0);
+            android.Selectable.OnPointerDown(data);
+            Now += 0.6;
+            android.Selectable.Tick();
+            Assert.IsTrue(android.Selectable.Selection.IsCaret, "a press on a space places the caret");
+            android.Selectable.OnPointerUp(data);
         }
 
         [Test]
@@ -588,6 +617,10 @@ namespace FirstSymbol.Lettera.Editor.Tests
             selectable.OnPointerUp(finger);
             Assert.IsTrue(handlesObject.ShowsEnds);
             Assert.Greater(handlesObject.EndPosition.x, handlesObject.StartPosition.x);
+            // Seen on a phone: the handles stood half a screen up and to the right of the selection.
+            Assert.AreEqual(ScreenOf(selectable, selectable.Selection.Start).x, handlesObject.StartPosition.x, 12, "the start handle stands at the selection's start");
+            Assert.AreEqual(ScreenOf(selectable, selectable.Selection.End).x, handlesObject.EndPosition.x, 12, "the end handle at its end");
+            Assert.Less(Mathf.Abs(ScreenOf(selectable, selectable.Selection.Start).y - handlesObject.StartPosition.y), 60, "and on its line, not above the screen");
         }
 
         [Test]

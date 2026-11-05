@@ -282,15 +282,24 @@ namespace FirstSymbol.Lettera
     {
         static Canvas s_Canvas;
 
+        /// <summary>Overlay units per screen pixel: one at 160 dpi or less, so a desktop looks as it did.</summary>
+        internal static float Density => Mathf.Max(1f, LetteraEditingSettings.Dp(1f));
+
         public static Canvas Canvas
         {
             get
             {
-                if (s_Canvas != null) return s_Canvas;
+                if (s_Canvas != null)
+                {
+                    s_Canvas.scaleFactor = Density;
+                    return s_Canvas;
+                }
                 var go = new GameObject("Lettera Touch Overlay", typeof(RectTransform)) { hideFlags = HideFlags.DontSave };
                 if (Application.isPlaying) UnityEngine.Object.DontDestroyOnLoad(go);
                 s_Canvas = go.AddComponent<Canvas>();
                 s_Canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+                // Sizes here are density-independent, as a phone's own menus are: a row of 32 at 520 dpi would otherwise be 5 mm tall.
+                s_Canvas.scaleFactor = Density;
                 s_Canvas.sortingOrder = 30000;
                 s_Canvas.additionalShaderChannels |= AdditionalCanvasShaderChannels.TexCoord1 | AdditionalCanvasShaderChannels.TexCoord2 | AdditionalCanvasShaderChannels.TexCoord3;
                 go.AddComponent<GraphicRaycaster>();

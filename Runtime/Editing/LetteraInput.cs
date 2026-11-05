@@ -239,7 +239,12 @@ namespace FirstSymbol.Lettera
         {
             if (m_Keyboard == null || !m_Keyboard.canSetSelection) return;
             LetteraSelectionRange selection = m_Host.Selection;
-            m_Keyboard.selection = new RangeInt(selection.Start, selection.Length);
+            string text = m_Known ?? "";
+            int start = LetteraEditProposal.Utf16Of(text, selection.Start), end = LetteraEditProposal.Utf16Of(text, selection.End);
+            var wanted = new RangeInt(start, end - start);
+            // Setting what the box already holds still restarts the keyboard's word on some systems, and races keys on their way.
+            if (m_Keyboard.canGetSelection && m_Keyboard.selection.start == wanted.start && m_Keyboard.selection.length == wanted.length) return;
+            m_Keyboard.selection = wanted;
         }
 
         public void Detach()
@@ -256,7 +261,9 @@ namespace FirstSymbol.Lettera
             string text = m_Keyboard.text ?? "";
             if (text != m_Known)
             {
-                if (m_Sink is ILetteraKeyboardSink keyboard) keyboard.Reconcile(text);
+                // The box's caret tells where one of several equal letters went.
+                int caret = m_Keyboard.canGetSelection ? Mathf.Clamp(m_Keyboard.selection.end, 0, text.Length) : -1;
+                if (m_Sink is ILetteraKeyboardSink keyboard) keyboard.Reconcile(text, caret);
                 m_Known = m_Host?.CommittedPlainText ?? text;
                 // A rule refused or rewrote it: the OS box has to show what the field holds.
                 if (m_Known != text) m_Keyboard.text = m_Known;

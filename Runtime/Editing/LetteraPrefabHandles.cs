@@ -99,6 +99,12 @@ namespace FirstSymbol.Lettera
         {
             var root = new GameObject("Lettera Handles", typeof(RectTransform)) { hideFlags = HideFlags.DontSave };
             root.transform.SetParent(LetteraTouchOverlay.Canvas.transform, false);
+            // Handles are placed from the screen's corner, so their parent must cover the screen: a default rect of 100 in the middle put them
+            // half a screen up and to the right.
+            var rootRect = (RectTransform)root.transform;
+            rootRect.anchorMin = Vector2.zero;
+            rootRect.anchorMax = Vector2.one;
+            rootRect.offsetMin = rootRect.offsetMax = Vector2.zero;
             var handles = root.AddComponent<LetteraPrefabHandles>();
             handles.m_Start = MakeHandle(root.transform, "Start");
             handles.m_End = MakeHandle(root.transform, "End");

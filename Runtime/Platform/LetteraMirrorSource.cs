@@ -207,10 +207,17 @@ namespace FirstSymbol.Lettera
 
         void Handle(in LetteraHostEvent e)
         {
+#if LETTERA_TRACE_MIRROR
+            Debug.Log($"LETTERA_MIRROR in {e.Kind} rev={e.BaseRevision}/{m_Sent.Revision} {e.Start}..{e.End} caret={e.Caret} commit={e.Commit} text=[{e.Text}] composing={m_Composing} field=[{m_Field?.CommittedPlainText}] sel={m_Field?.Selection.Start}..{m_Field?.Selection.End} sent=[{m_Sent.Text}]");
+#endif
             switch (e.Kind)
             {
                 case LetteraHostEventKind.Replace:
-                    if (TryMap(e.BaseRevision, e.Start, e.End, out int start, out int end)) ApplyReplace(start, end, e.Text);
+                    if (TryMap(e.BaseRevision, e.Start, e.End, out int start, out int end))
+                    {
+                        bool current = e.BaseRevision >= m_Sent.Revision;
+                        ApplyReplace(start, end, e.Text, current ? Replaced(m_Sent.Text, e.Start, e.End, e.Text) : null, current ? Mathf.Clamp(e.Start, 0, (m_Sent.Text ?? "").Length) + (e.Text ?? "").Length : -1);
+                    }
                     else ForcePush();
                     break;
                 case LetteraHostEventKind.WholeText:
@@ -286,7 +293,16 @@ namespace FirstSymbol.Lettera
             return patch.Start + patch.Inserted;
         }
 
-        void ApplyReplace(int start, int end, string text)
+        static string Replaced(string text, int start, int end, string with)
+        {
+            text = text ?? "";
+            start = Mathf.Clamp(start, 0, text.Length);
+            end = Mathf.Clamp(end, start, text.Length);
+            return text.Substring(0, start) + (with ?? "") + text.Substring(end);
+        }
+
+        // expected and expectedCaret: what the control holds after this edit, in its own units, when the edit was made against what it was last told; null when not known.
+        void ApplyReplace(int start, int end, string text, string expected = null, int expectedCaret = -1)
         {
             text = text ?? "";
             string reason = text.Length == 0 ? "user.delete.back" : m_AfterComposition ? "user.type.compose" : "user.type";
@@ -299,7 +315,7 @@ namespace FirstSymbol.Lettera
                 end = Mathf.Clamp(end, start, whole.Length);
                 keyboard.Reconcile(whole.Substring(0, start) + text + whole.Substring(end), start + text.Length);
             }
-            AfterEdit();
+            AfterEdit(expected, expectedCaret);
         }
 
         // A control that says only what it holds now: what changed is worked out from that, against what it was last told.
@@ -324,27 +340,45 @@ namespace FirstSymbol.Lettera
                 oldEnd++;
                 newEnd++;
             }
-            ApplyReplace(prefix + m_Sent.Offset, oldEnd + m_Sent.Offset, text.Substring(prefix, newEnd - prefix));
+            bool current = e.BaseRevision >= m_Sent.Revision;
+            ApplyReplace(prefix + m_Sent.Offset, oldEnd + m_Sent.Offset, text.Substring(prefix, newEnd - prefix), current ? text : null, current ? e.Caret : -1);
         }
 
-        void AfterEdit()
+        void AfterEdit(string expected = null, int expectedCaret = -1)
         {
+            if (m_Field == null) return;
+            string before = m_FieldText;
+            LetteraMirrorState state = MakeState();
+            // The field took the edit as the control made it, so the control already shows the result. Saying it back would race the keys still on
+            // their way: the control would be set back to an older text, and what was typed meanwhile would be lost.
+            if (expected != null && state.Offset == m_Sent.Offset && state.Text == expected
+                && (expectedCaret < 0 || (state.SelectionStart == expectedCaret && state.SelectionEnd == expectedCaret)))
+            {
+                m_Sent = state;
+                return;
+            }
             // What the field made of it goes back: a refused or rewritten edit puts the control right. Also when nothing seems to have changed, since the control did.
-            ForcePush();
+            PushState(before, state);
         }
 
         void ForcePush()
         {
             if (m_Field == null) return;
             string before = m_FieldText;
-            int oldOffset = m_Sent.Offset;
+            PushState(before, MakeState());
+        }
+
+        void PushState(string before, LetteraMirrorState state)
+        {
             m_Revision++;
-            m_Sent = MakeState();
+            state.Revision = m_Revision;
+            m_Sent = state;
             Record(before, m_FieldText);
+#if LETTERA_TRACE_MIRROR
+            Debug.Log($"LETTERA_MIRROR push rev={state.Revision} sel={state.SelectionStart}..{state.SelectionEnd} composing={m_Composing} text=[{state.Text}]");
+#endif
             if (m_Composing) return;
-            LetteraMirrorState state = m_Sent;
             Guarded(() => m_Host.Push(state));
-            _ = oldOffset;
         }
 
         void Record(string before, string after)

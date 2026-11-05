@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 ### Added
 - **The Device Check speaks Russian** on a device set to Russian: every step, button and label. `-lettera-kit-lang ru` or `en` chooses by hand, and `LetteraDeviceCheck.Russian` from a script. The block sent back keeps its English keys, so that results from any device read the same.
 
+### Fixed
+Found on the first real Android phone (Xiaomi, Android 16, Gboard).
+- **Fast typing lost letters and moved the caret back.** Forty quick taps of one letter left twenty, and the next word landed after the first of them. Unity's keyboard box gives the whole text with no caret, and a run of equal letters was read as typed before itself, so the caret went to the run's start and every later key followed it there. The box's own caret is now read where Unity gives it, an edit with none is taken to be at the field's caret, and the box's selection is set only when it differs. Through the native text control the same burst raced the field's answers: each accepted letter was said back, and that older text overwrote letters still on their way. An edit the field takes as the control made it is no longer said back, and the keyboard keeps its word and its suggestions.
+- **A long press in a field selects the word under the finger,** with handles and the menu, as Android does. On Apple systems it still places the caret for the finger to move, and on no word it places the caret.
+- **Selection handles stood half a screen up and to the right** of the selection: their parent did not cover the screen.
+- **The menu and handles of touch were sized in screen pixels,** so the menu's text was about a millimetre high at 520 dpi. They are in density-independent units now, with taller rows on phones; at 160 dpi or less nothing changes.
+
+
 ## [1.0.0-rc.1] - 2026-11-05
 
 The release candidate of 1.0.0: tools, migration from TextMesh Pro, the comparison, the work on speed and memory, the gaps against the feature list closed or named, and guides in English and Russian. What 1.0.0 leaves for later is listed in the README under "What 1.0.0 is not"; what has run on which platform, in `Documentation~/Platforms.md`.

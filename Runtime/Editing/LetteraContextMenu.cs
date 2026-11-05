@@ -287,7 +287,8 @@ namespace FirstSymbol.Lettera
             rowObject.transform.SetParent(panelObject.transform, false);
             rowObject.GetComponent<Image>().color = new Color(1, 1, 1, 0);
             rowObject.GetComponent<LayoutElement>().minWidth = 140;
-            rowObject.GetComponent<LayoutElement>().minHeight = 32;
+            // A finger needs a taller row than a pointer.
+            rowObject.GetComponent<LayoutElement>().minHeight = Application.isMobilePlatform ? 44 : 32;
             ColorBlock colors = rowObject.GetComponent<Button>().colors;
             colors.normalColor = new Color(1, 1, 1, 0);
             colors.highlightedColor = new Color(0.2f, 0.565f, 1f, 1f);

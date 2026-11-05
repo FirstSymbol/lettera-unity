@@ -43,7 +43,16 @@ namespace FirstSymbol.Lettera.Editor.Tests
                 return count;
             }
 
-            public void Replace(int start, int end, string text) => Events.Enqueue(new LetteraHostEvent { Kind = LetteraHostEventKind.Replace, BaseRevision = State.Revision, Start = start, End = end, Text = text });
+            // As a real control does: the edit shows in the control at once, before the field has seen it.
+            public void Replace(int start, int end, string text)
+            {
+                Events.Enqueue(new LetteraHostEvent { Kind = LetteraHostEventKind.Replace, BaseRevision = State.Revision, Start = start, End = end, Text = text });
+                string held = State.Text ?? "";
+                start = Mathf.Clamp(start, 0, held.Length);
+                end = Mathf.Clamp(end, start, held.Length);
+                State.Text = held.Substring(0, start) + text + held.Substring(end);
+                State.SelectionStart = State.SelectionEnd = start + text.Length;
+            }
         }
 
         FakeHost m_Host;
@@ -217,6 +226,30 @@ namespace FirstSymbol.Lettera.Editor.Tests
             Assert.AreEqual("abc", field.Source);
             Assert.Greater(m_Host.Pushes.Count, pushes);
             Assert.AreEqual("abc", m_Host.State.Text);
+        }
+
+        // Seen on an Android phone: forty fast taps left twenty letters, and the next word landed after the first of them.
+        [TestCase(1)]
+        [TestCase(3)]
+        [TestCase(40)]
+        public void FastTypingKeepsEveryLetterAndTheCaret(int perFrame)
+        {
+            LetteraEditable field = Mirrored("hi");
+            field.Selectable.PlaceCaret(2);
+            Pump(field);
+            int pushes = m_Host.Pushes.Count;
+            for (int i = 0; i < 40; i++)
+            {
+                m_Host.Replace(m_Host.State.SelectionStart, m_Host.State.SelectionEnd, "a");
+                if ((i + 1) % perFrame == 0) Pump(field);
+            }
+            Pump(field);
+            Assert.AreEqual("hi" + new string('a', 40), field.Source);
+            Assert.AreEqual(pushes, m_Host.Pushes.Count, "what the control already shows is not said back");
+            m_Host.Replace(m_Host.State.SelectionStart, m_Host.State.SelectionEnd, " next");
+            Pump(field);
+            Assert.AreEqual("hi" + new string('a', 40) + " next", field.Source);
+            Assert.AreEqual(field.Source.Length, field.Selectable.Selection.Head);
         }
 
         [Test]
