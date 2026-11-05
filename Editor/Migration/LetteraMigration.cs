@@ -21,6 +21,9 @@ namespace FirstSymbol.Lettera.Editor.Migration
         public int Texts, Fields, Helpers, Overrides;
         public string Status = "Pending";
         public string Note;
+
+        public const string ExcludedStatus = "Excluded";
+        public bool Excluded => Status == ExcludedStatus;
     }
 
     /// <summary>A pass over a project: scanning, then each stage. Nothing runs by itself, nothing deletes, and git is the undo.</summary>
@@ -34,9 +37,48 @@ namespace FirstSymbol.Lettera.Editor.Migration
         public readonly List<string> Log = new List<string>();
         public readonly Dictionary<string, string> FontMap = new Dictionary<string, string>();
 
+        /// <summary>What every stage leaves alone. Kept per project.</summary>
+        public LetteraMigrationExclusions Exclusions { get; }
+
+        public LetteraMigrationRun() : this(new LetteraMigrationExclusions()) { }
+
+        public LetteraMigrationRun(LetteraMigrationExclusions exclusions)
+        {
+            Exclusions = exclusions ?? new LetteraMigrationExclusions(null);
+        }
+
         public static bool ForceText => EditorSettings.serializationMode == SerializationMode.ForceText;
 
-        static IEnumerable<string> Files(string root)
+        /// <summary>The findings of a kind that a stage works on: none that is excluded, by its row or by a folder.</summary>
+        internal IEnumerable<LetteraTmpFinding> Active(LetteraTmpFinding.FileKind kind) => Findings.Where(f => f.Kind == kind && !f.Excluded && !Exclusions.Covers(f.Path));
+
+        /// <summary>Leaves one file out of every stage, now and in later scans.</summary>
+        public void Exclude(LetteraTmpFinding finding)
+        {
+            Exclusions.Add(finding.Path);
+            finding.Status = LetteraTmpFinding.ExcludedStatus;
+            Log.Add("Excluded: " + finding.Path);
+        }
+
+        /// <summary>Leaves a whole folder out: later scans do not go into it.</summary>
+        public void ExcludeFolder(string folder)
+        {
+            Exclusions.Add(folder);
+            foreach (LetteraTmpFinding finding in Findings)
+                if (Exclusions.Covers(finding.Path) && !finding.Excluded) finding.Status = LetteraTmpFinding.ExcludedStatus;
+            Log.Add("Excluded folder: " + folder);
+        }
+
+        /// <summary>Takes a file or folder back into the run. Files in a folder that was not scanned come with the next scan.</summary>
+        public void Include(string path)
+        {
+            Exclusions.Remove(path);
+            foreach (LetteraTmpFinding finding in Findings)
+                if (finding.Excluded && !Exclusions.Covers(finding.Path)) finding.Status = "Pending";
+            Log.Add("Included again: " + path);
+        }
+
+        IEnumerable<string> Files(string root)
         {
             var pending = new Stack<string>();
             var essentials = new List<string>();
@@ -48,6 +90,7 @@ namespace FirstSymbol.Lettera.Editor.Migration
                 {
                     string name = Path.GetFileName(sub);
                     if (name.StartsWith(".") || name.EndsWith("~") || name == "Library" || name == "Temp" || name == "Logs" || name == "obj") continue;
+                    if (Exclusions.Covers(sub)) continue;
                     if (name == "Lettera" && folder.Replace('\\', '/').EndsWith("Plugins")) continue;
                     // Its own folder stays as it is, yet the fonts in it are what most texts use.
                     if (name == "TextMesh Pro" && File.Exists(Path.Combine(sub, "Resources", "TMP Settings.asset")))
@@ -128,9 +171,13 @@ namespace FirstSymbol.Lettera.Editor.Migration
                 {
                     found = new LetteraTmpFinding { Path = file, Kind = LetteraTmpFinding.FileKind.Other, Status = "Unreadable", Note = e.Message };
                 }
-                if (found != null) Findings.Add(found);
+                if (found == null) continue;
+                // Still listed, so that it can be taken back from its row.
+                if (Exclusions.Covers(found.Path)) found.Status = LetteraTmpFinding.ExcludedStatus;
+                Findings.Add(found);
             }
-            Log.Add($"Scanned: {Findings.Count} files hold something of TextMesh Pro.");
+            int excluded = Findings.Count(f => f.Excluded);
+            Log.Add($"Scanned: {Findings.Count} files hold something of TextMesh Pro" + (excluded > 0 ? $", {excluded} of them excluded." : "."));
         }
 
         static string SourceFontOf(string assetPath)
@@ -159,7 +206,7 @@ namespace FirstSymbol.Lettera.Editor.Migration
         public int MigrateFonts()
         {
             int made = 0;
-            foreach (LetteraTmpFinding finding in Findings.Where(f => f.Kind == LetteraTmpFinding.FileKind.Font))
+            foreach (LetteraTmpFinding finding in Active(LetteraTmpFinding.FileKind.Font))
             {
                 string source = SourceFontOf(finding.Path);
                 string guid = AssetDatabase.AssetPathToGUID(finding.Path);
@@ -224,7 +271,7 @@ namespace FirstSymbol.Lettera.Editor.Migration
             AssetDatabase.StartAssetEditing();
             try
             {
-                foreach (LetteraTmpFinding finding in Findings.Where(f => f.Kind == LetteraTmpFinding.FileKind.Prefab || f.Kind == LetteraTmpFinding.FileKind.Scene))
+                foreach (LetteraTmpFinding finding in Active(LetteraTmpFinding.FileKind.Prefab).Concat(Active(LetteraTmpFinding.FileKind.Scene)).ToList())
                 {
                     int lossesBefore = yaml.Losses.Count;
                     string text = File.ReadAllText(finding.Path);
@@ -258,7 +305,7 @@ namespace FirstSymbol.Lettera.Editor.Migration
         public List<(string path, string before, string after, List<LetteraTmpNote> notes)> PreviewScripts()
         {
             var previews = new List<(string, string, string, List<LetteraTmpNote>)>();
-            foreach (LetteraTmpFinding finding in Findings.Where(f => f.Kind == LetteraTmpFinding.FileKind.Script))
+            foreach (LetteraTmpFinding finding in Active(LetteraTmpFinding.FileKind.Script))
             {
                 string before = File.ReadAllText(finding.Path);
                 var notes = new List<LetteraTmpNote>();
@@ -272,7 +319,7 @@ namespace FirstSymbol.Lettera.Editor.Migration
         public int ApplyScripts()
         {
             int written = 0;
-            foreach (LetteraTmpFinding finding in Findings.Where(f => f.Kind == LetteraTmpFinding.FileKind.Definition))
+            foreach (LetteraTmpFinding finding in Active(LetteraTmpFinding.FileKind.Definition))
             {
                 string text = File.ReadAllText(finding.Path);
                 if (text.IndexOf("FirstSymbol.Lettera", StringComparison.Ordinal) >= 0) continue;
