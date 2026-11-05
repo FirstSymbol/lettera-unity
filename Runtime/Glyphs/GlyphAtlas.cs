@@ -828,10 +828,13 @@ namespace FirstSymbol.Lettera
             float scale = density / 1000f;
             float spreadPixels = spread * density;
             // Long enough that its ends reach nowhere near the middle column, which is then the whole field across the rule.
-            float along = (2 * spreadPixels + 4) / scale;
+            // The tile's length is whole texels, and the rectangle fills it to the margins exactly: a drawn rule's two ends come from its two ends.
+            int lengthPixels = Mathf.CeilToInt(4 * spreadPixels + 4 - 0.001f);
+            float along = (lengthPixels - 2 * spreadPixels) / scale;
+            int acrossPixels = Mathf.Max(Mathf.CeilToInt(thickness * scale + 2 * spreadPixels), 1);
             float w = vertical ? thickness : along, h = vertical ? along : thickness;
-            int width = Mathf.Max(Mathf.CeilToInt(w * scale + 2 * spreadPixels), 1);
-            int height = Mathf.Max(Mathf.CeilToInt(h * scale + 2 * spreadPixels), 1);
+            int width = vertical ? acrossPixels : lengthPixels;
+            int height = vertical ? lengthPixels : acrossPixels;
             if (!Allocate(set, width + 2 * Bleed, height + 2 * Bleed, out int page, out int x, out int y)) return default;
             x += Bleed;
             y += Bleed;

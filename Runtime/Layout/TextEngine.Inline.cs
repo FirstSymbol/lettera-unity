@@ -132,7 +132,9 @@ namespace FirstSymbol.Lettera
             float half = Mathf.Min(ink, special.Length) / 2;
             float shareStart = (reach + half) / span;
 
-            void Part(float from, float to, float texFrom, float texTo, in AtlasGlyph source, in PlacedGlyph glyph)
+            byte seamLow = vertical ? SeamBottom : SeamLeft, seamHigh = vertical ? SeamTop : SeamRight;
+
+            void Part(float from, float to, float texFrom, float texTo, in AtlasGlyph source, in PlacedGlyph glyph, byte seams)
             {
                 AtlasGlyph part = source;
                 if (vertical)
@@ -149,16 +151,18 @@ namespace FirstSymbol.Lettera
                     part.U0 = texFrom;
                     part.U1 = texTo;
                 }
+                m_RuleSeams = seams;
                 AddQuad(glyph, part, color, mode, threshold, softness, upper, paint, paintRect, paintDx, paintDy, extra);
+                m_RuleSeams = 0;
             }
 
-            Part(low, half, t0, Mathf.Lerp(t0, t1, shareStart), atlas, plain);
+            Part(low, half, t0, Mathf.Lerp(t0, t1, shareStart), atlas, plain, seamHigh);
             if (special.Length > ink)
             {
                 float middle = (t0 + t1) / 2;
-                Part(half, special.Length - half, middle, middle, atlas, plain);
+                Part(half, special.Length - half, middle, middle, atlas, plain, (byte)(seamLow | seamHigh));
             }
-            Part(special.Length - half, special.Length + reach, Mathf.Lerp(t1, t0, shareStart), t1, atlas, plain);
+            Part(special.Length - half, special.Length + reach, Mathf.Lerp(t1, t0, shareStart), t1, atlas, plain, seamLow);
         }
 
         struct MathSpecial

@@ -191,6 +191,11 @@ namespace FirstSymbol.Lettera
             Set(MathConstant.RadicalDegreeBottomRaisePercent, 60);
             Set(MathConstant.StretchStackGapAboveMin, rule);
             Set(MathConstant.StretchStackGapBelowMin, rule);
+            // Plain TeX's big operator spacing, its font parameters ξ9 to ξ12: with none, a limit sits on its operator's ink.
+            Set(MathConstant.UpperLimitGapMin, 1f / 9);
+            Set(MathConstant.UpperLimitBaselineRiseMin, 0.2f);
+            Set(MathConstant.LowerLimitGapMin, 1f / 6);
+            Set(MathConstant.LowerLimitBaselineDropMin, 0.6f);
         }
 
         /// <summary>A constant in em at full size. The percents stay percents.</summary>

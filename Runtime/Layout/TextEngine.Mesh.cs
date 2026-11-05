@@ -112,8 +112,17 @@ namespace FirstSymbol.Lettera
             if (m_QuadMargin <= 0 || atlas.Pixel || atlas.Spread <= 0 || size <= 0 || yUnit <= 0) return false;
             float reach = (0.5f - threshold + softness) * 2 * atlas.Spread;
             float emX = size / yUnit * Mathf.Abs(xUnit);
-            return CropSides(atlas, emX, size, reach * emX, reach * size, reach * emX, reach * size, ref left, ref bottom, ref right, ref top, ref u0, ref v0, ref u1, ref v1);
+            float rx = reach * emX, ry = reach * size;
+            if (m_RuleSeams == 0) return CropSides(atlas, emX, size, rx, ry, rx, ry, ref left, ref bottom, ref right, ref top, ref u0, ref v0, ref u1, ref v1);
+            // A rule's pieces meet inside its ink, so a side that is a seam keeps all it has.
+            float keepX = atlas.Spread * emX, keepY = atlas.Spread * size;
+            return CropSides(atlas, emX, size, (m_RuleSeams & SeamLeft) != 0 ? keepX : rx, (m_RuleSeams & SeamBottom) != 0 ? keepY : ry,
+                (m_RuleSeams & SeamRight) != 0 ? keepX : rx, (m_RuleSeams & SeamTop) != 0 ? keepY : ry, ref left, ref bottom, ref right, ref top, ref u0, ref v0, ref u1, ref v1);
         }
+
+        // Which sides of the quad being added are where one piece of a rule meets the next. Only a rule's own quads set it.
+        byte m_RuleSeams;
+        const byte SeamLeft = 1, SeamRight = 2, SeamBottom = 4, SeamTop = 8;
 
         // The same with a reach of its own on each side, in the text's units, for a quad whose layers lie off center.
         bool CropSides(in AtlasGlyph atlas, float emX, float emY, float reachLeft, float reachBottom, float reachRight, float reachTop, ref float left, ref float bottom, ref float right, ref float top,

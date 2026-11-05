@@ -1201,6 +1201,13 @@ namespace FirstSymbol.Lettera
             Box mark = wide ? StretchAccent(n.Cp, accent, body.Width * 0.9f, style) : GlyphBox(accent, scale);
             float attach = accent.Font.Data != null ? accent.Font.Data.TopAccentAttachment(accent.Glyph) / accent.Font.Upem * scale : mark.Width / 2;
             if (wide) attach = mark.Width / 2;
+            // A font with no table names no point to attach at, and a combining mark's ink stands left of its empty advance: its ink centres instead.
+            if (accent.Font.Data == null && mark.SingleGlyph && mark.End > mark.First)
+            {
+                LetteraMathItem drawn = m_Items[mark.First];
+                (float minX, float _, float maxX, float _, float _) = accent.Font.Extents(drawn.Glyph);
+                if (maxX > minX) attach = drawn.X + (minX + maxX) / 2 * drawn.Scale;
+            }
             float bodyAttach = body.SingleGlyph && m_Font.Data != null ? body.Accent / m_Font.Upem * scale : body.Width / 2;
             float raise = Mathf.Max(0, body.Ascent - height);
             Move(mark.First, m_Items.Count, bodyAttach - attach, raise);
