@@ -43,6 +43,18 @@ label.Overflow = LetteraOverflow.Ellipsis;
 Vector2 size = label.MeasureText(new LetteraMeasureOptions { MaxWidth = 300 });
 ```
 
+## Guides
+
+In `Documentation~`, each in English and Russian; **Tools > Lettera > Getting Started** opens them too.
+
+- [Lettera](Documentation~/Lettera.md): what it is, installing it, five minutes.
+- [Getting Started](Documentation~/GettingStarted.md): text on screen, fonts, markup, styles, fields, motion, documents, formulas and 3D, in task order.
+- [Fonts](Documentation~/Fonts.md), [Styles](Documentation~/Styles.md), [Fields](Documentation~/Fields.md), [Motion](Documentation~/Motion.md), [Documents](Documentation~/Documents.md), [Formulas and LaTeX tables](Documentation~/Math.md), [3D text](Documentation~/Text3D.md).
+- [Tools](Documentation~/Tools.md): every window, the Scene view, the palette and the keys.
+- [Migration](Documentation~/Migration.md): from TextMesh Pro.
+- [Platforms](Documentation~/Platforms.md): what has run where, plainly.
+- [Comparison](Documentation~/Comparison.md) against TextMesh Pro, and the [Agent guide](Documentation~/AgentGuide.md), in English only.
+
 ## Markup
 
 A tag means something only because a style binds it to an effect; a tag nothing claims stays as literal text. The built-in vocabulary applies until a project assigns its own global style preset, and **Use Global Style Preset** turns it off per text.
@@ -287,6 +299,29 @@ LetteraFontMemory.Sums sums = LetteraFontMemory.Totals;
 ```
 
 After updating, the editor keeps the native library it loaded until it restarts: COLRv1 waits for that, and everything else works.
+
+[Platforms](Documentation~/Platforms.md) says, platform by platform, what has been built, run and seen by a person.
+
+## What 1.0.0 is not
+
+These are left for 1.x:
+
+- Emoji and other colour glyphs as stickers on 3D text: the picture's outline cut out, grown by a border and extruded with the text.
+- Scene volumes, such as a ball, a box or a half-space, that move, turn, scale and tint the glyphs they reach.
+- Breaking a text into one object per glyph, each with its own mesh and collider.
+- A bevel wider than half a stroke closing the stroke in a ridge; such an edge now narrows to a flat strip.
+- Animated solid glyphs placed by the shader, so that a moving 3D text costs per glyph rather than per vertex.
+- New solid glyphs built in the background and shown when ready.
+- A baked asset of solid glyphs, made ahead of time.
+- Detail of solid glyphs that falls as a 3D text gets smaller on screen.
+- A native paste button on iOS, which pastes without the system's permission prompt.
+- Gesture recognizers of your own on a range, such as a drag, weighed against selection and scrolling.
+- Keyboard and gamepad focus that moves from a text to the nearest control across canvases, with the on-screen keyboard's Next and Previous in the same order.
+- A world-space document that follows a camera's view of its plane.
+- Scene-view picking that clicks through transparent and masked parts of a canvas.
+- A noise-texture tool for shader effects.
+- LaTeX text commands outside formulas and tables: `\textbf`, `itemize`, `\Huge` and their kin in ordinary text.
+- Unity 2022: Lettera needs Unity 6.0 or newer.
 
 ## Samples
 

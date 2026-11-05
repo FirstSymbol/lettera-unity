@@ -266,6 +266,10 @@ namespace LetteraDocs
         {
             var plain = Vocabulary(false);
             var withSolids = Vocabulary(true);
+            // The check can fail: a solid's tag is not in the shared vocabulary, and a made-up one is in neither.
+            Assert.IsTrue(plain.Contains("b") && plain.Contains("math") && plain.Contains("rt"));
+            Assert.IsFalse(plain.Contains("depth") || withSolids.Contains("no-such-tag"));
+            Assert.IsTrue(withSolids.Contains("depth") && withSolids.Contains("revolve"));
             var unknown = new List<string>();
             int checkedTags = 0;
             foreach (string doc in Docs(PackageRoot()))
