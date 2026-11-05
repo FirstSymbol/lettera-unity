@@ -375,6 +375,35 @@ namespace FirstSymbol.Lettera
         }
     }
 
+    /// <summary>
+    /// Display formulas written as LaTeX writes them, with nothing around them: equation, align, gather, multline and displaymath, starred or not.
+    /// Each stands on a line of its own and numbers as the same environment inside a formula does. An environment with no \end stays text.
+    /// One inside a table belongs to the table, and a table inside one belongs to the formula.
+    /// </summary>
+    [Serializable, UnityEngine.Scripting.Preserve]
+    public class LetteraMathEnvironmentMatcher : LetteraMatcher
+    {
+        internal override bool StartsAtMarkup => true;
+
+        // Above the escapes, which would take its \\ rows. A text's own styles and the formula tag come earlier in the list, so what they wrap is theirs.
+        public override int Priority => int.MaxValue - 1;
+
+        public override void Find(LetteraMatchContext context)
+        {
+            List<(int Start, int Length, string Name)> blocks = LatexBlocks.Outermost(context);
+            if (blocks.Count == 0) return;
+            string source = context.Source;
+            int formulas = 0;
+            foreach ((int start, int total, string name) in blocks)
+            {
+                if (!LatexBlocks.IsDisplayFormula(name) || !context.IsFree(start, total)) continue;
+                if (++formulas > LetteraMathLimits.FormulasInText) break;
+                string replacement = LatexBlocks.OnItsOwnLine(source, start, total, "￼");
+                context.ReplaceAndRange(start, total, replacement, new[] { "display", null, source.Substring(start, total) }, null);
+            }
+        }
+    }
+
     /// <summary>Draws a formula in the text's flow, where its tag stood. Slots: mode, alternative text, source.</summary>
     [Serializable, UnityEngine.Scripting.Preserve]
     public class LetteraMathEffect : InlineEffect
@@ -514,6 +543,15 @@ namespace FirstSymbol.Lettera
     [Serializable, UnityEngine.Scripting.Preserve]
     public class LetteraMathSpanMatcher : LetteraMatcher
     {
+        public override void Find(LetteraMatchContext context) { }
+    }
+
+    /// <summary>Compiled out by LETTERA_NO_MATH: an environment stays the words it was written in.</summary>
+    [Serializable, UnityEngine.Scripting.Preserve]
+    public class LetteraMathEnvironmentMatcher : LetteraMatcher
+    {
+        internal override bool StartsAtMarkup => true;
+
         public override void Find(LetteraMatchContext context) { }
     }
 

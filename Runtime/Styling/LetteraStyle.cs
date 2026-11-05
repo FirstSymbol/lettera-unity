@@ -139,6 +139,8 @@ namespace FirstSymbol.Lettera
             LetteraStyle.ForTag(new EllipsisEffect(), "ellipsis"),
             LetteraStyle.ForTag(new TruncateEffect(), "truncate"),
             LetteraStyle.ForTag(new DirectionEffect(), "dir"),
+            // Last, so that no earlier style's place moves, and after the formula tag, so that what the tag wraps is the tag's.
+            LetteraStyle.ForMatcher(new LetteraMathEnvironmentMatcher(), new LetteraMathEffect()),
         };
     }
 }

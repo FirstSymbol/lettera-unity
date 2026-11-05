@@ -63,12 +63,54 @@ namespace FirstSymbol.Lettera
 
         public override void Find(LetteraMatchContext context)
         {
-            ReadOnlySpan<char> text = context.Text;
-            if (text.IndexOf("\\begin{".AsSpan(), StringComparison.Ordinal) < 0) return;
+            List<(int Start, int Length, string Name)> blocks = LatexBlocks.Outermost(context);
+            if (blocks.Count == 0) return;
             string source = context.Source;
-            // Each \begin of a table finds its \end through one stack, so an unclosed one costs one pass and stays text.
-            var open = new List<(int at, string name)>();
             int captions = 0;
+            foreach ((int start, int total, string outer) in blocks)
+            {
+                if (!LetteraTableParser.IsTableEnvironment(outer) || !context.IsFree(start, total)) continue;
+                string table = source.Substring(start, total);
+                bool block = LetteraTableParser.IsBlock(outer);
+                int number = 0;
+                if (table.IndexOf("\\caption", StringComparison.Ordinal) >= 0) number = ++captions;
+                string replacement = "￼";
+                if (block) replacement = LatexBlocks.OnItsOwnLine(source, start, total, replacement);
+                context.ReplaceAndRange(start, total, replacement, new[] { block ? "block" : "inline", number.ToString(System.Globalization.CultureInfo.InvariantCulture), table }, null);
+            }
+        }
+    }
+
+    /// <summary>
+    /// The LaTeX environments that ordinary text reads whole: tables, and the display formulas equation, align, gather, multline and displaymath, starred or not.
+    /// One scan finds the outermost of either kind, so each matcher takes only its own and neither takes what stands inside the other's.
+    /// </summary>
+    internal static class LatexBlocks
+    {
+        internal static bool IsDisplayFormula(string name)
+        {
+            switch (name)
+            {
+                case "equation": case "equation*": case "align": case "align*": case "gather": case "gather*":
+                case "multline": case "multline*": case "displaymath":
+                    return true;
+                default:
+                    return false;
+            }
+        }
+
+        static bool Known(string name) => LetteraTableParser.IsTableEnvironment(name) || IsDisplayFormula(name);
+
+        /// <summary>Each outermost environment of either kind, in order, found once per parse.</summary>
+        internal static List<(int Start, int Length, string Name)> Outermost(LetteraMatchContext context)
+        {
+            List<(int Start, int Length, string Name)> found = context.LatexBlocks;
+            if (context.LatexScanned) return found;
+            context.LatexScanned = true;
+            if (context.Text.IndexOf("\\begin{".AsSpan(), StringComparison.Ordinal) < 0) return found;
+            string source = context.Source;
+            // Each \begin finds its \end through one stack, so an unclosed one costs one pass and stays text.
+            var open = new List<(int at, string name)>();
             for (int i = source.IndexOf('\\'); i >= 0 && i < source.Length; i = source.IndexOf('\\', i + 1))
             {
                 bool begin = string.CompareOrdinal(source, i, "\\begin{", 0, 7) == 0;
@@ -83,7 +125,7 @@ namespace FirstSymbol.Lettera
                 int close = source.IndexOf('}', nameStart, Math.Min(32, source.Length - nameStart));
                 if (close < 0) continue;
                 string name = source.Substring(nameStart, close - nameStart);
-                if (!LetteraTableParser.IsTableEnvironment(name)) continue;
+                if (!Known(name)) continue;
                 if (begin)
                 {
                     if (context.HasEscapes && OddBackslashesBefore(source, i)) continue;
@@ -99,22 +141,18 @@ namespace FirstSymbol.Lettera
                 (int start, string outer) = open[open.Count - 1];
                 open.RemoveAt(open.Count - 1);
                 i = close;
-                if (open.Count > 0) continue;
-                int total = close + 1 - start;
-                if (!context.IsFree(start, total)) continue;
-                string table = source.Substring(start, total);
-                bool block = LetteraTableParser.IsBlock(outer);
-                int number = 0;
-                if (table.IndexOf("\\caption", StringComparison.Ordinal) >= 0) number = ++captions;
-                string replacement = "￼";
-                if (block)
-                {
-                    bool lineBefore = start > 0 && source[start - 1] != '\n';
-                    bool lineAfter = close + 1 < source.Length && source[close + 1] != '\n';
-                    replacement = (lineBefore ? "\n" : "") + replacement + (lineAfter ? "\n" : "");
-                }
-                context.ReplaceAndRange(start, total, replacement, new[] { block ? "block" : "inline", number.ToString(System.Globalization.CultureInfo.InvariantCulture), table }, null);
+                if (open.Count == 0) found.Add((start, close + 1 - start, outer));
             }
+            return found;
+        }
+
+        /// <summary>A replacement that stands on a line of its own, with no empty line where the source already gave it one.</summary>
+        internal static string OnItsOwnLine(string source, int start, int length, string replacement)
+        {
+            bool lineBefore = start > 0 && source[start - 1] != '\n';
+            int after = start + length;
+            bool lineAfter = after < source.Length && source[after] != '\n';
+            return (lineBefore ? "\n" : "") + replacement + (lineAfter ? "\n" : "");
         }
 
         static bool OddBackslashesBefore(string source, int at)

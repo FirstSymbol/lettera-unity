@@ -82,9 +82,15 @@ namespace FirstSymbol.Lettera
         /// <summary>The text's styles read escapes, so a backslash before a tag means that tag is text.</summary>
         public bool HasEscapes { get; internal set; }
 
+        // The outermost LaTeX environments, found once for the table and formula matchers both.
+        internal readonly List<(int Start, int Length, string Name)> LatexBlocks = new List<(int, int, string)>();
+        internal bool LatexScanned;
+
         internal void Begin(ReadOnlySpan<char> source)
         {
             m_Source = null;
+            LatexBlocks.Clear();
+            LatexScanned = false;
             m_Length = source.Length;
             Claims.Clear();
             Ranges.Clear();
