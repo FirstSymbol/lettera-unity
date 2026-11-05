@@ -162,6 +162,8 @@ namespace LetteraDocs
             Directory.CreateDirectory(dir);
             var rsp = new StringBuilder();
             rsp.Append("-target:library\n-nostdlib+\n-langversion:9.0\n-preferreduilang:en-US\n-nologo\n-warn:0\n-unsafe\n");
+            // The editor's own symbols, so that a block under #if UNITY_EDITOR is compiled and not skipped.
+            rsp.Append("-define:").Append(string.Join(";", EditorUserBuildSettings.activeScriptCompilationDefines)).Append('\n');
             rsp.Append("-out:\"").Append(Path.Combine(dir, "LetteraDocBlocks.dll")).Append("\"\n");
             foreach (string r in References()) rsp.Append("-r:\"").Append(r).Append("\"\n");
             foreach (var (name, source) in files)
