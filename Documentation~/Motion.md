@@ -61,7 +61,7 @@ Every motion derives from `LetteraMotionEffect` and has:
 | `Seed` | For motions with chance in them, so two texts do not move alike. |
 | `ReducedMotionPolicy` | What happens when the player asks for less motion: `Rest` stops it, `Keep` lets it run. |
 
-To change a running motion's numbers, set them and call `MarkEffectsDirty(DirtyLevel.Pose)`, the cheapest level:
+To change a running motion's numbers, set them and call `MarkEffectsDirty(DirtyLevel.Pose)`, which redoes only the pose pass:
 
 ```csharp
 using FirstSymbol.Lettera;

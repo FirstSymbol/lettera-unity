@@ -143,7 +143,7 @@ Tags mean something only because a **style** binds them to an **effect**. The de
 
 The README's [markup table](../README.md#markup) gives each tag's parameters.
 
-A tag that nothing claims stays as literal text, so `a <b` and `<unknown>` show as written. To show a tag literally, escape it as `\<b>` or wrap it in `<noparse>...</noparse>`. **Use Global Style Preset** on a text turns the project's vocabulary off for that text.
+A tag that nothing claims stays as literal text, so `a <b` or a tag name no style knows shows as written. To show a tag literally, escape it as `\<b>` or wrap it in `<noparse>...</noparse>`. **Use Global Style Preset** on a text turns the project's vocabulary off for that text.
 
 ## 4. Styles
 

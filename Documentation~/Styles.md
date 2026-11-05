@@ -31,7 +31,7 @@ A `LetteraStyle` joins two things:
 
 | Factory | Ranges it finds |
 |---|---|
-| `LetteraStyle.ForTag(effect, "name", defaultParameter)` | Every `<name>...</name>` and `<name=...>...</name>` |
+| `LetteraStyle.ForTag(effect, "name", defaultParameter)` | Every range wrapped in the tag called `name`, with or without a value |
 | `LetteraStyle.ForWholeText(effect, parameter)` | The whole text, with no tag |
 | `LetteraStyle.ForSpan(effect, start, length, parameter)` | Fixed codepoints of the rendered text |
 | `LetteraStyle.ForMatcher(matcher, effect)` | Whatever a matcher finds |
@@ -84,7 +84,7 @@ A tag's value is a list of **slots** separated by commas: `<shadow=#000C,0.08,-0
 - **Colours** are `#RGB`, `#RGBA`, `#RRGGBB`, `#RRGGBBAA` or a name.
 - **Choices** such as a paint's span take their name, or its first letter when no other choice starts with it: `glyph` or `g`.
 
-A style's **default parameter** fills the slots a bare tag leaves out, so `ForTag(new ColorEffect(), "warning", "#FF8800")` makes `<warning>` orange.
+A style's **default parameter** fills the slots a bare tag leaves out, so `ForTag(new ColorEffect(), "warning", "#FF8800")` makes a bare `warning` tag orange.
 
 **Labels** name a range for code to find later: `<color #price=#0C0>12</color>` is a colour range labelled `price`. See [holds](#changing-a-look-at-run-time).
 
@@ -268,7 +268,7 @@ Some matchers find ranges in plain text. They are not in the default vocabulary,
 | `TriggerWordMatcher` | `@mentions`, `#hashtags`: a trigger character and a word |
 | `LiteralMatcher` | Fixed strings, with an optional replacement shown in their place |
 | `MatcherGroup` | Several matchers under one effect, so one style answers `<i>`, `<em>` and `*...*` |
-| `VoidTagMatcher` | A tag that stands alone, such as `<name>` or `<name=value>`, with no closing tag |
+| `VoidTagMatcher` | A tag that stands alone, with or without a value, and has no closing tag |
 
 ```csharp
 using FirstSymbol.Lettera;

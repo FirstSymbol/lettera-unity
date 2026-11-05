@@ -31,7 +31,7 @@
 
 | Фабрика | Какие участки находит |
 |---|---|
-| `LetteraStyle.ForTag(effect, "name", defaultParameter)` | Каждый `<name>...</name>` и `<name=...>...</name>` |
+| `LetteraStyle.ForTag(effect, "name", defaultParameter)` | Каждый участок, обёрнутый в тег с именем `name`, со значением или без |
 | `LetteraStyle.ForWholeText(effect, parameter)` | Весь текст, без тега |
 | `LetteraStyle.ForSpan(effect, start, length, parameter)` | Заданные кодовые точки выводимого текста |
 | `LetteraStyle.ForMatcher(matcher, effect)` | Всё, что находит матчер |
@@ -84,7 +84,7 @@ public class StylesSharedPreset : MonoBehaviour
 - **Цвета** — `#RGB`, `#RGBA`, `#RRGGBB`, `#RRGGBBAA` или имя.
 - **Варианты выбора**, например охват заливки, пишутся названием или его первой буквой, если с неё не начинается другой вариант: `glyph` или `g`.
 
-**Параметр по умолчанию** стиля заполняет слоты, которые голый тег не задал, поэтому `ForTag(new ColorEffect(), "warning", "#FF8800")` делает `<warning>` оранжевым.
+**Параметр по умолчанию** стиля заполняет слоты, которые голый тег не задал, поэтому `ForTag(new ColorEffect(), "warning", "#FF8800")` делает голый тег `warning` оранжевым.
 
 **Метки** дают участку имя, по которому код найдёт его позже: `<color #price=#0C0>12</color>` — участок цвета с меткой `price`. См. [удержания](#изменение-вида-во-время-игры).
 
@@ -268,7 +268,7 @@ public class StylesBadge : MonoBehaviour
 | `TriggerWordMatcher` | `@упоминания`, `#хештеги`: символ-триггер и слово |
 | `LiteralMatcher` | Заданные строки, с необязательной заменой на их месте |
 | `MatcherGroup` | Несколько матчеров под одним эффектом, чтобы один стиль отвечал и на `<i>`, и на `<em>`, и на `*...*` |
-| `VoidTagMatcher` | Одиночный тег вроде `<name>` или `<name=value>`, без закрывающего |
+| `VoidTagMatcher` | Одиночный тег, со значением или без, у которого нет закрывающего |
 
 ```csharp
 using FirstSymbol.Lettera;
