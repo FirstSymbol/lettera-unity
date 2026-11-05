@@ -22,6 +22,8 @@ The window has one button per stage. Press them in order; each one scans first i
 
 Then let Unity compile, and work through what the report lists under **Not carried**.
 
+**Leaving things out.** Each finding has **Exclude**, and a folder's right click has **Exclude This Folder**; an excluded row stays in the list, dimmed, with **Include** to take it back, and every stage skips it. The folder tree beside the findings counts them per folder: a click shows one folder's findings, a second click all again. Exclusions are kept in `ProjectSettings/Lettera/Migration.json`, sorted, so a team can commit them.
+
 ## What converts
 
 ### Components

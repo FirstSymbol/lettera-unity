@@ -150,7 +150,7 @@ namespace FirstSymbol.Lettera.Editor.Migration
             { "fontWeight", "Use <b=weight>." },
             { "characterSpacing", "Use <tracking>." },
             { "richText", "Set UseGlobalStylePreset, or Literal." },
-            { "onEndEdit", "Use Submitted, or LetteraFieldEvents." },
+            { "onEndEdit", "Use Submitted, and FocusLost for an edit that ends without Enter." },
             { "onSelect", "Use FocusGained on the selectable." },
             { "onDeselect", "Use FocusLost on the selectable." },
             { "margin", "Use Padding: its order is left, bottom, right, top." },

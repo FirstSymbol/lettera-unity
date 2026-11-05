@@ -14,6 +14,7 @@ label.Text = "Energy is <math>E = mc^2</math>, and <math=display>\\sum_{i=0}^n i
 - A verbatim string spares the doubled backslashes: `label.Text = @"<math>\sqrt{x^2+1}</math>";`.
 - `<math=inline,x squared>x^2</math>` gives the formula words for a screen reader.
 - `<math>` is in the default vocabulary. A text that should show those characters literally needs `<noparse>` or `\<math>`.
+- A display environment needs no tag at all: `\begin{equation}`, `align`, `gather`, `multline` and `displaymath`, starred or not, written in ordinary text become a display formula on a line of its own, numbered on the same count as `<math=display>`. An environment with no matching `\end` stays text.
 
 ## What you can write
 
