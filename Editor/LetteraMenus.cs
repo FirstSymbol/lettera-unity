@@ -220,66 +220,68 @@ namespace FirstSymbol.Lettera.Editor
         static void ToWorld(MenuCommand command) => ConvertToWorld((LetteraText)command.context);
 
         [MenuItem("CONTEXT/LetteraText/Convert To World Text", true)]
-        static bool CanToWorld(MenuCommand command) => ((Component)command.context).GetComponent<LetteraSelectable>() == null;
+        static bool CanToWorld(MenuCommand command) => LetteraTextSwap.WhyNot((Component)command.context, typeof(LetteraWorldText)) == null;
 
         [MenuItem("CONTEXT/LetteraWorldText/Convert To Canvas Text")]
         static void ToCanvas(MenuCommand command) => ConvertToCanvas((LetteraWorldText)command.context);
 
         [MenuItem("CONTEXT/LetteraWorldText/Convert To Canvas Text", true)]
-        static bool CanToCanvas(MenuCommand command) => ((Component)command.context).GetComponent<LetteraSelectable>() == null;
+        static bool CanToCanvas(MenuCommand command) => LetteraTextSwap.WhyNot((Component)command.context, typeof(LetteraText)) == null;
 
         // A world unit is much larger than a Canvas pixel, so a converted text keeps its look by scaling its numbers.
         const float PixelsPerWorldUnit = 18;
 
+        /// <summary>The same text in the world, as one undo step. What works on the text comes back with its values, and references follow.</summary>
         internal static LetteraWorldText ConvertToWorld(LetteraText text)
         {
-            if (text == null || text.GetComponent<LetteraSelectable>() != null) return null;
-            GameObject go = text.gameObject;
-            string json = EditorJsonUtility.ToJson(text);
-            Color color = text.color;
-            Undo.SetCurrentGroupName("Convert To World Text");
-            int group = Undo.GetCurrentGroup();
-            var rect = (RectTransform)go.transform;
-            Undo.RecordObject(rect, "Convert To World Text");
-            Vector2 size = rect.rect.size;
-            Undo.DestroyObjectImmediate(text);
-            var renderer = go.GetComponent<CanvasRenderer>();
-            if (renderer != null) Undo.DestroyObjectImmediate(renderer);
-            if (go.GetComponentInParent<Canvas>() != null) Undo.SetTransformParent(go.transform, null, "Convert To World Text");
-            var world = Undo.AddComponent<LetteraWorldText>(go);
-            EditorJsonUtility.FromJsonOverwrite(json, world);
-            world.Color = color;
-            world.FontSize /= PixelsPerWorldUnit;
-            rect.anchorMin = rect.anchorMax = new Vector2(0.5f, 0.5f);
-            rect.sizeDelta = size / PixelsPerWorldUnit;
-            rect.localScale = Vector3.one;
-            Undo.CollapseUndoOperations(group);
-            return world;
+            if (text == null) return null;
+            return LetteraTextSwap.Swap(text, "Convert To World Text", () =>
+            {
+                GameObject go = text.gameObject;
+                string json = EditorJsonUtility.ToJson(text);
+                Color color = text.color;
+                var rect = (RectTransform)go.transform;
+                Undo.RecordObject(rect, "Convert To World Text");
+                Vector2 size = rect.rect.size;
+                Undo.DestroyObjectImmediate(text);
+                var renderer = go.GetComponent<CanvasRenderer>();
+                if (renderer != null) Undo.DestroyObjectImmediate(renderer);
+                if (go.GetComponentInParent<Canvas>() != null) Undo.SetTransformParent(go.transform, null, "Convert To World Text");
+                var world = Undo.AddComponent<LetteraWorldText>(go);
+                EditorJsonUtility.FromJsonOverwrite(json, world);
+                world.Color = color;
+                world.FontSize /= PixelsPerWorldUnit;
+                rect.anchorMin = rect.anchorMax = new Vector2(0.5f, 0.5f);
+                rect.sizeDelta = size / PixelsPerWorldUnit;
+                rect.localScale = Vector3.one;
+                return world;
+            });
         }
 
+        /// <summary>The same text on a Canvas, as one undo step. What works on the text comes back with its values, and references follow.</summary>
         internal static LetteraText ConvertToCanvas(LetteraWorldText text)
         {
-            if (text == null || text.GetComponent<LetteraSelectable>() != null) return null;
-            GameObject go = text.gameObject;
-            string json = EditorJsonUtility.ToJson(text);
-            Color color = text.Color;
-            Undo.SetCurrentGroupName("Convert To Canvas Text");
-            int group = Undo.GetCurrentGroup();
-            var rect = (RectTransform)go.transform;
-            Undo.RecordObject(rect, "Convert To Canvas Text");
-            Vector2 size = rect.rect.size;
-            Undo.DestroyObjectImmediate(text);
-            if (go.GetComponentInParent<Canvas>() == null) Undo.SetTransformParent(go.transform, FindOrCreateCanvas(null), "Convert To Canvas Text");
-            var canvasText = Undo.AddComponent<LetteraText>(go);
-            EditorJsonUtility.FromJsonOverwrite(json, canvasText);
-            canvasText.color = color;
-            canvasText.FontSize *= PixelsPerWorldUnit;
-            rect.localPosition = Vector3.zero;
-            rect.localRotation = Quaternion.identity;
-            rect.localScale = Vector3.one;
-            rect.sizeDelta = size * PixelsPerWorldUnit;
-            Undo.CollapseUndoOperations(group);
-            return canvasText;
+            if (text == null) return null;
+            return LetteraTextSwap.Swap(text, "Convert To Canvas Text", () =>
+            {
+                GameObject go = text.gameObject;
+                string json = EditorJsonUtility.ToJson(text);
+                Color color = text.Color;
+                var rect = (RectTransform)go.transform;
+                Undo.RecordObject(rect, "Convert To Canvas Text");
+                Vector2 size = rect.rect.size;
+                Undo.DestroyObjectImmediate(text);
+                if (go.GetComponentInParent<Canvas>() == null) Undo.SetTransformParent(go.transform, FindOrCreateCanvas(null), "Convert To Canvas Text");
+                var canvasText = Undo.AddComponent<LetteraText>(go);
+                EditorJsonUtility.FromJsonOverwrite(json, canvasText);
+                canvasText.color = color;
+                canvasText.FontSize *= PixelsPerWorldUnit;
+                rect.localPosition = Vector3.zero;
+                rect.localRotation = Quaternion.identity;
+                rect.localScale = Vector3.one;
+                rect.sizeDelta = size * PixelsPerWorldUnit;
+                return canvasText;
+            });
         }
 
         internal static Transform FindOrCreateCanvas(GameObject context)

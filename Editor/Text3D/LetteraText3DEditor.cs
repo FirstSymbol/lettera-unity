@@ -545,22 +545,26 @@ namespace FirstSymbol.Lettera.Editor
         static void Convert(MenuCommand command) => ConvertWorldText((LetteraWorldText)command.context);
 
         [MenuItem("CONTEXT/LetteraWorldText/Convert To Text 3D", true)]
-        static bool CanConvert(MenuCommand command) => ((LetteraWorldText)command.context).GetComponent<LetteraSelectable>() == null;
+        static bool CanConvert(MenuCommand command) => CanBecomeSolid((LetteraWorldText)command.context);
 
+        // A solid text has no selection, so a selectable on it would work on nothing.
+        static bool CanBecomeSolid(LetteraWorldText text) => text != null && text.GetComponent<LetteraSelectable>() == null && LetteraTextSwap.WhyNot(text, typeof(LetteraText3D)) == null;
+
+        /// <summary>The same text as solids, as one undo step. What works on the text comes back with its values, and references follow.</summary>
         internal static LetteraText3D ConvertWorldText(LetteraWorldText text)
         {
-            if (text == null || text.GetComponent<LetteraSelectable>() != null) return null;
-            GameObject go = text.gameObject;
-            string json = EditorJsonUtility.ToJson(text);
-            Undo.SetCurrentGroupName("Convert To Text 3D");
-            int group = Undo.GetCurrentGroup();
-            Color color = text.Color;
-            Undo.DestroyObjectImmediate(text);
-            LetteraText3D solid = Undo.AddComponent<LetteraText3D>(go);
-            EditorJsonUtility.FromJsonOverwrite(json, solid);
-            solid.Color = color;
-            Undo.CollapseUndoOperations(group);
-            return solid;
+            if (!CanBecomeSolid(text)) return null;
+            return LetteraTextSwap.Swap(text, "Convert To Text 3D", () =>
+            {
+                GameObject go = text.gameObject;
+                string json = EditorJsonUtility.ToJson(text);
+                Color color = text.Color;
+                Undo.DestroyObjectImmediate(text);
+                LetteraText3D solid = Undo.AddComponent<LetteraText3D>(go);
+                EditorJsonUtility.FromJsonOverwrite(json, solid);
+                solid.Color = color;
+                return solid;
+            });
         }
     }
 }

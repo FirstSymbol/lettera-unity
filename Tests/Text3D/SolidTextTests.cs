@@ -372,6 +372,40 @@ namespace FirstSymbol.Lettera.Text3D.Tests
         }
 
         [Test]
+        public void ConvertingCarriesTheSequencerAndMovesReferencesAsOneUndo()
+        {
+            LetteraWorldText flat = Make("Words", 400, 100, Latin, 20);
+            GameObject go = flat.gameObject;
+            m_Made.Add(go);
+            var sequencer = go.AddComponent<LetteraSequencer>();
+            sequencer.Speed = 1.5f;
+            var link = new GameObject("Link").AddComponent<LetteraParamLink>();
+            link.Text = flat;
+            m_Made.Add(link.gameObject);
+            var holder = new GameObject("Holder").AddComponent<FirstSymbol.Lettera.Tests.SwapReferenceHolder>();
+            holder.AnyText = flat;
+            holder.Sequencer = sequencer;
+            m_Made.Add(holder.gameObject);
+
+            LetteraText3D solid = LetteraText3DMenus.ConvertWorldText(flat);
+            Assert.IsNotNull(solid);
+            Assert.AreSame(solid, link.Text);
+            Assert.AreSame(solid, holder.AnyText);
+            var carried = go.GetComponent<LetteraSequencer>();
+            Assert.AreEqual(1.5f, carried.Speed);
+            Assert.AreSame(carried, holder.Sequencer);
+
+            Undo.PerformUndo();
+            var back = go.GetComponent<LetteraWorldText>();
+            Assert.IsNotNull(back);
+            Assert.IsNull(go.GetComponent<LetteraText3D>());
+            FirstSymbol.Lettera.Editor.Tests.TextSwapTests.Same(back, link.Text);
+            FirstSymbol.Lettera.Editor.Tests.TextSwapTests.Same(back, holder.AnyText);
+            Assert.AreEqual(1, go.GetComponents<LetteraSequencer>().Length);
+            FirstSymbol.Lettera.Editor.Tests.TextSwapTests.Same(go.GetComponent<LetteraSequencer>(), holder.Sequencer);
+        }
+
+        [Test]
         public void ASelectableRefusesToConvert()
         {
             LetteraWorldText flat = Make("Words", 400, 100, Latin, 20);

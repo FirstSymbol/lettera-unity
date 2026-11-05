@@ -5,6 +5,7 @@
         "UnityEngine.TestRunner",
         "UnityEditor.TestRunner",
         "FirstSymbol.Lettera",
+        "FirstSymbol.Lettera.Tests",
         "FirstSymbol.Lettera.Editor",
         "FirstSymbol.Lettera.Editor.Tests",
         "FirstSymbol.Lettera.Text3D",
