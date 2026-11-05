@@ -1,4 +1,4 @@
-# Getting Started
+# Первые шаги
 
 [English version](GettingStarted.md) · [Все руководства](Lettera.ru.md)
 
