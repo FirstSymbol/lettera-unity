@@ -307,8 +307,8 @@ namespace FirstSymbol.Lettera
 
         public void Tune(FaceTuning tuning)
         {
-            int was = Tuning != null && Tuning.Draws ? Tuning.DrawKey : 0;
-            int now = tuning != null && tuning.Draws ? tuning.DrawKey : 0;
+            int was = Tuning != null && Tuning.Redraws ? Tuning.DrawKey : 0;
+            int now = tuning != null && tuning.Redraws ? tuning.DrawKey : 0;
             Tuning = tuning;
             if (was == now || IsVirtual) return;
             // The atlas keeps glyphs by instance, so new instances make them again at their new size or density.

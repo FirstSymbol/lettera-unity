@@ -271,8 +271,11 @@ namespace FirstSymbol.Lettera
                 pixelsPerEm = grid;
                 multi = false;
             }
-            else if (instance.Face.Tuning != null && instance.Face.Tuning.TryDraw(glyph, out FaceTuning.Glyph tune) && tune.PixelsPerEm > 0)
-                pixelsPerEm = tune.PixelsPerEm;
+            else if (instance.Face.Tuning != null)
+            {
+                if (instance.Face.Tuning.TryDraw(glyph, out FaceTuning.Glyph tune) && tune.PixelsPerEm > 0) pixelsPerEm = tune.PixelsPerEm;
+                else if (pixelsPerEm < instance.Face.Tuning.Detail) pixelsPerEm = instance.Face.Tuning.Detail;
+            }
             if (grid == 0 && s_MinDensity.Count > 0 && s_MinDensity.TryGetValue(((ulong)(uint)instance.Id << 32) | glyph, out int raised) && raised > pixelsPerEm)
                 pixelsPerEm = raised;
             ulong key = ((ulong)(uint)instance.Id << 36) | ((ulong)glyph << 8) | (uint)(pixelsPerEm >> 2 & 0x7F) | (multi ? 0x80u : 0);
@@ -300,6 +303,8 @@ namespace FirstSymbol.Lettera
             }
             else if (tuned && tune.PixelsPerEm > 0)
                 pixelsPerEm = tune.PixelsPerEm;
+            else if (instance.Face.Tuning != null && pixelsPerEm < instance.Face.Tuning.Detail)
+                pixelsPerEm = instance.Face.Tuning.Detail;
             if (grid == 0 && s_MinDensity.Count > 0 && s_MinDensity.TryGetValue(((ulong)(uint)instance.Id << 32) | glyph, out int raised) && raised > pixelsPerEm)
                 pixelsPerEm = raised;
             ulong key = ((ulong)(uint)instance.Id << 36) | ((ulong)glyph << 8) | (uint)(pixelsPerEm >> 2 & 0x7F) | (multi ? 0x80u : 0);
@@ -460,6 +465,7 @@ namespace FirstSymbol.Lettera
         /// <summary>One atlas entry for several glyphs: its field has one outline, where they merge, so nothing inside it can show a seam.</summary>
         public static AtlasGlyph GetUnion(FontInstance instance, int pixelsPerEm, float reach, bool multi)
         {
+            if (instance.Face.Tuning != null && pixelsPerEm < instance.Face.Tuning.Detail) pixelsPerEm = instance.Face.Tuning.Detail;
             float spread = SpreadFor(reach);
             ulong key = 14695981039346656037UL;
             key = (key ^ (uint)instance.Id) * 1099511628211UL;

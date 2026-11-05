@@ -46,14 +46,20 @@ namespace FirstSymbol.Lettera
         /// <summary>Some glyph is drawn larger, smaller or at its own density.</summary>
         public bool Draws;
 
+        /// <summary>The fewest atlas pixels per em a glyph of the face is drawn at, unless its override sets its own; 0 takes what the text asks.</summary>
+        public int Detail;
+
         /// <summary>What the atlas holds for this face depends on these values, so a face whose value changes makes its glyphs again.</summary>
         public int DrawKey;
 
-        public static FaceTuning Build(FontFace face, int spacingOffset, int spaceWidth, List<LetteraGlyphOverride> overrides)
+        /// <summary>The atlas draws some glyph of this face otherwise than the text asks.</summary>
+        public bool Redraws => Draws || Detail > 0;
+
+        public static FaceTuning Build(FontFace face, int spacingOffset, int spaceWidth, List<LetteraGlyphOverride> overrides, int detail = 0)
         {
-            bool any = spacingOffset != 0 || spaceWidth > 0;
+            bool any = spacingOffset != 0 || spaceWidth > 0 || detail > 0;
             Dictionary<uint, Glyph> glyphs = null;
-            int key = 17;
+            int key = 17 + detail * 7919;
             if (overrides != null && face.Regular != null && !face.IsVirtual)
             {
                 foreach (LetteraGlyphOverride o in overrides)
@@ -69,7 +75,7 @@ namespace FirstSymbol.Lettera
                 }
             }
             if (!any && glyphs == null) return null;
-            var tuning = new FaceTuning { SpacingOffset = spacingOffset, SpaceWidth = spaceWidth, Glyphs = glyphs, DrawKey = key };
+            var tuning = new FaceTuning { SpacingOffset = spacingOffset, SpaceWidth = spaceWidth, Glyphs = glyphs, Detail = detail, DrawKey = key };
             if (glyphs != null)
                 foreach (Glyph glyph in glyphs.Values)
                     tuning.Draws |= glyph.Draws;

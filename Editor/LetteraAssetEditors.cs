@@ -131,6 +131,24 @@ namespace FirstSymbol.Lettera.Editor
                 }));
         }
 
+        // Finer tiles for a face whose thin strokes break up at the density text usually asks.
+        protected VisualElement DetailCard()
+        {
+            var note = LtUI.Text("", "lt-hint");
+            SerializedProperty detail = serializedObject.FindProperty("m_RasterDetail");
+            void Refresh(SerializedProperty p)
+            {
+                var value = (LetteraRasterDetail)p.enumValueIndex;
+                note.text = value == LetteraRasterDetail.Standard ? "Tiles of 64 pixels per em, 128 for large text."
+                    : $"Tiles of at least {LetteraFontAsset.PixelsPerEmOf(value)} pixels per em: up to {(value == LetteraRasterDetail.Fine ? 4 : 16)} times the atlas room per glyph.";
+            }
+            Refresh(detail);
+            note.TrackPropertyValue(detail.Copy(), Refresh);
+            return LtUI.Card("Raster Detail",
+                LtUI.Row("Detail", LtUI.Segments(detail, "Standard", "Fine", "Finest"), "How finely the atlas draws this font, for a hairline or calligraphic face. A glyph override's own density still wins."),
+                note);
+        }
+
         // The file's own lines, or the ones written here. Reset goes back to the file.
         protected VisualElement MetricsCard(LetteraFontAsset font)
         {
@@ -304,6 +322,7 @@ namespace FirstSymbol.Lettera.Editor
             root.Add(FontCommon());
             root.Add(SpacingCard(font));
             root.Add(PixelCard(font));
+            root.Add(DetailCard());
             root.Add(MetricsCard(font));
             root.Add(AxesCard(font));
             root.Add(GlyphOverridesCard(font));
@@ -444,6 +463,7 @@ namespace FirstSymbol.Lettera.Editor
             root.Add(FontCommon());
             root.Add(SpacingCard(variant));
             root.Add(PixelCard(variant));
+            root.Add(DetailCard());
             root.Add(MetricsCard(variant));
             root.Add(GlyphOverridesCard(variant));
             root.Add(LetteraGlyphGrid.Card(variant));
@@ -569,6 +589,7 @@ namespace FirstSymbol.Lettera.Editor
             root.Add(FontCommon());
             root.Add(SpacingCard(font));
             root.Add(PixelCard(font));
+            root.Add(DetailCard());
             root.Add(MetricsCard(font));
             root.Add(GlyphOverridesCard(font));
             root.Add(LetteraFindUses.Card(font));

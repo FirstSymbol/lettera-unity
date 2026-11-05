@@ -4,6 +4,17 @@ using UnityEngine;
 
 namespace FirstSymbol.Lettera
 {
+    /// <summary>How finely the atlas draws a font's glyphs: the fewest pixels per em of their tiles.</summary>
+    public enum LetteraRasterDetail
+    {
+        /// <summary>What the text asks: tiles of 64 pixels per em, 128 for large text.</summary>
+        Standard,
+        /// <summary>At least 128 pixels per em.</summary>
+        Fine,
+        /// <summary>At least 256 pixels per em.</summary>
+        Finest,
+    }
+
     /// <summary>Base of everything a text can use as a font.</summary>
     public abstract partial class LetteraFontAsset : ScriptableObject
     {
@@ -31,6 +42,8 @@ namespace FirstSymbol.Lettera
         [Tooltip("The advance of a space and a no-break space, in font units. 0 keeps the font's own.")]
         [SerializeField, Min(0)] int m_SpaceWidth;
         [SerializeField] List<LetteraGlyphOverride> m_GlyphOverrides = new List<LetteraGlyphOverride>();
+        [Tooltip("How finely the atlas draws this font, for a hairline or calligraphic face whose thin strokes break up or blur. Standard takes tiles of 64 pixels per em, 128 for large text; Fine at least 128; Finest at least 256. Each step takes four times the atlas room per glyph.")]
+        [SerializeField] LetteraRasterDetail m_RasterDetail;
 
         public float FontScale { get => m_FontScale; set { m_FontScale = value; NotifyChanged(); } }
         public bool NormalizeSize { get => m_NormalizeSize; set { m_NormalizeSize = value; NotifyChanged(); } }
@@ -48,6 +61,12 @@ namespace FirstSymbol.Lettera
 
         /// <summary>Applies a changed <see cref="GlyphOverrides"/> list: texts using this font lay out and draw again.</summary>
         public void GlyphOverridesChanged() => NotifyChanged();
+
+        /// <summary>How finely the atlas draws this font's glyphs. A glyph override's own density still wins, a range's boost can raise it further, and a pixel font keeps its grid.</summary>
+        public LetteraRasterDetail RasterDetail { get => m_RasterDetail; set { m_RasterDetail = value; NotifyChanged(); } }
+
+        /// <summary>The fewest atlas pixels per em a detail draws at; 0 for Standard, which takes what the text asks.</summary>
+        public static int PixelsPerEmOf(LetteraRasterDetail detail) => detail == LetteraRasterDetail.Finest ? 256 : detail == LetteraRasterDetail.Fine ? 128 : 0;
 
         public int FontPixelsPerEm { get => m_FontPixelsPerEm; set { m_FontPixelsPerEm = value; NotifyChanged(); } }
         public bool SnapToFontPixels { get => m_SnapToFontPixels; set { m_SnapToFontPixels = value; NotifyChanged(); } }
@@ -82,7 +101,7 @@ namespace FirstSymbol.Lettera
             face.PixelSnap = snap;
             if (MetricsHere(out int ascender, out int descender, out int lineGap)) face.OverrideMetrics(ascender, descender, lineGap);
             else face.OverrideMetrics(null, null, null);
-            face.Tune(FaceTuning.Build(face, m_SpacingOffset, m_SpaceWidth, m_GlyphOverrides));
+            face.Tune(FaceTuning.Build(face, m_SpacingOffset, m_SpaceWidth, m_GlyphOverrides, PixelsPerEmOf(m_RasterDetail)));
         }
 
         /// <summary>The vertical lines written by hand that apply on this platform; false keeps the file's.</summary>
