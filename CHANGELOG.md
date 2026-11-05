@@ -4,7 +4,9 @@ All notable changes to this package are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [1.0.0-rc.1] - 2026-11-05
+
+The release candidate of 1.0.0: tools, migration from TextMesh Pro, the comparison, the work on speed and memory, the gaps against the feature list closed or named, and guides in English and Russian. What 1.0.0 leaves for later is listed in the README under "What 1.0.0 is not"; what has run on which platform, in `Documentation~/Platforms.md`.
 
 ### Added
 - **The text inspector is finished as one page.** The header says which font a text really uses and why, how much the last rebuild did, and how many texts are selected. A warning has its way out on a button. A closed card says what it holds, as `Shadow, 2 more`. Math and Document cards come when a text has a formula or a document.
