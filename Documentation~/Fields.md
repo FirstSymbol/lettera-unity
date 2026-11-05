@@ -44,7 +44,7 @@ public class FieldsSelectable : MonoBehaviour
         selectable.SelectionChanged += change =>
             Debug.Log("Selected: " + selectable.SelectedPlainText());
 
-        // Never let a selection start inside the first word.
+        // Keep the first five characters out of every selection.
         selectable.AddSelectionFilter((ref LetteraSelectionProposal proposal) =>
         {
             if (proposal.Wanted.Start < 5)
@@ -217,7 +217,7 @@ using System;
 using FirstSymbol.Lettera;
 using UnityEngine;
 
-// No digits, and a refused edit says why.
+// Refuses any edit that would bring in a digit.
 [Serializable]
 public class FieldsNoDigitsRule : LetteraFieldRule
 {
@@ -404,7 +404,7 @@ A composition in progress is committed before the state is taken.
 - A selectable text has no menu or loupe of its own per platform: Android Menu, iOS Menu and Loupe are project-wide.
 - `LetteraPasteButton` and iOS's paste control are not there: paste goes through a menu or a key. A Lettera menu has no Share on the web.
 - The selection highlight is a solid colour with square corners. The caret stays upright on italic text, and on curved text the caret and rectangles do not follow the glyph's angle.
-- The I-beam cursor is not set by Lettera: `WantsIBeam` tells where it belongs. A menu open during a change of language keeps its titles until it opens again. A touch menu does not hide while the text moves.
+- Over a field's plain text Lettera does not set the I-beam cursor itself: `WantsIBeam` tells where it belongs. Over a range, the range's own `Cursor` is set. A menu open during a change of language keeps its titles until it opens again. A touch menu does not hide while the text moves.
 - The mesh loupe shows the text and its plate, not the scene behind it, and only on a Canvas.
 - No text drag and drop, visual caret movement, several carets, or find and spelling UI.
 - In a [document](Documents.md), an edit of a selection that reaches past the window is refused whole, with a warning, so select all and delete does not work there yet; `Source`, `Length` and `PlainText` answer for the window.
