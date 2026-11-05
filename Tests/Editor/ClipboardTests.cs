@@ -568,5 +568,39 @@ namespace FirstSymbol.Lettera.Editor.Tests
             Assert.AreEqual("Local", command.Title);
             Assert.AreEqual("Select all", new SelectAllCommand().Title);
         }
+
+        [Test]
+        public void EachCommandHasAKeyForATable()
+        {
+            CollectionAssert.AreEqual(new[] { "Cut", "Copy", "Paste", "PastePlain", "SelectAll" }, LetteraEditCommand.DefaultProjectList().ConvertAll(c => c.TitleKey));
+            Assert.AreEqual("Bold", new ToggleEffectCommand().TitleKey);
+            Assert.AreEqual("WebLookup", new WebLookupCommand().TitleKey);
+            Assert.AreEqual("Mine", new CopyCommand { Title = "Mine" }.TitleKey, "a title written on it");
+        }
+
+        static bool HasEntry(LetteraEditable field, string title)
+        {
+            foreach (LetteraMenuEntry entry in field.Selectable.MenuEntries)
+                if (entry.Title == title)
+                    return true;
+            return false;
+        }
+
+        [Test]
+        public void AnOpenMenuTakesNewTitles()
+        {
+            LetteraEditable field = Field("hello");
+            field.Selectable.Select(0, 5);
+            field.Selectable.OpenMenu(new LetteraMenuPlacement { Point = Vector2.zero, Trigger = LetteraMenuTrigger.Pointer });
+            Assert.IsTrue(field.Selectable.IsMenuShown);
+            Assert.IsTrue(HasEntry(field, "Copy"));
+            LetteraEditCommand.TitleSource = c => c is CopyCommand ? "Kopieren" : null;
+            LetteraEditCommand.RefreshTitles();
+            Assert.IsTrue(field.Selectable.IsMenuShown);
+            Assert.IsTrue(HasEntry(field, "Kopieren"), "the new language without closing it");
+            field.Selectable.HideMenu();
+            LetteraEditCommand.TitleSource = null;
+            LetteraEditCommand.RefreshTitles();
+        }
     }
 }

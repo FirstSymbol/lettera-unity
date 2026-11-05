@@ -69,6 +69,21 @@ namespace FirstSymbol.Lettera
             set => m_Title = value;
         }
 
+        /// <summary>What a table looks this command's title up by: the title written on it when there is one, else its kind's name, such as Cut, PastePlain or Bold.</summary>
+        public string TitleKey => string.IsNullOrEmpty(m_Title) ? DefaultTitleKey : m_Title;
+
+        protected virtual string DefaultTitleKey
+        {
+            get
+            {
+                string name = GetType().Name;
+                return name.EndsWith("Command", StringComparison.Ordinal) ? name.Substring(0, name.Length - 7) : name;
+            }
+        }
+
+        /// <summary>Call when what TitleSource answers changes, as with a new language: a menu that is open takes the new titles.</summary>
+        public static void RefreshTitles() => LetteraSelectable.RetitleOpenMenu();
+
         public virtual string FallbackTitle
         {
             get
@@ -159,6 +174,7 @@ namespace FirstSymbol.Lettera
         public string Parameter { get => m_Parameter; set => m_Parameter = value; }
         Type Resolved => m_Resolved ?? (m_Resolved = string.IsNullOrEmpty(m_EffectType) ? null : typeof(LetteraEffect).Assembly.GetType(m_EffectType));
         public override string FallbackTitle => Resolved != null ? Resolved.Name.Replace("Effect", "") : "Style";
+        protected override string DefaultTitleKey => FallbackTitle;
         public override bool StaysOpen => true;
 
         public override bool CanRun(in LetteraCommandContext c) => c.Editable != null && Resolved != null && c.Editable.CanFormat(Resolved);
@@ -371,6 +387,16 @@ namespace FirstSymbol.Lettera
             }
             m_Menu = ResolvePresenter();
             m_Menu.Show(placement, m_MenuEntries, RunMenuEntry);
+            s_MenuOwner = this;
+        }
+
+        // The text whose menu opened last, for titles that change while it is open.
+        static LetteraSelectable s_MenuOwner;
+
+        internal static void RetitleOpenMenu()
+        {
+            LetteraSelectable owner = s_MenuOwner;
+            if (owner != null && owner.IsMenuShown) owner.OpenMenu(owner.m_MenuPlacement);
         }
 
         internal void RunMenuEntry(int index)
@@ -394,6 +420,7 @@ namespace FirstSymbol.Lettera
         {
             if (m_Menu != null) m_Menu.Hide();
             m_Menu = null;
+            if (s_MenuOwner == this) s_MenuOwner = null;
         }
 
         internal void HideMenuOnEdit()

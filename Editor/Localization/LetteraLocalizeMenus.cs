@@ -64,6 +64,31 @@ namespace FirstSymbol.Lettera.Localization.Editor
         }
     }
 
+    [CustomEditor(typeof(LetteraLocalizeMenuTitles))]
+    internal sealed class LetteraLocalizeMenuTitlesEditor : UnityEditor.Editor
+    {
+        public override VisualElement CreateInspectorGUI()
+        {
+            VisualElement root = LtUI.Root();
+            // The table is picked in Unity's own control: only it knows the tables.
+            root.Add(LtUI.Card("",
+                LtUI.Text("Menu titles from a string table, in the selected language, for every text's menu while this is enabled. A key the table lacks keeps its title.", "lt-hint"),
+                new UnityEditor.UIElements.PropertyField(serializedObject.FindProperty("m_Table"), "Table"),
+                LtUI.Field("Key Prefix", serializedObject.FindProperty("m_KeyPrefix"), "Put before each key, as in Menu/ for Menu/Copy."),
+                LtUI.Text("Keys of the project's commands: " + Keys() + ". A command with a title of its own is looked up by that title.", "lt-hint")));
+            return root;
+        }
+
+        internal static string Keys()
+        {
+            var keys = new List<string>();
+            foreach (LetteraEditCommand command in LetteraSettings.Instance.Editing.Commands)
+                if (command != null && !keys.Contains(command.TitleKey))
+                    keys.Add(command.TitleKey);
+            return keys.Count > 0 ? string.Join(", ", keys) : "none";
+        }
+    }
+
     [CustomEditor(typeof(LetteraLocalizeFont))]
     [CanEditMultipleObjects]
     internal sealed class LetteraLocalizeFontEditor : UnityEditor.Editor
