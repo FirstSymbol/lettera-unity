@@ -20,38 +20,95 @@ namespace FirstSymbol.Lettera.Samples
             public readonly string Id, Title, Instructions;
             public readonly string[] Covers;
 
+            /// <summary>The same step in Russian, shown on a device whose language is Russian; null shows the English.</summary>
+            public readonly string TitleRu, InstructionsRu;
+
             public Step(string id, string title, string instructions, params string[] covers)
             {
                 Id = id;
                 Title = title;
                 Instructions = instructions;
                 Covers = covers;
+                TitleRu = InstructionsRu = null;
             }
+
+            Step(Step english, string titleRu, string instructionsRu)
+            {
+                this = english;
+                TitleRu = titleRu;
+                InstructionsRu = instructionsRu;
+            }
+
+            /// <summary>This step with its Russian words.</summary>
+            public Step Ru(string title, string instructions) => new Step(this, title, instructions);
+
+            public string ShownTitle => Russian && TitleRu != null ? TitleRu : Title;
+            public string ShownInstructions => Russian && InstructionsRu != null ? InstructionsRu : Instructions;
         }
+
+        /// <summary>Russian on a device set to Russian, or when started with <c>-lettera-kit-lang ru</c>; <c>-lettera-kit-lang en</c> keeps English.</summary>
+        public static bool Russian
+        {
+            get
+            {
+                if (s_Russian == null)
+                {
+                    string[] arguments = Environment.GetCommandLineArgs();
+                    int at = Array.IndexOf(arguments, "-lettera-kit-lang");
+                    s_Russian = at >= 0 && at + 1 < arguments.Length ? arguments[at + 1] == "ru" : Application.systemLanguage == SystemLanguage.Russian;
+                }
+                return s_Russian.Value;
+            }
+            set => s_Russian = value;
+        }
+
+        static bool? s_Russian;
+
+        static string T(string english, string russian) => Russian ? russian : english;
 
         /// <summary>The steps in order. The first ones answer whether the rest can run at all.</summary>
         public static readonly Step[] Steps =
         {
-            new Step("basics", "Text and emoji", "Below should be words in several scripts and an emoji. Does it all show?", "player"),
-            new Step("fallback", "Keyboard, plain route", "Tap the field and type. With the native gate off this is the route every phone had before.", "touch keyboard"),
-            new Step("rise", "Keyboard rises", "Tap the field once, quickly. Does the keyboard rise on the first tap? In Safari on an iPhone this is the top risk: also try a tap on the very edge.", "real keyboard rise", "page focus"),
-            new Step("mirror", "Typing", "Type, select by holding, take an autocorrect suggestion on a word, hold Delete, take an emoji suggestion, dictate, swipe type.", "host", "mirror"),
-            new Step("composition", "Composition", "With a Japanese keyboard type a word: does it show inline and commit? Then a Korean one. On Windows: the Japanese Microsoft IME, candidates beside the caret, Escape cancels.", "composition", "real ime"),
-            new Step("traits", "Keyboards", "Tap each small field: number, e-mail, send key, one-time code, dark. Does each keyboard match its label?", "traits"),
-            new Step("replica", "Replica", "Tap the replica field. The system's own control should stand over it, and the character limit should still hold.", "replica"),
-            new Step("clipboard", "Clipboard", "Copy from the field and paste into Notes. Copy from Notes and paste here. Paste a screenshot. Count how many times the system says something was pasted: it should be only when you paste. On Windows: to and from Word and Chrome.", "clipboard text", "clipboard images", "paste control"),
-            new Step("menu", "Menu and loupe", "Hold on a word. Does the system's menu show clear of the selection, and do Cut, Copy, Paste and Select All work? A text app on Android, Look Up on iOS. Hold and drag: does the loupe follow and show what is under it?", "system menu", "text apps", "loupe"),
-            new Step("fonts", "Fonts", "Close the app and open it again. Does text show at once? The figures below should say mapped, not memory.", "font mapping"),
-            new Step("color", "Color glyphs", "Are the color glyphs below drawn with gradients? In Safari: do many emoji appear in one go?", "colrv1", "web emoji batching"),
-            new Step("math", "Formulas", "Below are fractions, roots, tall brackets, a matrix and accents. Are they sharp, joined and in place? Is the tall bracket one smooth shape at half alpha?", "math layout", "native v3", "bundled font"),
-            new Step("math-system", "System math font", "This line asks the system for a math font, and says which it found. Does the formula look right, or does it say none?", "system math font"),
-            new Step("math-select", "Formula as one unit", "Tap beside a formula. Hold to select it. Copy and paste to Notes: you should see the source. On a Windows machine: paste into Word and Chrome.", "selection", "copy", "clipboard HTML"),
-            new Step("solid", "3D text", "These letters are solid and lit, and turn slowly. Do they look closed and smooth? Do shadows fall on the ground? Do they fade by dots, and does the frame rate below stay smooth?", "solid shader", "budgets"),
-            new Step("solid-many", "Many solids", "500 labels. Note the frame time.", "instancing", "batching", "budgets"),
-            new Step("motion", "Motion", "Does the moving text run smoothly?", "os preferences", "motion"),
-            new Step("scroll", "Scrolling", "Swipe this long text up and down, fast and slow. Does it follow the finger, coast, and stop at the ends? Note the frame time below.", "documents", "swipe", "frame rate", "memory"),
-            new Step("touch", "Handles", "Do selection handles, the loupe and the context menu look right, and sit where they should?", "handles"),
-            new Step("compare", "Comparison build", "If you were also given the comparison build, run it now: press Start, leave the device alone until it is done, and send its block too. If not, Skip.", "comparison"),
+            new Step("basics", "Text and emoji", "Below should be words in several scripts and an emoji. Does it all show?", "player")
+                .Ru("Текст и эмодзи", "Ниже должны быть слова на нескольких письменностях и эмодзи. Всё ли видно и выглядит правильно?"),
+            new Step("fallback", "Keyboard, plain route", "Tap the field and type. With the native gate off this is the route every phone had before.", "touch keyboard")
+                .Ru("Клавиатура, простой путь", "Коснитесь поля и напечатайте что-нибудь. Это путь ввода, который работает на любом телефоне без нативных маршрутов."),
+            new Step("rise", "Keyboard rises", "Tap the field once, quickly. Does the keyboard rise on the first tap? In Safari on an iPhone this is the top risk: also try a tap on the very edge.", "real keyboard rise", "page focus")
+                .Ru("Клавиатура появляется", "Коснитесь поля один раз, коротко. Появляется ли клавиатура с первого касания? Попробуйте коснуться и у самого края поля."),
+            new Step("mirror", "Typing", "Type, select by holding, take an autocorrect suggestion on a word, hold Delete, take an emoji suggestion, dictate, swipe type.", "host", "mirror")
+                .Ru("Набор текста", "Напечатайте текст, выделите слово удержанием, примите подсказку автозамены, зажмите «Удалить», выберите эмодзи из подсказок, надиктуйте фразу голосом, наберите слово свайпом."),
+            new Step("composition", "Composition", "With a Japanese keyboard type a word: does it show inline and commit? Then a Korean one. On Windows: the Japanese Microsoft IME, candidates beside the caret, Escape cancels.", "composition", "real ime")
+                .Ru("Составной ввод", "Если есть японская клавиатура, наберите слово: видно ли его прямо в поле с подчёркиванием, и подтверждается ли оно? Затем то же с корейской. Если таких клавиатур нет, нажмите «Пропустить»."),
+            new Step("traits", "Keyboards", "Tap each small field: number, e-mail, send key, one-time code, dark. Does each keyboard match its label?", "traits")
+                .Ru("Виды клавиатуры", "Коснитесь каждого маленького поля: число, e-mail, кнопка «Отправить», одноразовый код, тёмная. Совпадает ли клавиатура с подписью поля?"),
+            new Step("replica", "Replica", "Tap the replica field. The system's own control should stand over it, and the character limit should still hold.", "replica")
+                .Ru("Системное поле поверх", "Коснитесь поля. Поверх него должно встать системное поле ввода Android, а ограничение в 10 символов должно соблюдаться."),
+            new Step("clipboard", "Clipboard", "Copy from the field and paste into Notes. Copy from Notes and paste here. Paste a screenshot. Count how many times the system says something was pasted: it should be only when you paste. On Windows: to and from Word and Chrome.", "clipboard text", "clipboard images", "paste control")
+                .Ru("Буфер обмена", "Скопируйте текст из поля и вставьте в Заметки. Скопируйте из Заметок и вставьте сюда. Попробуйте вставить скриншот. Система показывает уведомление о вставке: оно должно появляться только когда вы сами вставляете."),
+            new Step("menu", "Menu and loupe", "Hold on a word. Does the system's menu show clear of the selection, and do Cut, Copy, Paste and Select All work? A text app on Android, Look Up on iOS. Hold and drag: does the loupe follow and show what is under it?", "system menu", "text apps", "loupe")
+                .Ru("Меню и лупа", "Удерживайте палец на слове. Появляется ли системное меню, не закрывая выделение, и работают ли «Вырезать», «Копировать», «Вставить», «Выбрать всё»? Есть ли в меню пункты других приложений (например, «Перевести»)? Удерживайте и ведите палец: следует ли лупа за ним и показывает ли, что под пальцем?"),
+            new Step("fonts", "Fonts", "Close the app and open it again. Does text show at once? The figures below should say mapped, not memory.", "font mapping")
+                .Ru("Шрифты", "Закройте приложение и откройте снова. Появляется ли текст сразу? Цифры ниже должны показывать, что шрифты отображены с диска (mapped), а не держатся в памяти."),
+            new Step("color", "Color glyphs", "Are the color glyphs below drawn with gradients? In Safari: do many emoji appear in one go?", "colrv1", "web emoji batching")
+                .Ru("Цветные глифы", "Нарисованы ли эмодзи ниже цветными, с плавными градиентами, без пустых квадратов?"),
+            new Step("math", "Formulas", "Below are fractions, roots, tall brackets, a matrix and accents. Are they sharp, joined and in place? Is the tall bracket one smooth shape at half alpha?", "math layout", "native v3", "bundled font")
+                .Ru("Формулы", "Ниже дроби, корни, высокие скобки, матрица и акценты. Они чёткие, соединённые и на своих местах? Высокая полупрозрачная скобка выглядит одной гладкой фигурой, без более тёмных стыков?"),
+            new Step("math-system", "System math font", "This line asks the system for a math font, and says which it found. Does the formula look right, or does it say none?", "system math font")
+                .Ru("Системный математический шрифт", "Эта строка берёт математический шрифт у системы. Формула выглядит правильно?"),
+            new Step("math-select", "Formula as one unit", "Tap beside a formula. Hold to select it. Copy and paste to Notes: you should see the source. On a Windows machine: paste into Word and Chrome.", "selection", "copy", "clipboard HTML")
+                .Ru("Формула как одно целое", "Коснитесь рядом с формулой. Удержанием выделите её: она должна выделяться целиком. Скопируйте и вставьте в Заметки: должен появиться её исходный текст."),
+            new Step("solid", "3D text", "These letters are solid and lit, and turn slowly. Do they look closed and smooth? Do shadows fall on the ground? Do they fade by dots, and does the frame rate below stay smooth?", "solid shader", "budgets")
+                .Ru("Объёмный текст", "Эти буквы объёмные, освещённые и медленно поворачиваются. Они выглядят замкнутыми и гладкими? Падают ли тени на пол? Плавно ли всё движется?"),
+            new Step("solid-many", "Many solids", "500 labels. Note the frame time.", "instancing", "batching", "budgets")
+                .Ru("Много объёмных надписей", "500 надписей. Плавно ли? Если нет, напишите в заметке, насколько заметно."),
+            new Step("motion", "Motion", "Does the moving text run smoothly?", "os preferences", "motion")
+                .Ru("Анимация", "Движется ли текст плавно?"),
+            new Step("scroll", "Scrolling", "Swipe this long text up and down, fast and slow. Does it follow the finger, coast, and stop at the ends? Note the frame time below.", "documents", "swipe", "frame rate", "memory")
+                .Ru("Прокрутка", "Листайте этот длинный текст вверх и вниз, быстро и медленно. Следует ли он за пальцем, катится ли по инерции и останавливается ли на концах? Время кадра показано ниже."),
+            new Step("touch", "Handles", "Do selection handles, the loupe and the context menu look right, and sit where they should?", "handles")
+                .Ru("Маркеры выделения", "Выделите слово. Правильно ли выглядят маркеры выделения, лупа и меню, и стоят ли они там, где должны? Можно ли тянуть маркеры?"),
+            new Step("compare", "Comparison build", "If you were also given the comparison build, run it now: press Start, leave the device alone until it is done, and send its block too. If not, Skip.", "comparison")
+                .Ru("Сборка для сравнения", "Если вам дали ещё и сборку для сравнения, запустите её: нажмите Start и не трогайте устройство до конца. Если нет, нажмите «Пропустить»."),
         };
 
 #if !LETTERA_NO_3D
@@ -70,7 +127,7 @@ namespace FirstSymbol.Lettera.Samples
             }
             if (m_SolidMaterial == null)
             {
-                Label("The solid shader is not in this build.", 28, new Vector2(0, 0.45f), new Vector2(1, 0.6f));
+                Label(T("The solid shader is not in this build.", "Шейдера объёмного текста нет в этой сборке."), 28, new Vector2(0, 0.45f), new Vector2(1, 0.6f));
                 return;
             }
             Camera camera = Camera.main;
@@ -240,19 +297,19 @@ namespace FirstSymbol.Lettera.Samples
                 return;
             }
             Step step = Steps[m_Index];
-            Label($"{m_Index + 1} of {Steps.Length}: {step.Title}", 40, new Vector2(0, 0.88f), new Vector2(1, 1));
-            Label(step.Instructions, 26, new Vector2(0, 0.62f), new Vector2(1, 0.88f));
+            Label($"{m_Index + 1} {T("of", "из")} {Steps.Length}: {step.ShownTitle}", 40, new Vector2(0, 0.88f), new Vector2(1, 1));
+            Label(step.ShownInstructions, 26, new Vector2(0, 0.62f), new Vector2(1, 0.88f));
             Sample(step.Id);
-            GameObject note = LetteraFieldFactory.CreateInputField(m_Root, "A note, if there is anything to say");
+            GameObject note = LetteraFieldFactory.CreateInputField(m_Root, T("A note, if there is anything to say", "Заметка, если есть что сказать"));
             var noteRect = (RectTransform)note.transform;
             noteRect.anchorMin = new Vector2(0, 0.2f);
             noteRect.anchorMax = new Vector2(1, 0.27f);
             noteRect.offsetMin = new Vector2(24, 0);
             noteRect.offsetMax = new Vector2(-24, 0);
             m_NoteField = note.GetComponentInChildren<LetteraEditable>();
-            Button("Pass", new Vector2(0, 0), new Vector2(0.34f, 0.18f), new Color(0.15f, 0.55f, 0.3f), () => Answer("Pass"));
-            Button("Fail", new Vector2(0.34f, 0), new Vector2(0.67f, 0.18f), new Color(0.7f, 0.2f, 0.2f), () => Answer("Fail"));
-            Button("Skip", new Vector2(0.67f, 0), new Vector2(1, 0.18f), new Color(0.35f, 0.35f, 0.4f), () => Answer("Skip"));
+            Button(T("Pass", "Работает"), new Vector2(0, 0), new Vector2(0.34f, 0.18f), new Color(0.15f, 0.55f, 0.3f), () => Answer("Pass"));
+            Button(T("Fail", "Не работает"), new Vector2(0.34f, 0), new Vector2(0.67f, 0.18f), new Color(0.7f, 0.2f, 0.2f), () => Answer("Fail"));
+            Button(T("Skip", "Пропустить"), new Vector2(0.67f, 0), new Vector2(1, 0.18f), new Color(0.35f, 0.35f, 0.4f), () => Answer("Skip"));
         }
 
         // What a step needs on screen.
@@ -266,7 +323,8 @@ namespace FirstSymbol.Lettera.Samples
                     break;
                 case "fonts":
                     LetteraFontMemory.Sums sums = LetteraFontMemory.Totals;
-                    Label($"{sums.Faces} faces: {sums.RetainedBytes / 1024} KB held in memory, {sums.MappedBytes / 1024} KB mapped from disk, {sums.CacheFolderBytes / 1024} KB in the cache folder.", 26, new Vector2(0, 0.4f), new Vector2(1, 0.6f));
+                    Label(T($"{sums.Faces} faces: {sums.RetainedBytes / 1024} KB held in memory, {sums.MappedBytes / 1024} KB mapped from disk, {sums.CacheFolderBytes / 1024} KB in the cache folder.",
+                        $"Начертаний: {sums.Faces}. В памяти: {sums.RetainedBytes / 1024} КБ, отображено с диска (mapped): {sums.MappedBytes / 1024} КБ, в папке кэша: {sums.CacheFolderBytes / 1024} КБ."), 26, new Vector2(0, 0.4f), new Vector2(1, 0.6f));
                     break;
                 case "color":
                     Label("🎉😀🚀🌈🍕🐱🎸🌍🔥⭐🦄🎈🍩🌻🐙🎨", 48, new Vector2(0, 0.4f), new Vector2(1, 0.6f));
@@ -310,11 +368,11 @@ namespace FirstSymbol.Lettera.Samples
 #else
                 case "solid":
                 case "solid-many":
-                    Label("The 3D module is compiled out of this build.", 28, new Vector2(0, 0.45f), new Vector2(1, 0.6f));
+                    Label(T("The 3D module is compiled out of this build.", "Модуль 3D исключён из этой сборки."), 28, new Vector2(0, 0.45f), new Vector2(1, 0.6f));
                     break;
 #endif
                 case "motion":
-                    Label("<wave>This text should move smoothly.</wave>", 32, new Vector2(0, 0.4f), new Vector2(1, 0.6f));
+                    Label(T("<wave>This text should move smoothly.</wave>", "<wave>Этот текст должен двигаться плавно.</wave>"), 32, new Vector2(0, 0.4f), new Vector2(1, 0.6f));
                     break;
                 case "scroll":
                     ScrollPage();
@@ -341,7 +399,9 @@ namespace FirstSymbol.Lettera.Samples
             var text = go.AddComponent<LetteraText>();
             text.FontSize = 24;
             var body = new StringBuilder();
-            for (int i = 0; i < 20000; i++) body.Append("Line ").Append(i).Append(": a long document scrolls with only what is near the view laid out.\n");
+            string line = T(": a long document scrolls with only what is near the view laid out.\n", ": длинный документ прокручивается, а свёрстано только то, что рядом с окном.\n");
+            string word = T("Line ", "Строка ");
+            for (int i = 0; i < 20000; i++) body.Append(word).Append(i).Append(line);
             text.OpenDocument(LetteraRope.FromString(body.ToString()), takeOwnership: true);
             view.AddComponent<LetteraDocumentScroller>().Text = text;
             m_Frame = Label("", 24, new Vector2(0, 0.27f), new Vector2(1, 0.33f));
@@ -350,18 +410,18 @@ namespace FirstSymbol.Lettera.Samples
         void Update()
         {
             if (m_Frame == null || Time.frameCount % 15 != 0) return;
-            m_Frame.SetText($"{Time.smoothDeltaTime * 1000:0.0} ms a frame");
+            m_Frame.SetText(Russian ? $"{Time.smoothDeltaTime * 1000:0.0} мс на кадр" : $"{Time.smoothDeltaTime * 1000:0.0} ms a frame");
         }
 
         GameObject Field(Vector2 anchorMin, Vector2 anchorMax)
         {
-            GameObject area = LetteraFieldFactory.CreateTextArea(m_Root, "Tap here");
+            GameObject area = LetteraFieldFactory.CreateTextArea(m_Root, T("Tap here", "Коснитесь здесь"));
             var rect = (RectTransform)area.transform;
             rect.anchorMin = anchorMin;
             rect.anchorMax = anchorMax;
             rect.offsetMin = new Vector2(24, 0);
             rect.offsetMax = new Vector2(-24, 0);
-            area.GetComponentInChildren<LetteraEditable>().InsertText("The quick brown fox jumps over the lazy dog.", "code.set");
+            area.GetComponentInChildren<LetteraEditable>().InsertText(T("The quick brown fox jumps over the lazy dog.", "Съешь же ещё этих мягких французских булок, да выпей чаю."), "code.set");
             return area;
         }
 
@@ -369,11 +429,11 @@ namespace FirstSymbol.Lettera.Samples
         {
             var kinds = new (string label, LetteraKeyboardTraits traits)[]
             {
-                ("Number", new LetteraKeyboardTraits { Kind = LetteraKeyboardKind.Number }),
+                (T("Number", "Число"), new LetteraKeyboardTraits { Kind = LetteraKeyboardKind.Number }),
                 ("E-mail", new LetteraKeyboardTraits { Kind = LetteraKeyboardKind.Email, AutofillHint = LetteraAutofill.Email }),
-                ("Send key", new LetteraKeyboardTraits { ReturnKey = LetteraReturnKey.Send }),
-                ("One-time code", new LetteraKeyboardTraits { Kind = LetteraKeyboardKind.Number, AutofillHint = LetteraAutofill.OneTimeCode }),
-                ("Dark keyboard", new LetteraKeyboardTraits { IosAppearance = LetteraIosAppearance.Dark }),
+                (T("Send key", "Кнопка «Отправить»"), new LetteraKeyboardTraits { ReturnKey = LetteraReturnKey.Send }),
+                (T("One-time code", "Одноразовый код"), new LetteraKeyboardTraits { Kind = LetteraKeyboardKind.Number, AutofillHint = LetteraAutofill.OneTimeCode }),
+                (T("Dark keyboard", "Тёмная клавиатура (iOS)"), new LetteraKeyboardTraits { IosAppearance = LetteraIosAppearance.Dark }),
             };
             for (int i = 0; i < kinds.Length; i++)
             {
@@ -426,7 +486,7 @@ namespace FirstSymbol.Lettera.Samples
                 intent.Call<AndroidJavaObject>("setAction", intentClass.GetStatic<string>("ACTION_SEND")).Dispose();
                 intent.Call<AndroidJavaObject>("setType", "text/plain").Dispose();
                 intent.Call<AndroidJavaObject>("putExtra", intentClass.GetStatic<string>("EXTRA_TEXT"), result).Dispose();
-                using (AndroidJavaObject chooser = intentClass.CallStatic<AndroidJavaObject>("createChooser", intent, "Send the result"))
+                using (AndroidJavaObject chooser = intentClass.CallStatic<AndroidJavaObject>("createChooser", intent, T("Send the result", "Отправить результат")))
                     activity.Call("startActivity", chooser);
             }
 #else
@@ -445,7 +505,7 @@ namespace FirstSymbol.Lettera.Samples
         void ShowResult()
         {
             string result = Result();
-            Label("Done. Please send this back.", 36, new Vector2(0, 0.9f), new Vector2(1, 1));
+            Label(T("Done. Please send this back.", "Готово. Пожалуйста, отправьте это обратно."), 36, new Vector2(0, 0.9f), new Vector2(1, 1));
             GameObject block = LetteraFieldFactory.CreateTextArea(m_Root);
             var rect = (RectTransform)block.transform;
             rect.anchorMin = new Vector2(0, 0.2f);
@@ -456,13 +516,13 @@ namespace FirstSymbol.Lettera.Samples
             shown.TypedMarkup = LetteraTypedMarkup.AsText;
             shown.InsertText(result, "code.set");
             shown.GetComponent<LetteraText>().FontSize = 16;
-            Button("Copy", new Vector2(0, 0), new Vector2(0.5f, 0.18f), new Color(0.2f, 0.4f, 0.8f), () =>
+            Button(T("Copy", "Копировать"), new Vector2(0, 0), new Vector2(0.5f, 0.18f), new Color(0.2f, 0.4f, 0.8f), () =>
             {
                 shown.Selectable.Activate();
                 shown.Selectable.SelectAll();
                 shown.Selectable.Copy();
             });
-            Button("Share", new Vector2(0.5f, 0), new Vector2(1, 0.18f), new Color(0.15f, 0.55f, 0.3f), () => Share(result));
+            Button(T("Share", "Поделиться"), new Vector2(0.5f, 0), new Vector2(1, 0.18f), new Color(0.15f, 0.55f, 0.3f), () => Share(result));
 #if UNITY_ANDROID || UNITY_IOS
             try
             {

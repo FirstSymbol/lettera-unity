@@ -4,6 +4,11 @@ All notable changes to this package are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+- **The Device Check speaks Russian** on a device set to Russian: every step, button and label. `-lettera-kit-lang ru` or `en` chooses by hand, and `LetteraDeviceCheck.Russian` from a script. The block sent back keeps its English keys, so that results from any device read the same.
+
 ## [1.0.0-rc.1] - 2026-11-05
 
 The release candidate of 1.0.0: tools, migration from TextMesh Pro, the comparison, the work on speed and memory, the gaps against the feature list closed or named, and guides in English and Russian. What 1.0.0 leaves for later is listed in the README under "What 1.0.0 is not"; what has run on which platform, in `Documentation~/Platforms.md`.
