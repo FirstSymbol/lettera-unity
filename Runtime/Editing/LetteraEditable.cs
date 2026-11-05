@@ -1033,7 +1033,7 @@ namespace FirstSymbol.Lettera
         internal void OnTextInput(string text)
         {
             if (m_ReadOnly || string.IsNullOrEmpty(text)) return;
-            if (m_CompText != null) return;
+            if (m_CompText != null && !CommitRestoredComposition()) return;
             LetteraSelectionRange s = Selectable.Selection;
             // Each cluster counts by itself, for the rules and for undo.
             int at = 0;
@@ -1127,7 +1127,11 @@ namespace FirstSymbol.Lettera
             foreach (LetteraFieldRule rule in m_ActiveRules)
                 if (rule.Enabled && rule.WantsTick)
                     rule.Tick();
-            if (Selectable.HasFocus) TickCaret();
+            if (Selectable.HasFocus)
+            {
+                TickCaret();
+                if (m_KeepStateOnPause) WatchScreen();
+            }
         }
 
         bool WantsCaret => Selectable.HasFocus && !m_ReadOnly && Selectable.Selection.IsCaret && Host.IsVisible;
@@ -1319,15 +1323,39 @@ namespace FirstSymbol.Lettera
             public int Anchor, Head;
             public LetteraCaretBias Bias;
             public Vector2 Scroll;
+
+            /// <summary>A composition that was running, or empty. Anchor and Head are then the selection it replaces.</summary>
+            public string Composition;
+
+            /// <summary>The caret inside the composition, in UTF-16 units.</summary>
+            public int CompositionCaret;
+            public LetteraClause[] Clauses;
         }
 
-        public State CaptureState()
+        /// <summary>The field as it is. A running composition is committed first.</summary>
+        public State CaptureState() => CaptureState(false);
+
+        /// <summary>The field as it is. With keepComposition a running composition goes into the state as it stands, and keeps running.</summary>
+        public State CaptureState(bool keepComposition)
         {
-            CommitComposition();
-            LetteraSelectionRange s = Selectable.Selection;
-            return new State { Source = Engine.RawText, Anchor = s.Anchor, Head = s.Head, Bias = s.Bias, Scroll = Host.TextRect.anchoredPosition };
+            if (!keepComposition || m_CompText == null)
+            {
+                CommitComposition();
+                LetteraSelectionRange s = Selectable.Selection;
+                return new State { Source = Engine.RawText, Anchor = s.Anchor, Head = s.Head, Bias = s.Bias, Scroll = Host.TextRect.anchoredPosition };
+            }
+            int caret = Utf16Of(m_CompText, Selectable.Selection.Head - m_CompStart);
+            return new State
+            {
+                Source = m_SourceDuringComposition, Anchor = m_CompBase.Anchor, Head = m_CompBase.Head, Bias = m_CompBase.Bias, Scroll = Host.TextRect.anchoredPosition,
+                Composition = m_CompText, CompositionCaret = caret, Clauses = m_CompClauses != null ? (LetteraClause[])m_CompClauses.Clone() : null,
+            };
         }
 
+        /// <summary>
+        /// Puts a field back as a state says, with no undo step. A composition in it runs again over the selection it replaced; since no keyboard
+        /// knows of it, the next typing, key or composition commits it first, as one undo step.
+        /// </summary>
         public void RestoreState(State state)
         {
             CommitComposition();
@@ -1338,8 +1366,80 @@ namespace FirstSymbol.Lettera
                 m_Version++;
                 EditReported?.Invoke("user.restore");
             }
-            Host.TextRect.anchoredPosition = state.Scroll;
             Selectable.SetSelectionUnchecked(new LetteraSelectionRange(state.Anchor, state.Head, state.Bias).Clamp(Engine.ShownLength), "sel.restore");
+            if (!string.IsNullOrEmpty(state.Composition) && !m_ReadOnly)
+            {
+                OnComposition(state.Composition, Mathf.Clamp(state.CompositionCaret, 0, state.Composition.Length), state.Clauses);
+                m_CompRestored = m_CompText != null;
+            }
+            Host.TextRect.anchoredPosition = state.Scroll;
+            Selectable.MarkVisualsDirty();
+        }
+
+        static int Utf16Of(string text, int codepoints)
+        {
+            int at = 0;
+            for (int n = 0; n < codepoints && at < text.Length; n++) at += char.IsHighSurrogate(text[at]) && at + 1 < text.Length ? 2 : 1;
+            return at;
+        }
+
+        // ------------------------------------------------------------- pause and rotation
+
+        [Tooltip("Keeps the text, selection, scroll and a running composition while the app is paused or loses focus, puts them back when it returns, and keeps the caret in view when the screen turns.")]
+        [SerializeField] bool m_KeepStateOnPause;
+
+        State m_Kept;
+        bool m_HasKept;
+        int m_KeptVersion;
+        Vector2Int m_ScreenSize;
+        bool m_RefitPending;
+
+        /// <summary>Replaces the screen's size for tests.</summary>
+        internal static Func<Vector2Int> ScreenSizeOverride;
+
+        /// <summary>Keeps this field as it is while the app is away, and keeps its caret in view when the screen turns. Off by default.</summary>
+        public bool KeepStateOnPause { get => m_KeepStateOnPause; set => m_KeepStateOnPause = value; }
+
+        /// <summary>The app goes to the background or loses focus while this field has it.</summary>
+        internal void AppLeaving(bool pausing)
+        {
+            if (!m_KeepStateOnPause)
+            {
+                // A keyboard ends its composition when the app loses focus; a pause alone leaves it as it was.
+                if (!pausing) CommitComposition();
+                return;
+            }
+            if (m_HasKept) return;
+            m_Kept = CaptureState(true);
+            m_HasKept = true;
+            m_KeptVersion = m_Version;
+            // Kept out of the value while away, so nothing reads half-composed text as committed.
+            DiscardComposition();
+        }
+
+        /// <summary>The app is back. A field that a script changed meanwhile keeps that change.</summary>
+        internal void AppReturning()
+        {
+            if (!m_HasKept) return;
+            m_HasKept = false;
+            if (m_Version != m_KeptVersion) return;
+            RestoreState(m_Kept);
+            // With no focus left there is no keyboard to finish it, so what was composed goes in.
+            if (!Selectable.HasFocus) CommitComposition();
+        }
+
+        void WatchScreen()
+        {
+            Vector2Int size = ScreenSizeOverride != null ? ScreenSizeOverride() : new Vector2Int(Screen.width, Screen.height);
+            // The canvas lays out at the end of the frame that saw the change, so the caret is placed in view the frame after.
+            if (m_RefitPending)
+            {
+                m_RefitPending = false;
+                ScrollCaretIntoView();
+            }
+            if (size == m_ScreenSize) return;
+            m_RefitPending = m_ScreenSize != default;
+            m_ScreenSize = size;
         }
 
         void NotifyKeyboard() => Selectable.NotifyKeyboardOfChange();

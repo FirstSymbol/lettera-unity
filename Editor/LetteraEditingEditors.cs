@@ -386,7 +386,8 @@ namespace FirstSymbol.Lettera.Editor
                 LtUI.El("lt-row lt-row--pair",
                     LtUI.InlineSwitch("Read Only", P("m_ReadOnly"), "Selects and copies, and takes no typing."),
                     LtUI.InlineSwitch("Interactable", P("m_Interactable"), "Off: takes neither focus nor typing.")),
-                LtUI.Field("Caret", P("m_Caret"), "What draws the caret. Empty makes one when the field first needs it.")));
+                LtUI.Field("Caret", P("m_Caret"), "What draws the caret. Empty makes one when the field first needs it."),
+                LtUI.Field("Keep On Pause", P("m_KeepStateOnPause"), "Keeps the text, selection, scroll and a running composition while the app is paused or loses focus, and puts them back when it returns. Keeps the caret in view when the screen turns.")));
             SerializedProperty rules = P("m_Rules");
             string rulesPath = rules.propertyPath;
             page.Add(LtUI.Card("", new LetteraReferenceList(rules, () => LetteraRuleCatalog.Rules, i => LetteraRuleCatalog.OrderWarning(serializedObject.FindProperty(rulesPath), i), "Rules", "No rules: this field takes whatever is typed.")));

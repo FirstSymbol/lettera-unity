@@ -8,6 +8,7 @@ namespace FirstSymbol.Lettera
     public enum LetteraClauseKind { Raw, ActiveRaw, Converted, ActiveConverted, Invalid }
 
     /// <summary>A part of a composition.</summary>
+    [Serializable]
     public struct LetteraClause
     {
         public int Length;

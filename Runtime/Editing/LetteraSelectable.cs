@@ -596,7 +596,14 @@ namespace FirstSymbol.Lettera
 
         void OnApplicationFocus(bool focus)
         {
-            if (!focus && m_HasFocus) Editable?.CommitComposition();
+            if (!focus && m_HasFocus) Editable?.AppLeaving(false);
+            else if (focus) Editable?.AppReturning();
+        }
+
+        void OnApplicationPause(bool paused)
+        {
+            if (paused && m_HasFocus) Editable?.AppLeaving(true);
+            else if (!paused) Editable?.AppReturning();
         }
 
         void IUpdateSelectedHandler.OnUpdateSelected(BaseEventData eventData)
@@ -637,7 +644,7 @@ namespace FirstSymbol.Lettera
             }
             if (verb == LetteraEditVerb.None || verb == LetteraEditVerb.Pass) return false;
             if (verb == LetteraEditVerb.Swallow) return true;
-            if (Editable != null && Editable.IsComposing) return true;
+            if (Editable != null && Editable.IsComposing && !Editable.CommitRestoredComposition()) return true;
             if (LetteraKeyTable.FollowsParagraphDirection(key))
             {
                 Engine.EnsurePositioned();

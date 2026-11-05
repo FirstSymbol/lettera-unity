@@ -12,12 +12,23 @@ namespace FirstSymbol.Lettera
         int m_CommittedLength;
         LetteraClause[] m_CompClauses;
         LetteraSelectionRange m_CompBase;
+        // A composition put back by RestoreState, which no keyboard knows of.
+        bool m_CompRestored;
 
         public bool IsComposing => m_CompText != null;
+
+        /// <summary>Commits a composition RestoreState put back, before input that would otherwise go into it or be swallowed. True when there was one.</summary>
+        internal bool CommitRestoredComposition()
+        {
+            if (!m_CompRestored || m_CompText == null) return false;
+            CommitComposition();
+            return true;
+        }
 
         internal void OnComposition(string text, int caret, LetteraClause[] clauses)
         {
             if (m_ReadOnly) return;
+            CommitRestoredComposition();
             text = text ?? "";
             bool starting = m_CompText == null;
             if (starting)
@@ -104,6 +115,7 @@ namespace FirstSymbol.Lettera
 
         void EndComposition()
         {
+            m_CompRestored = false;
             m_CompText = null;
             m_CompLength = 0;
             m_CompStart = -1;
@@ -120,6 +132,7 @@ namespace FirstSymbol.Lettera
         void AbandonComposition()
         {
             if (m_CompText == null) return;
+            m_CompRestored = false;
             m_CompText = null;
             m_CompLength = 0;
             m_CompStart = -1;
@@ -142,6 +155,7 @@ namespace FirstSymbol.Lettera
         internal void ComposeOverUtf16(int start, int end, string text, int caret, LetteraClause[] clauses)
         {
             if (m_ReadOnly) return;
+            CommitRestoredComposition();
             if (m_CompText == null)
             {
                 string current = PlainText;
