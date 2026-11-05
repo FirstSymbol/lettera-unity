@@ -263,8 +263,14 @@ namespace FirstSymbol.Lettera
             {
                 // The box's caret tells where one of several equal letters went.
                 int caret = m_Keyboard.canGetSelection ? Mathf.Clamp(m_Keyboard.selection.end, 0, text.Length) : -1;
+#if LETTERA_TRACE_MIRROR
+                Debug.Log($"LETTERA_TSK in caret={caret} box=[{text}] known=[{m_Known}] frame={Time.frameCount}");
+#endif
                 if (m_Sink is ILetteraKeyboardSink keyboard) keyboard.Reconcile(text, caret);
                 m_Known = m_Host?.CommittedPlainText ?? text;
+#if LETTERA_TRACE_MIRROR
+                Debug.Log($"LETTERA_TSK out field=[{m_Known}] sel={m_Host?.Selection.Start}..{m_Host?.Selection.End}");
+#endif
                 // A rule refused or rewrote it: the OS box has to show what the field holds.
                 if (m_Known != text) m_Keyboard.text = m_Known;
             }
@@ -281,6 +287,9 @@ namespace FirstSymbol.Lettera
 
         void ILetteraKeyboardWriter.TextChanged(string text)
         {
+#if LETTERA_TRACE_MIRROR
+            Debug.Log($"LETTERA_TSK changed box=[{m_Keyboard?.text}] field=[{text}] frame={Time.frameCount}");
+#endif
             m_Known = text;
             if (m_Keyboard != null && m_Keyboard.text != text) m_Keyboard.text = text;
             if (m_Keyboard != null) SendSelection();

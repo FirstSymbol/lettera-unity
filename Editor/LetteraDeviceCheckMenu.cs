@@ -34,6 +34,18 @@ namespace FirstSymbol.Lettera.Editor
             LetteraSettings settings = LetteraSettings.Instance;
             string before = EditorJsonUtility.ToJson(settings);
             bool wasDirty = EditorUtility.IsDirty(settings);
+            // A project with no settings asset has its settings only in this editor's memory, and a build would carry none of what is set here:
+            // the check would run with every route off. For the build, a settings asset stands where a player looks for one.
+            string temporary = null;
+            if (string.IsNullOrEmpty(AssetDatabase.GetAssetPath(settings)))
+            {
+                temporary = TemporarySettingsPath;
+                Directory.CreateDirectory(Path.GetDirectoryName(temporary));
+                var copy = ScriptableObject.CreateInstance<LetteraSettings>();
+                EditorJsonUtility.FromJsonOverwrite(before, copy);
+                AssetDatabase.CreateAsset(copy, temporary);
+                settings = copy;
+            }
             try
             {
                 LetteraPlatformSettings platform = settings.Platform;
@@ -42,14 +54,25 @@ namespace FirstSymbol.Lettera.Editor
                 settings.Editing.AndroidMenu = LetteraMenuChoice.System;
                 settings.Editing.IosMenu = LetteraMenuChoice.System;
                 settings.Editing.Loupe = LetteraLoupeChoice.System;
+                if (temporary != null)
+                {
+                    EditorUtility.SetDirty(settings);
+                    AssetDatabase.SaveAssetIfDirty(settings);
+                }
                 body();
             }
             finally
             {
-                EditorJsonUtility.FromJsonOverwrite(before, settings);
-                if (!wasDirty) EditorUtility.ClearDirty(settings);
+                if (temporary != null) AssetDatabase.DeleteAsset(temporary);
+                else
+                {
+                    EditorJsonUtility.FromJsonOverwrite(before, settings);
+                    if (!wasDirty) EditorUtility.ClearDirty(settings);
+                }
             }
         }
+
+        internal const string TemporarySettingsPath = SceneFolder + "/Resources/" + LetteraSettings.ResourceName + ".asset";
 
         /// <summary>The platforms a build can be asked for by name.</summary>
         internal static readonly System.Collections.Generic.Dictionary<string, (BuildTarget target, BuildTargetGroup group, string output)> Platforms = new System.Collections.Generic.Dictionary<string, (BuildTarget, BuildTargetGroup, string)>

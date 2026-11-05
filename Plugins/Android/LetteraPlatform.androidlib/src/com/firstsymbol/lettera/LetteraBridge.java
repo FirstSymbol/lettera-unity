@@ -197,24 +197,81 @@ public final class LetteraBridge {
 
     // ------------------------------------------------------------ the system's menu
 
-    public static boolean showMenu(final Activity activity, final int left, final int top, final int right, final int bottom, final String[] titles, final boolean[] enabled) {
+    /** Where other apps' entries go in the system's menu: after all of ours. */
+    private static final int LATER = 1000;
+
+    /** Counts menus shown, on the UI thread, so that a menu no longer shown is not heard. */
+    private static volatile int menuGeneration;
+
+    /** Our entries' ids, apart from any the system or another app uses, Menu.NONE among them. */
+    private static final int FIRST_ID = 0x4C450000;
+
+    public static boolean showMenu(final Activity activity,final int left, final int top, final int right, final int bottom, final String[] titles, final boolean[] enabled) {
         if (Build.VERSION.SDK_INT < 23) return false;
+        // Only the menu shown last speaks. A menu that ends after a choice says so too, and that word, left in the queue, would read to the
+        // next menu as its own dismissal: the next choice would then go unheard. Both happen here, before the UI thread runs, since C# reads
+        // the queue from its first frame on.
+        final int generation = ++menuGeneration;
+        menuChoices.clear();
         activity.runOnUiThread(() -> {
+            if (generation != menuGeneration) return;
+            if (actionMode != null) {
+                ActionMode old = actionMode;
+                actionMode = null;
+                old.finish();
+            }
             View anchor = field != null ? field : activity.getWindow().getDecorView();
             actionMode = anchor.startActionMode(new ActionMode.Callback2() {
                 @Override public boolean onCreateActionMode(ActionMode mode, Menu menu) {
-                    for (int i = 0; i < titles.length; i++) menu.add(Menu.NONE, i, i, titles[i]).setEnabled(enabled[i]);
+                    for (int i = 0; i < titles.length; i++) menu.add(Menu.NONE, FIRST_ID + i, i, titles[i]).setEnabled(enabled[i]);
                     return true;
                 }
-                @Override public boolean onPrepareActionMode(ActionMode mode, Menu menu) { return false; }
+                // The system adds other apps' entries before ours. Those that only start an app go after ours, so that Paste and Copy come
+                // first as in a plain field; an entry the system handles some other way is left where it is.
+                @Override public boolean onPrepareActionMode(ActionMode mode, Menu menu) {
+                    boolean moved = false;
+                    for (int i = menu.size() - 1; i >= 0; i--) {
+                        MenuItem item = menu.getItem(i);
+                        int id = item.getItemId();
+                        if (isOurs(id) || item.getIntent() == null || item.getOrder() >= LATER) continue;
+                        CharSequence title = item.getTitle();
+                        Intent intent = item.getIntent();
+                        android.graphics.drawable.Drawable icon = item.getIcon();
+                        int group = item.getGroupId(), order = item.getOrder();
+                        menu.removeItem(id);
+                        menu.add(group, id, LATER + order, title).setIntent(intent).setIcon(icon);
+                        moved = true;
+                    }
+                    return moved;
+                }
+                private boolean isOurs(int id) { return id >= FIRST_ID && id < FIRST_ID + titles.length; }
                 @Override public boolean onActionItemClicked(ActionMode mode, MenuItem item) {
-                    menuChoices.add(item.getItemId());
+                    // Another app's entry is the system's to run, never one of ours by its number.
+                    if (!isOurs(item.getItemId())) return false;
+                    if (generation == menuGeneration) menuChoices.add(item.getItemId() - FIRST_ID);
                     mode.finish();
                     return true;
                 }
-                @Override public void onDestroyActionMode(ActionMode mode) { actionMode = null; menuChoices.add(-1); }
-                @Override public void onGetContentRect(ActionMode mode, View view, Rect out) { out.set(left, top, right, bottom); }
+                @Override public void onDestroyActionMode(ActionMode mode) {
+                    if (generation != menuGeneration) return;
+                    actionMode = null;
+                    menuChoices.add(-1);
+                }
+                // The rect comes in the game view's pixels, and Android wants it in the anchor's own: the anchor is a one-pixel field at the caret,
+                // so without this the menu stood off the screen.
+                @Override public void onGetContentRect(ActionMode mode, View view, Rect out) {
+                    int[] game = new int[2], at = new int[2];
+                    View content = activity.findViewById(android.R.id.content);
+                    if (content != null) content.getLocationOnScreen(game);
+                    view.getLocationOnScreen(at);
+                    int dx = game[0] - at[0], dy = game[1] - at[1];
+                    out.set(left + dx, top + dy, right + dx, bottom + dy);
+                }
             }, ActionMode.TYPE_FLOATING);
+            if (actionMode == null) {
+                android.util.Log.w("Lettera", "The system gave no floating menu");
+                menuChoices.add(-1);
+            }
         });
         return true;
     }

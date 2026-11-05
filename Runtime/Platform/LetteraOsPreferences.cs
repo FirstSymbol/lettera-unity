@@ -56,7 +56,7 @@ namespace FirstSymbol.Lettera
         static bool Read(out bool reducedMotion, out bool steadyCaret)
         {
             using (var bridge = new AndroidJavaClass("com.firstsymbol.lettera.LetteraBridge"))
-                reducedMotion = steadyCaret = bridge.CallStatic<bool>("reducedMotion");
+                reducedMotion = steadyCaret = bridge.CallStatic<bool>("reducedMotion", UnityEngine.Android.AndroidApplication.currentActivity);
             return true;
         }
 #elif UNITY_IOS && !UNITY_EDITOR

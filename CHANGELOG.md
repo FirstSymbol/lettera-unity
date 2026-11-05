@@ -15,6 +15,11 @@ Found on the first real Android phone (Xiaomi, Android 16, Gboard).
 - **A long press in a field selects the word under the finger,** with handles and the menu, as Android does. On Apple systems it still places the caret for the finger to move, and on no word it places the caret.
 - **Selection handles stood half a screen up and to the right** of the selection: their parent did not cover the screen.
 - **The menu and handles of touch were sized in screen pixels,** so the menu's text was about a millimetre high at 520 dpi. They are in density-independent units now, with taller rows on phones; at 160 dpi or less nothing changes.
+- **The Device Check ran with every native route off** in a project with no settings asset, though its menu says it turns them all on: what it set lived only in the editor's memory. For the build, a settings asset now stands where a player looks for one, and goes after.
+- **On Android, the system's menu stood off the screen.** Its rect was given in the game's pixels where Android wants the anchor's own, and the anchor is a one-pixel field at the caret.
+- **On Android, a choice in the system's menu could go unheard.** A menu that ends after a choice also says it ended, and that word, left over, read to the next menu as its own dismissal: Paste after Copy did nothing. Only the menu shown last is heard now. Another app's entry in that menu is the system's to run, never one of Lettera's commands by its number.
+- **On Android, the system's motion preference was never read:** the call missed its activity, and the console said so at start.
+- Through Unity's keyboard box a held Delete removes one character: Unity's own input field does the same on the phone tried. The native text input route repeats as the system does.
 
 
 ## [1.0.0-rc.1] - 2026-11-05

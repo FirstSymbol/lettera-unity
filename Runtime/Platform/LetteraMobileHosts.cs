@@ -151,6 +151,9 @@ namespace FirstSymbol.Lettera
             string plain = LetteraAndroid.Bridge.CallStatic<string>("clipRead", LetteraAndroid.Activity, false);
             if (!string.IsNullOrEmpty(html)) items.Add(new LetteraClipItem(LetteraClipFormat.Html, html));
             if (!string.IsNullOrEmpty(plain)) items.Add(new LetteraClipItem(LetteraClipFormat.PlainText, plain));
+#if LETTERA_TRACE_MIRROR
+            Debug.Log($"LETTERA_CLIP read html={html?.Length ?? -1} plain=[{plain}]");
+#endif
             return true;
         }
 

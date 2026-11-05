@@ -57,6 +57,9 @@ namespace FirstSymbol.Lettera
             if (!m_Visible || m_Ui == null) return;
             int choice = m_Ui.NextMenuChoice();
             if (choice == -2) return;
+#if LETTERA_TRACE_MIRROR
+            Debug.Log("LETTERA_MENU choice " + choice);
+#endif
             m_Visible = false;
             if (choice >= 0) m_Invoke?.Invoke(choice);
         }
