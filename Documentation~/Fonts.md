@@ -21,7 +21,7 @@ Lettera reads font files itself, through HarfBuzz, and draws every glyph from on
 
 ## No font at all
 
-A text with no **Font** and no **Font Stack** draws in the operating system's default face. A character that face lacks is looked up in the other fonts the system has, in the order the system itself would use: Arabic, Devanagari, Han and emoji all draw in an empty project. On Android Lettera reads the device's own font configuration, so a Chinese phone and a Japanese phone each draw Han characters in their own forms.
+A text with no **Font** and no **Font Stack** draws in the operating system's default face. A character that face lacks is looked up in the other fonts installed on the system: Arabic, Devanagari, Han and emoji all draw in an empty project. On Android Lettera reads the device's own font configuration, so a Chinese phone and a Japanese phone each draw Han characters in their own forms.
 
 **Project Settings > Lettera > Defaults** changes this for the whole project:
 
@@ -119,7 +119,7 @@ public class FontsStack : MonoBehaviour
 
         var label = GetComponent<LetteraText>();
         label.FontStack = stack;
-        label.Text = "<b>Saved</b> <font=Icons></font> <lang=ja>保存しました</lang>";
+        label.Text = "<b>Saved</b> <font=Icons>\uE002</font> <lang=ja>保存しました</lang>";
     }
 }
 ```
