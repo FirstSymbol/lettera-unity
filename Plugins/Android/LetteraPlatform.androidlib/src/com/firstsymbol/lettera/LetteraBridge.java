@@ -308,10 +308,40 @@ public final class LetteraBridge {
     public static boolean loupeShow(final Activity activity, final float x, final float y) {
         if (Build.VERSION.SDK_INT < 28) return false;
         activity.runOnUiThread(() -> {
-            if (magnifier == null) magnifier = new Magnifier(activity.getWindow().getDecorView());
-            magnifier.show(x, y);
+            // The game draws into a surface of its own, which a loupe on the window cannot see: it showed an empty plate. A loupe on that
+            // surface magnifies what the game drew. Positions come in the game view's pixels, which is that surface's.
+            if (magnifier == null) {
+                View content = activity.findViewById(android.R.id.content);
+                View surface = findSurface(content);
+                magnifier = new Magnifier(surface != null ? surface : activity.getWindow().getDecorView());
+                magnifierOnSurface = surface != null;
+            }
+            float dx = 0, dy = 0;
+            if (!magnifierOnSurface) {
+                int[] game = new int[2], window = new int[2];
+                View content = activity.findViewById(android.R.id.content);
+                if (content != null) content.getLocationOnScreen(game);
+                activity.getWindow().getDecorView().getLocationOnScreen(window);
+                dx = game[0] - window[0];
+                dy = game[1] - window[1];
+            }
+            magnifier.show(x + dx, y + dy);
         });
         return true;
+    }
+
+    private static boolean magnifierOnSurface;
+
+    private static View findSurface(View view) {
+        if (view instanceof android.view.SurfaceView) return view;
+        if (view instanceof ViewGroup) {
+            ViewGroup group = (ViewGroup) view;
+            for (int i = 0; i < group.getChildCount(); i++) {
+                View found = findSurface(group.getChildAt(i));
+                if (found != null) return found;
+            }
+        }
+        return null;
     }
 
     public static void loupeHide(Activity activity) {

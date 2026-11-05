@@ -18,6 +18,7 @@ Found on the first real Android phone (Xiaomi, Android 16, Gboard).
 - **The Device Check ran with every native route off** in a project with no settings asset, though its menu says it turns them all on: what it set lived only in the editor's memory. For the build, a settings asset now stands where a player looks for one, and goes after.
 - **On Android, the system's menu stood off the screen.** Its rect was given in the game's pixels where Android wants the anchor's own, and the anchor is a one-pixel field at the caret.
 - **On Android, a choice in the system's menu could go unheard.** A menu that ends after a choice also says it ended, and that word, left over, read to the next menu as its own dismissal: Paste after Copy did nothing. Only the menu shown last is heard now. Another app's entry in that menu is the system's to run, never one of Lettera's commands by its number.
+- **On Android, the system's loupe was an empty plate.** It was made on the window, which cannot see the surface the game draws into; it is made on that surface now, and magnifies the text under the finger.
 - **On Android, the system's motion preference was never read:** the call missed its activity, and the console said so at start.
 - Through Unity's keyboard box a held Delete removes one character: Unity's own input field does the same on the phone tried. The native text input route repeats as the system does.
 
