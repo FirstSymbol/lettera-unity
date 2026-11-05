@@ -482,13 +482,15 @@ namespace FirstSymbol.Lettera
             MoveLoupe(m_PointerPosition);
         }
 
-        // A letter or a digit stands at this cluster, so a long press there means its word.
+        // Something stands at this cluster, so a long press there means it: a word, a symbol, an emoji or a formula. Only a space, a line's end or
+        // nothing places the caret, as on Android.
         bool IsWordAt(int cluster)
         {
             ReadOnlySpan<int> shown = Shown;
             if (cluster < 0 || cluster >= shown.Length) return false;
             int cp = shown[cluster];
-            return cp < 0x10000 ? char.IsLetterOrDigit((char)cp) : cp <= 0x10FFFF && char.IsLetterOrDigit(char.ConvertFromUtf32(cp), 0);
+            if (cp > 0x10FFFF) return true;
+            return cp < 0x10000 ? !char.IsWhiteSpace((char)cp) && !char.IsControl((char)cp) : true;
         }
 
         void OnDisablePointer()
