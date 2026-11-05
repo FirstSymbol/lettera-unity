@@ -397,7 +397,7 @@ public class StylesStripes : MonoBehaviour
 }
 ```
 
-`Replace` draws the material in place of the face; `Keep` draws it as a layer of its own over the face. The tag's first slot is a tint, passed as the vertex colour. A range with a material of its own gets its own draw, so it splits the batch.
+`Replace` draws the material in place of the face; `Keep` draws it as a layer of its own. The tag's first slot is a tint, passed as the vertex colour. A range with a material of its own gets its own draw, so it splits the batch.
 
 ## Limits
 
