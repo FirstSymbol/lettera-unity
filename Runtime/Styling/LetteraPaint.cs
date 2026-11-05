@@ -35,6 +35,10 @@ namespace FirstSymbol.Lettera
         public List<LetteraGradientStop> Stops = new List<LetteraGradientStop>();
         public LetteraGradientMode Mode;
 
+        /// <summary>Finer steps and a fine grain over them, which hide the bands a slow gradient shows at 8 bits. A text that has it draws with a heavier shader.</summary>
+        [Tooltip("Finer steps and a fine grain, which hide the bands of a slow gradient. A text with it draws with a slightly heavier shader.")]
+        public bool Grain;
+
         public LetteraGradient() { }
 
         public LetteraGradient(params LetteraGradientStop[] stops) => Stops.AddRange(stops);
@@ -48,7 +52,7 @@ namespace FirstSymbol.Lettera
             return gradient;
         }
 
-        internal LetteraGradient Copy() => new LetteraGradient { Stops = new List<LetteraGradientStop>(Stops), Mode = Mode };
+        internal LetteraGradient Copy() => new LetteraGradient { Stops = new List<LetteraGradientStop>(Stops), Mode = Mode, Grain = Grain };
     }
 
     /// <summary>How a gradient or texture lies on the text. Inherit and NaN contribute nothing at their level.</summary>
@@ -126,10 +130,14 @@ namespace FirstSymbol.Lettera
     {
         public const byte CodeSolid = 0, CodeTexture = 10;
 
+        // Added to a gradient's code in the mesh when it has grain; only the grained shader reads it.
+        public const int CodeGrain = 16;
+
         public Color32 Color;
         public bool UsesGlyphColor;     // Solid in the glyph's own color.
-        public float RampV;             // Row in the gradient atlas.
+        public float RampV;             // Row in the gradient atlas, or in its fine texture for a gradient with grain.
         public byte Code;               // 0 solid, 1-9 gradient (shape * 3 + edge + 1), 10 texture.
+        public bool Grain;              // A gradient with grain.
         public LetteraPaintSpan Span;
         public LetteraPaintShape Shape;
         public LetteraPaintFit Fit;
@@ -214,7 +222,8 @@ namespace FirstSymbol.Lettera
                     {
                         paint.Color = new Color32(255, 255, 255, 255);
                         paint.UsesGlyphColor = false;
-                        paint.RampV = GradientAtlas.RowOf(source.Gradient);
+                        paint.Grain = source.Gradient.Grain;
+                        paint.RampV = paint.Grain ? GradientAtlas.FineRowOf(source.Gradient) : GradientAtlas.RowOf(source.Gradient);
                         // One turn of a conic gradient is one period, so it has no edge mode.
                         int edgeCode = paint.Shape == LetteraPaintShape.Conic ? 0 : edge - LetteraPaintEdge.Clamp;
                         paint.Code = (byte)((paint.Shape - LetteraPaintShape.Linear) * 3 + edgeCode + 1);

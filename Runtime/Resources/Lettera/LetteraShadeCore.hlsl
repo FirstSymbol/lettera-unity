@@ -2,7 +2,8 @@
 #define LETTERA_SHADE_CORE_INCLUDED
 
 // The glyph shading every pass shares. The file that includes this one defines how textures are sampled:
-//   LETTERA_SAMPLE_SDF(uv, page), LETTERA_SAMPLE_MSDF(uv, page), LETTERA_SAMPLE_COLOR(uv, page), LETTERA_SAMPLE_RAMP(uv), LETTERA_SAMPLE_PAINT(uv)
+//   LETTERA_SAMPLE_SDF(uv, page), LETTERA_SAMPLE_MSDF(uv, page), LETTERA_SAMPLE_COLOR(uv, page), LETTERA_SAMPLE_RAMP(uv), LETTERA_SAMPLE_PAINT(uv),
+//   and in the grained variant LETTERA_SAMPLE_RAMP_FINE(uv)
 // and the types of colors: LETTERA_COLOR4.
 //
 // uv0: atlas uv, page, mode (0 SDF, 1 color glyph, 2 color glyph silhouette, 3 solid, 4 inner shadow, 5 color glyph halo,
@@ -10,7 +11,8 @@
 //      8 multi-channel field, median; 9 multi-channel field, true distance; 10 inner shadow on a multi-channel field;
 //      11 pixel font; 12 inner shadow on a pixel font.
 // uv1: x = the SDF value of the edge, y = extra softness in SDF values, z = the SDF value where a band ends (0 = no end), w = the filter's row (0 = none).
-// uv2 (styled): paint position xy, gradient row, paint code (0 solid, 1-9 gradient, 10 texture).
+// uv2 (styled): paint position xy, gradient row, paint code (0 solid, 1-9 gradient, 10 texture; 16 more for a gradient with grain, whose row is in
+//      the fine texture, in the grained variant only).
 // uv3 (styled): inner shadow: uv offset xy; z = the SDF value of the shadow's edge. Halo: the glyph's tile in the atlas.
 //      Line: x = softness. Box: corner radii, top left, top right, bottom right, bottom left. Distance modes: a warp's size, fineness, phase, and 1 when on.
 // For a line, uv1 is thickness, how far a layer grows it, its length. For a box, half its size.
@@ -145,14 +147,44 @@ float LetteraRampPosition(float2 position, int shape, int edge)
     return t;
 }
 
+#ifdef LETTERA_GRAINED
+// Two noises along different lines: their sum is triangular, one step either way, which leaves no band and no noise that follows the color.
+float LetteraGrainNoise(float2 screen)
+{
+    return LetteraDither(screen) + LetteraDither(screen.yx + float2(37.0, 11.0));
+}
+
+// A gradient with grain: its fine row keeps sRGB values between the 8-bit steps. The grain goes on there, one step of an 8-bit target
+// either way, and a linear project decodes only after it, so the grain is one step of the target in light tones and dark ones alike.
+float4 LetteraFineRamp(float2 uv, float2 screen)
+{
+    float4 ramp = LETTERA_SAMPLE_RAMP_FINE(uv);
+    // Less grain within a step of 0 and 1, where clipping it would shift the color: a white end stays white, an opaque one opaque.
+    float4 room = saturate(min(ramp, 1.0 - ramp) * 255.0);
+    ramp = saturate(ramp + room * (LetteraGrainNoise(screen) / 255.0));
+    #ifndef UNITY_COLORSPACE_GAMMA
+    ramp.rgb = lerp(ramp.rgb / 12.92, pow((ramp.rgb + 0.055) / 1.055, 2.4), step(0.04045, ramp.rgb));
+    #endif
+    return ramp;
+}
+#endif
+
 LETTERA_COLOR4 LetteraApplyPaint(float4 paint, LETTERA_COLOR4 color, float2 screen)
 {
     if (paint.w < 0.5) return color;
+    #ifdef LETTERA_GRAINED
+    bool grain = paint.w > 15.5;
+    if (grain) paint.w -= 16.0;
+    #endif
     if (paint.w > 9.5) return color * LETTERA_SAMPLE_PAINT(paint.xy);
     int code = (int)(paint.w + 0.5) - 1;
     int shape = code / 3;
     int edge = code - shape * 3;
-    LETTERA_COLOR4 ramp = LETTERA_SAMPLE_RAMP(float2(saturate(LetteraRampPosition(paint.xy, shape, edge)) * 0.99609375 + 0.001953125, paint.z));
+    float2 at = float2(saturate(LetteraRampPosition(paint.xy, shape, edge)) * 0.99609375 + 0.001953125, paint.z);
+    #ifdef LETTERA_GRAINED
+    if (grain) return color * LetteraFineRamp(at, screen);
+    #endif
+    LETTERA_COLOR4 ramp = LETTERA_SAMPLE_RAMP(at);
     ramp += LetteraDither(screen) / 255.0;
     return color * ramp;
 }

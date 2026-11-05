@@ -38,6 +38,9 @@ namespace FirstSymbol.Lettera
         // The text uses paints, bands or inner shadows, so it draws with the styled shader and needs UV2 and UV3.
         public bool Styled { get; private set; }
 
+        // Some gradient of the text has grain, so the styled shader takes its grained variant.
+        public bool Grained { get; private set; }
+
         // The filter row the next quad gets.
         float m_FilterRow;
         public readonly List<MeshSegment> Segments = new List<MeshSegment>();
@@ -189,6 +192,7 @@ namespace FirstSymbol.Lettera
             }
             List<LayerGroup> groups = m_Attributes.SortedGroups();
             Styled = m_Attributes.NeedsStyledShader() || HasInlineSprites;
+            Grained = Styled && m_Attributes.NeedsGrain();
             PrepareGlyphs(groups);
             if (m_BatchMeshMissed) return;
             // One quad a glyph is the usual case, so a long text does not grow through every size on the way. A world text's first mesh takes what
@@ -1479,12 +1483,13 @@ namespace FirstSymbol.Lettera
                 Uv2[v] = Uv2[v + 1] = Uv2[v + 2] = Uv2[v + 3] = default;
                 return;
             }
+            float code = paint.Grain ? paint.Code + ResolvedPaint.CodeGrain : paint.Code;
             // The paint stays with the glyph when a layer moves it, so a shadow samples the same place as its face.
             for (int i = 0; i < 4; i++)
             {
                 Vector3 p = Vertices[v + i];
                 Vector2 position = PaintPosition(paint, rect, p.x - dx, p.y - dy);
-                Uv2[v + i] = new Vector4(position.x, position.y, paint.RampV, paint.Code);
+                Uv2[v + i] = new Vector4(position.x, position.y, paint.RampV, code);
             }
         }
 

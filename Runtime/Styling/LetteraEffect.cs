@@ -1066,6 +1066,17 @@ namespace FirstSymbol.Lettera
             return false;
         }
 
+        internal bool NeedsGrain()
+        {
+            for (int i = 0; i < Layers.Count; i++)
+                if (Layers[i].Paint.Grain)
+                    return true;
+            for (int i = 0; i < Decorations.Count; i++)
+                if (Decorations[i].Paint.Grain)
+                    return true;
+            return false;
+        }
+
         /// <summary>Asks layout to remove clusters of the range at a position (0 start, 0.5 middle, 1 end) when the text does not fit.</summary>
         public void RequestElide(int start, int end, float position, bool marker) => RequestElide(start, end, position, marker, default, default);
 

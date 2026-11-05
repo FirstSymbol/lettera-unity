@@ -111,7 +111,7 @@ namespace FirstSymbol.Lettera.Editor
             {
                 case LetteraPaintSourceKind.Gradient:
                     int stops = paint.Gradient?.Stops.Count ?? 0;
-                    return "Gradient, " + stops + (stops == 1 ? " stop" : " stops");
+                    return "Gradient, " + stops + (stops == 1 ? " stop" : " stops") + (paint.Gradient != null && paint.Gradient.Grain ? ", grain" : "");
                 case LetteraPaintSourceKind.Texture:
                     return paint.Texture != null ? paint.Texture.name : "No texture";
                 default:

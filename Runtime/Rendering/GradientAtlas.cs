@@ -43,6 +43,57 @@ namespace FirstSymbol.Lettera
             return (row + 0.5f) / Height;
         }
 
+        // Gradients with grain: a texture of their own, made only when one is used, with half floats, so a slow gradient keeps its steps between
+        // the 8-bit values. It holds sRGB values; the grained shader adds the grain there, one step of the target, and only then decodes.
+        const int FineHeight = 128;
+        static readonly int s_FineRampsId = Shader.PropertyToID("_LetteraRampsFine");
+        static readonly Dictionary<ulong, int> s_FineRows = new Dictionary<ulong, int>();
+        static readonly Color[] s_FineRow = new Color[Width];
+        static Texture2D s_FineTexture;
+        static bool s_FineWarned;
+
+        public static int FineRowCount => s_FineRows.Count;
+
+        /// <summary>The fine texture's v coordinate of a gradient's row, for a gradient with grain.</summary>
+        public static float FineRowOf(LetteraGradient gradient)
+        {
+            ulong key = Hash(gradient);
+            if (!s_FineRows.TryGetValue(key, out int row))
+            {
+                if (s_FineRows.Count >= FineHeight)
+                {
+                    if (!s_FineWarned) Debug.LogWarning($"Lettera: more than {FineHeight} different gradients with grain are in use; further ones share the last row.");
+                    s_FineWarned = true;
+                    return (FineHeight - 0.5f) / FineHeight;
+                }
+                row = s_FineRows.Count;
+                s_FineRows[key] = row;
+                if (s_FineTexture == null)
+                {
+                    bool half = SystemInfo.SupportsTextureFormat(TextureFormat.RGBAHalf);
+                    s_FineTexture = new Texture2D(Width, FineHeight, half ? TextureFormat.RGBAHalf : TextureFormat.RGBA32, false, true)
+                    {
+                        name = "Lettera Gradients With Grain",
+                        hideFlags = HideFlags.HideAndDontSave,
+                        filterMode = FilterMode.Bilinear,
+                        wrapMode = TextureWrapMode.Clamp,
+                    };
+                    Shader.SetGlobalTexture(s_FineRampsId, s_FineTexture);
+                }
+                BakeExact(gradient, s_FineRow);
+                s_FineTexture.SetPixels(0, row, Width, 1, s_FineRow);
+                s_FineTexture.Apply(false, false);
+            }
+            return (row + 0.5f) / FineHeight;
+        }
+
+        /// <summary>The fine texture's row as stored, for a test.</summary>
+        internal static Color[] FineRowPixels(float v)
+        {
+            if (s_FineTexture == null) return null;
+            return s_FineTexture.GetPixels(0, Mathf.FloorToInt(v * FineHeight), Width, 1);
+        }
+
         static void EnsureTexture()
         {
             if (s_Texture != null) return;
@@ -85,8 +136,36 @@ namespace FirstSymbol.Lettera
             }
         }
 
-        // Colors mix premultiplied, so a fade to transparent does not darken through the transparent color.
+        /// <summary>As <see cref="Bake"/>, unrounded: sRGB values and alpha from 0 to 1.</summary>
+        internal static void BakeExact(LetteraGradient gradient, Color[] target)
+        {
+            List<LetteraGradientStop> stops = gradient.Stops;
+            for (int x = 0; x < target.Length; x++)
+            {
+                float t = (float)x / (target.Length - 1);
+                int upper = 0;
+                while (upper < stops.Count && stops[upper].Position <= t) upper++;
+                if (upper == 0) target[x] = stops[0].Color;
+                else if (upper == stops.Count) target[x] = stops[stops.Count - 1].Color;
+                else if (gradient.Mode == LetteraGradientMode.Stepped) target[x] = stops[upper - 1].Color;
+                else
+                {
+                    LetteraGradientStop a = stops[upper - 1], b = stops[upper];
+                    float span = b.Position - a.Position;
+                    Color mixed = MixExact(a.Color, b.Color, span > 0 ? (t - a.Position) / span : 1, gradient.Mode);
+                    target[x] = new Color(Mathf.Clamp01(mixed.r), Mathf.Clamp01(mixed.g), Mathf.Clamp01(mixed.b), Mathf.Clamp01(mixed.a));
+                }
+            }
+        }
+
         static Color32 Mix(Color32 a, Color32 b, float t, LetteraGradientMode mode)
+        {
+            Color mixed = MixExact(a, b, t, mode);
+            return new Color32(ToByte(mixed.r), ToByte(mixed.g), ToByte(mixed.b), ToByte(mixed.a));
+        }
+
+        // Colors mix premultiplied, so a fade to transparent does not darken through the transparent color.
+        static Color MixExact(Color32 a, Color32 b, float t, LetteraGradientMode mode)
         {
             float alphaA = a.a / 255f, alphaB = b.a / 255f;
             float alpha = alphaA + (alphaB - alphaA) * t;
@@ -94,7 +173,7 @@ namespace FirstSymbol.Lettera
             Vector3 mixed = ca + (cb - ca) * t;
             if (alpha > 0) mixed /= alpha;
             Vector3 srgb = FromChannels(mixed, mode);
-            return new Color32(ToByte(srgb.x), ToByte(srgb.y), ToByte(srgb.z), ToByte(alpha));
+            return new Color(srgb.x, srgb.y, srgb.z, alpha);
         }
 
         static byte ToByte(float value) => (byte)(Mathf.Clamp01(value) * 255f + 0.5f);
@@ -158,6 +237,13 @@ namespace FirstSymbol.Lettera
                 s_Texture = null;
             }
             s_Rows.Clear();
+            if (s_FineTexture != null)
+            {
+                if (Application.isPlaying) Object.Destroy(s_FineTexture);
+                else Object.DestroyImmediate(s_FineTexture);
+                s_FineTexture = null;
+            }
+            s_FineRows.Clear();
         }
     }
 }

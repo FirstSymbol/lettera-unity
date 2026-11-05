@@ -91,7 +91,7 @@ namespace FirstSymbol.Lettera
         struct MaterialRun
         {
             public int IndexStart, IndexCount;
-            public bool Styled;
+            public bool Styled, Grained;
             public LetteraBlend Blend;
             public Texture2D Texture;
             public Material Custom;
@@ -294,7 +294,7 @@ namespace FirstSymbol.Lettera
                 }
                 Offset(e.Indices, s_Indices, indexCount, e.IndexCount, vertexCount);
                 s_ShardStyled |= e.Styled;
-                foreach (MeshSegment segment in e.Segments) AddRun(indexCount + segment.IndexStart, segment.IndexCount, e.Styled, segment.Blend, segment.Texture, segment.Custom);
+                foreach (MeshSegment segment in e.Segments) AddRun(indexCount + segment.IndexStart, segment.IndexCount, e.Styled, e.Grained, segment.Blend, segment.Texture, segment.Custom);
                 vertexCount += e.VertexCount;
                 indexCount += e.IndexCount;
             }
@@ -336,20 +336,20 @@ namespace FirstSymbol.Lettera
             return x != y ? x.CompareTo(y) : a.Text.GetHashCode().CompareTo(b.Text.GetHashCode());
         };
 
-        static void AddRun(int start, int count, bool styled, LetteraBlend blend, Texture2D texture, Material custom)
+        static void AddRun(int start, int count, bool styled, bool grained, LetteraBlend blend, Texture2D texture, Material custom)
         {
             if (s_Runs.Count > 0)
             {
                 MaterialRun last = s_Runs[s_Runs.Count - 1];
                 // By reference: Unity's equality asks the engine whether each object still lives.
-                if (last.Styled == styled && last.Blend == blend && ReferenceEquals(last.Texture, texture) && ReferenceEquals(last.Custom, custom))
+                if (last.Styled == styled && last.Grained == grained && last.Blend == blend && ReferenceEquals(last.Texture, texture) && ReferenceEquals(last.Custom, custom))
                 {
                     last.IndexCount += count;
                     s_Runs[s_Runs.Count - 1] = last;
                     return;
                 }
             }
-            s_Runs.Add(new MaterialRun { IndexStart = start, IndexCount = count, Styled = styled, Blend = blend, Texture = texture, Custom = custom });
+            s_Runs.Add(new MaterialRun { IndexStart = start, IndexCount = count, Styled = styled, Grained = grained, Blend = blend, Texture = texture, Custom = custom });
         }
 
         static void EnsureCapacity(int vertices, int indices)
@@ -415,7 +415,7 @@ namespace FirstSymbol.Lettera
                 mesh.subMeshCount = 1;
                 mesh.SetIndices(s_Indices, 0, indexCount, MeshTopology.Triangles, 0, true);
                 MaterialRun only = runs == 1 ? s_Runs[0] : default;
-                SetMaterials(shard, 1, 0, only.Custom != null ? only.Custom : LetteraMaterials.Variant(source, only.Styled, only.Blend, only.Texture));
+                SetMaterials(shard, 1, 0, only.Custom != null ? only.Custom : LetteraMaterials.Variant(source, only.Styled, only.Blend, only.Texture, grained: only.Grained));
             }
             else
             {
@@ -424,7 +424,7 @@ namespace FirstSymbol.Lettera
                 {
                     MaterialRun run = s_Runs[i];
                     mesh.SetIndices(s_Indices, run.IndexStart, run.IndexCount, MeshTopology.Triangles, i, true);
-                    SetMaterials(shard, runs, i, run.Custom != null ? run.Custom : LetteraMaterials.Variant(source, run.Styled, run.Blend, run.Texture));
+                    SetMaterials(shard, runs, i, run.Custom != null ? run.Custom : LetteraMaterials.Variant(source, run.Styled, run.Blend, run.Texture, grained: run.Grained));
                 }
             }
             renderer.sortingLayerID = key.SortingLayer;

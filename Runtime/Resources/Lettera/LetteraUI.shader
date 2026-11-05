@@ -45,7 +45,7 @@ Shader "Lettera/UI"
             #pragma require 2darray
             #pragma multi_compile_local _ UNITY_UI_CLIP_RECT
             #pragma multi_compile_local _ UNITY_UI_ALPHACLIP
-            #pragma multi_compile_local _ LETTERA_STYLED LETTERA_MERGED LETTERA_LAYERED
+            #pragma multi_compile_local _ LETTERA_STYLED LETTERA_MERGED LETTERA_LAYERED LETTERA_GRAINED
 
             #include "UnityCG.cginc"
             #include "UnityUI.cginc"

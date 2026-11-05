@@ -26,7 +26,7 @@ Shader "Lettera/World"
             #pragma target 3.5
             #pragma require 2darray
             #pragma multi_compile_fog
-            #pragma multi_compile_local _ LETTERA_STYLED
+            #pragma multi_compile_local _ LETTERA_STYLED LETTERA_GRAINED
             #include "LetteraWorldURP.hlsl"
             ENDHLSL
         }
@@ -69,7 +69,7 @@ Shader "Lettera/World"
             #pragma fragment TextFragment
             #pragma target 4.5
             #pragma only_renderers d3d11 playstation xboxone xboxseries vulkan metal switch switch2
-            #pragma multi_compile_local _ LETTERA_STYLED
+            #pragma multi_compile_local _ LETTERA_STYLED LETTERA_GRAINED
             #include "LetteraWorldHDRP.hlsl"
             ENDHLSL
         }
@@ -112,7 +112,7 @@ Shader "Lettera/World"
             #pragma target 3.5
             #pragma require 2darray
             #pragma multi_compile_fog
-            #pragma multi_compile_local _ LETTERA_STYLED
+            #pragma multi_compile_local _ LETTERA_STYLED LETTERA_GRAINED
 
             #include "UnityCG.cginc"
             #include "LetteraGlyph.cginc"

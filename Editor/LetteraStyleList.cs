@@ -611,7 +611,7 @@ namespace FirstSymbol.Lettera.Editor
         internal static LetteraGradient ReadGradient(SerializedProperty gradient)
         {
             SerializedProperty stops = gradient.FindPropertyRelative("Stops");
-            var value = new LetteraGradient { Mode = (LetteraGradientMode)gradient.FindPropertyRelative("Mode").enumValueIndex };
+            var value = new LetteraGradient { Mode = (LetteraGradientMode)gradient.FindPropertyRelative("Mode").enumValueIndex, Grain = gradient.FindPropertyRelative("Grain")?.boolValue ?? false };
             for (int i = 0; i < stops.arraySize; i++)
             {
                 SerializedProperty stop = stops.GetArrayElementAtIndex(i);
@@ -768,6 +768,8 @@ namespace FirstSymbol.Lettera.Editor
                 RefreshPreview();
             }));
             holder.Add(LtUI.Row("Mix In", LtUI.Segments(mode, "sRGB", "Linear", "Oklab", "Stepped")));
+            SerializedProperty grain = gradient.FindPropertyRelative("Grain");
+            if (grain != null) holder.Add(LtUI.SwitchRow("Grain", grain, "A fine grain that hides the bands of a slow gradient. A text with it draws with a slightly heavier shader."));
             RefreshRows();
             RefreshPreview();
             holder.TrackPropertyValue(gradient.Copy(), _ => RefreshPreview());

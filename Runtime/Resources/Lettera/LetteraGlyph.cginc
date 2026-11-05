@@ -1,6 +1,11 @@
 #ifndef LETTERA_GLYPH_INCLUDED
 #define LETTERA_GLYPH_INCLUDED
 
+// The grained variant is the styled one with grain on gradients.
+#if defined(LETTERA_GRAINED) && !defined(LETTERA_STYLED)
+#define LETTERA_STYLED
+#endif
+
 UNITY_DECLARE_TEX2DARRAY(_LetteraSdfAtlas);
 UNITY_DECLARE_TEX2DARRAY(_LetteraColorAtlas);
 UNITY_DECLARE_TEX2DARRAY(_LetteraMsdfAtlas);
@@ -17,6 +22,11 @@ sampler2D _LetteraFilters;
 #define LETTERA_SAMPLE_FILTER(uv) tex2Dlod(_LetteraFilters, float4(uv, 0, 0))
 #define LETTERA_SAMPLE_RAMP(uv) tex2Dlod(_LetteraRamps, float4(uv, 0, 0))
 #define LETTERA_SAMPLE_PAINT(uv) tex2D(_LetteraPaintTex, uv)
+#endif
+#ifdef LETTERA_GRAINED
+// Full precision: its steps are finer than a low precision sampler keeps.
+sampler2D_float _LetteraRampsFine;
+#define LETTERA_SAMPLE_RAMP_FINE(uv) tex2Dlod(_LetteraRampsFine, float4(uv, 0, 0))
 #endif
 
 #include "LetteraShadeCore.hlsl"

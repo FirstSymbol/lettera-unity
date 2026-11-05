@@ -1,6 +1,11 @@
 #ifndef LETTERA_WORLD_URP_INCLUDED
 #define LETTERA_WORLD_URP_INCLUDED
 
+// The grained variant is the styled one with grain on gradients.
+#if defined(LETTERA_GRAINED) && !defined(LETTERA_STYLED)
+#define LETTERA_STYLED
+#endif
+
 #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
 #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
 
@@ -26,6 +31,11 @@ SAMPLER(sampler_LetteraFilters);
 #define LETTERA_SAMPLE_RAMP(uv) SAMPLE_TEXTURE2D_LOD(_LetteraRamps, sampler_LetteraRamps, uv, 0)
 #define LETTERA_SAMPLE_PAINT(uv) SAMPLE_TEXTURE2D(_LetteraPaintTex, sampler_LetteraPaintTex, uv)
 #define LETTERA_SAMPLE_FILTER(uv) SAMPLE_TEXTURE2D_LOD(_LetteraFilters, sampler_LetteraFilters, uv, 0)
+#endif
+#ifdef LETTERA_GRAINED
+TEXTURE2D(_LetteraRampsFine);
+SAMPLER(sampler_LetteraRampsFine);
+#define LETTERA_SAMPLE_RAMP_FINE(uv) SAMPLE_TEXTURE2D_LOD(_LetteraRampsFine, sampler_LetteraRampsFine, uv, 0)
 #endif
 
 #include "LetteraShadeCore.hlsl"

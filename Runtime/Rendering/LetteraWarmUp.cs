@@ -17,6 +17,9 @@ namespace FirstSymbol.Lettera
         /// <summary>Also the variant that cuts low alpha.</summary>
         public bool AlphaClip;
 
+        /// <summary>Also, for each styled tier, the variant a text whose gradients have grain draws with.</summary>
+        public bool Grain;
+
         /// <summary>The format of the target drawn to. Default is what the camera has.</summary>
         public RenderTextureFormat? TargetFormat;
     }
@@ -27,11 +30,15 @@ namespace FirstSymbol.Lettera
         public readonly LetteraSurfaceTier Tier;
         public readonly bool Clip, AlphaClip;
 
-        public LetteraShaderVariant(LetteraSurfaceTier tier, bool clip, bool alphaClip)
+        /// <summary>The styled tier's grained variant, for gradients with grain.</summary>
+        public readonly bool Grain;
+
+        public LetteraShaderVariant(LetteraSurfaceTier tier, bool clip, bool alphaClip, bool grain = false)
         {
             Tier = tier;
             Clip = clip;
             AlphaClip = alphaClip;
+            Grain = grain;
         }
     }
 
@@ -184,11 +191,15 @@ namespace FirstSymbol.Lettera
             foreach (LetteraSurfaceTier tier in new[] { LetteraSurfaceTier.UiPlain, LetteraSurfaceTier.UiStyled, LetteraSurfaceTier.UiMerged, LetteraSurfaceTier.UiShared, LetteraSurfaceTier.WorldPlain, LetteraSurfaceTier.WorldStyled, LetteraSurfaceTier.WorldLit, LetteraSurfaceTier.WorldLitStyled })
             {
                 if ((tiers & tier) == 0) continue;
+                bool grains = options.Grain && (tier == LetteraSurfaceTier.UiStyled || tier == LetteraSurfaceTier.WorldStyled || tier == LetteraSurfaceTier.WorldLitStyled);
                 variants.Add(new LetteraShaderVariant(tier, false, false));
+                if (grains) variants.Add(new LetteraShaderVariant(tier, false, false, true));
                 // Clipping is a keyword of the UI shaders only.
                 if (tier != LetteraSurfaceTier.UiPlain && tier != LetteraSurfaceTier.UiStyled && tier != LetteraSurfaceTier.UiMerged && tier != LetteraSurfaceTier.UiShared) continue;
                 if (options.Clip) variants.Add(new LetteraShaderVariant(tier, true, false));
                 if (options.AlphaClip) variants.Add(new LetteraShaderVariant(tier, false, true));
+                if (grains && options.Clip) variants.Add(new LetteraShaderVariant(tier, true, false, true));
+                if (grains && options.AlphaClip) variants.Add(new LetteraShaderVariant(tier, false, true, true));
             }
             return variants;
         }
@@ -265,7 +276,7 @@ namespace FirstSymbol.Lettera
             Material source = variant.Tier == LetteraSurfaceTier.UiPlain || variant.Tier == LetteraSurfaceTier.UiStyled || merged || shared ? LetteraMaterials.Ui
                 : variant.Tier == LetteraSurfaceTier.WorldPlain || variant.Tier == LetteraSurfaceTier.WorldStyled ? LetteraMaterials.World : LetteraMaterials.WorldLit;
             if (source == null) return;
-            var material = new Material(LetteraMaterials.Variant(source, styled, LetteraBlend.Normal, null, merged, shared)) { hideFlags = HideFlags.HideAndDontSave };
+            var material = new Material(LetteraMaterials.Variant(source, styled, LetteraBlend.Normal, null, merged, shared, variant.Grain)) { hideFlags = HideFlags.HideAndDontSave };
             if (variant.Clip) material.EnableKeyword("UNITY_UI_CLIP_RECT");
             if (variant.AlphaClip) material.EnableKeyword("UNITY_UI_ALPHACLIP");
 

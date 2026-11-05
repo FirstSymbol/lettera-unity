@@ -46,7 +46,7 @@ namespace FirstSymbol.Lettera
         static readonly int s_SrcBlend = Shader.PropertyToID("_SrcBlend");
         static readonly int s_DstBlend = Shader.PropertyToID("_DstBlend");
         static readonly int s_PaintTex = Shader.PropertyToID("_LetteraPaintTex");
-        static readonly Dictionary<(Material, bool, LetteraBlend, Texture2D, bool), Material> s_Variants = new Dictionary<(Material, bool, LetteraBlend, Texture2D, bool), Material>();
+        static readonly Dictionary<(Material, bool, LetteraBlend, Texture2D, bool, bool), Material> s_Variants = new Dictionary<(Material, bool, LetteraBlend, Texture2D, bool, bool), Material>();
 
         /// <summary>
         /// The material a stretch of text draws with: a variant of a base material with the styled shader tier,
@@ -54,17 +54,21 @@ namespace FirstSymbol.Lettera
         /// </summary>
         // Merged layers take a variant of their own: plain glyphs and merged quads, with none of the styled path's weight on the rest.
         // Shared layers take another: plain glyphs whose colour and edge are flat, read from the corner that leads each triangle.
-        internal static Material Variant(Material source, bool styled, LetteraBlend blend, Texture2D texture, bool merged = false, bool shared = false)
+        // A text whose gradients have grain takes the styled tier's grained variant, so no other text pays for the grain.
+        internal static Material Variant(Material source, bool styled, LetteraBlend blend, Texture2D texture, bool merged = false, bool shared = false, bool grained = false)
         {
             if (blend == LetteraBlend.Inherit) blend = LetteraBlend.Normal;
             shared &= !styled && blend == LetteraBlend.Normal && texture == null;
             if (!styled && blend == LetteraBlend.Normal && texture == null && !shared) return source;
             merged &= styled && blend == LetteraBlend.Normal && texture == null;
-            var key = (source, styled, blend, texture, merged || shared);
+            // A material of the user's own whose shader has no grained variant keeps its styled one.
+            grained = grained && styled && !merged && source.shader != null && source.shader.keywordSpace.FindKeyword("LETTERA_GRAINED").isValid;
+            var key = (source, styled, blend, texture, merged || shared, grained);
             if (s_Variants.TryGetValue(key, out Material variant) && variant != null) return variant;
-            variant = new Material(source) { hideFlags = HideFlags.HideAndDontSave, name = source.name + (merged ? " Merged" : shared ? " Shared" : " Variant") };
+            variant = new Material(source) { hideFlags = HideFlags.HideAndDontSave, name = source.name + (merged ? " Merged" : shared ? " Shared" : grained ? " Grained" : " Variant") };
             if (shared) variant.EnableKeyword("LETTERA_LAYERED");
             else if (merged) variant.EnableKeyword("LETTERA_MERGED");
+            else if (grained) variant.EnableKeyword("LETTERA_GRAINED");
             else if (styled) variant.EnableKeyword("LETTERA_STYLED");
             if (texture != null) variant.SetTexture(s_PaintTex, texture);
             SetBlend(variant, blend);
