@@ -42,7 +42,7 @@ Where a cell says *no*, nobody knows yet. The [Device Check](#check-a-device-you
 **Browsers expose no font files**, so on the web:
 
 - A text with no font uses a bundled Noto Sans, which covers Latin, Cyrillic and Greek. **Other scripts show missing-glyph boxes until you assign a font** that covers them, through **Font** or **Font Stack**. Shaping then works as everywhere else.
-- Formulas need a math font assigned too: the web has no system one. See [Formulas](Math.md).
+- The web has no system math font, so formulas take the plain fallback layout until a math font is assigned. See [Formulas](Math.md).
 - Emoji are drawn by the browser's own canvas, so they look like that device's emoji. Colour and alpha apply as usual.
 - `LetteraSettings.WebGLFallbackFont` replaces the bundled font.
 - Glyph memory is capped lower than elsewhere: the least recently used atlas page is recycled when the limit is reached.
