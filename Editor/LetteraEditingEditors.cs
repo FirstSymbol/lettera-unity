@@ -271,7 +271,10 @@ namespace FirstSymbol.Lettera.Editor
                 LtFrame.WithSwitch(LtUI.Field("Handles", P("m_HandlesComponent"), "Selection ends a finger can drag. Empty uses the project's."), "None", P("m_NoHandles"), "No handles on this text at all."),
                 LtFrame.WithSwitch(LtUI.Field("Loupe", P("m_LoupeComponent"), "Magnifies under a finger. Empty uses the project's."), "None", P("m_NoLoupe"), "No loupe on this text at all."),
                 LtUI.Field("Menu", P("m_MenuPresenter"), "Draws the right-click and long-press menu. Empty uses the project's."),
-                new LtStatus().Line("Android Menu", () => LetteraSettings.Instance.Editing.AndroidMenu.ToString()).Line("iOS Menu", () => LetteraSettings.Instance.Editing.IosMenu.ToString()).Line("Loupe", () => LetteraSettings.Instance.Editing.Loupe.ToString()).RefreshNow()));
+                LtUI.Field("Android Menu", P("m_AndroidMenu"), "Whose menu this text shows on Android. Project follows Project Settings > Lettera; System needs the System Menu gate on."),
+                LtUI.Field("iOS Menu", P("m_IosMenu"), "Whose menu this text shows on iOS. Project follows Project Settings > Lettera; System needs the System Menu gate on, and iOS 16."),
+                LtUI.Field("Phone Loupe", P("m_LoupeChoice"), "Whose loupe this text shows on a phone, when no Loupe component is set. Project follows Project Settings > Lettera."),
+                new LtStatus().Line("Project's Android Menu", () => LetteraSettings.Instance.Editing.AndroidMenu.ToString()).Line("Project's iOS Menu", () => LetteraSettings.Instance.Editing.IosMenu.ToString()).Line("Project's Loupe", () => LetteraSettings.Instance.Editing.Loupe.ToString()).RefreshNow()));
             page.Add(LtUI.Card("", new LetteraReferenceList(P("m_Commands"), () => LetteraRuleCatalog.Commands, null, "Commands", "No commands: the menu stays empty.")));
 
             string shown = null;

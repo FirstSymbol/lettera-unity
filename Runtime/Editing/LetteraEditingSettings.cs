@@ -10,6 +10,12 @@ namespace FirstSymbol.Lettera
     /// <summary>Whose loupe shows.</summary>
     public enum LetteraLoupeChoice { MeshLoupe, System }
 
+    /// <summary>One text's menu: the project's choice, or its own.</summary>
+    public enum LetteraMenuOverride { Project, LetteraDrawn, System }
+
+    /// <summary>One text's loupe: the project's choice, or its own.</summary>
+    public enum LetteraLoupeOverride { Project, MeshLoupe, System }
+
     public enum LetteraDeleteBackMode { Cluster, Codepoint }
 
     /// <summary>The selection and editing section of the project settings.</summary>

@@ -314,7 +314,7 @@ namespace FirstSymbol.Lettera
         LetteraMenuPresenter ResolvePresenter()
         {
             if (m_MenuPresenter != null) return m_MenuPresenter;
-            LetteraMenuPresenter system = LetteraSystemUi.Menu();
+            LetteraMenuPresenter system = LetteraSystemUi.Menu(m_AndroidMenu, m_IosMenu);
             if (system != null) return system;
             LetteraMenuPresenter project = LetteraSettings.Instance.Editing.MenuPrefab;
             if (project != null)

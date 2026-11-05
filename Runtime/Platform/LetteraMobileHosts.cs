@@ -53,18 +53,30 @@ namespace FirstSymbol.Lettera
         }
 
         /// <summary>The menu to use before the project's own and the built-in one, or null.</summary>
-        internal static LetteraMenuPresenter Menu()
+        internal static LetteraMenuPresenter Menu(LetteraMenuOverride android = LetteraMenuOverride.Project, LetteraMenuOverride ios = LetteraMenuOverride.Project)
         {
             if (!LetteraPlatform.IsActive(LetteraNativeFeature.SystemMenu)) return null;
-            LetteraEditingSettings settings = LetteraSettings.Instance.Editing;
-            bool chosen = LetteraPlatform.Kind == LetteraPlatformKind.IOS ? settings.IosMenu == LetteraMenuChoice.System : settings.AndroidMenu == LetteraMenuChoice.System;
-            return chosen ? LetteraSystemMenu.Resolve(Current) : null;
+            return WantsSystemMenu(android, ios) ? LetteraSystemMenu.Resolve(Current) : null;
         }
 
-        /// <summary>The loupe to use before Lettera's, or null.</summary>
-        internal static ILetteraLoupe Loupe()
+        /// <summary>Whether a text's choice, or the project's where it has none, is the system's menu on this platform.</summary>
+        internal static bool WantsSystemMenu(LetteraMenuOverride android, LetteraMenuOverride ios)
         {
-            if (!LetteraPlatform.IsActive(LetteraNativeFeature.SystemLoupe) || LetteraSettings.Instance.Editing.Loupe != LetteraLoupeChoice.System) return null;
+            LetteraEditingSettings settings = LetteraSettings.Instance.Editing;
+            bool apple = LetteraPlatform.Kind == LetteraPlatformKind.IOS;
+            LetteraMenuOverride own = apple ? ios : android;
+            if (own != LetteraMenuOverride.Project) return own == LetteraMenuOverride.System;
+            return (apple ? settings.IosMenu : settings.AndroidMenu) == LetteraMenuChoice.System;
+        }
+
+        /// <summary>Whether a text's choice, or the project's where it has none, is the system's loupe.</summary>
+        internal static bool WantsSystemLoupe(LetteraLoupeOverride own) =>
+            own != LetteraLoupeOverride.Project ? own == LetteraLoupeOverride.System : LetteraSettings.Instance.Editing.Loupe == LetteraLoupeChoice.System;
+
+        /// <summary>The loupe to use before Lettera's, or null.</summary>
+        internal static ILetteraLoupe Loupe(LetteraLoupeOverride own = LetteraLoupeOverride.Project)
+        {
+            if (!LetteraPlatform.IsActive(LetteraNativeFeature.SystemLoupe) || !WantsSystemLoupe(own)) return null;
             ILetteraSystemUi ui = Current;
             return ui != null && ui.LoupeSupported ? new LetteraSystemLoupe(ui) : null;
         }

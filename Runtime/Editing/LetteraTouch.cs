@@ -43,6 +43,12 @@ namespace FirstSymbol.Lettera
         [Tooltip("A component that magnifies. Empty uses the built-in one.")]
         [SerializeField] Component m_LoupeComponent;
         [SerializeField] bool m_NoHandles, m_NoLoupe;
+        [Tooltip("Whose menu this text shows on Android. Project follows Project Settings > Lettera.")]
+        [SerializeField] LetteraMenuOverride m_AndroidMenu;
+        [Tooltip("Whose menu this text shows on iOS. Project follows Project Settings > Lettera.")]
+        [SerializeField] LetteraMenuOverride m_IosMenu;
+        [Tooltip("Whose loupe this text shows on a phone. Project follows Project Settings > Lettera.")]
+        [SerializeField] LetteraLoupeOverride m_LoupeChoice;
 
         ILetteraHandles m_Handles;
         ILetteraLoupe m_Loupe;
@@ -55,6 +61,25 @@ namespace FirstSymbol.Lettera
         public Component Loupe { get => m_LoupeComponent; set { m_LoupeComponent = value; m_Loupe = null; } }
         public bool NoHandles { get => m_NoHandles; set => m_NoHandles = value; }
         public bool NoLoupe { get => m_NoLoupe; set => m_NoLoupe = value; }
+
+        /// <summary>Whose menu this text shows on Android, against the project's choice. System still needs its gate on.</summary>
+        public LetteraMenuOverride AndroidMenu { get => m_AndroidMenu; set => m_AndroidMenu = value; }
+
+        /// <summary>Whose menu this text shows on iOS, against the project's choice. System still needs its gate on, and iOS 16.</summary>
+        public LetteraMenuOverride IosMenu { get => m_IosMenu; set => m_IosMenu = value; }
+
+        /// <summary>Whose loupe this text shows on a phone, against the project's choice. A Loupe component still comes first.</summary>
+        public LetteraLoupeOverride LoupeChoice
+        {
+            get => m_LoupeChoice;
+            set
+            {
+                if (m_LoupeChoice == value) return;
+                HideLoupe();
+                m_LoupeChoice = value;
+                m_Loupe = null;
+            }
+        }
 
         internal ILetteraHandles ResolvedHandles
         {
@@ -76,7 +101,7 @@ namespace FirstSymbol.Lettera
             }
         }
 
-        ILetteraLoupe ResolvedLoupe
+        internal ILetteraLoupe ResolvedLoupe
         {
             get
             {
@@ -84,7 +109,7 @@ namespace FirstSymbol.Lettera
                 if (m_Loupe != null) return m_Loupe;
                 m_Loupe = m_LoupeComponent as ILetteraLoupe;
                 if (m_Loupe != null) return m_Loupe;
-                m_Loupe = LetteraSystemUi.Loupe();
+                m_Loupe = LetteraSystemUi.Loupe(m_LoupeChoice);
                 if (m_Loupe != null) return m_Loupe;
                 if (s_DefaultLoupe == null) s_DefaultLoupe = LetteraMeshLoupe.CreateDefault();
                 return m_Loupe = s_DefaultLoupe;

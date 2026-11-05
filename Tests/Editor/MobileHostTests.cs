@@ -126,7 +126,85 @@ namespace FirstSymbol.Lettera.Editor.Tests
             LetteraPlatform.ResetForTests();
             LetteraEditingSettings settings = LetteraSettings.Instance.Editing;
             settings.AndroidMenu = LetteraMenuChoice.LetteraDrawn;
+            settings.IosMenu = LetteraMenuChoice.LetteraDrawn;
             settings.Loupe = LetteraLoupeChoice.MeshLoupe;
+        }
+
+        [Test]
+        public void AFieldsOwnMenuChoiceBeatsTheProjectsOnItsPlatform()
+        {
+            var ui = new FakeUi();
+            ChooseSystem(ui);
+            LetteraEditable field = Field("hello");
+            LetteraSelectable selectable = field.Selectable;
+            Assert.AreEqual(LetteraMenuOverride.Project, selectable.AndroidMenu, "a new text follows the project");
+            Assert.AreEqual(LetteraMenuOverride.Project, selectable.IosMenu);
+            selectable.Select(0, 5);
+
+            LetteraPlatform.KindOverride = LetteraPlatformKind.Android;
+            selectable.AndroidMenu = LetteraMenuOverride.LetteraDrawn;
+            selectable.OpenMenu(new LetteraMenuPlacement { Point = Vector2.zero, Trigger = LetteraMenuTrigger.Pointer });
+            Assert.IsNull(ui.Titles, "Android: this text draws its own though the project says System");
+            Assert.IsTrue(selectable.IsMenuShown);
+            selectable.HideMenu();
+
+            LetteraPlatform.KindOverride = LetteraPlatformKind.IOS;
+            selectable.OpenMenu(new LetteraMenuPlacement { Point = Vector2.zero, Trigger = LetteraMenuTrigger.Pointer });
+            Assert.IsNotNull(ui.Titles, "iOS: no choice of its own, so the project's System");
+            selectable.HideMenu();
+
+            LetteraSettings.Instance.Editing.IosMenu = LetteraMenuChoice.LetteraDrawn;
+            selectable.IosMenu = LetteraMenuOverride.System;
+            ui.Titles = null;
+            selectable.OpenMenu(new LetteraMenuPlacement { Point = Vector2.zero, Trigger = LetteraMenuTrigger.Pointer });
+            Assert.IsNotNull(ui.Titles, "iOS: its own System though the project draws");
+            selectable.HideMenu();
+
+            LetteraPlatform.Override = feature => false;
+            ui.Titles = null;
+            selectable.OpenMenu(new LetteraMenuPlacement { Point = Vector2.zero, Trigger = LetteraMenuTrigger.Pointer });
+            Assert.IsNull(ui.Titles, "the gate still rules");
+            selectable.HideMenu();
+        }
+
+        [Test]
+        public void AFieldsOwnLoupeChoiceBeatsTheProjects()
+        {
+            var ui = new FakeUi();
+            ChooseSystem(ui);
+            LetteraSelectable selectable = Field("hello").Selectable;
+            Assert.AreEqual(LetteraLoupeOverride.Project, selectable.LoupeChoice);
+            Assert.IsInstanceOf<LetteraSystemLoupe>(selectable.ResolvedLoupe, "the project's System");
+            selectable.LoupeChoice = LetteraLoupeOverride.MeshLoupe;
+            Assert.IsInstanceOf<LetteraMeshLoupe>(selectable.ResolvedLoupe, "its own, made again when the choice changes");
+
+            LetteraSettings.Instance.Editing.Loupe = LetteraLoupeChoice.MeshLoupe;
+            selectable.LoupeChoice = LetteraLoupeOverride.System;
+            Assert.IsInstanceOf<LetteraSystemLoupe>(selectable.ResolvedLoupe);
+            selectable.LoupeChoice = LetteraLoupeOverride.Project;
+            Assert.IsInstanceOf<LetteraMeshLoupe>(selectable.ResolvedLoupe);
+        }
+
+        [Test]
+        public void TheInspectorHasARowForEachChoice()
+        {
+            LetteraSelectable selectable = Field("hello").Selectable;
+            UnityEditor.Editor editor = UnityEditor.Editor.CreateEditor(selectable);
+            try
+            {
+                UnityEngine.UIElements.VisualElement root = editor.CreateInspectorGUI();
+                var labels = new List<string>();
+                UnityEngine.UIElements.UQueryExtensions.Query<UnityEngine.UIElements.Label>(root).ForEach(l => labels.Add(l.text));
+                foreach (string row in new[] { "Android Menu", "iOS Menu", "Phone Loupe" }) CollectionAssert.Contains(labels, row);
+                var serialized = new UnityEditor.SerializedObject(selectable);
+                serialized.FindProperty("m_AndroidMenu").enumValueIndex = (int)LetteraMenuOverride.System;
+                serialized.ApplyModifiedPropertiesWithoutUndo();
+                Assert.AreEqual(LetteraMenuOverride.System, selectable.AndroidMenu, "the row's field is the one the runtime reads");
+            }
+            finally
+            {
+                Object.DestroyImmediate(editor);
+            }
         }
 
         static void ChooseSystem(FakeUi ui)
