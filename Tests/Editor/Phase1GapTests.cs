@@ -204,21 +204,26 @@ namespace FirstSymbol.Lettera.Editor.Tests
             for (int i = 0; i < 300; i++) Update(i); // Warm-up: glyphs reach the atlas, buffers grow.
 
             // GC.GetAllocatedBytesForCurrentThread reads 0 on Unity's Mono, so this uses the live profiler counter.
+            // The counter spans all threads by default, and the editor's own threads (import, package manager,
+            // the test runner) allocate right after start; only the calling thread's allocations are the text's.
+            using var recorder = ProfilerRecorder.StartNew(ProfilerCategory.Memory, "GC Allocated In Frame", 1,
+                ProfilerRecorderOptions.Default | ProfilerRecorderOptions.CollectOnlyOnCurrentThread);
+            using var everyThread = ProfilerRecorder.StartNew(ProfilerCategory.Memory, "GC Allocated In Frame");
             // Control: the counter must see even a small allocation. The test stays within one frame.
-            using var recorder = ProfilerRecorder.StartNew(ProfilerCategory.Memory, "GC Allocated In Frame");
             long control = recorder.CurrentValue;
             System.GC.KeepAlive(new byte[32]);
             Assert.GreaterOrEqual(recorder.CurrentValue - control, 32, "the allocation counter does not work here");
 
-            // The rest of the editor allocates at times too, so take the quietest of a few windows.
-            long allocated = long.MaxValue;
+            // Take the quietest of a few windows.
+            long allocated = long.MaxValue, anyThread = long.MaxValue;
             for (int window = 0; window < 5; window++)
             {
-                long before = recorder.CurrentValue;
+                long before = recorder.CurrentValue, beforeAll = everyThread.CurrentValue;
                 for (int i = 0; i < 300; i++) Update(i);
                 allocated = System.Math.Min(allocated, recorder.CurrentValue - before);
+                anyThread = System.Math.Min(anyThread, everyThread.CurrentValue - beforeAll);
             }
-            Assert.Less(allocated, 200, $"300 runtime text updates allocated {allocated} bytes");
+            Assert.Less(allocated, 200, $"300 runtime text updates allocated {allocated} bytes on this thread ({anyThread} on all threads)");
         }
     }
 
