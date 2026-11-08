@@ -364,7 +364,7 @@ namespace FirstSymbol.Lettera.Editor
         {
             Event e = Event.current;
             if (!Enabled || e == null || !row.Contains(e.mousePosition)) return;
-            Handle(e, LetteraPaletteSource.Scene, EditorUtility.InstanceIDToObject(id) as GameObject);
+            Handle(e, LetteraPaletteSource.Scene, EditorUtility.EntityIdToObject(id) as GameObject);
         }
 
         static void OnProjectItem(string guid, Rect row)

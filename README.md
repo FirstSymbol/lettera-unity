@@ -24,7 +24,7 @@ A specific version:
 https://github.com/FirstSymbol/lettera-unity.git#1.0.0-rc.2
 ```
 
-Requires Unity 6 (6000.0) or newer.
+Requires Unity 6.3 LTS (6000.3) or newer.
 
 ## Quick start
 

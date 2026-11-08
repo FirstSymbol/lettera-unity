@@ -51,7 +51,8 @@ namespace FirstSymbol.Lettera.Editor.Tests
             return compiled;
         }
 
-        [Test]
+        // Takes about 110 s alone on 6000.3, so a loaded machine goes past the 180 s default.
+        [Test, Timeout(900000)]
         public void EveryPassCompilesForWebGpu()
         {
             var failures = new List<string>();
