@@ -34,7 +34,7 @@ Where a cell says *no*, nobody knows yet. The [Device Check](#check-a-device-you
 | Keys, paste, cut, focus and menu items by real clicks | Yes | In Chromium and WebKit, by a driver that reads the field after every step | No |
 | Composition from an input method | Yes | In Chromium, through the browser's debugging protocol | No real input method |
 | WebGPU | Yes | Chromium 156 on one desktop GPU | No |
-| Safari on a real iPhone or iPad | — | No | No |
+| Safari on a real iPhone (14 Plus, iOS 26) | Yes, the Device Check | Yes, by Safari's remote automation: taps, a long press, a double tap, a swipe, formulas, the report, 60 fps; the page's own menu and handles show | Partly: one owner's run found the faults fixed in this release; dragging a handle and the finger-held loupe are not yet seen working; no iPad |
 | Chrome on a real Android phone | — | No | No |
 | Firefox | — | No | No |
 | A link opening a new tab | — | No: the self-test uses a stand-in | No |
@@ -42,7 +42,8 @@ Where a cell says *no*, nobody knows yet. The [Device Check](#check-a-device-you
 **Browsers expose no font files**, so on the web:
 
 - A text with no font uses a bundled Noto Sans, which covers Latin, Cyrillic and Greek. **Other scripts show missing-glyph boxes until you assign a font** that covers them, through **Font** or **Font Stack**. Shaping then works as everywhere else.
-- The web has no system math font, so formulas take the plain fallback layout until a math font is assigned. See [Formulas](Math.md).
+- The web has no system math font, so formulas take the plain fallback layout until a math font is assigned. See [Formulas](Math.md). On an iPhone that layout draws a root as nothing and an integral or a sum as an empty box, since the bundled web font lacks them; **Lettera > Math > Use Bundled Font** fixes it, and the Device Check sets it.
+- On Safari the menu and handles are Lettera's own, drawn in the page: the system's menu and loupe are not used on the web. A long press selects the word under the finger, a double tap too.
 - Emoji are drawn by the browser's own canvas, so they look like that device's emoji. Colour and alpha apply as usual.
 - `LetteraSettings.WebGLFallbackFont` replaces the bundled font.
 - Glyph memory is capped lower than elsewhere: the least recently used atlas page is recycled when the limit is reached.
