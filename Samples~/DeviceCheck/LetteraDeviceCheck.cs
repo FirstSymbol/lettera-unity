@@ -85,8 +85,8 @@ namespace FirstSymbol.Lettera.Samples
                 .Ru("Системное поле поверх", "Коснитесь поля. Поверх него должно встать системное поле ввода Android, а ограничение в 10 символов должно соблюдаться."),
             new Step("clipboard", "Clipboard", "Copy from the field and paste into Notes. Copy from Notes and paste here. Paste a screenshot. Count how many times the system says something was pasted: it should be only when you paste. On Windows: to and from Word and Chrome.", "clipboard text", "clipboard images", "paste control")
                 .Ru("Буфер обмена", "Скопируйте текст из поля и вставьте в Заметки. Скопируйте из Заметок и вставьте сюда. Попробуйте вставить скриншот. Система показывает уведомление о вставке: оно должно появляться только когда вы сами вставляете."),
-            new Step("menu", "Menu and loupe", "Hold on a word. Does the system's menu show clear of the selection, and do Cut, Copy, Paste and Select All work? A text app on Android, Look Up on iOS. Hold and drag: does the loupe follow and show what is under it?", "system menu", "text apps", "loupe")
-                .Ru("Меню и лупа", "Удерживайте палец на слове. Появляется ли системное меню, не закрывая выделение, и работают ли «Вырезать», «Копировать», «Вставить», «Выбрать всё»? Есть ли в меню пункты других приложений (например, «Перевести»)? Удерживайте и ведите палец: следует ли лупа за ним и показывает ли, что под пальцем?"),
+            new Step("menu", "Menu and loupe", "Hold on a word. Does the system's menu show clear of the selection, and do Cut, Copy, Paste and Select All work? A text app on Android, Look Up on iOS. On an iPhone a hold in a field puts the caret and Select takes the word. Hold and drag: does the loupe follow? On the read-only line below, a hold selects the word.", "system menu", "text apps", "loupe")
+                .Ru("Меню и лупа", "Удерживайте палец на слове. Появляется ли системное меню, не закрывая выделение, и работают ли «Вырезать», «Копировать», «Вставить», «Выбрать всё»? Есть ли в меню пункты других приложений (например, «Перевести»)? Удерживайте и ведите палец: следует ли лупа за ним и показывает ли, что под пальцем? На iPhone удержание в поле ставит каретку, «Select» берёт слово. В строке без правки ниже удержание выделяет слово."),
             new Step("fonts", "Fonts", "Close the app and open it again. Does text show at once? The figures below should say mapped, not memory.", "font mapping")
                 .Ru("Шрифты", "Закройте приложение и откройте снова. Появляется ли текст сразу? Цифры ниже должны показывать, что шрифты отображены с диска (mapped), а не держатся в памяти."),
             new Step("color", "Color glyphs", "Are the color glyphs below drawn with gradients? In Safari: do many emoji appear in one go?", "colrv1", "web emoji batching")
@@ -354,9 +354,15 @@ namespace FirstSymbol.Lettera.Samples
                 case "mirror":
                 case "composition":
                 case "clipboard":
-                case "menu":
                 case "touch":
                     Field(new Vector2(0, 0.3f), new Vector2(1, 0.6f));
+                    break;
+                case "menu":
+                    Field(new Vector2(0, 0.38f), new Vector2(1, 0.6f));
+                    // Text that is no field: on every system a long press selects the word under the finger.
+                    LetteraText readOnly = Label(T("Read-only text: hold on a word.", "Текст без правки: удержите палец на слове."), 28, new Vector2(0, 0.29f), new Vector2(1, 0.37f));
+                    readOnly.raycastTarget = true;
+                    readOnly.gameObject.AddComponent<LetteraSelectable>();
                     break;
                 case "traits":
                     Traits();
