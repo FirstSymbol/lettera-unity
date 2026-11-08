@@ -87,6 +87,10 @@ namespace FirstSymbol.Lettera
         }
 
         protected static float Turns(float phi) => phi - Mathf.Floor(phi);
+
+        internal static LetteraParamInfo AxisSlot(int slot, bool essential) =>
+            LetteraParamInfo.ForMotion("Axis", slot, LetteraParamKind.Enum, DirtyLevel.Pose, "The line the motion turns or circles about: X across, Y up, Z into depth.",
+                defaultField: "m_Axis", essential: essential, example: "Y", choices: Enum.GetNames(typeof(LetteraSolidAxis)));
     }
 
     /// <summary>Glyphs turn round about an axis, Y by default, like a sign on a pole. Slots: rate, step, axis.</summary>
@@ -98,12 +102,15 @@ namespace FirstSymbol.Lettera
 
         static readonly LetteraParamInfo[] s_Params =
         {
-            new LetteraParamInfo("Rate", 0, LetteraParamKind.Float, DirtyLevel.Pose, true),
-            new LetteraParamInfo("Step", 1, LetteraParamKind.Float, DirtyLevel.Pose, true),
-            new LetteraParamInfo("Axis", 2, LetteraParamKind.Enum, DirtyLevel.Pose, true),
+            LetteraMotionSlots.Rate(0, "m_Rate", hint: "Turns a second: 1 is a full turn each second. Negative turns the other way.", example: "1"),
+            LetteraMotionSlots.Step(1, "m_Step"),
+            AxisSlot(2, true),
         };
 
         public override IReadOnlyList<LetteraParamInfo> Parameters => s_Params;
+        public override string Description => "Glyphs turn round about an axis, like a sign on a pole. Solid text only.";
+        public override IReadOnlyList<LetteraTagExample> Examples => s_Examples;
+        static readonly LetteraTagExample[] s_Examples = { new LetteraTagExample("", "The default turn"), new LetteraTagExample("1,0,X", "One turn a second about X, all together") };
         public float Rate { get => m_Rate; set { m_Rate = value; Version++; } }
         public float Step { get => m_Step; set { m_Step = value; Version++; } }
         public LetteraSolidAxis Axis { get => m_Axis; set { m_Axis = value; Version++; } }
@@ -130,13 +137,16 @@ namespace FirstSymbol.Lettera
 
         static readonly LetteraParamInfo[] s_Params =
         {
-            new LetteraParamInfo("Angle", 0, LetteraParamKind.Float, DirtyLevel.Pose, true),
-            new LetteraParamInfo("Rate", 1, LetteraParamKind.Float, DirtyLevel.Pose, true),
-            new LetteraParamInfo("Step", 2, LetteraParamKind.Float, DirtyLevel.Pose, true),
-            new LetteraParamInfo("Axis", 3, LetteraParamKind.Enum, DirtyLevel.Pose),
+            LetteraMotionSlots.Angle("Angle", 0, "How far glyphs swing to each side.", "m_Angle", "30", true),
+            LetteraMotionSlots.Rate(1, "m_Rate", example: "0.5"),
+            LetteraMotionSlots.Step(2, "m_Step"),
+            AxisSlot(3, false),
         };
 
         public override IReadOnlyList<LetteraParamInfo> Parameters => s_Params;
+        public override string Description => "Glyphs swing to and fro in depth, like a hanging sign. Solid text only.";
+        public override IReadOnlyList<LetteraTagExample> Examples => s_Examples;
+        static readonly LetteraTagExample[] s_Examples = { new LetteraTagExample("", "The default swing"), new LetteraTagExample("45,0.5", "Wider and slower") };
         public float Angle { get => m_Angle; set { m_Angle = value; Version++; } }
         public float Rate { get => m_Rate; set { m_Rate = value; Version++; } }
         public float Step { get => m_Step; set { m_Step = value; Version++; } }
@@ -170,12 +180,15 @@ namespace FirstSymbol.Lettera
 
         static readonly LetteraParamInfo[] s_Params =
         {
-            new LetteraParamInfo("Amplitude", 0, LetteraParamKind.Float, DirtyLevel.Pose, true),
-            new LetteraParamInfo("Rate", 1, LetteraParamKind.Float, DirtyLevel.Pose, true),
-            new LetteraParamInfo("Step", 2, LetteraParamKind.Float, DirtyLevel.Pose, true),
+            LetteraMotionSlots.Em("Amplitude", 0, "How far glyphs move towards and away from the viewer, in em.", "m_Amplitude", "0.3", true),
+            LetteraMotionSlots.Rate(1, "m_Rate"),
+            LetteraMotionSlots.Step(2, "m_Step"),
         };
 
         public override IReadOnlyList<LetteraParamInfo> Parameters => s_Params;
+        public override string Description => "A wave runs through the glyphs towards the viewer and away. Solid text only.";
+        public override IReadOnlyList<LetteraTagExample> Examples => s_Examples;
+        static readonly LetteraTagExample[] s_Examples = { new LetteraTagExample("", "The default surge"), new LetteraTagExample("0.5,1", "Bigger and quicker") };
         public float Amplitude { get => m_Amplitude; set { m_Amplitude = value; Version++; } }
         public float Rate { get => m_Rate; set { m_Rate = value; Version++; } }
         public float Step { get => m_Step; set { m_Step = value; Version++; } }
@@ -203,13 +216,16 @@ namespace FirstSymbol.Lettera
 
         static readonly LetteraParamInfo[] s_Params =
         {
-            new LetteraParamInfo("Radius", 0, LetteraParamKind.Float, DirtyLevel.Pose, true),
-            new LetteraParamInfo("Rate", 1, LetteraParamKind.Float, DirtyLevel.Pose, true),
-            new LetteraParamInfo("Step", 2, LetteraParamKind.Float, DirtyLevel.Pose, true),
-            new LetteraParamInfo("Axis", 3, LetteraParamKind.Enum, DirtyLevel.Pose),
+            LetteraMotionSlots.Em("Radius", 0, "Radius of the circle glyphs travel, in em.", "m_Radius", "0.25", true),
+            LetteraMotionSlots.Rate(1, "m_Rate", example: "0.5"),
+            LetteraMotionSlots.Step(2, "m_Step"),
+            AxisSlot(3, false),
         };
 
         public override IReadOnlyList<LetteraParamInfo> Parameters => s_Params;
+        public override string Description => "Glyphs circle round where they rest, passing in front of and behind it. Solid text only.";
+        public override IReadOnlyList<LetteraTagExample> Examples => s_Examples;
+        static readonly LetteraTagExample[] s_Examples = { new LetteraTagExample("", "The default orbit"), new LetteraTagExample("0.4,1", "A wider, quicker circle") };
         public float Radius { get => m_Radius; set { m_Radius = value; Version++; } }
         public float Rate { get => m_Rate; set { m_Rate = value; Version++; } }
         public float Step { get => m_Step; set { m_Step = value; Version++; } }
@@ -248,11 +264,14 @@ namespace FirstSymbol.Lettera
 
         static readonly LetteraParamInfo[] s_Params =
         {
-            new LetteraParamInfo("Rate", 0, LetteraParamKind.Float, DirtyLevel.Pose, true),
-            new LetteraParamInfo("Step", 1, LetteraParamKind.Float, DirtyLevel.Pose, true),
+            LetteraMotionSlots.Rate(0, "m_Rate", hint: "Turns a second: 1 is a full turn each second.", example: "0.5"),
+            LetteraMotionSlots.Step(1, "m_Step"),
         };
 
         public override IReadOnlyList<LetteraParamInfo> Parameters => s_Params;
+        public override string Description => "Glyphs tumble, each about an axis of its own. Solid text only.";
+        public override IReadOnlyList<LetteraTagExample> Examples => s_Examples;
+        static readonly LetteraTagExample[] s_Examples = { new LetteraTagExample("", "The default tumble"), new LetteraTagExample("0.5", "Faster") };
         public float Rate { get => m_Rate; set { m_Rate = value; Version++; } }
         public float Step { get => m_Step; set { m_Step = value; Version++; } }
         protected override int RateSlot => 0;

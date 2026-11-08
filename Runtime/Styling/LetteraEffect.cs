@@ -21,9 +21,42 @@ namespace FirstSymbol.Lettera
         public virtual LetteraEffect Clone() => (LetteraEffect)MemberwiseClone();
 
         /// <summary>The parameters this effect publishes, so rules, cues and an inspector can reach them by name.</summary>
-        public virtual System.Collections.Generic.IReadOnlyList<LetteraParamInfo> Parameters => s_NoParameters;
+        public virtual System.Collections.Generic.IReadOnlyList<LetteraParamInfo> Parameters => Facts?.Params ?? s_NoParameters;
 
         static readonly LetteraParamInfo[] s_NoParameters = new LetteraParamInfo[0];
+
+        /// <summary>One or two plain sentences on what the tag does, shown above its values. Null for an effect that does not say.</summary>
+        public virtual string Description => Facts?.Description;
+
+        /// <summary>Markups a person can try, as the value after the equals sign. An empty value is the bare tag.</summary>
+        public virtual System.Collections.Generic.IReadOnlyList<LetteraTagExample> Examples => Facts?.Examples ?? s_NoExamples;
+
+        static readonly LetteraTagExample[] s_NoExamples = new LetteraTagExample[0];
+
+        /// <summary>
+        /// True when the effect reads no tag value. Say it on purpose: an effect with no <see cref="Parameters"/> and this left false is one
+        /// that has not described itself, and the tag panel tells the two apart.
+        /// </summary>
+        public virtual bool TakesNoParameters => Facts != null && Facts.None;
+
+        [NonSerialized] LetteraEffectFacts m_Facts;
+        [NonSerialized] bool m_FactsKnown;
+
+        // Looked up once per instance: built-in words live in one table, and a type of your own has none.
+        LetteraEffectFacts Facts
+        {
+            get
+            {
+                if (!m_FactsKnown)
+                {
+                    m_Facts = LetteraBuiltInTags.Of(GetType());
+                    m_FactsKnown = true;
+                }
+                return m_Facts;
+            }
+        }
+
+        internal LetteraEffectFacts BuiltInFacts => Facts;
 
         /// <summary>Whether text typed at the end of this effect's range joins it. A link does not.</summary>
         public virtual bool ExtendsOnType => true;

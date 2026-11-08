@@ -83,6 +83,26 @@ namespace FirstSymbol.Lettera
     [Serializable, UnityEngine.Scripting.Preserve]
     public class SolidPoseEffect : LetteraEffect
     {
+        static LetteraParamInfo Turn(int slot, string name, string hint) =>
+            LetteraParamInfo.ForSlot(slot, name, LetteraParamKind.Float, hint, step: 5, decimals: 1, defaultText: "0", essential: slot == 0, example: "20", unitLabel: "\u00b0");
+
+        static readonly LetteraParamInfo[] s_Slots =
+        {
+            Turn(0, "Pitch", "Turns about X, in degrees: the top tips away."),
+            Turn(1, "Yaw", "Turns about Y, in degrees: the right side comes forward."),
+            Turn(2, "Roll", "Turns about Z, in degrees: counterclockwise as seen."),
+            LetteraParamInfo.ForSlot(3, "Lift", LetteraParamKind.Float, "Moves towards the viewer, in em.", step: 0.05f, decimals: 2, defaultText: "0", example: "0.2", unitLabel: "em"),
+            LetteraParamInfo.ForSlot(4, "Scale", LetteraParamKind.Float, "Scales the range, 0 to 100.", 0, 100, 0.1f, 2, defaultText: "1", example: "1.5"),
+            LetteraParamInfo.ForSlot(5, "Turns as", LetteraParamKind.Choice, "whole turns the range as one body; glyph turns each glyph about its own middle.", choices: new[] { "whole", "glyph" },
+                choiceLabels: new[] { "One body", "Each glyph" }, defaultText: "glyph"),
+        };
+
+        static readonly LetteraTagExample[] s_Examples = { new LetteraTagExample("0,25", "Turned 25 degrees about Y"), new LetteraTagExample("0,0,10,0,1,whole", "Rolled 10 degrees as one body") };
+
+        public override string Description => "Holds a range at a fixed pose in depth. Only a solid text shows it.";
+        public override IReadOnlyList<LetteraParamInfo> Parameters => s_Slots;
+        public override IReadOnlyList<LetteraTagExample> Examples => s_Examples;
+
         public override void Apply(LetteraAttributes attributes, int start, int end, in LetteraSlots slots)
         {
             var pose = new LetteraSolidRangePose
@@ -105,6 +125,23 @@ namespace FirstSymbol.Lettera
     [Serializable, UnityEngine.Scripting.Preserve]
     public class SolidSurfaceEffect : LetteraEffect
     {
+        static readonly string[] s_Surfaces = { "all", "Face", "Bevel", "Side", "BackBevel", "Back" };
+
+        static LetteraParamInfo Surface(int slot) =>
+            LetteraParamInfo.ForSlot(slot, "Surface " + slot, LetteraParamKind.Choice, "A surface the set applies to. Leave all of them empty for every surface.", choices: s_Surfaces, defaultText: "all");
+
+        static readonly LetteraParamInfo[] s_Slots =
+        {
+            LetteraParamInfo.ForSlot(0, "Set", LetteraParamKind.String, "The name of a material set on the text.", defaultText: "none, so nothing changes", essential: true, example: "gold"),
+            Surface(1), Surface(2), Surface(3),
+        };
+
+        static readonly LetteraTagExample[] s_Examples = { new LetteraTagExample("gold", "Every surface in the gold set"), new LetteraTagExample("gold,Face,Side", "Only the face and the sides") };
+
+        public override string Description => "Gives a range the materials of a named set on the text. Only a solid text shows it.";
+        public override IReadOnlyList<LetteraParamInfo> Parameters => s_Slots;
+        public override IReadOnlyList<LetteraTagExample> Examples => s_Examples;
+
         public override void Apply(LetteraAttributes attributes, int start, int end, in LetteraSlots slots)
         {
             string name = slots[0];

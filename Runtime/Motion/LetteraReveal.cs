@@ -200,9 +200,12 @@ namespace FirstSymbol.Lettera
 
         static readonly LetteraParamInfo[] s_Params =
         {
-            new LetteraParamInfo("Entrance", 0, LetteraParamKind.String, DirtyLevel.Pose, true),
-            new LetteraParamInfo("Reach", 1, LetteraParamKind.Length, DirtyLevel.Pose, true),
-            new LetteraParamInfo("Unit", 2, LetteraParamKind.Enum, DirtyLevel.Parse, true),
+            LetteraParamInfo.ForMotion("Entrance", 0, LetteraParamKind.String, DirtyLevel.Pose, "How each unit appears: an entrance from the effect's list or library, or a built-in one such as Fade, Slide, Scale, Pop, Drop or Spin.",
+                defaultText: "none, units appear at once", essential: true, example: "fade", suggests: "entrance"),
+            LetteraParamInfo.ForMotion("Reach", 1, LetteraParamKind.Length, DirtyLevel.Pose, "How much is shown: 100% is everything, 50% half, a bare number counts units.",
+                step: 1, decimals: 1, defaultField: "m_Reach", essential: true, example: "50%", units: LetteraSlotUnits.Bare | LetteraSlotUnits.Percent, bareMeans: LetteraLength.Unit.Bare, bareLabel: "units"),
+            LetteraParamInfo.ForMotion("Unit", 2, LetteraParamKind.Enum, DirtyLevel.Parse, "What appears as one: a cluster (letter), a word, a line or a paragraph.",
+                defaultField: "m_Unit", essential: true, example: "Word", choices: Enum.GetNames(typeof(LetteraRevealUnit))),
         };
 
         [NonSerialized] internal int Version;

@@ -8,6 +8,16 @@ namespace FirstSymbol.Lettera
     [Serializable, UnityEngine.Scripting.Preserve]
     public class SolidDepthEffect : LetteraEffect
     {
+        static readonly LetteraParamInfo[] s_Slots =
+        {
+            LetteraParamInfo.ForSlot(0, "Depth", LetteraParamKind.Float, "How deep the range is, as a multiple of the text's depth. 0 is flat.", 0, 100, 0.1f, 2, defaultText: "no change", essential: true, example: "2"),
+        };
+
+        static readonly LetteraTagExample[] s_Examples = { new LetteraTagExample("2", "Twice as deep"), new LetteraTagExample("0.5", "Half as deep") };
+
+        public override string Description => "Gives a range its own depth. Only a solid text shows it; flat text ignores it.";
+        public override IReadOnlyList<LetteraParamInfo> Parameters => s_Slots;
+        public override IReadOnlyList<LetteraTagExample> Examples => s_Examples;
         public override void Apply(LetteraAttributes attributes, int start, int end, in LetteraSlots slots)
         {
             if (!float.TryParse(slots[0], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float multiple)) return;
@@ -19,6 +29,18 @@ namespace FirstSymbol.Lettera
     [Serializable, UnityEngine.Scripting.Preserve]
     public class SolidBevelEffect : LetteraEffect
     {
+        static readonly LetteraParamInfo[] s_Slots =
+        {
+            LetteraParamInfo.ForSlot(0, "Shape", LetteraParamKind.Choice, "The profile of the edge. Without a shape the tag does nothing.", choices: Enum.GetNames(typeof(LetteraBevelShape)), defaultText: "none, the range is left alone", essential: true),
+            LetteraParamInfo.ForSlot(1, "Width", LetteraParamKind.Float, "How far the edge reaches into the face, 0 to 1.", 0, 1, 0.05f, 2, defaultText: "the default bevel's", example: "0.3"),
+            LetteraParamInfo.ForSlot(2, "Height", LetteraParamKind.Float, "How far the edge stands out, -1 to 1. Negative cuts in.", -1, 1, 0.05f, 2, defaultText: "the default bevel's", example: "0.5"),
+        };
+
+        static readonly LetteraTagExample[] s_Examples = { new LetteraTagExample("Round", "A rounded edge"), new LetteraTagExample("Chamfer,0.3,0.5", "A narrow chamfer standing out") };
+
+        public override string Description => "Gives a range its own edge shape. Only a solid text shows it.";
+        public override IReadOnlyList<LetteraParamInfo> Parameters => s_Slots;
+        public override IReadOnlyList<LetteraTagExample> Examples => s_Examples;
         public override void Apply(LetteraAttributes attributes, int start, int end, in LetteraSlots slots)
         {
             if (!Enum.TryParse(slots[0], true, out LetteraBevelShape shape)) return;
@@ -38,6 +60,79 @@ namespace FirstSymbol.Lettera
     [Serializable, UnityEngine.Scripting.Preserve]
     public class SolidDeformEffect : LetteraEffect
     {
+        static LetteraParamInfo Amount(string name, string hint, string example, string unit, string defaultText) =>
+            LetteraParamInfo.ForSlot(0, name, LetteraParamKind.Float, hint, step: unit == "\u00b0" ? 5 : 0.05f, decimals: 2, defaultText: defaultText, essential: true, example: example, unitLabel: unit);
+
+        static LetteraParamInfo Axis(int slot, params string[] choices) =>
+            LetteraParamInfo.ForSlot(slot, "Axis", LetteraParamKind.Choice, "Which way the deformer moves the text: Depth towards and away from the viewer, Up and down in the text's plane.", choices: choices, defaultText: choices[0]);
+
+        static readonly LetteraParamInfo[] s_Bend = { Amount("Angle", "How far the text curves, in degrees. 360 closes it in a ring.", "90", "\u00b0", "no change"), Axis(1, "Depth", "Up") };
+        static readonly LetteraParamInfo[] s_Twist = { Amount("Angle", "How far the far end is turned about the reading line, in degrees.", "180", "\u00b0", "no change"), Axis(1, "Depth", "Up") };
+        static readonly LetteraParamInfo[] s_Taper = { Amount("Amount", "How much the text narrows towards its end: 0 none, 1 to a point. Negative widens it.", "0.5", null, "no change"), Axis(1, "Up", "Depth", "Both") };
+        static readonly LetteraParamInfo[] s_Sphere = { Amount("Angle", "How much of a ball the text wraps onto, in degrees.", "120", "\u00b0", "no change"), Axis(1, "Depth", "Up") };
+        static readonly LetteraParamInfo[] s_Wave =
+        {
+            Amount("Height", "How high the wave rises, in em.", "0.1", "em", "no change"),
+            LetteraParamInfo.ForSlot(1, "Length", LetteraParamKind.Float, "The length of one wave, in em. At least 0.01.", min: 0.01f, step: 0.1f, decimals: 2, defaultText: "1", example: "1.5", unitLabel: "em"),
+            Axis(2, "Depth", "Up", "Both"),
+        };
+        static readonly LetteraParamInfo[] s_Other = { Amount("Amount", "The size of the deformation.", "1", null, "no change"), Axis(1, "Depth", "Up") };
+        static readonly LetteraTagExample[] s_OtherExamples = { new LetteraTagExample("1", "A deformation of size 1") };
+
+        static readonly LetteraTagExample[] s_BendExamples = { new LetteraTagExample("90", "A quarter ring"), new LetteraTagExample("60,Up", "An arc in the text's plane") };
+        static readonly LetteraTagExample[] s_TwistExamples = { new LetteraTagExample("180", "A half turn along the text") };
+        static readonly LetteraTagExample[] s_TaperExamples = { new LetteraTagExample("0.5", "Half as wide at the end") };
+        static readonly LetteraTagExample[] s_WaveExamples = { new LetteraTagExample("0.1,1.5", "A ripple 0.1 em high and 1.5 em long") };
+        static readonly LetteraTagExample[] s_SphereExamples = { new LetteraTagExample("120", "Wrapped part way round a ball") };
+
+        public override string Description
+        {
+            get
+            {
+                switch (Kind)
+                {
+                    case LetteraDeformKind.Bend: return "Curves the text along its width. Only a solid text shows it.";
+                    case LetteraDeformKind.Twist: return "Turns the text about its reading line, more the further along. Only a solid text shows it.";
+                    case LetteraDeformKind.Taper: return "Narrows the text towards its end. Only a solid text shows it.";
+                    case LetteraDeformKind.Wave: return "A sine wave along the width of the text. Only a solid text shows it.";
+                    case LetteraDeformKind.Sphere: return "Wraps the text onto a ball. Only a solid text shows it.";
+                    default: return "Deforms the text of a solid text.";
+                }
+            }
+        }
+
+        public override IReadOnlyList<LetteraParamInfo> Parameters
+        {
+            get
+            {
+                switch (Kind)
+                {
+                    case LetteraDeformKind.Bend: return s_Bend;
+                    case LetteraDeformKind.Twist: return s_Twist;
+                    case LetteraDeformKind.Taper: return s_Taper;
+                    case LetteraDeformKind.Wave: return s_Wave;
+                    case LetteraDeformKind.Sphere: return s_Sphere;
+                    default: return s_Other;
+                }
+            }
+        }
+
+        public override IReadOnlyList<LetteraTagExample> Examples
+        {
+            get
+            {
+                switch (Kind)
+                {
+                    case LetteraDeformKind.Bend: return s_BendExamples;
+                    case LetteraDeformKind.Twist: return s_TwistExamples;
+                    case LetteraDeformKind.Taper: return s_TaperExamples;
+                    case LetteraDeformKind.Wave: return s_WaveExamples;
+                    case LetteraDeformKind.Sphere: return s_SphereExamples;
+                    default: return s_OtherExamples;
+                }
+            }
+        }
+
         public LetteraDeformKind Kind;
 
         public override void Apply(LetteraAttributes attributes, int start, int end, in LetteraSlots slots)

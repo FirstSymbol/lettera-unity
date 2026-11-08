@@ -58,6 +58,15 @@ namespace FirstSymbol.Lettera
         /// <summary>Tokens the effect reads that this kind alone would call unreadable, for example <c>#80</c> for an alpha.</summary>
         public readonly Func<string, bool> Accepts;
 
+        /// <summary>A short value a person could type here, shown beside the slot. Empty when the kind needs none.</summary>
+        public readonly string Example;
+
+        /// <summary>The unit a plain number is written in, shown after it: "°" for degrees, "s" for seconds, "Hz" for cycles per second. The token stays a bare number.</summary>
+        public readonly string UnitLabel;
+
+        /// <summary>Names an editor can offer for a text slot: "inline" for the keys of the inline items, "entrance" for the ways a reveal brings text in. Empty for none.</summary>
+        public readonly string Suggests;
+
         public LetteraParamInfo(string id, int slot, LetteraParamKind kind, DirtyLevel level, bool essential = false, float min = float.NegativeInfinity, float max = float.PositiveInfinity)
         {
             Id = id;
@@ -72,14 +81,16 @@ namespace FirstSymbol.Lettera
             DeclaresLevel = true;
         }
 
-        LetteraParamInfo(int slot, string display, LetteraParamKind kind, string hint, float min, float max, float step, int decimals, LetteraSlotUnits units,
-            LetteraLength.Unit bareMeans, string bareLabel, string[] choices, string[] choiceLabels, string defaultField, string defaultText, string group, bool essential, Func<string, bool> accepts)
+        LetteraParamInfo(string id, int slot, string display, LetteraParamKind kind, DirtyLevel level, bool declaresLevel, string hint, float min, float max, float step, int decimals, LetteraSlotUnits units,
+            LetteraLength.Unit bareMeans, string bareLabel, string[] choices, string[] choiceLabels, string defaultField, string defaultText, string group, bool essential, Func<string, bool> accepts,
+            string example, string unitLabel, string suggests = null)
         {
-            Id = display;
+            Id = id;
             Display = display;
             Slot = slot;
             Kind = kind;
-            Level = DirtyLevel.Parse;
+            Level = level;
+            DeclaresLevel = declaresLevel;
             Essential = essential;
             Min = min;
             Max = max;
@@ -95,18 +106,31 @@ namespace FirstSymbol.Lettera
             Hint = hint;
             Group = group;
             Accepts = accepts;
+            Example = example;
+            UnitLabel = unitLabel;
+            Suggests = suggests;
         }
 
         /// <summary>A slot of a tag, described for an editor. Build these once, in a static array.</summary>
         public static LetteraParamInfo ForSlot(int slot, string display, LetteraParamKind kind, string hint = null, float min = float.NegativeInfinity, float max = float.PositiveInfinity,
             float step = 0, int decimals = -1, LetteraSlotUnits units = LetteraSlotUnits.None, LetteraLength.Unit bareMeans = LetteraLength.Unit.Bare, string bareLabel = null,
-            string[] choices = null, string[] choiceLabels = null, string defaultField = null, string defaultText = null, string group = null, bool essential = false, Func<string, bool> accepts = null) =>
-            new LetteraParamInfo(slot, display, kind, hint, min, max, step, decimals, units, bareMeans, bareLabel, choices, choiceLabels, defaultField, defaultText, group, essential, accepts);
+            string[] choices = null, string[] choiceLabels = null, string defaultField = null, string defaultText = null, string group = null, bool essential = false, Func<string, bool> accepts = null,
+            string example = null, string unitLabel = null, string suggests = null) =>
+            new LetteraParamInfo(display, slot, display, kind, DirtyLevel.Parse, false, hint, min, max, step, decimals, units, bareMeans, bareLabel, choices, choiceLabels, defaultField, defaultText, group, essential, accepts, example, unitLabel, suggests);
 
         /// <summary>A slot that names a member of an enum; the choices are the member names.</summary>
-        public static LetteraParamInfo ForEnum<T>(int slot, string display, string hint = null, string defaultField = null, string defaultText = null, string group = null) where T : struct, Enum =>
-            new LetteraParamInfo(slot, display, LetteraParamKind.Enum, hint, float.NegativeInfinity, float.PositiveInfinity, 0, -1, LetteraSlotUnits.None, LetteraLength.Unit.Bare, null,
-                Enum.GetNames(typeof(T)), null, defaultField, defaultText, group, false, null);
+        public static LetteraParamInfo ForEnum<T>(int slot, string display, string hint = null, string defaultField = null, string defaultText = null, string group = null, string example = null) where T : struct, Enum =>
+            new LetteraParamInfo(display, slot, display, LetteraParamKind.Enum, DirtyLevel.Parse, false, hint, float.NegativeInfinity, float.PositiveInfinity, 0, -1, LetteraSlotUnits.None, LetteraLength.Unit.Bare, null,
+                Enum.GetNames(typeof(T)), null, defaultField, defaultText, group, false, null, example, null);
+
+        /// <summary>
+        /// A published parameter of a motion that is also described for the tag panel. The id and the level are what rules, cues and holds know it by;
+        /// the rest is what the panel shows. The level is a promise, as with the short constructor.
+        /// </summary>
+        public static LetteraParamInfo ForMotion(string id, int slot, LetteraParamKind kind, DirtyLevel level, string hint, float min = float.NegativeInfinity, float max = float.PositiveInfinity,
+            float step = 0, int decimals = -1, string defaultField = null, string defaultText = null, bool essential = false, string example = null, string unitLabel = null, string display = null,
+            string[] choices = null, LetteraSlotUnits units = LetteraSlotUnits.None, LetteraLength.Unit bareMeans = LetteraLength.Unit.Bare, string bareLabel = null, string suggests = null) =>
+            new LetteraParamInfo(id, slot, display ?? id, kind, level, true, hint, min, max, step, decimals, units, bareMeans, bareLabel, choices, null, defaultField, defaultText, null, essential, null, example, unitLabel, suggests);
     }
 
     /// <summary>The resolved numbers of a motion for one range. A position equals the parameter's slot.</summary>
@@ -378,10 +402,10 @@ namespace FirstSymbol.Lettera
 
         static readonly LetteraParamInfo[] s_Params =
         {
-            new LetteraParamInfo("Amplitude", 0, LetteraParamKind.Float, DirtyLevel.Pose, true),
-            new LetteraParamInfo("AmplitudeX", 1, LetteraParamKind.Float, DirtyLevel.Pose),
-            new LetteraParamInfo("Rate", 2, LetteraParamKind.Float, DirtyLevel.Pose, true),
-            new LetteraParamInfo("Step", 3, LetteraParamKind.Float, DirtyLevel.Pose, true),
+            LetteraMotionSlots.Em("Amplitude",0,"How high letters bob, in em.","m_Amplitude","0.3",true),
+            LetteraMotionSlots.Em("AmplitudeX",1,"How far letters sway sideways, in em.","m_AmplitudeX","0.1",display:"Amplitude X"),
+            LetteraMotionSlots.Rate(2,"m_Rate"),
+            LetteraMotionSlots.Step(3,"m_Step"),
             new LetteraParamInfo("Phase", -1, LetteraParamKind.Float, DirtyLevel.Pose),
         };
 
@@ -419,10 +443,10 @@ namespace FirstSymbol.Lettera
 
         static readonly LetteraParamInfo[] s_Params =
         {
-            new LetteraParamInfo("Turn", 0, LetteraParamKind.Float, DirtyLevel.Pose, true),
-            new LetteraParamInfo("Squash", 1, LetteraParamKind.Float, DirtyLevel.Pose),
-            new LetteraParamInfo("Rate", 2, LetteraParamKind.Float, DirtyLevel.Pose, true),
-            new LetteraParamInfo("Step", 3, LetteraParamKind.Float, DirtyLevel.Pose, true),
+            LetteraMotionSlots.Angle("Turn",0,"How far letters rock to each side.","m_Turn","12",true),
+            LetteraMotionSlots.Number("Squash",1,"How much letters squash and stretch, as a share of their size.","m_Squash","0.1",step:0.01f),
+            LetteraMotionSlots.Rate(2,"m_Rate"),
+            LetteraMotionSlots.Step(3,"m_Step"),
         };
 
         public override IReadOnlyList<LetteraParamInfo> Parameters => s_Params;
@@ -462,9 +486,9 @@ namespace FirstSymbol.Lettera
 
         static readonly LetteraParamInfo[] s_Params =
         {
-            new LetteraParamInfo("Amplitude", 0, LetteraParamKind.Float, DirtyLevel.Pose, true),
-            new LetteraParamInfo("Rate", 1, LetteraParamKind.Float, DirtyLevel.Pose, true),
-            new LetteraParamInfo("Turn", 2, LetteraParamKind.Float, DirtyLevel.Pose),
+            LetteraMotionSlots.Em("Amplitude",0,"How far letters jump, in em.","m_Amplitude","0.08",true),
+            LetteraMotionSlots.Rate(1,"m_Rate",hint:"How many times a second letters jump to a new place.",example:"20"),
+            LetteraMotionSlots.Angle("Turn",2,"How far letters twist at each jump. 0 keeps them upright.","m_Turn","5"),
         };
 
         public override IReadOnlyList<LetteraParamInfo> Parameters => s_Params;
@@ -499,10 +523,10 @@ namespace FirstSymbol.Lettera
 
         static readonly LetteraParamInfo[] s_Params =
         {
-            new LetteraParamInfo("Height", 0, LetteraParamKind.Float, DirtyLevel.Pose, true),
-            new LetteraParamInfo("Rate", 1, LetteraParamKind.Float, DirtyLevel.Pose, true),
-            new LetteraParamInfo("Step", 2, LetteraParamKind.Float, DirtyLevel.Pose, true),
-            new LetteraParamInfo("Share", 3, LetteraParamKind.Float, DirtyLevel.Pose, false, 0.01f, 1),
+            LetteraMotionSlots.Em("Height",0,"How high letters hop, in em.","m_Height","0.4",true),
+            LetteraMotionSlots.Rate(1,"m_Rate"),
+            LetteraMotionSlots.Step(2,"m_Step"),
+            LetteraParamInfo.ForMotion("Share",3,LetteraParamKind.Float,DirtyLevel.Pose,"The share of each cycle spent in the air, 0.01 to 1. The rest is spent resting.",0.01f,1,0.05f,2,defaultField:"m_Share",example:"0.5"),
         };
 
         public override IReadOnlyList<LetteraParamInfo> Parameters => s_Params;
@@ -541,10 +565,10 @@ namespace FirstSymbol.Lettera
 
         static readonly LetteraParamInfo[] s_Params =
         {
-            new LetteraParamInfo("Amplitude", 0, LetteraParamKind.Float, DirtyLevel.Pose, true),
-            new LetteraParamInfo("AmplitudeX", 1, LetteraParamKind.Float, DirtyLevel.Pose),
-            new LetteraParamInfo("Rate", 2, LetteraParamKind.Float, DirtyLevel.Pose, true),
-            new LetteraParamInfo("Step", 3, LetteraParamKind.Float, DirtyLevel.Pose),
+            LetteraMotionSlots.Em("Amplitude",0,"How far letters drift up and down, in em.","m_Amplitude","0.15",true),
+            LetteraMotionSlots.Em("AmplitudeX",1,"How far letters drift sideways, in em.","m_AmplitudeX","0.1",display:"Amplitude X"),
+            LetteraMotionSlots.Rate(2,"m_Rate",example:"0.4"),
+            LetteraMotionSlots.Step(3,"m_Step",false),
         };
 
         public override IReadOnlyList<LetteraParamInfo> Parameters => s_Params;
@@ -579,8 +603,8 @@ namespace FirstSymbol.Lettera
 
         static readonly LetteraParamInfo[] s_Params =
         {
-            new LetteraParamInfo("Rate", 0, LetteraParamKind.Float, DirtyLevel.Pose, true),
-            new LetteraParamInfo("Step", 1, LetteraParamKind.Float, DirtyLevel.Pose, true),
+            LetteraMotionSlots.Rate(0,"m_Rate",hint:"Turns a second: 1 is a full turn each second. Negative turns the other way.",example:"1"),
+            LetteraMotionSlots.Step(1,"m_Step"),
         };
 
         public override IReadOnlyList<LetteraParamInfo> Parameters => s_Params;
@@ -608,9 +632,9 @@ namespace FirstSymbol.Lettera
 
         static readonly LetteraParamInfo[] s_Params =
         {
-            new LetteraParamInfo("Amount", 0, LetteraParamKind.Float, DirtyLevel.Pose, true),
-            new LetteraParamInfo("Rate", 1, LetteraParamKind.Float, DirtyLevel.Pose, true),
-            new LetteraParamInfo("Step", 2, LetteraParamKind.Float, DirtyLevel.Pose, true),
+            LetteraMotionSlots.Number("Amount",0,"How much letters grow and shrink, as a share of their size.","m_Amount","0.2",true),
+            LetteraMotionSlots.Rate(1,"m_Rate"),
+            LetteraMotionSlots.Step(2,"m_Step"),
         };
 
         public override IReadOnlyList<LetteraParamInfo> Parameters => s_Params;
@@ -645,9 +669,9 @@ namespace FirstSymbol.Lettera
 
         static readonly LetteraParamInfo[] s_Params =
         {
-            new LetteraParamInfo("Turn", 0, LetteraParamKind.Float, DirtyLevel.Pose, true),
-            new LetteraParamInfo("Rate", 1, LetteraParamKind.Float, DirtyLevel.Pose, true),
-            new LetteraParamInfo("Step", 2, LetteraParamKind.Float, DirtyLevel.Pose, true),
+            LetteraMotionSlots.Angle("Turn",0,"How far letters swing to each side.","m_Turn","25",true),
+            LetteraMotionSlots.Rate(1,"m_Rate",example:"1"),
+            LetteraMotionSlots.Step(2,"m_Step"),
         };
 
         public override IReadOnlyList<LetteraParamInfo> Parameters => s_Params;
@@ -677,9 +701,9 @@ namespace FirstSymbol.Lettera
 
         static readonly LetteraParamInfo[] s_Params =
         {
-            new LetteraParamInfo("Amplitude", 0, LetteraParamKind.Float, DirtyLevel.Mesh, true),
-            new LetteraParamInfo("Scale", 1, LetteraParamKind.Float, DirtyLevel.Mesh),
-            new LetteraParamInfo("Travel", 2, LetteraParamKind.Float, DirtyLevel.Pose, true),
+            LetteraMotionSlots.Number("Amplitude",0,"How far the outline moves, in glyph heights.","m_Amplitude","0.05",true,0,level:DirtyLevel.Mesh),
+            LetteraMotionSlots.Number("Scale",1,"Size of one ripple, in glyph heights. Smaller is finer.","m_Scale","0.3",false,0.001f,level:DirtyLevel.Mesh),
+            LetteraMotionSlots.Number("Travel",2,"How fast the ripples flow.","m_Travel","2",true,step:0.1f,decimals:2),
         };
 
         public override IReadOnlyList<LetteraParamInfo> Parameters => s_Params;

@@ -169,7 +169,7 @@ namespace FirstSymbol.Lettera
         [SerializeField] Color m_Color = new Color(0.8f, 0.9f, 1, 1);
         [SerializeField, Range(0, 1)] float m_Weight;
 
-        static readonly LetteraParamInfo[] s_Params = { new LetteraParamInfo("Weight", 0, LetteraParamKind.Float, DirtyLevel.Pose, true, 0, 1) };
+        static readonly LetteraParamInfo[] s_Params = { LetteraParamInfo.ForMotion("Weight", 0, LetteraParamKind.Float, DirtyLevel.Pose, "How far the range moves to the tint colour: 0 none, 1 all the way.", 0, 1, 0.05f, 2, defaultField: "m_Weight", essential: true, example: "0.5") };
 
         public RangeTintEffect()
         {

@@ -15,10 +15,10 @@ namespace FirstSymbol.Lettera
 
         static readonly LetteraParamInfo[] s_Params =
         {
-            new LetteraParamInfo("Split", 0, LetteraParamKind.Float, DirtyLevel.Pose, true),
-            new LetteraParamInfo("Rate", 1, LetteraParamKind.Float, DirtyLevel.Pose, true),
-            new LetteraParamInfo("Chance", 2, LetteraParamKind.Float, DirtyLevel.Pose, true, 0, 1),
-            new LetteraParamInfo("Jerk", 3, LetteraParamKind.Float, DirtyLevel.Pose),
+            LetteraMotionSlots.Em("Split",0,"How far the colour fringes split apart, in em.","m_Split","0.06",true),
+            LetteraMotionSlots.Rate(1,"m_Rate",hint:"How many times a second a new burst may start.",example:"12"),
+            LetteraMotionSlots.Number("Chance",2,"How likely a letter glitches at each burst, 0 never to 1 always.","m_Chance","0.3",true,0,1,0.05f,2),
+            LetteraMotionSlots.Em("Jerk",3,"How far a glitching letter jumps sideways, in em.","m_Jerk","0.05"),
         };
 
         public override IReadOnlyList<LetteraParamInfo> Parameters => s_Params;
@@ -63,9 +63,9 @@ namespace FirstSymbol.Lettera
 
         static readonly LetteraParamInfo[] s_Params =
         {
-            new LetteraParamInfo("Seconds", 0, LetteraParamKind.Float, DirtyLevel.Pose, true),
-            new LetteraParamInfo("Rate", 1, LetteraParamKind.Float, DirtyLevel.Pose),
-            new LetteraParamInfo("Progress", 2, LetteraParamKind.Float, DirtyLevel.Pose, true, 0, 1),
+            LetteraMotionSlots.Number("Seconds",0,"How long the text takes to settle.","m_Seconds","2",true,0,step:0.1f,decimals:2,unit:"s"),
+            LetteraMotionSlots.Number("Rate",1,"How many times a second the random symbols change.","m_Rate","16",false,0,step:1,decimals:1,unit:"Hz"),
+            LetteraMotionSlots.Number("Progress",2,"How much has settled, 0 to 1. Used under a manual clock, or when Seconds is 0.","m_Progress","0.5",true,0,1,0.05f,2),
         };
 
         public override IReadOnlyList<LetteraParamInfo> Parameters => s_Params;
@@ -102,10 +102,10 @@ namespace FirstSymbol.Lettera
 
         static readonly LetteraParamInfo[] s_Params =
         {
-            new LetteraParamInfo("Seconds", 0, LetteraParamKind.Float, DirtyLevel.Pose, true),
-            new LetteraParamInfo("Start", 1, LetteraParamKind.Float, DirtyLevel.Pose, true),
-            new LetteraParamInfo("Lag", 2, LetteraParamKind.Float, DirtyLevel.Pose),
-            new LetteraParamInfo("Roll", 3, LetteraParamKind.Float, DirtyLevel.Pose),
+            LetteraMotionSlots.Number("Seconds",0,"How long the wheels take to stop.","m_Seconds","2",true,0,step:0.1f,decimals:2,unit:"s"),
+            LetteraMotionSlots.Number("Start",1,"How many places each wheel starts away from its final symbol.","m_Start","30",true,step:1,decimals:1,unit:"places"),
+            LetteraMotionSlots.Number("Lag",2,"How many fewer places each character along the order has to turn, so the wheels stop one after another.","m_Lag","2",false,step:0.5f,decimals:1,unit:"places"),
+            LetteraMotionSlots.Number("Roll",3,"Places the wheels still have to turn. Used under a manual clock, or when Seconds is 0.","m_Roll","10",step:1,decimals:1,unit:"places"),
         };
 
         public override IReadOnlyList<LetteraParamInfo> Parameters => s_Params;
