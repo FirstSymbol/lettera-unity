@@ -209,6 +209,17 @@ namespace FirstSymbol.Lettera.Editor.Tests
         // ------------------------------------------------------------- wrap
 
         [Test]
+        public void TheWrapKeyIsRegisteredWithTheShortcutManagerAsCtrlPeriod()
+        {
+            var ids = new List<string>(UnityEditor.ShortcutManagement.ShortcutManager.instance.GetAvailableShortcutIds());
+            Assert.Contains("Lettera/Wrap In Tag", ids);
+            UnityEditor.ShortcutManagement.ShortcutBinding binding = UnityEditor.ShortcutManagement.ShortcutManager.instance.GetShortcutBinding("Lettera/Wrap In Tag");
+            Assert.AreEqual(1, binding.keyCombinationSequence.Count());
+            Assert.AreEqual(KeyCode.Period, binding.keyCombinationSequence.First().keyCode);
+            Assert.AreEqual(UnityEditor.ShortcutManagement.ShortcutModifiers.Action, binding.keyCombinationSequence.First().modifiers);
+        }
+
+        [Test]
         public void WrappingASelectionFromTheListWritesTheTagAndOpensItsForm()
         {
             LtTagPanel panel = Panel("Hello world", 6, 11);

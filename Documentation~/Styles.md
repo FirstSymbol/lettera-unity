@@ -88,6 +88,23 @@ A style's **default parameter** fills the slots a bare tag leaves out, so `ForTa
 
 **Labels** name a range for code to find later: `<color #price=#0C0>12</color>` is a colour range labelled `price`. See [holds](#changing-a-look-at-run-time).
 
+## Editing tag parameters in the inspector
+
+You do not have to remember slot order. In the text inspector, put the caret inside a tag and the **Tag panel** under the text field shows that tag's slots, one row each: its position, its name, and a control for what it takes: a swatch with alpha for a colour, a slider for a bounded number, `em` / `px` / `%` chips for a length, chips or a list for a choice, a switch for on and off.
+
+- **Set or inherit.** A slot the tag leaves empty shows what will apply, with where it comes from: `inherited: -0.05 em (effect)` is the effect's own value, `(style default)` is the style's default parameter. Click it, or **Set**, to give the slot that value; the reset button (or `Alt+Backspace`) gives it back.
+- **Minimal markup.** An edit writes only that slot. Every other token stays as it was written, empty slots before a set one are written as `,`, and trailing empty slots and the `=` go when nothing is left: resetting the last set slot of `<shadow=,,,0.2>` gives `<shadow>`. A value that needs quotes gets them.
+- **Undo.** A drag, a colour picker session or a run of typing is one step of `Ctrl+Z`; a click or a reset is a step of its own.
+- **Nested tags.** The header lists every tag around the caret; click one to edit it. **Copy** takes the open tag's markup.
+- **Not read.** A value the effect cannot read is marked *Not read: the effect's value is used* and kept as written until you change it. A value outside a slot's range is marked *Clamped*. Values past the described slots show as *Extra* chips.
+- **No form.** A tag no style claims is plain text, and the panel says so. An unclosed tag or quote shows its text with a **Fix** button. An effect with no slot descriptors, and composite tags such as `<a>`, show the raw value as text.
+
+**Wrap in tag.** `Ctrl+.` (rebind it under *Edit, Shortcuts, Lettera*), the `<>` button of the toolbar or the panel's **Wrap in tag...** button opens a list under the text field. It lists the tags that have a style for this text: those already used here, then the project's own, then the built-in ones. Tags this text does not bind are dimmed with the reason. Type to search by name, group or what it does (`gradient` finds `<fill>`); `Enter` wraps the selection, `Ctrl+Enter` wraps it and moves into the new tag's form, `Esc` closes. With nothing selected it inserts an empty pair at the caret. A selection that cuts a tag is widened to keep the tags balanced.
+
+**Defaults on a style card.** For a tag-bound style whose effect has a form, **Defaults** shows the same rows for the default parameter, with *Bare `<warning>` = `<color=#FF8800>`* and how many slots a bare tag fills. It writes the same string the raw field did, so presets and values set from code appear in it. **Raw** switches to the text field, which is also what shows when the string does not parse.
+
+These tags have forms: `b`, `i`, `size`, `color`, `alpha`, `font`, `lang`, `u`, `s`, `outline`, `shadow`, `glow`, `stroke`, `fill`, `mark`, `tracking`, `line-height`, `indent`, `align`, `sup`, `sub`, and any effect of your own that [declares its slots](#your-own-effect). The rest show the raw value. The panel does not yet complete tag names while you type or explain a tag on hover, and the Editor's UI toolkit gives it no screen-reader support.
+
 ## The effects
 
 Every effect below is in the default vocabulary under the tag shown. The README's [markup table](../README.md#markup) lists each tag's slots.

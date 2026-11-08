@@ -105,13 +105,15 @@ namespace FirstSymbol.Lettera.Editor
             }
             // A bare tag means what the effect's own tag would say with these values.
             string filled = LetteraTagModel.BareMeans(LetteraWrapList.TagOf(m_Effect.GetType()) ?? m_Tag ?? "tag", value);
-            m_Summary.text = (m_Tag != null ? "Bare " + "<" + m_Tag + ">" : "Whole text") + " = " + filled;
+            m_Summary.text = valid ? (m_Tag != null ? "Bare " + "<" + m_Tag + ">" : "Whole text") + " = " + filled : "";
+            m_Summary.style.display = valid ? DisplayStyle.Flex : DisplayStyle.None;
             int set = 0;
             if (tag != null)
                 foreach (LetteraParamInfo info in described)
                     if (info.Slot >= 0 && !string.IsNullOrEmpty(tag.Slot(info.Slot)))
                         set++;
-            m_Filled.text = "Slots a bare tag fills: " + set + " of " + LetteraTagModel.SlotCount(described);
+            m_Filled.text = valid ? "Slots a bare tag fills: " + set + " of " + LetteraTagModel.SlotCount(described) : "";
+            m_Filled.style.display = valid ? DisplayStyle.Flex : DisplayStyle.None;
         }
 
         internal void Write(int slot, string token)

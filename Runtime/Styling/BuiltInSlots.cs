@@ -71,8 +71,8 @@ namespace FirstSymbol.Lettera
         {
             Paint(null, "text colour"),
             LetteraParamInfo.ForEnum<LetteraLineStyle>(1, "Style", "Solid, double, dotted, dashed or wavy.", "m_LineStyle"),
-            EmLength(2, "Thickness", "Thickness in em, or px. Empty follows the font.", null, "from the font"),
-            EmLength(3, "Offset", "Distance from the baseline in em, or px. Empty follows the font.", null, "from the font"),
+            EmLength(2, "Thickness", "Thickness in em, or px. Empty follows the font.", null, "auto"),
+            EmLength(3, "Offset", "Distance from the baseline in em, or px. Empty follows the font.", null, "auto"),
             LetteraParamInfo.ForSlot(4, "Skip ink", LetteraParamKind.Bool, "Break the line where letters have descenders.", defaultField: "m_SkipInk"),
             LetteraParamInfo.ForSlot(5, "Overlay", LetteraParamKind.Bool, "Draw the line over the glyphs, not behind them.", defaultField: "m_Overlay"),
         };

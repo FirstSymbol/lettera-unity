@@ -32,7 +32,7 @@ namespace FirstSymbol.Lettera.Editor
         readonly LtTagPanelHost m_Host;
         readonly LtGesture m_Gesture;
         readonly VisualElement m_Head, m_Crumbs, m_Markup, m_Body, m_Wrap;
-        readonly Label m_Title, m_Effect, m_Signature;
+        readonly Label m_Title, m_Effect, m_Signature, m_Copy, m_Menu;
         readonly LtTagForm m_Form;
 
         string m_Text = "";
@@ -72,7 +72,9 @@ namespace FirstSymbol.Lettera.Editor
             m_Title = LtUI.Text("TAG", "lt-tagpanel__title");
             m_Crumbs = LtUI.El("lt-tagpanel__crumbs");
             m_Effect = LtUI.Text("", "lt-tagpanel__effect");
-            m_Head = LtUI.El("lt-tagpanel__head", m_Title, m_Crumbs, LtUI.El("lt-tagpanel__space"), m_Effect);
+            m_Copy = LtUI.Clickable("Copy", "lt-chip lt-chip--click lt-tagpanel__button", "Copy the open tag's markup.", CopyTag);
+            m_Menu = LtUI.Clickable("...", "lt-chip lt-chip--click lt-tagpanel__button", "Reset every slot, select the tag's range, or open its style.", OpenMenu);
+            m_Head = LtUI.El("lt-tagpanel__head", m_Title, m_Crumbs, LtUI.El("lt-tagpanel__space"), m_Effect, m_Copy, m_Menu);
             m_Markup = LtUI.El("lt-tagpanel__markup");
             m_Body = LtUI.El("lt-tagpanel__body");
             m_Wrap = LtUI.El("lt-tagpanel__wrap");
@@ -248,6 +250,7 @@ namespace FirstSymbol.Lettera.Editor
                 Kind = problem == LetteraTagProblem.NotClosed ? "unclosed" : "quote";
                 Hint = problem == LetteraTagProblem.NotClosed ? "This tag is not closed, so it shows as text." : "Quote is not closed.";
                 m_Head.style.display = DisplayStyle.Flex;
+                m_Copy.style.display = m_Menu.style.display = DisplayStyle.None;
                 m_Title.text = "TAG";
                 m_Crumbs.Clear();
                 m_Effect.text = "";
@@ -286,6 +289,7 @@ namespace FirstSymbol.Lettera.Editor
 
             m_Head.style.display = DisplayStyle.Flex;
             m_Signature.style.display = DisplayStyle.Flex;
+            m_Copy.style.display = m_Menu.style.display = DisplayStyle.Flex;
             BuildCrumbs(tag);
             m_Effect.text = style?.Effect != null ? EffectLabel(style.Effect) : "";
             string key = tag.Start + "|" + tag.OpenText(m_Text);
@@ -350,7 +354,7 @@ namespace FirstSymbol.Lettera.Editor
                 if (template.Driven != LetteraStyleTemplates.Tags || template.Effect == null) continue;
                 try
                 {
-                    if (template.Effect().GetType() == effect.GetType()) return name + " . " + template.Kind;
+                    if (template.Effect().GetType() == effect.GetType()) return template.Name + " · " + template.Kind;
                 }
                 catch (Exception)
                 {
@@ -464,6 +468,31 @@ namespace FirstSymbol.Lettera.Editor
             else if (raw.Length == 0) return;
             else edit = new LetteraTextEdit(text.Insert(tag.HeadEnd, "=" + raw), tag.HeadEnd, 0, raw.Length + 1);
             Apply(edit, true);
+        }
+
+        void CopyTag()
+        {
+            LetteraTagSpan tag = Current();
+            if (tag != null) GUIUtility.systemCopyBuffer = tag.OpenText(m_Text);
+        }
+
+        void OpenMenu()
+        {
+            LetteraTagSpan tag = Current();
+            if (tag == null) return;
+            var menu = new GenericMenu();
+            menu.AddItem(new GUIContent("Reset all to inherit"), false, ResetAll);
+            menu.AddItem(new GUIContent("Select tag range"), false, () =>
+            {
+                LetteraTagSpan now = Current();
+                if (now == null) return;
+                m_Source.Focus();
+                m_Source.SelectRange(now.End, now.HasClose ? now.CloseStart : now.End);
+            });
+            Type effect = m_ActiveEffect?.GetType();
+            if (effect != null) menu.AddItem(new GUIContent("Open style"), false, () => m_Host.OpenStyle(effect));
+            else menu.AddDisabledItem(new GUIContent("Open style"));
+            menu.ShowAsContext();
         }
 
         /// <summary>Back to the bare tag: every slot inherits.</summary>
