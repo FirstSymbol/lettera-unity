@@ -465,9 +465,9 @@ namespace FirstSymbol.Lettera
             Activate();
             int hit = HitTest(m_PointerPosition, m_PointerCamera, out LetteraCaretBias bias);
             bool insideSelection = !m_Selection.IsCaret && hit >= m_Selection.Start && hit <= m_Selection.End;
-            // On Apple systems a long press in a field places the caret, and the finger then moves it with the loupe. Elsewhere, as on Android,
-            // it selects the word under the finger, and only a press on no word places the caret.
-            if (Editable != null && !insideSelection && (LetteraKeyTable.Family == LetteraPlatformFamily.Apple || !IsWordAt(ClusterAt(hit, bias))))
+            // A long press selects what stands under the finger and the finger then goes on by words, on every system: a phone owner who holds a word
+            // expects the word, and Apple's caret-and-loupe left no way to pick one by touch. Only a press on no word places the caret.
+            if (Editable != null && !insideSelection && !IsWordAt(ClusterAt(hit, bias)))
             {
                 m_Unit = DragUnit.Cluster;
                 Request(LetteraSelectionRange.AtCaret(hit, bias), "sel.pointer");

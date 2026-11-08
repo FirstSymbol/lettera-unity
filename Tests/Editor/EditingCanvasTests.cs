@@ -540,7 +540,7 @@ namespace FirstSymbol.Lettera.Editor.Tests
             Assert.AreEqual((4, 7), (reader.Selection.Start, reader.Selection.End));
             reader.OnPointerUp(data);
 
-            // On Apple systems a long press in a field places the caret, and the finger moves it.
+            // On Apple systems too: a phone owner who holds a word expects the word, and the finger then goes on by words.
             LetteraKeyTable.FamilyOverride = LetteraPlatformFamily.Apple;
             LetteraText other = CanvasText("one two three");
             var field = other.gameObject.AddComponent<LetteraEditable>();
@@ -552,12 +552,11 @@ namespace FirstSymbol.Lettera.Editor.Tests
             field.Selectable.OnPointerDown(data);
             Now += 0.6;
             field.Selectable.Tick();
-            Assert.IsTrue(field.Selectable.Selection.IsCaret);
-            Assert.AreEqual(5, field.Selectable.Selection.Head);
-            data.position = ScreenOf(field.Selectable, 9);
+            Assert.AreEqual((4, 7), (field.Selectable.Selection.Start, field.Selectable.Selection.End), "the word under the finger, on Apple too");
+            data.position = ScreenOf(field.Selectable, 10);
             field.Selectable.OnBeginDrag(data);
             field.Selectable.OnDrag(data);
-            Assert.AreEqual(9, field.Selectable.Selection.Head, "the finger moves the caret");
+            Assert.AreEqual((4, 13), (field.Selectable.Selection.Start, field.Selectable.Selection.End), "by words");
             field.Selectable.OnPointerUp(data);
 
             // Elsewhere, as on Android, it selects the word, and the finger then goes on by words.
