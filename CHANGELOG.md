@@ -4,6 +4,22 @@ All notable changes to this package are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.0.0-rc.4] - 2026-11-09
+
+### Fixed
+- **The atlas forgot its formula rules whenever emoji waited with no browser renderer,** and drew the same fraction bars and radicals into the atlas again, so a page of formulas slowly filled it. A stray clear of the rule cache had landed in that branch; it is gone.
+
+### Docs
+- **iPhone testing is not finished,** and the README (English and Russian) says so under Platforms, with what has been seen on a real iPhone in Safari and what still waits for a check by hand. A native iOS player has not run on a device.
+
+### Tests
+- The allocation test counts only the calling thread's allocations, so the editor's own threads right after start no longer fail it.
+- Lit world text shows its colours under a neutral light in Linear and Gamma, under Built-in, URP and HDRP (face and stroke), against an unlit quad and the pipeline's own lit material. No shader change was needed.
+
+### Limits
+- **Windows, Direct3D 12:** a player can crash as it quits (access violation 0xC0000005) inside Unity's `D3D12Core.dll` (the copy in the player's `D3D12` folder, fault at offset 0x264831), called from `UnityPlayer.dll` while the graphics device shuts down; no Lettera, Mono or IL2CPP frame is on the faulting thread's stack and no Lettera thread is inside Lettera code. Caught under a debugger on Unity 6000.4.8f1, IL2CPP and Mono alike. It happens when the run has to add shader states to the pipeline cache file Unity keeps at `%TEMP%\<company>\<product>\dx12_pso_cache_lib.bin` (the file is left as it was when it happens). Lettera only supplies the shaders it draws with; a player of the 3D Math or 3D Text sample is where it was seen. Not seen with Direct3D 11. Workaround: delete that cache file, or start the player with `-force-d3d11`. Nothing is lost, since it happens after the player has shut down.
+
+
 ## [1.0.0-rc.3] - 2026-11-09
 
 ### Added

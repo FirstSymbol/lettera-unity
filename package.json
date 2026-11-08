@@ -1,6 +1,6 @@
 {
   "name": "com.firstsymbol.lettera",
-  "version": "1.0.0-rc.3",
+  "version": "1.0.0-rc.4",
   "displayName": "Lettera Text Engine",
   "description": "Text engine for Unity UI and world space: full OpenType shaping (HarfBuzz), bidirectional text, Unicode line breaking, system fonts and fallback, color emoji, a shared SDF atlas, and styles driven by extensible markup, formulas in the text's flow, and solid lit 3D text.",
   "unity": "6000.3",
