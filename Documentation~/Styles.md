@@ -152,7 +152,7 @@ public class StylesGradients : MonoBehaviour
 
 **Named paints.** A `LetteraPaintLibrary` asset holds named swatches. Set one as the project's **Paints** in Project Settings, and a layer tag takes a swatch's name in place of a colour: `<fill=sunset>`, `<stroke=brand,0.05>`. A layer effect can also read its own library or its own swatches (`Catalog`). An unknown name warns once and uses the default paint.
 
-After a layer's paint slot come the paint settings, in order: span, shape, fit, edge, blend, angle, scale, offset x, offset y. So `<fill=sunset,0,0,glyph>` restarts the swatch on every glyph.
+After a layer's own slots come the paint settings, in order: span, shape, fit, edge, blend, angle, scale, offset x, offset y. So `<fill=sunset,0,0,glyph>` restarts the swatch on every glyph.
 
 A solid or gradient paint never splits a batch. A texture paint, or a blend other than normal, gets a material of its own, and the drawing order is kept.
 
@@ -295,6 +295,7 @@ Derive from `LetteraEffect` and write what a range gets in `Apply`. `LetteraAttr
 
 ```csharp
 using System;
+using System.Collections.Generic;
 using FirstSymbol.Lettera;
 using UnityEngine;
 
@@ -304,6 +305,15 @@ public class StylesAlertEffect : LetteraEffect
 {
     [SerializeField, LetteraEssential] Color32 m_Color = new Color32(255, 70, 50, 255);
     [SerializeField] float m_Grow = 1.15f;
+
+    // Names the slots Apply reads, so the inspector can edit <alert=#FC0,1.0> with a form.
+    public override IReadOnlyList<LetteraParamInfo> Parameters => s_Slots;
+
+    static readonly LetteraParamInfo[] s_Slots =
+    {
+        LetteraParamInfo.ForSlot(0, "Color", LetteraParamKind.Color, "Text colour", defaultField: "m_Color"),
+        LetteraParamInfo.ForSlot(1, "Grow", LetteraParamKind.Float, "How much bigger the text gets", 1, 2, 0.05f, defaultField: "m_Grow"),
+    };
 
     public override void Apply(LetteraAttributes attributes, int start, int end, in LetteraSlots slots)
     {
@@ -328,7 +338,8 @@ public class StylesUseAlert : MonoBehaviour
 - Effects are serialized by reference, so mark them `[Serializable]` and keep their state in fields.
 - An effect holding a list or another nested object overrides `Clone`, so each text gets its own copy.
 - `[LetteraEssential]` marks the fields a new style shows first; `[LetteraPicker(group, words)]` puts the effect in the picker's group (`Basics`, `Type`, `Lines`, `Look`, `Layout`, `Links`, `Utility` or `Custom`) and gives it words to be found by.
-- `Parameters` publishes named parameters for the sequencer, rules and holds; `Stages` and the `On...` hooks let an effect join a stage of the rebuild. See [Motion](Motion.md#stage-hooks).
+- **Slots for the inspector.** Override `Parameters` and describe each position `Apply` reads with `LetteraParamInfo.ForSlot(position, name, kind, hint, ...)`; positions count from 0, as the index you pass to `slots`. The tag panel, the wrap picker and the style card's **Defaults** form then work for your tag with no editor code: a colour gets a swatch, a number with `min` and `max` gets a slider, a length takes `units` (`LetteraSlotUnits`) and what a bare number means, and `ForEnum<T>` or `choices` give a dropdown. `defaultField` names the field that supplies the value when the slot is empty (`"m_Offset.x"` reaches into a vector), so a row can show what will apply; `defaultText` says it in words instead. An effect with no descriptors keeps the raw value field. Build the array once, in a static field.
+- `Parameters` also publishes named parameters for the sequencer, rules and holds; `Stages` and the `On...` hooks let an effect join a stage of the rebuild. See [Motion](Motion.md#stage-hooks).
 
 ## Your own matcher
 

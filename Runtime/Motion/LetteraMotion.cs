@@ -9,9 +9,16 @@ namespace FirstSymbol.Lettera
     public enum LetteraReducedMotion { Rest, Keep }
 
     /// <summary>What a parameter of an effect is, so that rules, cues and an inspector can reach it by name.</summary>
-    public enum LetteraParamKind { Float, Int, Bool, Enum, Color, Vector2, Length, String }
+    public enum LetteraParamKind { Float, Int, Bool, Enum, Color, Vector2, Length, String, Choice, Paint }
 
-    /// <summary>One published parameter of an effect.</summary>
+    /// <summary>The unit tokens a length slot reads. Bare is a number with no suffix; Delta is a leading + or -.</summary>
+    [Flags]
+    public enum LetteraSlotUnits { None = 0, Bare = 1, Px = 2, Em = 4, Percent = 8, Delta = 16 }
+
+    /// <summary>
+    /// One published parameter of an effect. A slot is a position in a tag's value, <c>&lt;shadow=#000,0.1&gt;</c>; an inspector reads
+    /// the names, kinds, ranges and choices from here to edit a tag without the manual. Descriptors are built once and never on the update path.
+    /// </summary>
     public sealed class LetteraParamInfo
     {
         public readonly string Id;
@@ -21,6 +28,32 @@ namespace FirstSymbol.Lettera
         public readonly string Display;
         public readonly bool Essential;
         public readonly float Min, Max;
+
+        /// <summary>The step of a slider or a drag, and the digits written after the point. Zero and -1 let the editor choose.</summary>
+        public readonly float Step;
+        public readonly int Decimals;
+
+        /// <summary>For a length: the suffixes it reads, and what a bare number means.</summary>
+        public readonly LetteraSlotUnits Units;
+        public readonly LetteraLength.Unit BareMeans;
+
+        /// <summary>What a bare number is called when it is no unit of its own: "units", "x".</summary>
+        public readonly string BareLabel;
+
+        /// <summary>The tokens of a choice, in the order shown, and optionally a plain name for each. An enum's are its member names.</summary>
+        public readonly string[] Choices, ChoiceLabels;
+
+        /// <summary>What the effect uses when the slot is empty: a field path on the effect (<c>m_Offset.x</c>), else text to show.</summary>
+        public readonly string DefaultField, Default;
+
+        /// <summary>One sentence for a tooltip.</summary>
+        public readonly string Hint;
+
+        /// <summary>Null for the main slots; a name for slots an editor folds away.</summary>
+        public readonly string Group;
+
+        /// <summary>Tokens the effect reads that this kind alone would call unreadable, for example <c>#80</c> for an alpha.</summary>
+        public readonly Func<string, bool> Accepts;
 
         public LetteraParamInfo(string id, int slot, LetteraParamKind kind, DirtyLevel level, bool essential = false, float min = float.NegativeInfinity, float max = float.PositiveInfinity)
         {
@@ -32,7 +65,44 @@ namespace FirstSymbol.Lettera
             Min = min;
             Max = max;
             Display = id;
+            Decimals = -1;
         }
+
+        LetteraParamInfo(int slot, string display, LetteraParamKind kind, string hint, float min, float max, float step, int decimals, LetteraSlotUnits units,
+            LetteraLength.Unit bareMeans, string bareLabel, string[] choices, string[] choiceLabels, string defaultField, string defaultText, string group, bool essential, Func<string, bool> accepts)
+        {
+            Id = display;
+            Display = display;
+            Slot = slot;
+            Kind = kind;
+            Level = DirtyLevel.Parse;
+            Essential = essential;
+            Min = min;
+            Max = max;
+            Step = step;
+            Decimals = decimals;
+            Units = units;
+            BareMeans = bareMeans;
+            BareLabel = bareLabel;
+            Choices = choices;
+            ChoiceLabels = choiceLabels;
+            DefaultField = defaultField;
+            Default = defaultText;
+            Hint = hint;
+            Group = group;
+            Accepts = accepts;
+        }
+
+        /// <summary>A slot of a tag, described for an editor. Build these once, in a static array.</summary>
+        public static LetteraParamInfo ForSlot(int slot, string display, LetteraParamKind kind, string hint = null, float min = float.NegativeInfinity, float max = float.PositiveInfinity,
+            float step = 0, int decimals = -1, LetteraSlotUnits units = LetteraSlotUnits.None, LetteraLength.Unit bareMeans = LetteraLength.Unit.Bare, string bareLabel = null,
+            string[] choices = null, string[] choiceLabels = null, string defaultField = null, string defaultText = null, string group = null, bool essential = false, Func<string, bool> accepts = null) =>
+            new LetteraParamInfo(slot, display, kind, hint, min, max, step, decimals, units, bareMeans, bareLabel, choices, choiceLabels, defaultField, defaultText, group, essential, accepts);
+
+        /// <summary>A slot that names a member of an enum; the choices are the member names.</summary>
+        public static LetteraParamInfo ForEnum<T>(int slot, string display, string hint = null, string defaultField = null, string defaultText = null, string group = null) where T : struct, Enum =>
+            new LetteraParamInfo(slot, display, LetteraParamKind.Enum, hint, float.NegativeInfinity, float.PositiveInfinity, 0, -1, LetteraSlotUnits.None, LetteraLength.Unit.Bare, null,
+                Enum.GetNames(typeof(T)), null, defaultField, defaultText, group, false, null);
     }
 
     /// <summary>The resolved numbers of a motion for one range. A position equals the parameter's slot.</summary>

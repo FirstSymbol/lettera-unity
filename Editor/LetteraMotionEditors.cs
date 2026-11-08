@@ -339,7 +339,8 @@ namespace FirstSymbol.Lettera.Editor
             }
             foreach (LetteraParamInfo info in effect.Parameters)
             {
-                if (info.Slot < 0) continue;
+                // A link drives numbers and colours; the other slots of a built-in tag are for the tag panel.
+                if (info.Slot < 0 || (info.Kind != LetteraParamKind.Float && info.Kind != LetteraParamKind.Int && info.Kind != LetteraParamKind.Color)) continue;
                 results.Add(new LetteraParamChoices { Label = $"{style + 1}. {path} / {info.Display}", Style = style, Node = node.ToArray(), Parameter = info.Id, Kind = info.Kind });
             }
         }

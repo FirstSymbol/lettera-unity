@@ -69,6 +69,8 @@ namespace FirstSymbol.Lettera
         public float Amount { get => m_Amount; set => m_Amount = value; }
         public bool AmountInEm { get => m_AmountInEm; set => m_AmountInEm = value; }
 
+        public override IReadOnlyList<LetteraParamInfo> Parameters => LetteraBuiltInSlots.Tracking;
+
         static readonly List<uint> s_NoLigatureTags = new List<uint> { LetteraNative.Tag("liga"), LetteraNative.Tag("clig") };
         static readonly List<uint> s_NoLigatureValues = new List<uint> { 0, 0 };
 
@@ -116,6 +118,8 @@ namespace FirstSymbol.Lettera
         [SerializeField] float m_Value = 1.4f;
 
         public float Value { get => m_Value; set => m_Value = value; }
+
+        public override IReadOnlyList<LetteraParamInfo> Parameters => LetteraBuiltInSlots.LineHeight;
 
         public override void Apply(LetteraAttributes attributes, int start, int end, in LetteraSlots slots)
         {
@@ -180,6 +184,8 @@ namespace FirstSymbol.Lettera
 
         public float Amount { get => m_Amount; set => m_Amount = value; }
 
+        public override IReadOnlyList<LetteraParamInfo> Parameters => LetteraBuiltInSlots.Indent;
+
         public override void Apply(LetteraAttributes attributes, int start, int end, in LetteraSlots slots)
         {
             LetteraLength amount = slots.Length(0, new LetteraLength(m_Amount));
@@ -217,6 +223,8 @@ namespace FirstSymbol.Lettera
         public float MaxTracking { get => m_MaxTracking; set => m_MaxTracking = value; }
         public float MinGlyphWidth { get => m_MinGlyphWidth; set => m_MinGlyphWidth = value; }
         public float MaxGlyphWidth { get => m_MaxGlyphWidth; set => m_MaxGlyphWidth = value; }
+
+        public override IReadOnlyList<LetteraParamInfo> Parameters => LetteraBuiltInSlots.Align;
 
         public override void Apply(LetteraAttributes attributes, int start, int end, in LetteraSlots slots)
         {

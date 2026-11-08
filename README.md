@@ -61,36 +61,38 @@ A tag means something only because a style binds it to an effect; a tag nothing 
 
 | Tag | Effect | Parameters |
 |---|---|---|
-| `<b>`, `<strong>` | Weight | weight 100-900; `f` forces synthetic, `r` real faces only |
+| `<b>`, `<strong>` | Weight | weight 100-900; mode: `f` forces synthetic, `r` real faces only |
 | `<i>`, `<em>` | Italic | slant in percent of the glyph height |
-| `<size>` | Size | `24`, `150%`, `+10`, `-5`, `1.2em` |
-| `<color>` | Color | `#RGB`, `#RRGGBB`, `#RRGGBBAA`, or a name |
-| `<alpha>` | Alpha | `0.5`, `50%`, `#80` |
-| `<font>` | Family | a family name of the font stack |
-| `<lang>` | Language | a BCP 47 tag |
-| `<u>`, `<s>` | Underline, strikethrough | optional color |
-| `<outline>` | Outline | color, width in em or `2px` |
-| `<shadow>` | Shadow | color, x, y, softness, dilate |
+| `<size>` | Size | size: `24`, `150%`, `+10`, `-5`, `1.2em` |
+| `<color>` | Color | color: `#RGB`, `#RRGGBB`, `#RRGGBBAA`, or a name |
+| `<alpha>` | Alpha | alpha: `0.5`, `50%`, `#80` |
+| `<font>` | Family | family: a family name of the font stack |
+| `<lang>` | Language | language: a BCP 47 tag |
+| `<u>`, `<s>` | Underline, strikethrough | paint, style, thickness, offset, skip ink, overlay, then paint settings |
+| `<outline>` | Outline | paint, width in em or `2px`, then paint settings |
+| `<shadow>` | Shadow | paint, x, y, softness, dilate, then paint settings |
 | `<fill>` | Face paint | paint, dilate, softness, then paint settings |
-| `<stroke>` | Band along the outline | paint, width (em or `2px`), `inside` `center` `outside` or -1 to 1, softness, `round` or `sharp` |
+| `<stroke>` | Band along the outline | paint, width (em or `2px`), align: `inside` `center` `outside` or -1 to 1, softness, corners: `round` or `sharp` |
 | `<glow>` | Halo | paint, radius, softness, dilate |
 | `<inner-shadow>` | Shadow cast inward | paint, x, y, softness, choke |
 | `<extrude>` | Stacked copies | x, y, near color, far color, dilate, softness |
 | `<filter>` | Color filter | intensity, `grayscale` `invert` `sepia` |
 | `<union>`, `<warp>` | Merge overlaps; distort the outline | none; amplitude, scale, travel |
-| `<mark>` | Highlight | paint, `glyph` `line` `range` `block`, paint span, radius, padding, `behind` `above`, height |
+| `<mark>` | Highlight | paint, shape: `glyph` `line` `range` `block`, paint span, radius, padding, order: `behind` `above`, height |
 | `<uppercase>`, `<lowercase>`, `<smallcaps>` | Case | small caps: scale of synthetic ones |
-| `<sup>`, `<sub>` | Superior, inferior | |
+| `<sup>`, `<sub>` | Superior, inferior | placement: `super` or `sub` |
 | `<otf>` | OpenType features | `onum`, `-dlig`, `cv02 3` |
 | `<axes>` | Variable axes | wght, wdth, ital, slnt, opsz; `640`, `120%`, `+80`, `~`; `GRAD 50` |
 | `<size-match>` | Match fallbacks on | `XHeight` or `CapHeight` |
 | `<ruby>`, `<rt>`, `<rp>` | Readings above text | `<ruby=reading>` or `<rt>` |
-| `<tracking>`, `<word-spacing>` | Spacing | local units or `em` |
+| `<tracking>` | Letter spacing | amount in local units or `em` |
+| `<word-spacing>` | Word spacing | local units or `em` |
 | `<cell>` | Equal width cells | width, or `auto` |
-| `<line-height>`, `<para-spacing>`, `<line-gap>` | Vertical space | multiplier, mode, leading; after, before; amount |
+| `<line-height>` | Line height | height (a multiplier, or px, em, %), mode, leading |
+| `<para-spacing>`, `<line-gap>` | Paragraph and line spacing | after, before; amount |
 | `<nobr>` | Keep together | |
 | `<li>` | List item | level, number, marker text |
-| `<indent>` | Margin | local units, `em`, `%` of the rect |
+| `<indent>` | Margin | amount in local units, `em`, or `%` of the rect |
 | `<align>` | Paragraph alignment | alignment, justify mode, last line |
 | `<trim>` | Text box trim | top edge, bottom edge |
 | `<curve>` | Curved baseline | radius, anchor |

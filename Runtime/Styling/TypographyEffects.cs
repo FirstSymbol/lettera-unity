@@ -111,6 +111,8 @@ namespace FirstSymbol.Lettera
 
         public LetteraSuperSubPlacement Placement { get => m_Placement; set => m_Placement = value; }
 
+        public override IReadOnlyList<LetteraParamInfo> Parameters => LetteraBuiltInSlots.SuperSub;
+
         public override void Apply(LetteraAttributes attributes, int start, int end, in LetteraSlots slots) =>
             attributes.SetSuperSub(start, end, (byte)slots.Enum(0, m_Placement));
     }

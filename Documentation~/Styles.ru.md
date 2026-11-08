@@ -152,7 +152,7 @@ public class StylesGradients : MonoBehaviour
 
 **Именованные заливки.** Ассет `LetteraPaintLibrary` хранит именованные образцы. Назначьте его проекту в поле **Paints** в Project Settings, и тег слоя примет имя образца вместо цвета: `<fill=sunset>`, `<stroke=brand,0.05>`. Эффект слоя может также брать образцы из собственной библиотеки или собственного списка (`Catalog`). Неизвестное имя один раз предупреждает и использует заливку по умолчанию.
 
-После слота заливки у слоя идут настройки заливки, по порядку: охват, форма, вписывание, края, наложение, угол, масштаб, смещение x, смещение y. Так `<fill=sunset,0,0,glyph>` начинает образец заново на каждом глифе.
+После собственных слотов слоя идут настройки заливки, по порядку: охват, форма, вписывание, края, наложение, угол, масштаб, смещение x, смещение y. Так `<fill=sunset,0,0,glyph>` начинает образец заново на каждом глифе.
 
 Сплошная и градиентная заливки никогда не разбивают батч. Текстурная заливка или наложение, отличное от обычного, получает собственный материал, а порядок отрисовки сохраняется.
 
@@ -295,6 +295,7 @@ public class StylesChatLine : MonoBehaviour
 
 ```csharp
 using System;
+using System.Collections.Generic;
 using FirstSymbol.Lettera;
 using UnityEngine;
 
@@ -304,6 +305,15 @@ public class StylesAlertEffect : LetteraEffect
 {
     [SerializeField, LetteraEssential] Color32 m_Color = new Color32(255, 70, 50, 255);
     [SerializeField] float m_Grow = 1.15f;
+
+    // Names the slots Apply reads, so the inspector can edit <alert=#FC0,1.0> with a form.
+    public override IReadOnlyList<LetteraParamInfo> Parameters => s_Slots;
+
+    static readonly LetteraParamInfo[] s_Slots =
+    {
+        LetteraParamInfo.ForSlot(0, "Color", LetteraParamKind.Color, "Text colour", defaultField: "m_Color"),
+        LetteraParamInfo.ForSlot(1, "Grow", LetteraParamKind.Float, "How much bigger the text gets", 1, 2, 0.05f, defaultField: "m_Grow"),
+    };
 
     public override void Apply(LetteraAttributes attributes, int start, int end, in LetteraSlots slots)
     {
@@ -328,7 +338,8 @@ public class StylesUseAlert : MonoBehaviour
 - Эффекты сериализуются по ссылке, поэтому помечайте их `[Serializable]` и храните состояние в полях.
 - Эффект со списком или другим вложенным объектом переопределяет `Clone`, чтобы каждый текст получил свою копию.
 - `[LetteraEssential]` отмечает поля, которые новый стиль показывает первыми; `[LetteraPicker(group, words)]` ставит эффект в группу выбора стилей (`Basics`, `Type`, `Lines`, `Look`, `Layout`, `Links`, `Utility` или `Custom`) и даёт слова, по которым его найти.
-- `Parameters` публикует именованные параметры для секвенсора, правил и удержаний; `Stages` и методы `On...` позволяют эффекту вмешаться в этап перестройки. См. [Движение](Motion.ru.md#обработчики-этапов).
+- **Слоты для инспектора.** Переопределите `Parameters` и опишите каждую позицию, которую читает `Apply`, через `LetteraParamInfo.ForSlot(позиция, имя, вид, подсказка, ...)`; позиции считаются с 0, как индекс, который вы передаёте в `slots`. Тогда панель тега, список обёртывания и форма **Defaults** на карточке стиля работают для вашего тега без кода редактора: цвет получает образец, число с `min` и `max` получает ползунок, длина принимает `units` (`LetteraSlotUnits`) и значение голого числа, а `ForEnum<T>` или `choices` дают выпадающий список. `defaultField` называет поле, которое даёт значение пустому слоту (`"m_Offset.x"` берёт компонент вектора), чтобы строка показывала, что будет применено; `defaultText` говорит то же словами. Эффект без описаний оставляет строку с сырым значением. Массив создавайте один раз, в статическом поле.
+- `Parameters` также публикует именованные параметры для секвенсора, правил и удержаний; `Stages` и методы `On...` позволяют эффекту вмешаться в этап перестройки. См. [Движение](Motion.ru.md#обработчики-этапов).
 
 ## Свой матчер
 

@@ -157,10 +157,18 @@ namespace FirstSymbol.Lettera
         // What the tag or default says, under any hold.
         string Unheld(int index)
         {
+#if UNITY_EDITOR
+            Probe?.Invoke(index);
+#endif
             if (m_Tag != null && index < m_Tag.Length && m_Tag[index] != null) return m_Tag[index];
             if (m_Default != null && index < m_Default.Length) return m_Default[index];
             return null;
         }
+
+#if UNITY_EDITOR
+        /// <summary>Set by a test while one effect applies, to learn which positions it reads. Compiled out of players.</summary>
+        internal static Action<int> Probe;
+#endif
 
         /// <summary>How many positions the tag or the style's default gives.</summary>
         public int Count => Math.Max(m_Tag?.Length ?? 0, m_Default?.Length ?? 0);
@@ -224,6 +232,9 @@ namespace FirstSymbol.Lettera
         {
             get
             {
+#if UNITY_EDITOR
+                Probe?.Invoke(index);
+#endif
                 if (m_Holds != null)
                 {
                     // Reading a token gives what a replacing hold holds; composing ones need a typed reader, which knows the field.

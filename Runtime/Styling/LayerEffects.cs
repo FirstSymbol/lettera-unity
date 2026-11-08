@@ -157,6 +157,8 @@ namespace FirstSymbol.Lettera
         public float Dilate { get => m_Dilate; set => m_Dilate = value; }
         public float Softness { get => m_Softness; set => m_Softness = value; }
 
+        public override IReadOnlyList<LetteraParamInfo> Parameters => LetteraBuiltInSlots.Fill;
+
         public override void Apply(LetteraAttributes attributes, int start, int end, in LetteraSlots slots)
         {
             attributes.AddLayer(start, end, m_Band == LetteraLayerBand.Auto ? LetteraLayerBand.Face : m_Band, new LayerRecord
@@ -189,6 +191,8 @@ namespace FirstSymbol.Lettera
         public float Width { get => m_Width; set => m_Width = value; }
         public float Align { get => m_Align; set => m_Align = value; }
         public float Softness { get => m_Softness; set => m_Softness = value; }
+
+        public override IReadOnlyList<LetteraParamInfo> Parameters => LetteraBuiltInSlots.Stroke;
 
         public override void Apply(LetteraAttributes attributes, int start, int end, in LetteraSlots slots)
         {
@@ -229,6 +233,8 @@ namespace FirstSymbol.Lettera
         public float Radius { get => m_Radius; set => m_Radius = value; }
         public float Softness { get => m_Softness; set => m_Softness = value; }
         public float Dilate { get => m_Dilate; set => m_Dilate = value; }
+
+        public override IReadOnlyList<LetteraParamInfo> Parameters => LetteraBuiltInSlots.Glow;
 
         public override void Apply(LetteraAttributes attributes, int start, int end, in LetteraSlots slots)
         {

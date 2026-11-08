@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace FirstSymbol.Lettera
@@ -48,6 +49,8 @@ namespace FirstSymbol.Lettera
         public LetteraHighlightLook Look { get => m_Look; set => m_Look = value; }
         public LetteraHighlightPaintSpan PaintSpan { get => m_PaintSpan; set => m_PaintSpan = value; }
         public LetteraHighlightOrder Order { get => m_Order; set => m_Order = value; }
+
+        public override IReadOnlyList<LetteraParamInfo> Parameters => LetteraBuiltInSlots.Mark;
 
         public override LetteraEffect Clone()
         {

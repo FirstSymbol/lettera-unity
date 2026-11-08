@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace FirstSymbol.Lettera
@@ -10,6 +11,8 @@ namespace FirstSymbol.Lettera
         [SerializeField, Range(100, 900)] int m_Weight = 700;
 
         public int Weight { get => m_Weight; set => m_Weight = value; }
+
+        public override IReadOnlyList<LetteraParamInfo> Parameters => LetteraBuiltInSlots.Bold;
 
         public override void Apply(LetteraAttributes attributes, int start, int end, in LetteraSlots slots)
         {
@@ -25,6 +28,8 @@ namespace FirstSymbol.Lettera
     [Serializable]
     public class ItalicEffect : LetteraEffect
     {
+        public override IReadOnlyList<LetteraParamInfo> Parameters => LetteraBuiltInSlots.Italic;
+
         public override void Apply(LetteraAttributes attributes, int start, int end, in LetteraSlots slots)
         {
             attributes.SetItalic(start, end, LetteraSlots.TryNumber(slots[0], out float slant) ? slant : -1);
@@ -38,6 +43,8 @@ namespace FirstSymbol.Lettera
         [SerializeField] string m_Size = "100%";
 
         public string Size { get => m_Size; set => m_Size = value; }
+
+        public override IReadOnlyList<LetteraParamInfo> Parameters => LetteraBuiltInSlots.Size;
 
         public override void Apply(LetteraAttributes attributes, int start, int end, in LetteraSlots slots)
         {
@@ -73,6 +80,8 @@ namespace FirstSymbol.Lettera
 
         public Color32 Color { get => m_Color; set => m_Color = value; }
 
+        public override IReadOnlyList<LetteraParamInfo> Parameters => LetteraBuiltInSlots.Color;
+
         public override void Apply(LetteraAttributes attributes, int start, int end, in LetteraSlots slots)
         {
             attributes.SetColor(start, end, slots.Color(0, m_Color));
@@ -86,6 +95,8 @@ namespace FirstSymbol.Lettera
         [SerializeField, Range(0, 1)] float m_Alpha = 1f;
 
         public float Alpha { get => m_Alpha; set => m_Alpha = value; }
+
+        public override IReadOnlyList<LetteraParamInfo> Parameters => LetteraBuiltInSlots.Alpha;
 
         public override void Apply(LetteraAttributes attributes, int start, int end, in LetteraSlots slots)
         {
@@ -118,6 +129,8 @@ namespace FirstSymbol.Lettera
 
         public string Family { get => m_Family; set => m_Family = value; }
 
+        public override IReadOnlyList<LetteraParamInfo> Parameters => LetteraBuiltInSlots.Font;
+
         public override void Apply(LetteraAttributes attributes, int start, int end, in LetteraSlots slots)
         {
             string family = slots[0] ?? m_Family;
@@ -132,6 +145,8 @@ namespace FirstSymbol.Lettera
         [SerializeField] string m_Language = "";
 
         public string Language { get => m_Language; set => m_Language = value; }
+
+        public override IReadOnlyList<LetteraParamInfo> Parameters => LetteraBuiltInSlots.Language;
 
         public override void Apply(LetteraAttributes attributes, int start, int end, in LetteraSlots slots)
         {
@@ -154,6 +169,8 @@ namespace FirstSymbol.Lettera
         public LetteraLineStyle LineStyle { get => m_LineStyle; set => m_LineStyle = value; }
         public bool SkipInk { get => m_SkipInk; set => m_SkipInk = value; }
         public bool Overlay { get => m_Overlay; set => m_Overlay = value; }
+
+        public override IReadOnlyList<LetteraParamInfo> Parameters => LetteraBuiltInSlots.Line;
 
         private protected void AddLine(LetteraAttributes attributes, int start, int end, in LetteraSlots slots, bool strike)
         {
@@ -196,6 +213,8 @@ namespace FirstSymbol.Lettera
         public Color32 Color { get => m_Color; set => m_Color = value; }
         public float Width { get => m_Width; set => m_Width = value; }
 
+        public override IReadOnlyList<LetteraParamInfo> Parameters => LetteraBuiltInSlots.Outline;
+
         public override void Apply(LetteraAttributes attributes, int start, int end, in LetteraSlots slots)
         {
             attributes.AddLayer(start, end, m_Band == LetteraLayerBand.Auto ? LetteraLayerBand.Rim : m_Band, new LayerRecord
@@ -223,6 +242,8 @@ namespace FirstSymbol.Lettera
         public Vector2 Offset { get => m_Offset; set => m_Offset = value; }
         public float Softness { get => m_Softness; set => m_Softness = value; }
         public float Dilate { get => m_Dilate; set => m_Dilate = value; }
+
+        public override IReadOnlyList<LetteraParamInfo> Parameters => LetteraBuiltInSlots.Shadow;
 
         public override void Apply(LetteraAttributes attributes, int start, int end, in LetteraSlots slots)
         {

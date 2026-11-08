@@ -293,7 +293,7 @@ namespace FirstSymbol.Lettera.Editor.Tests
             Assert.AreEqual("Amplitude", table[0].Id);
             Assert.AreEqual(0, table[0].Slot);
             Assert.AreEqual(DirtyLevel.Pose, table[0].Level);
-            Assert.AreEqual(0, new BoldEffect().Parameters.Count);
+            Assert.AreEqual(0, new UppercaseEffect().Parameters.Count);
         }
 
         [Test]
