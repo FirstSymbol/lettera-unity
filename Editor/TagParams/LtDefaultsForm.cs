@@ -16,7 +16,8 @@ namespace FirstSymbol.Lettera.Editor
         readonly SerializedProperty m_Parameter;
         readonly Func<LetteraEffect> m_GetEffect;
         LetteraEffect m_Effect;
-        readonly string m_Tag;
+        readonly Func<string> m_GetTag;
+        string m_Tag;
         readonly LtTagForm m_Form;
         readonly Label m_Summary, m_Filled, m_Error, m_RawToggle;
         readonly VisualElement m_FormBox, m_RawBox;
@@ -33,12 +34,13 @@ namespace FirstSymbol.Lettera.Editor
         public static bool Wants(object effect) =>
             effect is LetteraEffect described && !(effect is CompositeEffect) && LetteraTagModel.HasSchema(described.Parameters);
 
-        public LtDefaultsForm(SerializedProperty parameter, Func<LetteraEffect> effect, string tagName, Func<float> emPixels = null)
+        public LtDefaultsForm(SerializedProperty parameter, Func<LetteraEffect> effect, Func<string> tagName, Func<float> emPixels = null)
         {
             m_Parameter = parameter.Copy();
             m_GetEffect = effect;
             m_Effect = effect();
-            m_Tag = tagName;
+            m_GetTag = tagName;
+            m_Tag = tagName();
             AddToClassList("lt-defaults");
             m_Gesture = new LtGesture(this);
             Add(LtUI.El("lt-defaults__head", LtUI.Text("Defaults", "lt-row__label lt-defaults__title"), LtUI.Text("Filled in when a tag leaves a slot empty", "lt-hint lt-defaults__sub")));
@@ -81,6 +83,7 @@ namespace FirstSymbol.Lettera.Editor
         public void Refresh()
         {
             m_Effect = m_GetEffect() ?? m_Effect;
+            m_Tag = m_GetTag();
             string value = m_Parameter.hasMultipleDifferentValues ? "" : m_Parameter.stringValue ?? "";
             LetteraTagSpan tag = Read(value);
             bool valid = tag != null;

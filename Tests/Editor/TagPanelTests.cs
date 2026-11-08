@@ -312,7 +312,7 @@ namespace FirstSymbol.Lettera.Editor.Tests
         public void TheDefaultsFormWritesTheParameterAndExplainsWhatABareTagMeans()
         {
             SerializedProperty parameter = DefaultOf(new ColorEffect(), "warning", "", out LetteraWorldText text);
-            var form = new LtDefaultsForm(parameter, () => new ColorEffect(), "warning");
+            var form = new LtDefaultsForm(parameter, () => new ColorEffect(), () => "warning");
             Assert.IsFalse(form.RawShown);
             form.Write(0, "#FF8800");
             Assert.AreEqual("#FF8800", text.Styles[0].DefaultParameter);
@@ -323,10 +323,24 @@ namespace FirstSymbol.Lettera.Editor.Tests
         }
 
         [Test]
+        public void TheDefaultsFormFollowsTheEffectAndTagItIsGivenNow()
+        {
+            SerializedProperty parameter = DefaultOf(new ColorEffect(), "warning", "", out _);
+            LetteraEffect effect = new ColorEffect();
+            string tag = "warning";
+            var form = new LtDefaultsForm(parameter, () => effect, () => tag);
+            effect = new ShadowEffect();
+            tag = "glow-shadow";
+            form.Refresh();
+            Assert.AreEqual(5, form.Form.Rows.Count);
+            Assert.AreEqual("Bare <glow-shadow> = <shadow>", form.SummaryText);
+        }
+
+        [Test]
         public void ADefaultThatDoesNotParseShowsTheRawFieldAndTheError()
         {
             SerializedProperty parameter = DefaultOf(new ColorEffect(), "warning", "\"unclosed", out _);
-            var form = new LtDefaultsForm(parameter, () => new ColorEffect(), "warning");
+            var form = new LtDefaultsForm(parameter, () => new ColorEffect(), () => "warning");
             Assert.IsTrue(form.RawShown);
             Assert.AreEqual("Quote is not closed.", form.ErrorText);
         }

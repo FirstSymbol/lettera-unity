@@ -330,7 +330,7 @@ namespace FirstSymbol.Lettera.Editor
             AddEffectParameters(body, effect, index, tagBound);
             SerializedProperty defaultParameter = style.FindPropertyRelative("m_DefaultParameter");
             if (LtDefaultsForm.Wants(effectValue) && (matcherValue is TagMatcher || matcherValue is WholeTextMatcher || matcherValue is SpanMatcher))
-                body.Add(new LtDefaultsForm(defaultParameter, () => effect.managedReferenceValue as LetteraEffect, (matcherValue as TagMatcher)?.Name));
+                body.Add(new LtDefaultsForm(defaultParameter, () => effect.managedReferenceValue as LetteraEffect, () => (matcher.managedReferenceValue as TagMatcher)?.Name));
             else
                 body.Add(LtUI.Field("Defaults", defaultParameter, "Parameters used when a tag gives none, in the tag's syntax."));
             card.Add(body);
