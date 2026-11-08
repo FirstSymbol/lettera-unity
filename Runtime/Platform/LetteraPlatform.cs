@@ -160,7 +160,9 @@ namespace FirstSymbol.Lettera
         /// <summary>A host says something went wrong or which way it went. Each feature logs once.</summary>
         public static void Report(LetteraNativeFeature feature, string message)
         {
-            if (s_Reports.Count < 256) s_Reports.Add(feature + ": " + message);
+            // A host that says the same thing at every focus would fill the list with it.
+            string line = feature + ": " + message;
+            if (s_Reports.Count < 256 && !s_Reports.Contains(line)) s_Reports.Add(line);
             if (s_Reported.Add(feature)) Debug.Log($"Lettera: {feature}: {message}");
             Reported?.Invoke(feature, message);
         }

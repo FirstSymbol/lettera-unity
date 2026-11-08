@@ -403,6 +403,18 @@ namespace FirstSymbol.Lettera.Editor.Tests
             Assert.AreEqual(pushes, m_Host.Pushes.Count);
         }
 
+        // Seen on an iPhone: a host that says the same at every focus filled the device check's report with thirty equal lines.
+        [Test]
+        public void ASaidThingIsListedOnce()
+        {
+            string line = "an unlikely message " + System.Guid.NewGuid();
+            int before = LetteraPlatform.Reports.Count;
+            for (int i = 0; i < 5; i++) LetteraPlatform.Report(LetteraNativeFeature.TextInput, line);
+            Assert.AreEqual(before + 1, LetteraPlatform.Reports.Count);
+            LetteraPlatform.Report(LetteraNativeFeature.Replica, line);
+            Assert.AreEqual(before + 2, LetteraPlatform.Reports.Count, "another feature saying it is another line");
+        }
+
         [Test]
         public void AHostThatThrowsLeavesTheFieldWorking()
         {
