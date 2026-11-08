@@ -93,8 +93,8 @@ namespace FirstSymbol.Lettera.Samples
                 .Ru("Цветные глифы", "Нарисованы ли эмодзи ниже цветными, с плавными градиентами, без пустых квадратов?"),
             new Step("math", "Formulas", "Below are fractions, roots, tall brackets, a matrix and accents. Are they sharp, joined and in place? Is the tall bracket one smooth shape at half alpha?", "math layout", "native v3", "bundled font")
                 .Ru("Формулы", "Ниже дроби, корни, высокие скобки, матрица и акценты. Они чёткие, соединённые и на своих местах? Высокая полупрозрачная скобка выглядит одной гладкой фигурой, без более тёмных стыков?"),
-            new Step("math-system", "System math font", "This line asks the system for a math font, and says which it found. Does the formula look right, or does it say none?", "system math font")
-                .Ru("Системный математический шрифт", "Эта строка берёт математический шрифт у системы. Формула выглядит правильно?"),
+            new Step("math-system", "System math font", "This line leaves the math font unset, so it takes the system's where the device has one (Windows, macOS). The web and phones have none: the formula then stays plain, and the root and the integral may show as an empty box or nothing. That is no failure: answer Pass when it shows as described.", "system math font")
+                .Ru("Системный математический шрифт", "В этой строке математический шрифт не задан, и берётся системный, если он есть (Windows, macOS). В вебе и на телефонах его нет: формула остаётся простой, а корень и интеграл могут показаться пустым квадратом или пропасть. Это не поломка: отвечайте «Работает», если видно так, как описано."),
             new Step("math-select", "Formula as one unit", "Tap beside a formula. Hold to select it. Copy and paste to Notes: you should see the source. On a Windows machine: paste into Word and Chrome.", "selection", "copy", "clipboard HTML")
                 .Ru("Формула как одно целое", "Коснитесь рядом с формулой. Удержанием выделите её: она должна выделяться целиком. Скопируйте и вставьте в Заметки: должен появиться её исходный текст."),
             new Step("solid", "3D text", "These letters are solid and lit, and turn slowly. Do they look closed and smooth? Do shadows fall on the ground? Do they fade by dots, and does the frame rate below stay smooth?", "solid shader", "budgets")
@@ -215,6 +215,7 @@ namespace FirstSymbol.Lettera.Samples
         string m_Note = "";
         LetteraEditable m_NoteField;
         LetteraText m_Frame;
+        LetteraFontAsset m_ProjectMathFont;
 
         void Start()
         {
@@ -235,6 +236,10 @@ namespace FirstSymbol.Lettera.Samples
             scaler.referenceResolution = new Vector2(720, 1280);
             scaler.matchWidthOrHeight = 0.5f;
             m_Root = (RectTransform)canvasObject.transform;
+            m_ProjectMathFont = LetteraSettings.Instance.Math.Font;
+            // "kitstep=math" in the page's address opens that step first: a person or a script can go straight to what needs looking at.
+            int first = Array.FindIndex(Steps, step => Application.absoluteURL.Contains("kitstep=" + step.Id + "&") || Application.absoluteURL.EndsWith("kitstep=" + step.Id));
+            if (first > 0) m_Index = first;
             ShowStep();
             string[] arguments = Environment.GetCommandLineArgs();
             if (Array.IndexOf(arguments, "-lettera-kit-auto") >= 0 || Application.absoluteURL.Contains("kit=auto")) AutoRun();
@@ -310,6 +315,8 @@ namespace FirstSymbol.Lettera.Samples
                 return;
             }
             Step step = Steps[m_Index];
+            // The build sets the bundled math font for the project; the system step leaves it unset, to meet what the device itself has.
+            LetteraSettings.Instance.Math.Font = step.Id == "math-system" ? null : m_ProjectMathFont;
             Label($"{m_Index + 1} {T("of", "из")} {Steps.Length}: {step.ShownTitle}", 40, new Vector2(0, 0.88f), new Vector2(1, 1));
             Label(step.ShownInstructions, 26, new Vector2(0, 0.62f), new Vector2(1, 0.88f));
             Sample(step.Id);

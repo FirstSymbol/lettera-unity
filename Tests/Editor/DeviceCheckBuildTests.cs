@@ -29,5 +29,21 @@ namespace FirstSymbol.Lettera.Editor.Tests
             Assert.IsFalse(AssetDatabase.LoadAssetAtPath<LetteraSettings>(LetteraDeviceCheckMenu.TemporarySettingsPath), "nothing is left behind");
             Assert.AreEqual(before, LetteraSettings.Instance.Platform.TextInput, "the editor's own settings are as they were");
         }
+
+        // Seen on an iPhone: with no math font set, a web build drew the root as nothing and the integral as an empty box.
+        [Test]
+        public void ABuildCarriesTheBundledMathFontWhenNoneIsSet()
+        {
+#if !LETTERA_NO_MATH
+            LetteraFontAsset bundled = LetteraMathMenu.BundledFont();
+            if (bundled == null) Assert.Ignore("The bundled math font is not in this package.");
+            if (LetteraSettings.Instance.Math.Font != null) Assert.Ignore("This project sets a math font of its own.");
+            LetteraFontAsset seen = null;
+            LetteraDeviceCheckMenu.WithNativeOn(() => seen = LetteraSettings.Instance.Math.Font ?? Resources.Load<LetteraSettings>(LetteraSettings.ResourceName)?.Math.Font);
+            AssetDatabase.DeleteAsset("Assets/LetteraDeviceCheckBuild");
+            Assert.AreSame(bundled, seen);
+            Assert.IsNull(LetteraSettings.Instance.Math.Font, "the editor's own settings are as they were");
+#endif
+        }
     }
 }

@@ -51,6 +51,11 @@ namespace FirstSymbol.Lettera.Editor
                 LetteraPlatformSettings platform = settings.Platform;
                 platform.TextInput = platform.Replica = platform.Clipboard = platform.SystemMenu = platform.SystemLoupe = platform.PasteControl = platform.OsPreferences = LetteraGate.On;
                 platform.IosNativeInBuild = true;
+#if !LETTERA_NO_MATH
+                // The web, Android and iOS have no system math font; without one the formulas take the plain layout, and a root or an integral
+                // the text font lacks shows as an empty box. The check shows formulas as a project would ship them.
+                if (settings.Math.Font == null) settings.Math.Font = LetteraMathMenu.BundledFont();
+#endif
                 settings.Editing.AndroidMenu = LetteraMenuChoice.System;
                 settings.Editing.IosMenu = LetteraMenuChoice.System;
                 settings.Editing.Loupe = LetteraLoupeChoice.System;
