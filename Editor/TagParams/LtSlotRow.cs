@@ -167,6 +167,12 @@ namespace FirstSymbol.Lettera.Editor
                 e.StopPropagation();
             }, TrickleDown.TrickleDown);
             Root.Add(m_Field);
+            if (!string.IsNullOrEmpty(info.UnitLabel))
+            {
+                Label unit = LtUI.Text(info.UnitLabel, "lt-slot__unit");
+                unit.tooltip = info.UnitLabel == "°" ? "Degrees" : info.UnitLabel == "Hz" ? "Cycles a second" : info.UnitLabel;
+                Root.Add(unit);
+            }
         }
 
         void Step(double value)
@@ -308,6 +314,16 @@ namespace FirstSymbol.Lettera.Editor
             if (text.Length == 0)
             {
                 if (m_Shown.Length > 0) Commit(null);
+                return;
+            }
+            // A word the effect reads in place of a length, such as auto, is taken as written.
+            if (m_Info.Accepts != null && m_Info.Accepts(text))
+            {
+                if (text != m_Shown)
+                {
+                    m_Shown = text;
+                    Commit(text);
+                }
                 return;
             }
             // A token with its own suffix is taken as written, when this slot reads it.
@@ -479,7 +495,8 @@ namespace FirstSymbol.Lettera.Editor
         readonly TextField m_Field;
         string m_Shown = "";
 
-        public LtTextSlot()
+        // With a list of names to offer, a button beside the field opens it.
+        public LtTextSlot(Func<IReadOnlyList<string>> names = null)
         {
             m_Field = Field("lt-slot__text");
             m_Field.isDelayed = true;
@@ -491,6 +508,28 @@ namespace FirstSymbol.Lettera.Editor
                 Commit(text.Length == 0 ? null : text);
             });
             Root = LtUI.El("lt-slot__textbox", m_Field);
+            if (names != null)
+            {
+                Label pick = LtUI.Clickable("\u25be", "lt-chip lt-chip--click lt-slot__pick", "Pick a name from the ones this text knows.", () =>
+                {
+                    IReadOnlyList<string> list = names();
+                    var menu = new GenericMenu();
+                    if (list == null || list.Count == 0) menu.AddDisabledItem(new GUIContent("No names are known yet"));
+                    else
+                        foreach (string name in list)
+                        {
+                            string chosen = name;
+                            menu.AddItem(new GUIContent(chosen), chosen == m_Shown, () =>
+                            {
+                                m_Shown = chosen;
+                                m_Field.SetValueWithoutNotify(chosen);
+                                Commit(chosen);
+                            });
+                        }
+                    menu.ShowAsContext();
+                });
+                Root.Add(pick);
+            }
         }
 
         public override void Show(LetteraSlotRow row)
@@ -507,7 +546,7 @@ namespace FirstSymbol.Lettera.Editor
     internal sealed class LtSlotRow : VisualElement
     {
         readonly Func<float> m_EmPixels;
-        readonly Label m_Inherited, m_Set, m_Reset, m_Note;
+        readonly Label m_Inherited, m_Set, m_Reset, m_Note, m_Help;
         readonly VisualElement m_Line, m_Box;
         readonly LtSlotControl m_Control;
         LetteraSlotRow m_Model;
@@ -521,13 +560,13 @@ namespace FirstSymbol.Lettera.Editor
         public event Action<LtSlotRow, string> Changed;
         public event Action<bool> Holding;
 
-        public LtSlotRow(LetteraParamInfo info, Func<float> emPixels)
+        public LtSlotRow(LetteraParamInfo info, Func<float> emPixels, Func<LetteraParamInfo, IReadOnlyList<string>> suggest = null)
         {
             Info = info;
             m_EmPixels = emPixels;
             AddToClassList("lt-slot");
             focusable = false;
-            m_Control = Make(info, emPixels);
+            m_Control = Make(info, emPixels, suggest);
             m_Control.Commit = token => Changed?.Invoke(this, token);
             m_Control.Hold = hold => Holding?.Invoke(hold);
 
@@ -549,7 +588,10 @@ namespace FirstSymbol.Lettera.Editor
             m_Line = LtUI.El("lt-slot__line", badge, name, m_Box, m_Set, m_Reset);
             m_Note = LtUI.Text("", "lt-slot__note");
             m_Note.style.display = DisplayStyle.None;
+            // What the slot means is written out, not left to a tooltip.
+            m_Help = LtUI.Text(LetteraSlotValue.Help(info), "lt-slot__help");
             Add(m_Line);
+            Add(m_Help);
             Add(m_Note);
 
             RegisterCallback<FocusInEvent>(_ => AddToClassList("lt-slot--focus"));
@@ -569,7 +611,7 @@ namespace FirstSymbol.Lettera.Editor
             }, TrickleDown.TrickleDown);
         }
 
-        static LtSlotControl Make(LetteraParamInfo info, Func<float> emPixels)
+        static LtSlotControl Make(LetteraParamInfo info, Func<float> emPixels, Func<LetteraParamInfo, IReadOnlyList<string>> suggest)
         {
             switch (info.Kind)
             {
@@ -581,7 +623,7 @@ namespace FirstSymbol.Lettera.Editor
                 case LetteraParamKind.Bool: return new LtBoolSlot();
                 case LetteraParamKind.Enum:
                 case LetteraParamKind.Choice: return info.Choices != null && info.Choices.Length > 0 ? (LtSlotControl)new LtChoiceSlot(info) : new LtTextSlot();
-                default: return new LtTextSlot();
+                default: return !string.IsNullOrEmpty(info.Suggests) && suggest != null ? new LtTextSlot(() => suggest(info)) : new LtTextSlot();
             }
         }
 

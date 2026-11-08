@@ -63,20 +63,6 @@ namespace FirstSymbol.Lettera.Editor.Cli
         };
 
         // Written once here because an effect's slots are not data anywhere else.
-        static readonly Dictionary<string, string> s_TagHints = new Dictionary<string, string>
-        {
-            ["b"] = "weight 100-900; f forces synthetic, r real faces only", ["strong"] = "as b", ["i"] = "slant in percent of the glyph height", ["em"] = "as i",
-            ["size"] = "24, 150%, +10, -5, 1.2em", ["color"] = "#RGB, #RRGGBB, #RRGGBBAA or a name", ["alpha"] = "0.5, 50%, #80", ["font"] = "a family name of the font stack", ["lang"] = "a BCP 47 tag",
-            ["u"] = "optional color", ["s"] = "optional color", ["strikethrough"] = "optional color", ["outline"] = "color, width in em or 2px", ["shadow"] = "color, x, y, softness, dilate",
-            ["fill"] = "paint, dilate, softness, then paint settings", ["stroke"] = "paint, width (em or 2px), inside center outside or -1 to 1, softness, round or sharp", ["glow"] = "paint, radius, softness, dilate",
-            ["inner-shadow"] = "paint, x, y, softness, choke", ["extrude"] = "x, y, near color, far color, dilate, softness", ["filter"] = "intensity, grayscale invert sepia", ["warp"] = "amplitude, scale, travel",
-            ["mark"] = "paint, glyph line range block, paint span, radius, padding, behind above, height", ["smallcaps"] = "scale of synthetic ones", ["otf"] = "onum, -dlig, cv02 3",
-            ["axes"] = "wght, wdth, ital, slnt, opsz; 640, 120%, +80, ~; GRAD 50", ["size-match"] = "XHeight or CapHeight", ["tracking"] = "local units or em", ["word-spacing"] = "local units or em", ["cell"] = "width, or auto",
-            ["line-height"] = "multiplier, mode, leading", ["para-spacing"] = "after, before", ["line-gap"] = "amount", ["indent"] = "local units, em, % of the rect", ["align"] = "alignment, justify mode, last line", ["trim"] = "top edge, bottom edge",
-            ["curve"] = "radius, anchor", ["link"] = "URL", ["a"] = "URL", ["ellipsis"] = "position: 0 start, 0.5 middle, 1 end", ["truncate"] = "position: 0 start, 0.5 middle, 1 end", ["dir"] = "ltr, rtl, auto",
-            ["reveal"] = "entrance, reach (100% is all, a number counts units), unit", ["math"] = "inline or display, then words for a screen reader",
-        };
-
         /// <summary>Runs a command's body. Nothing gets out: a thrown exception comes back as {"error": ...}.</summary>
         static object Run(Func<object> body)
         {
@@ -147,7 +133,7 @@ namespace FirstSymbol.Lettera.Editor.Cli
 
         static List<object> Parameters(LetteraEffect effect) => effect.Parameters.Select(p => (object)new Dictionary<string, object>
         {
-            ["id"] = p.Id, ["slot"] = p.Slot, ["kind"] = p.Kind.ToString(),
+            ["id"] = p.Id, ["slot"] = p.Slot, ["kind"] = p.Kind.ToString(), ["hint"] = p.Hint, ["example"] = p.Example, ["unit"] = p.UnitLabel,
         }).ToList();
 
         static List<object> DescribeAll(Type baseType) => LetteraCliData.TypesOf(baseType).Values.Distinct().OrderBy(t => t.Name, StringComparer.Ordinal).Select(t => (object)DescribeType(t)).ToList();
@@ -172,8 +158,17 @@ namespace FirstSymbol.Lettera.Editor.Cli
                 ["enabled"] = style?.Enabled ?? false,
             };
             if (!string.IsNullOrEmpty(style?.DefaultParameter)) d["parameter"] = style.DefaultParameter;
-            if (tag != null && s_TagHints.TryGetValue(tag, out string hint)) d["slots"] = hint;
-            if (style?.Effect != null && style.Effect.Parameters.Count > 0) d["parameters"] = Parameters(style.Effect);
+            LetteraEffect effect = style?.Effect;
+            if (effect != null)
+            {
+                // The words come from the effect's own schema, the same text the tag panel shows.
+                if (!string.IsNullOrEmpty(effect.Description)) d["description"] = effect.Description;
+                if (effect.TakesNoParameters) d["takesNoParameters"] = true;
+                var names = effect.Parameters.Where(p => p.Slot >= 0).OrderBy(p => p.Slot).Select(p => p.Display.ToLowerInvariant()).ToList();
+                if (names.Count > 0) d["slots"] = string.Join(", ", names);
+                if (effect.Examples.Count > 0) d["examples"] = effect.Examples.Select(e => (object)("<" + tag + (e.Value.Length > 0 ? "=" + e.Value : "") + ">  " + e.Note)).ToList();
+                if (effect.Parameters.Count > 0) d["parameters"] = Parameters(effect);
+            }
             return d;
         }
 

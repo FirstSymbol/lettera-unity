@@ -124,7 +124,7 @@ namespace FirstSymbol.Lettera.Editor
     internal static class LetteraVocabulary
     {
         /// <summary>What the engine reads without a matcher that names them.</summary>
-        static readonly string[] s_Always = { "br", "noparse", "li", "ruby", "rt", "divider", "math", "sprite", "obj" };
+        static readonly string[] s_Always = { "br", "noparse", "li", "ruby", "rt", "rp", "divider", "math", "sprite", "obj" };
 
         /// <summary>All this text's tags.</summary>
         public static HashSet<string> Tags(IEnumerable<LetteraStyle> styles)

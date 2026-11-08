@@ -129,6 +129,83 @@ namespace FirstSymbol.Lettera.Editor
             return info.BareMeans == LetteraLength.Unit.Em ? "em" : info.BareMeans == LetteraLength.Unit.Percent ? "%" : "px";
         }
 
+        /// <summary>A value to show beside the slot: the schema's own, else one made from its kind. Empty for text the kind cannot guess.</summary>
+        public static string ExampleOf(LetteraParamInfo info)
+        {
+            if (!string.IsNullOrEmpty(info.Example)) return info.Example;
+            switch (info.Kind)
+            {
+                case LetteraParamKind.Color:
+                case LetteraParamKind.Paint: return "#FF8800";
+                case LetteraParamKind.Bool: return "true";
+                case LetteraParamKind.String: return "";
+                case LetteraParamKind.Enum:
+                case LetteraParamKind.Choice:
+                    if (info.Choices == null || info.Choices.Length == 0) return "";
+                    return info.Choices[info.Choices.Length > 1 && info.Choices[0] == "Inherit" ? 1 : 0];
+                case LetteraParamKind.Length:
+                    string sample = Sample(info, 0);
+                    return info.BareMeans != LetteraLength.Unit.Em && (info.Units & LetteraSlotUnits.Em) != 0 ? sample + "em" : sample;
+                default: return Sample(info, 0);
+            }
+        }
+
+        /// <summary>In plain words, what a slot takes: its kind, range, choices and units.</summary>
+        public static string Takes(LetteraParamInfo info)
+        {
+            string unit = string.IsNullOrEmpty(info.UnitLabel) ? "" : " in " + (info.UnitLabel == "°" ? "degrees" : info.UnitLabel == "Hz" ? "cycles a second" : info.UnitLabel);
+            switch (info.Kind)
+            {
+                case LetteraParamKind.Color: return "Takes a colour: #RGB, #RRGGBB, #RRGGBBAA or a name.";
+                case LetteraParamKind.Paint: return "Takes a colour, or the name of a swatch.";
+                case LetteraParamKind.Bool: return "Takes true or false.";
+                case LetteraParamKind.String: return "Takes text.";
+                case LetteraParamKind.Enum:
+                case LetteraParamKind.Choice:
+                    if (info.Choices == null) return "Takes a name.";
+                    return "Takes one of: " + string.Join(", ", info.Choices) + ".";
+                case LetteraParamKind.Int: return "Takes a whole number" + RangeOf(info) + unit + ".";
+                case LetteraParamKind.Length:
+                    bool bare = (info.Units & LetteraSlotUnits.Bare) != 0;
+                    string bareName = BareName(info);
+                    var others = new List<string>();
+                    if ((info.Units & LetteraSlotUnits.Px) != 0 && !(bare && bareName == "px")) others.Add("2px");
+                    if ((info.Units & LetteraSlotUnits.Em) != 0 && !(bare && bareName == "em")) others.Add("0.2em");
+                    if ((info.Units & LetteraSlotUnits.Percent) != 0 && !(bare && bareName == "%")) others.Add("50%");
+                    string length = bare ? "Takes a length. A bare number means " + (bareName == "px" ? "local units" : bareName) + "." : "Takes a length with a unit.";
+                    if (others.Count > 0) length += " You can also write " + string.Join(" or ", others) + ".";
+                    if ((info.Units & LetteraSlotUnits.Delta) != 0) length += " A leading + or - changes the current value.";
+                    return length;
+                default: return "Takes a number" + RangeOf(info) + unit + ".";
+            }
+        }
+
+        static string RangeOf(LetteraParamInfo info)
+        {
+            bool low = !float.IsInfinity(info.Min), high = !float.IsInfinity(info.Max);
+            if (low && high) return " from " + LetteraTagWriter.FormatNumber(info.Min) + " to " + LetteraTagWriter.FormatNumber(info.Max);
+            if (low) return " of at least " + LetteraTagWriter.FormatNumber(info.Min);
+            if (high) return " of at most " + LetteraTagWriter.FormatNumber(info.Max);
+            return "";
+        }
+
+        /// <summary>The whole explanation of a slot, shown under its field: what it does, what it takes, and a value to try.</summary>
+        public static string Help(LetteraParamInfo info)
+        {
+            string text = info.Hint ?? "";
+            string takes = Takes(info);
+            string example = ExampleOf(info);
+            // A colour's hint already says which colours; the same words twice only get in the way.
+            bool repeats = (info.Kind == LetteraParamKind.Color || info.Kind == LetteraParamKind.Paint) && (text.IndexOf("colour", StringComparison.OrdinalIgnoreCase) >= 0 || text.Contains("#RGB"));
+            if (!repeats) text += " " + takes;
+            if (!string.IsNullOrEmpty(example))
+            {
+                string unit = string.IsNullOrEmpty(info.UnitLabel) || info.Kind == LetteraParamKind.Length ? "" : info.UnitLabel == "\u00b0" ? info.UnitLabel : " " + info.UnitLabel;
+                text += " Example: " + example + unit + ".";
+            }
+            return text.Trim();
+        }
+
         /// <summary>A token that the descriptor's own kind reads, for tests.</summary>
         public static string Sample(LetteraParamInfo info, int variant = 0)
         {

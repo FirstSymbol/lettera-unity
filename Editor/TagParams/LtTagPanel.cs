@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.IO;
 using UnityEditor;
 using UnityEditor.ShortcutManagement;
 using UnityEngine;
@@ -31,8 +32,8 @@ namespace FirstSymbol.Lettera.Editor
         readonly TextField m_Source;
         readonly LtTagPanelHost m_Host;
         readonly LtGesture m_Gesture;
-        readonly VisualElement m_Head, m_Crumbs, m_Markup, m_Body, m_Wrap;
-        readonly Label m_Title, m_Effect, m_Signature, m_Copy, m_Menu;
+        readonly VisualElement m_Head, m_Crumbs, m_Markup, m_Body, m_Wrap, m_Info, m_Examples;
+        readonly Label m_Title, m_Effect, m_Signature, m_Copy, m_Menu, m_About;
         readonly LtTagForm m_Form;
 
         string m_Text = "";
@@ -61,6 +62,18 @@ namespace FirstSymbol.Lettera.Editor
         public string Hint { get; private set; } = "";
         public string Kind { get; private set; } = "";
 
+        /// <summary>The sentence under the markup that says what the tag does, for tests.</summary>
+        public string About => m_About.text;
+
+        /// <summary>The markups offered under it, as the tag would be written, for tests.</summary>
+        public IReadOnlyList<string> ExampleMarkups => m_ExampleMarkups;
+
+        readonly List<string> m_ExampleMarkups = new List<string>();
+        readonly List<Action> m_ExampleActions = new List<Action>();
+
+        /// <summary>Applies the nth example, as a click on it does.</summary>
+        public void TryExample(int index) => m_ExampleActions[index]();
+
         public LtTagPanel(TextField source, LtTagPanelHost host)
         {
             m_Source = source;
@@ -78,13 +91,18 @@ namespace FirstSymbol.Lettera.Editor
             m_Markup = LtUI.El("lt-tagpanel__markup");
             m_Body = LtUI.El("lt-tagpanel__body");
             m_Wrap = LtUI.El("lt-tagpanel__wrap");
+            m_About = LtUI.Text("", "lt-tagpanel__about");
+            m_Examples = LtUI.El("lt-tagpanel__examples");
+            m_Info = LtUI.El("lt-tagpanel__info", m_About, m_Examples);
             m_Signature = LtUI.Text("", "lt-tagpanel__signature");
             m_Form = new LtTagForm(() => m_Host.EmPixels());
             m_Form.SlotChanged += Write;
+            m_Form.Suggest = info => LetteraSlotSuggestions.For(info, m_ActiveEffect);
             m_Form.Holding += m_Gesture.Hold;
             Add(m_Wrap);
             Add(m_Head);
             Add(m_Markup);
+            Add(m_Info);
             Add(m_Body);
             Add(m_Signature);
 
@@ -227,6 +245,7 @@ namespace FirstSymbol.Lettera.Editor
             m_Head.style.display = DisplayStyle.None;
             m_Markup.style.display = DisplayStyle.None;
             m_Signature.style.display = DisplayStyle.None;
+            m_Info.style.display = DisplayStyle.None;
         }
 
         void Say(string text, string kind)
@@ -239,6 +258,7 @@ namespace FirstSymbol.Lettera.Editor
 
         void ShowNoTag()
         {
+            m_Info.style.display = DisplayStyle.None;
             m_Head.style.display = DisplayStyle.None;
             m_Markup.style.display = DisplayStyle.None;
             m_Signature.style.display = DisplayStyle.None;
@@ -273,18 +293,48 @@ namespace FirstSymbol.Lettera.Editor
             m_Body.Add(row);
         }
 
+        static readonly Dictionary<string, string> s_Syntax = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            { "br", "A line break. It takes no values and has no closing tag." },
+            { "noparse", "Everything inside is shown as written: no tag in it is read." },
+            { "rt", "The reading inside a <ruby>, as in <ruby>kanji<rt>reading</rt></ruby>. It takes no values." },
+            { "rp", "A bracket for readers that cannot draw ruby. It is removed and takes no values." },
+        };
+
+        // A name a style answers to: a tag, or the name one of the built-in matchers reads.
+        internal static string NameOf(LetteraMatcher matcher)
+        {
+            switch (matcher)
+            {
+                case TagMatcher tag: return tag.Name;
+                case ListItemMatcher item: return item.Name;
+                case RubyMatcher ruby: return ruby.Name;
+                case DividerMatcher divider: return divider.Name;
+                case InlineMediaMatcher media: return media.Name;
+                case LetteraMathTagMatcher math: return math.Name;
+                default: return null;
+            }
+        }
+
+        internal static LetteraStyle StyleFor(IReadOnlyList<LetteraStyle> styles, string name)
+        {
+            LetteraStyle style = null;
+            if (styles == null) return null;
+            foreach (LetteraStyle candidate in styles)
+            {
+                if (candidate == null || !candidate.Enabled || candidate.Effect == null) continue;
+                string matched = NameOf(candidate.Matcher);
+                if (string.IsNullOrEmpty(matched) || !string.Equals(matched, name, StringComparison.OrdinalIgnoreCase)) continue;
+                if (style == null || (!LetteraTagModel.HasSchema(style.Effect.Parameters) && LetteraTagModel.HasSchema(candidate.Effect.Parameters))) style = candidate;
+            }
+            return style;
+        }
+
         void ShowTag(LetteraTagSpan tag)
         {
             IReadOnlyList<LetteraStyle> styles = m_Host.Styles();
             HashSet<string> known = LetteraVocabulary.Tags(styles ?? new List<LetteraStyle>());
-            LetteraStyle style = null;
-            if (styles != null)
-                foreach (LetteraStyle candidate in styles)
-                {
-                    if (candidate == null || !candidate.Enabled || candidate.Effect == null || !(candidate.Matcher is TagMatcher match)) continue;
-                    if (!string.Equals(match.Name, tag.Name, StringComparison.OrdinalIgnoreCase)) continue;
-                    if (style == null || (!LetteraTagModel.HasSchema(style.Effect.Parameters) && LetteraTagModel.HasSchema(candidate.Effect.Parameters))) style = candidate;
-                }
+            LetteraStyle style = StyleFor(styles, tag.Name);
             m_ActiveEffect = style?.Effect;
 
             m_Head.style.display = DisplayStyle.Flex;
@@ -300,6 +350,7 @@ namespace FirstSymbol.Lettera.Editor
                 Hint = "No style uses <" + tag.Name + ">. It shows as plain text.";
                 m_Markup.style.display = DisplayStyle.None;
                 m_Signature.style.display = DisplayStyle.None;
+                m_Info.style.display = DisplayStyle.None;
                 m_Form.RemoveFromHierarchy();
                 m_Body.Clear();
                 m_Body.Add(LtUI.Text(Hint, "lt-note lt-tagpanel__notice"));
@@ -307,22 +358,52 @@ namespace FirstSymbol.Lettera.Editor
             }
 
             BuildMarkup(tag);
-            IReadOnlyList<LetteraParamInfo> described = style?.Effect?.Parameters;
-            if (style == null || style.Effect is CompositeEffect || !LetteraTagModel.HasSchema(described))
+            LetteraEffect effect = style?.Effect;
+            string syntax = null;
+            if (effect == null) s_Syntax.TryGetValue(tag.Name, out syntax);
+            ShowInfo(tag, effect, syntax);
+            string value = tag.EqualsAt >= 0 ? m_Text.Substring(tag.EqualsAt + 1, tag.ValueEnd - tag.EqualsAt - 1) : "";
+
+            IReadOnlyList<LetteraParamInfo> described = effect?.Parameters;
+            bool hasForm = effect != null && !(effect is CompositeEffect) && LetteraTagModel.HasSchema(described);
+
+            if (effect is CompositeEffect composite)
             {
-                Kind = "noschema";
-                Hint = "No slot form for this effect yet.";
+                ShowComposite(tag, style, composite, value);
+                return;
+            }
+
+            if (!hasForm)
+            {
                 m_Form.RemoveFromHierarchy();
                 m_Signature.text = "";
                 m_Signature.style.display = DisplayStyle.None;
-                string value = tag.EqualsAt >= 0 ? m_Text.Substring(tag.EqualsAt + 1, tag.ValueEnd - tag.EqualsAt - 1) : "";
                 m_Body.Clear();
+                if (syntax != null || (effect != null && effect.TakesNoParameters))
+                {
+                    Kind = "none";
+                    Hint = "This tag takes no parameters.";
+                    m_Body.Add(LtUI.Text(Hint, "lt-tagpanel__none"));
+                    if (value.Length > 0) m_Body.Add(new LtFix("A value after = is ignored by this tag.", null, "Remove it", () => WriteRaw("")));
+                    return;
+                }
+                if (effect != null && effect.BuiltInFacts != null && effect.BuiltInFacts.Delegates)
+                {
+                    Kind = "delegate";
+                    Hint = "This tag hands its value on to the preset's effect.";
+                    m_Body.Add(LtUI.Text(Hint + " Write that effect's values as text.", "lt-hint lt-tagpanel__hint"));
+                    AddRaw(value);
+                    return;
+                }
+                Kind = "noschema";
+                Hint = "No slot form for this effect yet.";
                 m_Body.Add(LtUI.Text(Hint + " Edit its value as text.", "lt-hint lt-tagpanel__hint"));
-                var raw = new TextField { value = value, isDelayed = true };
-                raw.AddToClassList("lt-text-input");
-                raw.AddToClassList("lt-tagpanel__raw");
-                raw.RegisterValueChangedCallback(e => WriteRaw(e.newValue));
-                m_Body.Add(raw);
+                if (effect != null)
+                {
+                    m_Body.Add(LtUI.Text("Its author has not said what its values mean. An effect names its slots by overriding Parameters; the Styles guide, section Your own effect, shows how.", "lt-tagpanel__why"));
+                    m_Body.Add(LtUI.Clickable("Open the Styles guide", "lt-chip lt-chip--click lt-tagpanel__example", "Opens Documentation~/Styles.md.", OpenGuide));
+                }
+                AddRaw(value);
                 return;
             }
 
@@ -344,6 +425,142 @@ namespace FirstSymbol.Lettera.Editor
             m_Form.Mark(slot);
             UpdateSignature(tag, described, slot, count);
             m_ShownKey = key;
+        }
+
+        void AddRaw(string value)
+        {
+            var raw = new TextField { value = value, isDelayed = true };
+            raw.AddToClassList("lt-text-input");
+            raw.AddToClassList("lt-tagpanel__raw");
+            raw.RegisterValueChangedCallback(e => WriteRaw(e.newValue));
+            m_Body.Add(raw);
+        }
+
+        static void OpenGuide()
+        {
+            UnityEditor.PackageManager.PackageInfo info = UnityEditor.PackageManager.PackageInfo.FindForAssembly(typeof(LetteraText).Assembly);
+            if (info == null) return;
+            string path = Path.Combine(info.resolvedPath, "Documentation~", "Styles.md");
+            if (File.Exists(path)) EditorUtility.OpenWithDefaultApp(path);
+        }
+
+        // What the tag does, and markups to try. A click on one writes its value into the tag.
+        void ShowInfo(LetteraTagSpan tag, LetteraEffect effect, string syntax)
+        {
+            string about = syntax ?? effect?.Description;
+            IReadOnlyList<LetteraTagExample> examples = effect != null ? effect.Examples : null;
+            if (effect is CompositeEffect group && (examples == null || examples.Count == 0)) examples = PartExamples(group);
+            m_ExampleMarkups.Clear();
+            m_ExampleActions.Clear();
+            m_Examples.Clear();
+            m_About.text = about ?? "";
+            m_About.style.display = string.IsNullOrEmpty(about) ? DisplayStyle.None : DisplayStyle.Flex;
+            bool any = examples != null && examples.Count > 0;
+            m_Info.style.display = any || !string.IsNullOrEmpty(about) ? DisplayStyle.Flex : DisplayStyle.None;
+            if (!any) return;
+            string current = tag.EqualsAt >= 0 ? m_Text.Substring(tag.EqualsAt + 1, tag.ValueEnd - tag.EqualsAt - 1).Trim() : "";
+            m_Examples.Add(LtUI.Text("Try", "lt-tagpanel__trylabel"));
+            foreach (LetteraTagExample example in examples)
+            {
+                LetteraTagExample chosen = example;
+                string markup = "<" + tag.Name + (chosen.Value.Length > 0 ? "=" + chosen.Value : "") + ">";
+                Action apply = () => WriteRaw(chosen.Value);
+                Label chip = LtUI.Clickable(markup, "lt-chip lt-chip--click lt-tagpanel__example", chosen.Note + ". Click to write this value into the tag.", apply);
+                chip.EnableInClassList("lt-chip--accent", string.Equals(current, chosen.Value, StringComparison.Ordinal));
+                VisualElement row = LtUI.El("lt-tagpanel__examplerow", chip, LtUI.Text(chosen.Note, "lt-tagpanel__why"));
+                m_Examples.Add(row);
+                m_ExampleMarkups.Add(markup);
+                m_ExampleActions.Add(apply);
+            }
+        }
+
+        // A composite has no examples of its own: the first example of each part, one part more at a time.
+        static IReadOnlyList<LetteraTagExample> PartExamples(CompositeEffect composite)
+        {
+            var parts = new List<string>();
+            var names = new List<string>();
+            foreach (LetteraEffect child in composite.Children)
+            {
+                if (child == null) continue;
+                string first = null;
+                foreach (LetteraTagExample example in child.Examples)
+                    if (example.Value.Length > 0)
+                    {
+                        first = example.Value;
+                        break;
+                    }
+                if (first == null) continue;
+                parts.Add(first);
+                names.Add(EffectLabel(child).Split('\u00b7')[0].Trim().ToLowerInvariant());
+            }
+            var list = new List<LetteraTagExample>();
+            for (int count = 1; count <= parts.Count && count <= 2; count++)
+                list.Add(new LetteraTagExample(ComposeParts(parts.GetRange(0, count)), "Fills the first " + (count == 1 ? "part: " + names[0] : count + " parts: " + string.Join(", ", names.GetRange(0, count)))));
+            return list;
+        }
+
+        // A composite's value is one part per effect, split by semicolons. Each part gets a field, named for its effect.
+        void ShowComposite(LetteraTagSpan tag, LetteraStyle style, CompositeEffect composite, string value)
+        {
+            Kind = "composite";
+            Hint = "";
+            m_Form.RemoveFromHierarchy();
+            m_Body.Clear();
+            m_Signature.style.display = DisplayStyle.None;
+            List<string> parts = CompositeEffect.SplitSegments(value) ?? new List<string>();
+            string defaults = style != null ? style.DefaultParameter : null;
+            List<string> fallback = CompositeEffect.SplitSegments(defaults);
+            m_Body.Add(LtUI.Text("One value in parts, written with ; between them. Each part goes to one effect and holds that effect's own values, with commas between.", "lt-tagpanel__why"));
+            for (int i = 0; i < composite.Children.Count; i++)
+            {
+                LetteraEffect child = composite.Children[i];
+                if (child == null) continue;
+                int index = i;
+                var names = new List<string>();
+                if (child.Parameters != null)
+                    foreach (LetteraParamInfo info in child.Parameters)
+                        if (info.Slot >= 0 && string.IsNullOrEmpty(info.Group)) names.Add(info.Display.ToLowerInvariant());
+                string takes = child.TakesNoParameters || names.Count == 0 ? "Takes no values here." : "Values: " + string.Join(", ", names) + ".";
+                string what = (child.Description != null ? child.Description + " " : "") + takes;
+                var field = new TextField { value = index < parts.Count ? parts[index] ?? "" : "", isDelayed = true };
+                field.AddToClassList("lt-text-input");
+                field.AddToClassList("lt-tagpanel__raw");
+                string inherited = fallback != null && index < fallback.Count ? fallback[index] : null;
+                field.tooltip = inherited != null ? "Empty keeps the style's own: " + inherited : "Empty keeps the effect's own values.";
+                field.RegisterValueChangedCallback(e => WritePart(index, e.newValue));
+                VisualElement part = LtUI.El("lt-tagpanel__part", LtUI.Text((index + 1) + "  " + EffectLabel(child), "lt-tagpanel__partname"), LtUI.Text(what, "lt-tagpanel__partwhat"), field);
+                m_Body.Add(part);
+            }
+        }
+
+        /// <summary>Sets one part of a composite tag's value, as typing into its field does.</summary>
+        internal void WritePart(int index, string text)
+        {
+            List<string> now = CompositeEffect.SplitSegments(CurrentValue()) ?? new List<string>();
+            while (now.Count <= index) now.Add(null);
+            now[index] = string.IsNullOrWhiteSpace(text) ? null : text.Trim();
+            WriteRaw(ComposeParts(now));
+        }
+
+        string CurrentValue()
+        {
+            LetteraTagSpan tag = Current();
+            return tag != null && tag.EqualsAt >= 0 ? m_Text.Substring(tag.EqualsAt + 1, tag.ValueEnd - tag.EqualsAt - 1) : "";
+        }
+
+        internal static string ComposeParts(List<string> parts)
+        {
+            int last = parts.Count - 1;
+            while (last >= 0 && string.IsNullOrEmpty(parts[last])) last--;
+            var pieces = new List<string>();
+            for (int i = 0; i <= last; i++)
+            {
+                string part = parts[i] ?? "";
+                // A part that holds a semicolon is wrapped, as the splitter takes one level of parentheses off.
+                if (part.IndexOf(';') >= 0) part = "(" + part + ")";
+                pieces.Add(part);
+            }
+            return string.Join(";", pieces);
         }
 
         static string EffectLabel(LetteraEffect effect)
@@ -421,13 +638,18 @@ namespace FirstSymbol.Lettera.Editor
         internal static string SignatureText(string tag, IReadOnlyList<LetteraParamInfo> described, int slot)
         {
             LetteraParamInfo info = null;
+            int main = 0;
             foreach (LetteraParamInfo candidate in described)
-                if (candidate.Slot == slot)
-                    info = candidate;
-            if (info != null) return "slot " + (slot + 1) + " of " + LetteraTagModel.SlotCount(described) + ": " + info.Display + ", " + LetteraSlotValue.Describe(info);
+            {
+                if (candidate.Slot == slot) info = candidate;
+                if (candidate.Slot >= 0 && string.IsNullOrEmpty(candidate.Group)) main++;
+            }
+            string hint = info == null || string.IsNullOrEmpty(info.Hint) ? "" : ". " + info.Hint;
+            if (info != null && !string.IsNullOrEmpty(info.Group)) return "slot " + (slot + 1) + ", " + info.Group.ToLowerInvariant() + " setting: " + info.Display + ", " + LetteraSlotValue.Describe(info) + hint;
+            if (info != null) return "slot " + (slot + 1) + " of " + main + ": " + info.Display + ", " + LetteraSlotValue.Describe(info) + hint;
             var names = new List<string>();
             foreach (LetteraParamInfo candidate in described)
-                if (candidate.Slot >= 0)
+                if (candidate.Slot >= 0 && string.IsNullOrEmpty(candidate.Group))
                     names.Add(candidate.Display.ToLowerInvariant());
             return "<" + tag + "=" + string.Join(", ", names) + ">";
         }
