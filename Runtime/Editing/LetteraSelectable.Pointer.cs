@@ -465,9 +465,9 @@ namespace FirstSymbol.Lettera
             Activate();
             int hit = HitTest(m_PointerPosition, m_PointerCamera, out LetteraCaretBias bias);
             bool insideSelection = !m_Selection.IsCaret && hit >= m_Selection.Start && hit <= m_Selection.End;
-            // A long press selects what stands under the finger and the finger then goes on by words, on every system: a phone owner who holds a word
-            // expects the word, and Apple's caret-and-loupe left no way to pick one by touch. Only a press on no word places the caret.
-            if (Editable != null && !insideSelection && !IsWordAt(ClusterAt(hit, bias)))
+            // On Apple systems a long press in a field places the caret, and the finger then moves it with the loupe. Elsewhere, as on Android,
+            // it selects the word under the finger, and only a press on no word places the caret.
+            if (Editable != null && !insideSelection && (LetteraKeyTable.Family == LetteraPlatformFamily.Apple || !IsWordAt(ClusterAt(hit, bias))))
             {
                 m_Unit = DragUnit.Cluster;
                 Request(LetteraSelectionRange.AtCaret(hit, bias), "sel.pointer");
@@ -480,6 +480,28 @@ namespace FirstSymbol.Lettera
                 m_UnitEnd = m_Selection.End;
             }
             MoveLoupe(m_PointerPosition);
+        }
+
+        int WordClusterAtCaret()
+        {
+            if (!m_Selection.IsCaret) return -1;
+            int head = m_Selection.Head;
+            int cluster = ClusterAt(head, m_Selection.Bias);
+            if (IsWordAt(cluster)) return cluster;
+            // A caret just past a word belongs to that word, as in a field's Select on Apple systems.
+            if (head > 0 && IsWordAt(StepBack(head))) return StepBack(head);
+            return -1;
+        }
+
+        internal bool CanSelectWordAtCaret => WordClusterAtCaret() >= 0;
+
+        /// <summary>The Select of an Apple touch menu: the word at the caret, with handles and the menu for it.</summary>
+        internal void SelectWordAtCaret()
+        {
+            int cluster = WordClusterAtCaret();
+            if (cluster < 0) return;
+            SelectWordAt(cluster);
+            ShowTouchAffordances(true);
         }
 
         // Something stands at this cluster, so a long press there means it: a word, a symbol, an emoji or a formula. Only a space, a line's end or

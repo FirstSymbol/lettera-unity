@@ -273,7 +273,7 @@ HTML, вставленный из браузеров и текстовых ре�
 
 ## Команды, меню и панели
 
-Всё, что пользователь может запустить на тексте из меню, кнопкой или клавишей, — это `LetteraEditCommand`: `CutCommand`, `CopyCommand`, `PasteCommand`, `PastePlainCommand`, `SelectAllCommand`, `UndoCommand`, `RedoCommand`, `ToggleEffectCommand`, `ClearStylesCommand`, `WebLookupCommand`, `ShareTextCommand` и `PlatformActionsCommand`.
+Всё, что пользователь может запустить на тексте из меню, кнопкой или клавишей, — это `LetteraEditCommand`: `CutCommand`, `CopyCommand`, `PasteCommand`, `PastePlainCommand`, `SelectCommand`, `SelectAllCommand`, `UndoCommand`, `RedoCommand`, `ToggleEffectCommand`, `ClearStylesCommand`, `WebLookupCommand`, `ShareTextCommand` и `PlatformActionsCommand`.
 
 - Контекстное меню показывает команды проекта из **Project Settings > Lettera > Selection & Editing > Commands**. `LetteraContextMenu` — поставляемое меню, собранное из ваших UI-объектов; префаб в **Menu Prefab** его заменяет.
 - `LetteraCommandControl` привязывает `Button` или `Toggle` к команде для панели инструментов. Без цели он действует на поле, у которого клавиатура.

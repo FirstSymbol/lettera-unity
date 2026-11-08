@@ -273,7 +273,7 @@ Pasted HTML from browsers and word processors keeps its bold, italics, colours, 
 
 ## Commands, menus and toolbars
 
-Everything a user can run on a text, from a menu, a button or a key, is a `LetteraEditCommand`: `CutCommand`, `CopyCommand`, `PasteCommand`, `PastePlainCommand`, `SelectAllCommand`, `UndoCommand`, `RedoCommand`, `ToggleEffectCommand`, `ClearStylesCommand`, `WebLookupCommand`, `ShareTextCommand` and `PlatformActionsCommand`.
+Everything a user can run on a text, from a menu, a button or a key, is a `LetteraEditCommand`: `CutCommand`, `CopyCommand`, `PasteCommand`, `PastePlainCommand`, `SelectCommand`, `SelectAllCommand`, `UndoCommand`, `RedoCommand`, `ToggleEffectCommand`, `ClearStylesCommand`, `WebLookupCommand`, `ShareTextCommand` and `PlatformActionsCommand`.
 
 - The context menu lists the project's commands from **Project Settings > Lettera > Selection & Editing > Commands**. `LetteraContextMenu` is the shipped menu, built from UI objects you own; a prefab in **Menu Prefab** replaces it.
 - `LetteraCommandControl` binds a `Button` or `Toggle` to a command for a toolbar. With no target it acts on the field that has the keyboard.

@@ -469,6 +469,41 @@ namespace FirstSymbol.Lettera.Editor.Tests
             }
         }
 
+        // The lead's rule for Apple: a long press in a field places a caret, and its menu offers Select, which takes the word at the caret.
+        [Test]
+        public void SelectIsOfferedOnAppleTouchAtACaretAndTakesTheWord()
+        {
+            LetteraKeyTable.FamilyOverride = LetteraPlatformFamily.Apple;
+            try
+            {
+                LetteraEditable field = Field("one two three");
+                FakeMenu menu = Menu();
+                field.Selectable.MenuPresenter = menu;
+                field.Selectable.Commands.Clear();
+                field.Selectable.Commands.Add(new SelectCommand());
+                field.Selectable.Commands.Add(new SelectAllCommand());
+                field.Selectable.Select(5, 5);
+                field.Selectable.OpenMenu(new LetteraMenuPlacement { Trigger = LetteraMenuTrigger.Touch });
+                Assert.AreEqual("Select", menu.Entries[0].Title);
+                Assert.IsTrue(menu.Entries[0].IsEnabled && menu.Entries[1].IsEnabled, "Select and Select all");
+                menu.Invoke(0);
+                Assert.AreEqual((4, 7), (field.Selectable.Selection.Start, field.Selectable.Selection.End));
+
+                field.Selectable.Select(5, 5);
+                field.Selectable.OpenMenu(new LetteraMenuPlacement { Trigger = LetteraMenuTrigger.Pointer });
+                Assert.IsFalse(menu.Entries[0].IsEnabled, "a pointer's menu has no Select");
+
+                LetteraKeyTable.FamilyOverride = LetteraPlatformFamily.Pc;
+                field.Selectable.Select(5, 5);
+                field.Selectable.OpenMenu(new LetteraMenuPlacement { Trigger = LetteraMenuTrigger.Touch });
+                Assert.IsFalse(menu.Entries[0].IsEnabled, "nor does Android's");
+            }
+            finally
+            {
+                LetteraKeyTable.FamilyOverride = LetteraPlatformFamily.Pc;
+            }
+        }
+
         [Test]
         public void SelectAllKeepsTheMenuAndOthersTakeItDown()
         {
@@ -572,7 +607,7 @@ namespace FirstSymbol.Lettera.Editor.Tests
         [Test]
         public void EachCommandHasAKeyForATable()
         {
-            CollectionAssert.AreEqual(new[] { "Cut", "Copy", "Paste", "PastePlain", "SelectAll" }, LetteraEditCommand.DefaultProjectList().ConvertAll(c => c.TitleKey));
+            CollectionAssert.AreEqual(new[] { "Cut", "Copy", "Paste", "PastePlain", "Select", "SelectAll" }, LetteraEditCommand.DefaultProjectList().ConvertAll(c => c.TitleKey));
             Assert.AreEqual("Bold", new ToggleEffectCommand().TitleKey);
             Assert.AreEqual("WebLookup", new WebLookupCommand().TitleKey);
             Assert.AreEqual("Mine", new CopyCommand { Title = "Mine" }.TitleKey, "a title written on it");

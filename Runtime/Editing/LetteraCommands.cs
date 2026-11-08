@@ -114,7 +114,7 @@ namespace FirstSymbol.Lettera
 
         public static List<LetteraEditCommand> DefaultProjectList() => new List<LetteraEditCommand>
         {
-            new CutCommand(), new CopyCommand(), new PasteCommand(), new PastePlainCommand(), new SelectAllCommand(),
+            new CutCommand(), new CopyCommand(), new PasteCommand(), new PastePlainCommand(), new SelectCommand(), new SelectAllCommand(),
         };
     }
 
@@ -141,6 +141,14 @@ namespace FirstSymbol.Lettera
         public override string FallbackTitle => "Paste as plain text";
         public override bool CanRun(in LetteraCommandContext c) => c.CanEdit && LetteraClipboard.HasRichText;
         public override void Execute(in LetteraCommandContext c) => c.Editable.PastePlain();
+    }
+
+    /// <summary>The word at the caret, in the menu a finger's long press opens on Apple systems, where that press places a caret and no more. Nowhere else shows it.</summary>
+    [Serializable] public class SelectCommand : LetteraEditCommand
+    {
+        public override bool StaysOpen => true;
+        public override bool CanRun(in LetteraCommandContext c) => c.Selectable != null && LetteraKeyTable.Family == LetteraPlatformFamily.Apple && c.Selectable.TouchMenu && c.Selectable.CanSelectWordAtCaret;
+        public override void Execute(in LetteraCommandContext c) => c.Selectable.SelectWordAtCaret();
     }
 
     [Serializable] public class SelectAllCommand : LetteraEditCommand
@@ -322,6 +330,7 @@ namespace FirstSymbol.Lettera
         readonly List<LetteraEditCommand> m_MenuCommands = new List<LetteraEditCommand>();
         readonly List<LetteraMenuEntry> m_MenuEntries = new List<LetteraMenuEntry>();
         LetteraMenuPlacement m_MenuPlacement;
+        internal bool TouchMenu => m_MenuPlacement.Trigger == LetteraMenuTrigger.Touch;
 
         static LetteraContextMenu s_DefaultMenu;
 
