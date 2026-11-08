@@ -6,17 +6,19 @@ Every figure below comes from a script: [compare/](compare/) runs both engines a
 
 ## Method
 
-- Unity 6000.4.8f1, Windows player, Mono, Direct3D12, AMD Ryzen 7 4800H with Radeon Graphics. Median of 5 runs, a cold start each. Nothing else heavy running.
+- Unity 6000.4.8f1, Windows player, Mono scripting backend, Direct3D12, AMD Ryzen 7 4800H with Radeon Graphics. Median of 5 runs, a cold start each. Nothing else heavy running.
 - The same font file on both: Noto Sans. TextMesh Pro in two setups, each its best case: a static atlas prepared ahead with the characters used, and a dynamic atlas. Lettera has one.
 - The work is forced inside the clock (`ForceMeshUpdate`, `ForceRebuild`), and rows named "a frame" time the whole frame, so that no row is won by moving work out of it.
 - Allocation comes from a development player, with a deliberate allocation showing that the counter counts.
 - Since 1.0's third optimization batch, the rows that follow the long texts (scrolling a document, mixed labels, 5000 world texts, 3000 Han) start after a collection and ten idle frames, the same for every engine, so that none pays for the garbage of the row before it. Earlier figures had no such pause.
-- Since the fifth, each long text of R8 (10 KB, 100 KB, 1 MB) starts the same way. The players keep Unity's default, the incremental collector, and a cycle started by the labels or the text before a long text ran its slices in that row's frames in some runs and not in others: the 100 KB row moved between 1.7 and 7 ms on code that had not changed. A row after the pause pays, as it allocates, for sweeping what the collection freed, on every engine.
+- Since the fifth, each long text of R8 (10 KB, 100 KB, 1 MB) starts the same way. The players keep Unity's default, the incremental collector, and a cycle started by the labels or the text before a long text ran its slices in that row's frames in some runs and not in others: the 100 KB row moved between 1.7 and 7 ms on Mono, on code that had not changed. A row after the pause pays, as it allocates, for sweeping what the collection freed, on every engine.
 - Since the sixth, R27 draws 200 labels at 28 px with a stroke and a shadow, and the same 200 plain, standing still, and gives the GPU time of a frame of each, on every engine that has both layers: Lettera by tags, TextMesh Pro by one shared material with an outline and an underlay. Another engine joins it through `LetteraCompare.ILayers`.
 - Since the sixth, too, Lettera opens R16's 19 MB font by its path, with `LetteraFont.CreateFromFile`, as TextMesh Pro opens it by its path; before, the script read the file into an array and gave Lettera that. R16b keeps the array route, Lettera's only, in a process of its own.
 - A text whose paragraphs are partly left for later frames (Lettera's long texts) is timed on the frame it is set; the finishing in the frames after is the frame time of whatever row comes next.
 
 ## Time
+
+> Note: the figures in this section are Mono builds. They are being regenerated from IL2CPP release players, and this table will be replaced.
 
 | Row | Lettera | TextMesh Pro, static atlas | TextMesh Pro, dynamic atlas |
 |---|---:|---:|---:|
@@ -64,6 +66,8 @@ A usual frame (the median) / the largest single frame of the row.
 | Atlas textures after 3 000 Han characters | 24.0 MB | — | 88.0 MB |
 
 The figure is what `Profiler.GetRuntimeMemorySizeLong` says of each engine's textures. It counts a readable texture's copy in memory too, which TextMesh Pro's dynamic atlases keep.
+
+Backend of these builds: TODO(owner) to confirm; they are not stated as Mono or IL2CPP in the harness output.
 
 | | Lettera | TextMesh Pro, static | TextMesh Pro, dynamic |
 |---|---:|---:|---:|
@@ -168,6 +172,8 @@ The same scene in each engine, at 1200 × 700. Lettera on the left, TextMesh Pro
 ![S9 MSDF](comparison/S9_sharp_msdf_lettera.png)
 
 ## When to stay on TextMesh Pro
+
+The figures in this list are the Mono ones from the table above.
 
 - **You create many labels at once and every millisecond there counts.** 1 000 labels take 417 ms here and 270 ms there, and 5 000 world texts 1041 ms and 412 ms.
 - **Numbers that change every frame on many labels.** 64 labels take 2.03 ms here and 1.52 ms there.

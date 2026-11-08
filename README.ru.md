@@ -21,7 +21,7 @@ https://github.com/FirstSymbol/lettera-unity.git
 Конкретная версия:
 
 ```
-https://github.com/FirstSymbol/lettera-unity.git#0.1.0
+https://github.com/FirstSymbol/lettera-unity.git#1.0.0-rc.2
 ```
 
 Нужен Unity 6 (6000.0) или новее.
@@ -53,7 +53,7 @@ Vector2 size = label.MeasureText(new LetteraMeasureOptions { MaxWidth = 300 });
 - [Инструменты](Documentation~/Tools.ru.md): все окна, окно сцены, палитра и клавиши.
 - [Миграция](Documentation~/Migration.ru.md): с TextMesh Pro.
 - [Платформы](Documentation~/Platforms.ru.md): что и где запускалось, без прикрас.
-- [Сравнение](Documentation~/Comparison.ru.md) с TextMesh Pro и [Agent guide](Documentation~/AgentGuide.md), только на английском.
+- [Сравнение](Documentation~/Comparison.ru.md) с TextMesh Pro, на русском и [на английском](Documentation~/Comparison.md), и [Agent guide](Documentation~/AgentGuide.md), только на английском.
 
 ## Разметка
 

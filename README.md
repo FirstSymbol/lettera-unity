@@ -21,7 +21,7 @@ https://github.com/FirstSymbol/lettera-unity.git
 A specific version:
 
 ```
-https://github.com/FirstSymbol/lettera-unity.git#0.1.0
+https://github.com/FirstSymbol/lettera-unity.git#1.0.0-rc.2
 ```
 
 Requires Unity 6 (6000.0) or newer.
@@ -53,7 +53,7 @@ In `Documentation~`, each in English and Russian; **Tools > Lettera > Getting St
 - [Tools](Documentation~/Tools.md): every window, the Scene view, the palette and the keys.
 - [Migration](Documentation~/Migration.md): from TextMesh Pro.
 - [Platforms](Documentation~/Platforms.md): what has run where, plainly.
-- [Comparison](Documentation~/Comparison.md) against TextMesh Pro, and the [Agent guide](Documentation~/AgentGuide.md), in English only.
+- [Comparison](Documentation~/Comparison.md) against TextMesh Pro, in English and [Russian](Documentation~/Comparison.ru.md), and the [Agent guide](Documentation~/AgentGuide.md), in English only.
 
 ## Markup
 
