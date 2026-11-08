@@ -1222,7 +1222,6 @@ namespace FirstSymbol.Lettera
             if (renderer == null)
             {
                 s_EmojiPending.Clear();
-            s_Rules.Clear();
                 return;
             }
             if (renderer is IEmojiBatchRenderer batch) FlushEmojiBatches(batch);
