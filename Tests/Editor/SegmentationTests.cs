@@ -233,7 +233,14 @@ namespace FirstSymbol.Lettera.Editor.Tests
                 return clock.Elapsed.TotalMilliseconds;
             }
             Time(10000, out _);
-            double small = Time(1000, out _), large = Time(10000, out _);
+            // A quadratic reading costs a hundred times as much at ten times the length on every try; a busy machine only on some.
+            double small = 0, large = 0;
+            for (int attempt = 0; attempt < 5; attempt++)
+            {
+                small = Time(1000, out _);
+                large = Time(10000, out _);
+                if (large < small * 20 + 1) break;
+            }
             Debug.Log($"LETTERA_BUDGET segment_10k={small:0.00}ms segment_100k={large:0.00}ms");
             Assert.Less(large, small * 20 + 1, "not linear");
         }
