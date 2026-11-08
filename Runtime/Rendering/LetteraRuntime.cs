@@ -115,7 +115,7 @@ namespace FirstSymbol.Lettera
             if (version != LetteraNative.CurrentVersion)
                 Debug.LogError($"Lettera: the native plugin is version {version}, the scripts expect {LetteraNative.CurrentVersion}. Reinstall the package.");
             TextEngine.FontsGone = false;
-            Canvas.willRenderCanvases += GlyphAtlas.Flush;
+            Canvas.willRenderCanvases += FlushAtlas;
             LetteraOsPreferences.Install();
             LetteraMemory.Install();
             InstallLoop();
@@ -125,6 +125,7 @@ namespace FirstSymbol.Lettera
             UnityEditor.EditorApplication.update += EditorTick;
 #else
             Application.focusChanged += OnFocusChanged;
+            Application.quitting += ShutdownForQuit;
 #endif
         }
 
@@ -176,12 +177,43 @@ namespace FirstSymbol.Lettera
 
         static void Tick()
         {
+            if (s_Quit) return;
             LetteraWorldBatcher.Update();
             GlyphAtlas.Flush();
             LetteraMemory.Tick();
         }
 
-        /// <summary>Releases native fonts and atlas memory; nothing survives a domain reload.</summary>
+        static void FlushAtlas()
+        {
+            if (!s_Quit) GlyphAtlas.Flush();
+        }
+
+        static bool s_Quit;
+
+        /// <summary>Whether the application is quitting and Lettera has let go of its threads and resources. A player sets it on <c>Application.quitting</c>.</summary>
+        internal static bool Quitting => s_Quit;
+
+        /// <summary>
+        /// A player's orderly end, before Unity tears the graphics device down: the threads stop and are joined first, so no worker is inside the native library,
+        /// then the textures and native fonts go. Nothing of Lettera's runs after it. Safe to call twice.
+        /// </summary>
+        internal static void ShutdownForQuit()
+        {
+            if (s_Quit) return;
+            s_Quit = true;
+            LetteraWorkers.Quit();
+            Shutdown();
+        }
+
+        /// <summary>Undoes <see cref="ShutdownForQuit"/>. Tests only.</summary>
+        internal static void ResumeAfterQuit()
+        {
+            s_Quit = false;
+            LetteraWorkers.Resume();
+            TextEngine.FontsGone = false;
+        }
+
+        /// <summary>Releases native fonts and atlas memory; nothing survives a domain reload. Safe to call more than once.</summary>
         public static void Shutdown()
         {
             // Fonts go below. Unity can still rebuild a canvas after this, from an inspector closing during a domain reload, and no text may reach for them.

@@ -55,6 +55,9 @@ namespace FirstSymbol.Lettera
         }
         internal static void Close() => s_Body = null;
         internal static void Shutdown() { }
+        internal static void Quit() { }
+        internal static void Resume() { }
+        internal static bool HasThreads => false;
         internal static void Prewake() { }
 #else
         static readonly object s_Gate = new object();
@@ -64,6 +67,8 @@ namespace FirstSymbol.Lettera
         static int s_Next, s_Ready, s_Done, s_Generation, s_Active, s_Wake;
         static volatile bool s_Closed;
         static bool s_Stopping;
+        // Set once the application is quitting: no thread starts again and every batch runs on the main thread alone.
+        static volatile bool s_Quit;
         static Exception s_Failure;
         static int s_RequestedWorkers = -1;
         // How long a thread stays awake waiting for the main thread to publish more of a batch, before leaving the rest to it.
@@ -91,6 +96,7 @@ namespace FirstSymbol.Lettera
 
         internal static bool ShouldRun(int codepoints)
         {
+            if (s_Quit) return false;
             if (codepoints < ParallelFromCodepoints) return false;
             switch (Mode)
             {
@@ -102,6 +108,7 @@ namespace FirstSymbol.Lettera
 
         internal static bool ShouldBatch(int texts)
         {
+            if (s_Quit) return false;
             if (!BatchShortTexts || texts < BatchFromTexts) return false;
             switch (Mode)
             {
@@ -113,7 +120,7 @@ namespace FirstSymbol.Lettera
 
         static void Start()
         {
-            if (s_Threads != null) return;
+            if (s_Threads != null || s_Quit) return;
             s_Stopping = false;
             s_Threads = new Thread[WorkerCount];
             for (int i = 0; i < s_Threads.Length; i++)
@@ -274,18 +281,36 @@ namespace FirstSymbol.Lettera
             }
         }
 
-        /// <summary>Stops the threads and waits for them. A thread alive across a domain reload or into a quit is a crash.</summary>
+        /// <summary>Stops the threads and waits for them, at most about a second in all. A thread alive across a domain reload or into a quit is a crash. Safe to call again, and from a thread that is not the main one.</summary>
         internal static void Shutdown()
         {
-            if (s_Threads == null) return;
+            Thread[] threads;
             lock (s_Gate)
             {
+                threads = s_Threads;
+                if (threads == null) return;
+                s_Threads = null;
                 s_Stopping = true;
                 Monitor.PulseAll(s_Gate);
             }
-            foreach (Thread thread in s_Threads) thread.Join();
-            s_Threads = null;
+            long deadline = System.Diagnostics.Stopwatch.GetTimestamp() + System.Diagnostics.Stopwatch.Frequency;
+            foreach (Thread thread in threads)
+            {
+                long left = (deadline - System.Diagnostics.Stopwatch.GetTimestamp()) * 1000 / System.Diagnostics.Stopwatch.Frequency;
+                // They are background threads: one that does not leave in time dies with the process.
+                if (thread != Thread.CurrentThread) thread.Join((int)Math.Max(left, 1));
+            }
         }
+
+        /// <summary>The application is quitting: the threads stop and none starts again.</summary>
+        internal static void Quit()
+        {
+            s_Quit = true;
+            Shutdown();
+        }
+
+        /// <summary>Undoes <see cref="Quit"/>. Tests only.</summary>
+        internal static void Resume() => s_Quit = false;
 
         internal static bool HasThreads => s_Threads != null;
 #endif
