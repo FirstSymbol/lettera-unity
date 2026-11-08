@@ -4,7 +4,7 @@ All notable changes to this package are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [1.0.0-rc.2] - 2026-11-08
 
 ### Added
 - **The Device Check speaks Russian** on a device set to Russian: every step, button and label. `-lettera-kit-lang ru` or `en` chooses by hand, and `LetteraDeviceCheck.Russian` from a script. The block sent back keeps its English keys, so that results from any device read the same.
@@ -49,6 +49,8 @@ Found on the first real Android phone (Xiaomi, Android 16, Gboard).
 - **The install lines pin 1.0.0-rc.2.** The README and the Lettera guide, in English and Russian, pointed at an old tag.
 - **The comparison with TextMesh Pro is in Russian too,** and the README says so in both languages.
 - **The scrolling line in the 1.0.0 release notes no longer quotes another product's GPU figure;** it gives Lettera's own, 0.17 ms on IL2CPP.
+- `Comparison.md` and `Comparison.ru.md` are regenerated from IL2CPP release players on a quiet machine (median of 5, code 9c738b1) and say so. Rows whose five runs differ by more than a quarter of the median carry a dagger. The managed-assembly size row, which reads 0 KB under IL2CPP, is gone; the hand-written method notes now live in the `report.py` template, so a regeneration keeps them.
+- `compare.py` starts its players on a desktop of their own, so no window shows on the owner's screen or takes focus while it runs.
 
 ### Tests
 - The shipped-dictionaries test finds the dictionaries through the test assembly's own package path, so it passes in a git-URL or `file:` install too; the four dictionaries ship and import as they should.
