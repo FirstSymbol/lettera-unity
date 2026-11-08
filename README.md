@@ -281,6 +281,8 @@ solid.FrontBevel = new LetteraBevel { Shape = LetteraBevelShape.Round, Width = 0
 
 See [the changelog](CHANGELOG.md) for what each platform has been verified on.
 
+**iPhone testing is not finished.** Safari on a real iPhone (iOS 26) has run the Device Check: the keyboard rises on the first tap, keyboard kinds, colour glyphs, motion, scrolling, 3D text and formulas (with the bundled math font) work, and a field's long press and Select pick a word. Still unchecked by hand there: dragging selection handles, the loupe, input-method composition (Japanese, Korean, Chinese) and copy and paste with other apps. A native iOS player has been built but never run on a device, since no Mac was at hand. Treat iOS as not yet verified.
+
 ### The web
 
 Browsers expose no font files, so on the web:
