@@ -41,6 +41,7 @@ namespace FirstSymbol.Lettera.Editor.Tests
             Created.Add(profile);
             Set(profile, hd.GetType("UnityEngine.Rendering.HighDefinition.Exposure"), ("mode", "Fixed"), ("fixedExposure", -0.263034f));
             Set(profile, hd.GetType("UnityEngine.Rendering.HighDefinition.Tonemapping"), ("mode", "None"));
+            Set(profile, hd.GetType("UnityEngine.Rendering.HighDefinition.VisualEnvironment"), ("skyType", 0));
             Set(profile, hd.GetType("UnityEngine.Rendering.HighDefinition.Bloom"), ("intensity", 0f));
             Set(profile, hd.GetType("UnityEngine.Rendering.HighDefinition.Vignette"), ("intensity", 0f));
             var go = new GameObject("Fixed exposure");
@@ -96,10 +97,10 @@ namespace FirstSymbol.Lettera.Editor.Tests
             return result;
         }
 
-        static bool Has(List<Color32> colors, Color32 want)
+        static bool Has(List<Color32> colors, Color32 want, int within = 2)
         {
             foreach (Color32 c in colors)
-                if (Mathf.Abs(c.r - want.r) <= 2 && Mathf.Abs(c.g - want.g) <= 2 && Mathf.Abs(c.b - want.b) <= 2) return true;
+                if (Mathf.Abs(c.r - want.r) <= within && Mathf.Abs(c.g - want.g) <= within && Mathf.Abs(c.b - want.b) <= within) return true;
             return false;
         }
 
@@ -135,6 +136,122 @@ namespace FirstSymbol.Lettera.Editor.Tests
             List<Color32> shown = Dominant(picture);
             Assert.IsTrue(Has(shown, want), which + ": wanted " + want + ", got " + string.Join(" ", shown));
             if (which != "face") Assert.IsTrue(Has(shown, wantFace), which + ": the face colour is lost, got " + string.Join(" ", shown));
+        }
+
+        // A neutral white light straight at the picture over no ambient, so a lit surface shows its albedo times what the light gives.
+        void NeutralLight()
+        {
+            // The open scene may hold lights of its own.
+            var others = new List<Light>();
+            foreach (Light other in Object.FindObjectsByType<Light>(FindObjectsInactive.Exclude, FindObjectsSortMode.None))
+                if (other.enabled) { other.enabled = false; others.Add(other); }
+            var go = new GameObject("Neutral light");
+            Created.Add(go);
+            go.transform.rotation = Quaternion.LookRotation(Vector3.forward);
+            var light = go.AddComponent<Light>();
+            light.type = LightType.Directional;
+            light.color = Color.white;
+            // HDRP lights in lux: its default, pi, is the strength at which a lit surface shows its albedo.
+            if (PipelineName != "hdrp") light.intensity = 1;
+            else
+            {
+                System.Type data = Loaded("Unity.RenderPipelines.HighDefinition.Runtime").GetType("UnityEngine.Rendering.HighDefinition.HDAdditionalLightData");
+                Component extra = go.GetComponent(data) != null ? go.GetComponent(data) : go.AddComponent(data);
+                data.GetProperty("intensity").SetValue(extra, Mathf.PI);
+            }
+            light.shadows = LightShadows.None;
+            var ambientMode = RenderSettings.ambientMode;
+            var ambient = RenderSettings.ambientLight;
+            var reflection = RenderSettings.defaultReflectionMode;
+            RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Flat;
+            RenderSettings.ambientLight = Color.black;
+            RenderSettings.defaultReflectionMode = UnityEngine.Rendering.DefaultReflectionMode.Custom;
+            RenderSettings.customReflectionTexture = null;
+            DynamicGI.UpdateEnvironment();
+            m_RestoreLight = () =>
+            {
+                foreach (Light other in others) if (other != null) other.enabled = true;
+                RenderSettings.ambientMode = ambientMode;
+                RenderSettings.ambientLight = ambient;
+                RenderSettings.defaultReflectionMode = reflection;
+                DynamicGI.UpdateEnvironment();
+            };
+        }
+
+        System.Action m_RestoreLight;
+
+        [TearDown]
+        public void PutTheLightingBack()
+        {
+            m_RestoreLight?.Invoke();
+            m_RestoreLight = null;
+        }
+
+        // The pipeline's own lit material at the given albedo, with no gloss, so the quad shows what Lettera's lit text is meant to show.
+        Color32 LitReference(Color32 color)
+        {
+            var quad = GameObject.CreatePrimitive(PrimitiveType.Quad);
+            Created.Add(quad);
+            Object.DestroyImmediate(quad.GetComponent<Collider>());
+            quad.transform.localScale = new Vector3(100, 100, 1);
+            string pipeline = PipelineName;
+            Material material;
+            if (pipeline == "urp")
+            {
+                material = new Material(Shader.Find("Universal Render Pipeline/Lit"));
+                material.SetColor("_BaseColor", color);
+                material.SetFloat("_Smoothness", 0);
+                material.SetFloat("_SpecularHighlights", 0);
+                material.SetFloat("_EnvironmentReflections", 0);
+                material.EnableKeyword("_SPECULARHIGHLIGHTS_OFF");
+                material.EnableKeyword("_ENVIRONMENTREFLECTIONS_OFF");
+            }
+            else if (pipeline == "hdrp")
+            {
+                material = new Material(Shader.Find("HDRP/Lit"));
+                material.SetColor("_BaseColor", color);
+                material.SetFloat("_Smoothness", 0);
+                material.SetFloat("_Metallic", 0);
+            }
+            else
+            {
+                // The plain diffuse one: the Standard shader adds a reflection and a gamma-space dielectric tint that lit text has no part in.
+                material = new Material(Shader.Find("Legacy Shaders/Diffuse"));
+                material.SetColor("_Color", color);
+            }
+            Created.Add(material);
+            quad.GetComponent<MeshRenderer>().sharedMaterial = material;
+            Texture2D picture = Render(100, 100, Color.black);
+            Object.DestroyImmediate(quad);
+            return picture.GetPixel(50, 50);
+        }
+
+        // Under a white light straight on and no ambient, lit text shows its colors as an unlit surface does, within a few steps. A lit material of the
+        // pipeline spends a few percent on specular (more in the built-in one in gamma), so against it the bound is wider; a color space slip is far beyond both.
+        [TestCase("<color=#3399FF>MMMM</color>", "face")]
+        [TestCase("<color=#FF8040><stroke=#3399FF,0.25>MMMM</stroke></color>", "stroke")]
+        public void LitWorldTextShowsItsColorsUnderANeutralLight(string markup, string which)
+        {
+            FixHdrpExposure();
+            Color32 unlit = Reference(Blue), unlitFace = Reference(Red);
+            NeutralLight();
+            Color32 lit = LitReference(Blue), litFace = LitReference(Red);
+            LetteraWorldText text = Make(markup, 100, 60, null, 50);
+            text.Lit = true;
+            text.ForceRebuild();
+            Texture2D picture = Render(200, 80, Color.black);
+            Save(picture, "lit_" + PipelineName + "_" + which);
+            List<Color32> shown = Dominant(picture);
+            string got = string.Join(" ", shown);
+            // HDRP's lit text has its own specular (smoothness 0.25) and the pipeline's diffuse model, a few percent off the albedo.
+            int near = PipelineName == "hdrp" ? 24 : 3;
+            Assert.IsTrue(Has(shown, unlit, near), which + ": an unlit surface shows " + unlit + ", got " + got);
+            Assert.IsTrue(Has(shown, lit, 16), which + ": a lit material shows " + lit + ", got " + got);
+            if (which != "face")
+            {
+                Assert.IsTrue(Has(shown, unlitFace, near), which + ": the face colour is lost, unlit " + unlitFace + ", got " + got);
+                Assert.IsTrue(Has(shown, litFace, 16), which + ": the face colour is off, a lit material shows " + litFace + ", got " + got);
+            }
         }
     }
 }
