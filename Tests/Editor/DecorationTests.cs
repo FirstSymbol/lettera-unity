@@ -313,8 +313,13 @@ namespace FirstSymbol.Lettera.Editor.Tests
                 Color c = image.GetPixel(10 + W / 2 - 80, y);
                 if (c.g < 0.1f) redest = Mathf.Max(redest, c.r);
             }
-            Assert.Less(redest, 0.82f, "One layer of 53 percent red shows as 0.76 in sRGB; two layers would show as about 0.9.");
-            Assert.Greater(redest, 0.6f);
+            // The paint's alpha is 0x88. A Linear project shows one layer as 0.76 and two as 0.9; a Gamma project, as 0.53 and 0.78.
+            bool linear = QualitySettings.activeColorSpace == ColorSpace.Linear;
+            float alpha = 0x88 / 255f;
+            float one = linear ? Mathf.LinearToGammaSpace(alpha) : alpha;
+            float two = linear ? Mathf.LinearToGammaSpace(1f - (1f - alpha) * (1f - alpha)) : 1f - (1f - alpha) * (1f - alpha);
+            Assert.Less(redest, (one + two) / 2f, $"One layer shows as {one:0.##}; two layers would show as {two:0.##} ({QualitySettings.activeColorSpace}).");
+            Assert.Greater(redest, one - 0.05f);
         }
 
         [Test]

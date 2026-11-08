@@ -270,9 +270,10 @@ namespace FirstSymbol.Lettera.Editor.Tests
         [Test]
         public void ShippedDictionariesRebuildFromTheirListsAndCarryTheirNotices()
         {
-            string[] guids = AssetDatabase.FindAssets("t:LetteraWordDictionary", new[] { "Assets/Plugins/Lettera/Runtime/Dictionaries" });
-            Assert.AreEqual(4, guids.Length, "the four shipped dictionaries");
             string asmdef = AssetDatabase.GUIDToAssetPath(AssetDatabase.FindAssets("FirstSymbol.Lettera.Editor.Tests t:asmdef")[0]);
+            string packageRoot = Path.GetDirectoryName(Path.GetDirectoryName(Path.GetDirectoryName(asmdef))).Replace('\\', '/');
+            string[] guids = AssetDatabase.FindAssets("t:LetteraWordDictionary", new[] { packageRoot + "/Runtime/Dictionaries" });
+            Assert.AreEqual(4, guids.Length, "the four shipped dictionaries");
             string notices = File.ReadAllText(Path.Combine(Path.GetDirectoryName(asmdef), "..", "..", "THIRD-PARTY-NOTICES.md"));
             var files = new Dictionary<LetteraDictionaryScript, string> { [LetteraDictionaryScript.Thai] = "thaidict.txt", [LetteraDictionaryScript.Lao] = "laodict.txt", [LetteraDictionaryScript.Khmer] = "khmerdict.txt", [LetteraDictionaryScript.Myanmar] = "burmesedict.txt" };
             foreach (string guid in guids)
