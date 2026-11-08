@@ -352,7 +352,7 @@ namespace FirstSymbol.Lettera
         {
             if (effect is LetteraEffect published)
                 foreach (LetteraParamInfo info in published.Parameters)
-                    if (info.Slot == slot)
+                    if (info.Slot == slot && info.DeclaresLevel)
                         return info.Level;
             return asked;
         }

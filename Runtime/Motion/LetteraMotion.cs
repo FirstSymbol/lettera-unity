@@ -25,6 +25,9 @@ namespace FirstSymbol.Lettera
         public readonly int Slot;
         public readonly LetteraParamKind Kind;
         public readonly DirtyLevel Level;
+
+        /// <summary>Whether Level is a promise about cost. Slots described for an inspector make none, so holds keep the level they were asked for.</summary>
+        internal readonly bool DeclaresLevel;
         public readonly string Display;
         public readonly bool Essential;
         public readonly float Min, Max;
@@ -66,6 +69,7 @@ namespace FirstSymbol.Lettera
             Max = max;
             Display = id;
             Decimals = -1;
+            DeclaresLevel = true;
         }
 
         LetteraParamInfo(int slot, string display, LetteraParamKind kind, string hint, float min, float max, float step, int decimals, LetteraSlotUnits units,
