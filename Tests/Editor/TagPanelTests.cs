@@ -55,7 +55,7 @@ namespace FirstSymbol.Lettera.Editor.Tests
             LtTagPanel panel = Panel(Price, Price.IndexOf("0.08", StringComparison.Ordinal) + 1);
             Assert.AreEqual("form", panel.Kind, panel.Hint);
             Assert.AreEqual("shadow", panel.ActiveTag.Name);
-            CollectionAssert.AreEqual(new[] { "Color", "X", "Y", "Softness", "Dilate" }, panel.Form.Rows.Select(r => r.Info.Display).ToArray());
+            CollectionAssert.AreEqual(new[] { "Color", "X", "Y", "Softness", "Dilate" }, panel.Form.Rows.Where(r => r.Info.Group == null).Select(r => r.Info.Display).ToArray());
             Assert.AreEqual(LetteraParamKind.Paint, panel.Form.Rows[0].Info.Kind);
             Assert.AreEqual(LetteraSlotState.Set, panel.Form.Rows[0].Model.State);
             LtSlotRow y = panel.Form.RowOf(2);
@@ -64,7 +64,7 @@ namespace FirstSymbol.Lettera.Editor.Tests
             Assert.AreEqual("effect", y.Model.InheritedFrom);
             Assert.IsTrue(panel.Form.RowOf(3).Query<Slider>().ToList().Count == 1, "Softness is a slider");
             Assert.IsTrue(panel.Form.RowOf(1).Query<Label>(className: "lt-seg__item").ToList().Count >= 2, "X has a unit toggle");
-            Assert.AreEqual("slot 3 of 5: Y, length (em)", LtTagPanel.SignatureText("shadow", panel.ActiveTag != null ? new ShadowEffect().Parameters : null, 2));
+            StringAssert.StartsWith("slot 3 of 5: Y, length (em). Offset upward", LtTagPanel.SignatureText("shadow", panel.ActiveTag != null ? new ShadowEffect().Parameters : null, 2));
         }
 
         [Test]
@@ -135,12 +135,20 @@ namespace FirstSymbol.Lettera.Editor.Tests
         }
 
         [Test]
-        public void AnEffectWithNoDescriptorsKeepsTheRawValue()
+        public void AnEffectOfYourOwnWithNoDescriptorsKeepsTheRawValueAndPointsAtTheGuide()
         {
-            const string text = "<a=http://x.example>y</a>";
-            LtTagPanel panel = Panel(text, 5);
+            const string text = "<mine=http://x.example>y</mine>";
+            var styles = new List<LetteraStyle> { LetteraStyle.ForTag(new PlainOwnEffect(), "mine") };
+            LtTagPanel panel = Panel(text, 5, -1, styles);
             Assert.AreEqual("noschema", panel.Kind);
             Assert.AreEqual("No slot form for this effect yet.", panel.Hint);
+            Assert.IsTrue(panel.Query<Label>().ToList().Any(l => l.text.Contains("Your own effect")), "The panel names the guide section that explains declaring slots");
+        }
+
+        [Serializable]
+        sealed class PlainOwnEffect : LetteraEffect
+        {
+            public override void Apply(LetteraAttributes attributes, int start, int end, in LetteraSlots slots) { }
         }
 
         [Test]
@@ -332,7 +340,7 @@ namespace FirstSymbol.Lettera.Editor.Tests
             effect = new ShadowEffect();
             tag = "glow-shadow";
             form.Refresh();
-            Assert.AreEqual(5, form.Form.Rows.Count);
+            Assert.AreEqual(5, form.Form.Rows.Count(r => r.Info.Group == null), "The shadow's own slots; its paint settings sit under a heading");
             Assert.AreEqual("Bare <glow-shadow> = <shadow>", form.SummaryText);
         }
 
@@ -355,6 +363,144 @@ namespace FirstSymbol.Lettera.Editor.Tests
             Assert.AreEqual(LetteraSlotState.Inherit, row.State);
             Assert.AreEqual("#FF8800", row.Inherited);
             Assert.AreEqual("style default", row.InheritedFrom);
+        }
+
+        // ------------------------------------------------------------- every built-in tag says what it takes
+
+        [Test]
+        public void ATagThatTakesNothingSaysSoPlainly()
+        {
+            const string text = "a <uppercase>loud</uppercase> word";
+            LtTagPanel panel = Panel(text, text.IndexOf("uppercase", StringComparison.Ordinal) + 2);
+            Assert.AreEqual("none", panel.Kind);
+            Assert.AreEqual("This tag takes no parameters.", panel.Hint);
+            StringAssert.Contains("capitals", panel.About);
+            Assert.IsNull(panel.Form.parent);
+            Assert.IsTrue(panel.Query<Label>().ToList().Any(l => l.text == "This tag takes no parameters."));
+        }
+
+        [Test]
+        public void ATagWithAValueThatTakesNoneOffersToDropIt()
+        {
+            const string text = "<nobr=3>stay</nobr>";
+            LtTagPanel panel = Panel(text, 3);
+            Assert.AreEqual("none", panel.Kind);
+            Assert.IsTrue(panel.Query<Label>(className: "lt-fix__button").ToList().Count == 1, "A button removes the value the tag ignores");
+        }
+
+        [Test]
+        public void CurveShowsWhatItDoesExamplesToClickAndHelpUnderEverySlot()
+        {
+            const string text = "<curve=180>round</curve>";
+            LtTagPanel panel = Panel(text, 3);
+            Assert.AreEqual("form", panel.Kind, panel.Hint);
+            StringAssert.Contains("radius", panel.About);
+            StringAssert.Contains("not an angle", panel.About);
+            CollectionAssert.Contains(panel.ExampleMarkups, "<curve=180>");
+            int second = panel.ExampleMarkups.ToList().IndexOf("<curve=90,0.5>");
+            Assert.GreaterOrEqual(second, 0);
+            panel.TryExample(second);
+            Assert.AreEqual("<curve=90,0.5>round</curve>", SourceOf(panel).value);
+            foreach (LtSlotRow row in panel.Form.Rows)
+            {
+                Label help = row.Query<Label>(className: "lt-slot__help").First();
+                Assert.IsFalse(string.IsNullOrEmpty(help.text), row.Info.Display + " has no help line");
+                StringAssert.Contains("Example:", help.text);
+            }
+            StringAssert.Contains("circle", panel.Form.RowOf(0).Query<Label>(className: "lt-slot__help").First().text);
+        }
+
+        [Test]
+        public void AClickedBareExampleLeavesAPanelThatStillReadsTheTag()
+        {
+            const string text = "<curve=180>round</curve>";
+            LtTagPanel panel = Panel(text, 3);
+            panel.TryExample(0);
+            LtTagPanel again = Panel(SourceOf(panel).value, 3);
+            Assert.AreEqual("form", again.Kind);
+        }
+
+        [Test]
+        public void ARotationSlotShowsItsDegreeSign()
+        {
+            const string text = "<pendulum=20>swing</pendulum>";
+            LtTagPanel panel = Panel(text, 4);
+            Assert.AreEqual("form", panel.Kind);
+            LtSlotRow turn = panel.Form.RowOf(0);
+            Assert.AreEqual("Turn", turn.Info.Display);
+            Assert.IsTrue(turn.Query<Label>(className: "lt-slot__unit").ToList().Any(l => l.text == "\u00b0"));
+            StringAssert.Contains("degrees", turn.Query<Label>(className: "lt-slot__help").First().text);
+        }
+
+        [Test]
+        public void EveryTagOfTheDefaultVocabularyGetsAnExplainedPanel()
+        {
+            var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "br", "noparse", "rt", "rp" };
+            foreach (LetteraStyle style in LetteraDefaultStyles.Create())
+            {
+                string name = LtTagPanel.NameOf(style.Matcher);
+                if (!string.IsNullOrEmpty(name)) names.Add(name);
+            }
+            var problems = new List<string>();
+            foreach (string name in names)
+            {
+                string text = "x <" + name + ">y</" + name + "> z";
+                LtTagPanel panel = Panel(text, 4);
+                string kind = panel.Kind;
+                if (kind != "form" && kind != "none" && kind != "composite") problems.Add("<" + name + "> shows '" + kind + "': " + panel.Hint);
+                if (string.IsNullOrEmpty(panel.About)) problems.Add("<" + name + "> does not say what it does");
+                if (kind == "form")
+                    foreach (LtSlotRow row in panel.Form.Rows)
+                        if (string.IsNullOrEmpty(row.Query<Label>(className: "lt-slot__help").First().text)) problems.Add("<" + name + "> slot " + row.Info.Display + " has no help");
+            }
+            Assert.Greater(names.Count, 60);
+            Assert.IsEmpty(problems, string.Join("\n", problems));
+        }
+
+        [Test]
+        public void ALinkWithALookShowsAFieldForEachOfItsEffects()
+        {
+            const string text = "<a=https://x.example>y</a>";
+            LtTagPanel panel = Panel(text, 2);
+            Assert.AreEqual("composite", panel.Kind);
+            StringAssert.Contains("Link", panel.Query<Label>().ToList().First(l => l.ClassListContains("lt-tagpanel__partname")).text);
+            Assert.GreaterOrEqual(panel.Query<TextField>().ToList().Count, 3, "A part for the link, the colour and the underline");
+            panel.WritePart(0, "https://z.example/page");
+            Assert.AreEqual("<a=https://z.example/page>y</a>", SourceOf(panel).value);
+            panel.WritePart(1, "#FF0000");
+            Assert.AreEqual("<a=https://z.example/page;#FF0000>y</a>", SourceOf(panel).value);
+            panel.WritePart(1, "");
+            Assert.AreEqual("<a=https://z.example/page>y</a>", SourceOf(panel).value);
+        }
+
+        [Test]
+        public void ThePartsOfACompositeAreJoinedWithSemicolonsAndTrimmed()
+        {
+            Assert.AreEqual("", LtTagPanel.ComposeParts(new List<string> { null, null }));
+            Assert.AreEqual("a;;c", LtTagPanel.ComposeParts(new List<string> { "a", null, "c" }));
+            Assert.AreEqual("(a;b);c", LtTagPanel.ComposeParts(new List<string> { "a;b", "c" }));
+        }
+
+        [Test]
+        public void TagsReadByAMatcherGetTheirFormToo()
+        {
+            LtTagPanel sprite = Panel("hi <sprite=coin,1.2/> there", 8);
+            Assert.AreEqual("form", sprite.Kind, sprite.Hint);
+            Assert.AreEqual("Name", sprite.Form.RowOf(0).Info.Display);
+            LtTagPanel item = Panel("<li=1>one</li>", 2);
+            Assert.AreEqual("form", item.Kind, item.Hint);
+            Assert.AreEqual("Level", item.Form.RowOf(0).Info.Display);
+            LtTagPanel math = Panel("<math=display>x^2</math>", 3);
+            Assert.AreEqual("form", math.Kind, math.Hint);
+        }
+
+        [Test]
+        public void PaintSettingsOfALayerSitUnderOneClosedHeadingUntilOneIsSet()
+        {
+            LtTagPanel closed = Panel("<shadow=#000,0.1>x</shadow>", 3);
+            Assert.IsFalse(closed.Form.GroupOpen("Paint"));
+            LtTagPanel open = Panel("<shadow=#000,0.1,0.1,0.2,0,,,,,,45>x</shadow>", 3);
+            Assert.IsTrue(open.Form.GroupOpen("Paint"), "A set paint setting opens its group");
         }
     }
 }

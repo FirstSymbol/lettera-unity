@@ -68,40 +68,49 @@ A tag means something only because a style binds it to an effect; a tag nothing 
 | `<alpha>` | Alpha | alpha: `0.5`, `50%`, `#80` |
 | `<font>` | Family | family: a family name of the font stack |
 | `<lang>` | Language | language: a BCP 47 tag |
-| `<u>`, `<s>` | Underline, strikethrough | paint, style, thickness, offset, skip ink, overlay, then paint settings |
+| `<u>`, `<s>`, `<strikethrough>` | Underline, strikethrough | paint, style, thickness, offset, skip ink, overlay, then paint settings |
 | `<outline>` | Outline | color, width in em or `2px`, then paint settings |
 | `<shadow>` | Shadow | color, x, y, softness, dilate, then paint settings |
 | `<fill>` | Face paint | paint, dilate, softness, then paint settings |
-| `<stroke>` | Band along the outline | paint, width (em or `2px`), align: `inside` `center` `outside` or -1 to 1, softness, corners: `round` or `sharp` |
-| `<glow>` | Halo | paint, radius, softness, dilate |
-| `<inner-shadow>` | Shadow cast inward | paint, x, y, softness, choke |
+| `<stroke>` | Band along the outline | paint, width (em or `2px`), align: `inside` `center` `outside` or -1 to 1, softness, corners: `round` or `sharp`, then paint settings |
+| `<glow>` | Halo | paint, radius, softness, dilate, then paint settings |
+| `<inner-shadow>` | Shadow cast inward | paint, x, y, softness, choke, then paint settings |
 | `<extrude>` | Stacked copies | x, y, near color, far color, dilate, softness |
-| `<filter>` | Color filter | intensity, `grayscale` `invert` `sepia` |
-| `<union>`, `<warp>` | Merge overlaps; distort the outline | none; amplitude, scale, travel |
-| `<mark>` | Highlight | paint, shape: `glyph` `line` `range` `block`, paint span, radius, padding, order: `behind` `above`, height |
-| `<uppercase>`, `<lowercase>`, `<smallcaps>` | Case | small caps: scale of synthetic ones |
+| `<filter>` | Color filter | intensity, filter: `grayscale` `invert` `sepia` |
+| `<union>` | Merge overlaps | none |
+| `<warp>` | Distort the outline | amplitude, scale, travel |
+| `<mark>` | Highlight | paint, shape: `glyph` `line` `range` `block`, paint span, radius, padding, order: `behind` `above`, height, then paint settings |
+| `<uppercase>`, `<lowercase>` | Case | none |
+| `<smallcaps>` | Small capitals | scale of the made-up ones |
 | `<sup>`, `<sub>` | Superior, inferior | placement: `super` or `sub` |
-| `<otf>` | OpenType features | `onum`, `-dlig`, `cv02 3` |
-| `<axes>` | Variable axes | wght, wdth, ital, slnt, opsz; `640`, `120%`, `+80`, `~`; `GRAD 50` |
-| `<size-match>` | Match fallbacks on | `XHeight` or `CapHeight` |
-| `<ruby>`, `<rt>`, `<rp>` | Readings above text | `<ruby=reading>` or `<rt>` |
+| `<otf>` | OpenType features | feature 1 to 4, one per slot: `onum`, `-dlig`, `cv02 3` |
+| `<axes>` | Variable axes | weight, width, italic, slant, optical size: `640`, `120%`, `+80`, `~`; or `GRAD 50` in any slot |
+| `<size-match>` | Match fallbacks on | metric: `XHeight` or `CapHeight` |
+| `<ruby>` | Readings above text | reading: `<ruby=reading>` or write `<rt>` inside |
+| `<rt>`, `<rp>` | Reading and fallback bracket inside `<ruby>` | none |
 | `<tracking>` | Letter spacing | amount in local units or `em` |
-| `<word-spacing>` | Word spacing | local units or `em` |
+| `<word-spacing>` | Word spacing | amount in local units or `em` |
 | `<cell>` | Equal width cells | width, or `auto` |
 | `<line-height>` | Line height | height (a multiplier, or px, em, %), mode, leading |
-| `<para-spacing>`, `<line-gap>` | Paragraph and line spacing | after, before; amount |
-| `<nobr>` | Keep together | |
-| `<li>` | List item | level, number, marker text |
+| `<para-spacing>` | Paragraph spacing | after, before |
+| `<line-gap>` | Line gap | amount |
+| `<nobr>` | Keep together | none |
+| `<li>` | List item | level, number, marker text, ordered |
 | `<indent>` | Margin | amount in local units, `em`, or `%` of the rect |
 | `<align>` | Paragraph alignment | alignment, justify mode, last line |
 | `<trim>` | Text box trim | top edge, bottom edge |
-| `<curve>` | Curved baseline | radius, anchor |
-| `<divider>` | Separator a line can break at | string |
+| `<curve>` | Curved baseline | radius of the circle in local units or `em` (not an angle), anchor |
+| `<divider>` | Separator a line can break at | separator: a string |
 | `<link>`, `<a>` | A URL; a URL with a look | URL |
-| `<ellipsis>`, `<truncate>` | Elide a range | position: 0 start, 0.5 middle, 1 end |
-| `<dir>` | Base direction | `ltr`, `rtl`, `auto` |
-| `<br>` | Line break | |
-| `<noparse>` | Literal content | |
+| `<spoiler>` | Text under a cover | value for your code |
+| `<reveal>` | Typewriter reveal | entrance, reach (`100%` is all, a number counts units), unit |
+| `<sprite>`, `<obj>` | Inline sprite or object | name, size, advance, lift, above, below, pivot, turn, tint, keep aspect |
+| `<math>` | Formula in the line | mode: `display` for a line of its own, alt text |
+| `<ellipsis>` | Elide a range | position: 0 start, 0.5 middle, 1 end |
+| `<truncate>` | Cut a range, with a fade | position, fade distance, fade shift |
+| `<dir>` | Base direction | direction: `ltr`, `rtl`, `auto` |
+| `<br>` | Line break | none |
+| `<noparse>` | Literal content | none |
 
 `\<` escapes markup. Parameters are comma-separated, and values may be quoted: `<shadow=#000,0.1,-0.1>`.
 

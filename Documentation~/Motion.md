@@ -37,8 +37,8 @@ These tags are in the default vocabulary, so they work with nothing set up. Slot
 | `<pendulum>` | `PendulumMotion` | Glyphs swing from their top edge | turn, rate, step |
 | `<deform>` | `DeformMotion` | The outline flows | amplitude, scale, travel |
 | `<glitch>` | `GlitchMotion` | Glyphs jerk and split into colour fringes in bursts | split, rate, chance, jerk |
-| `<scramble>` | `ScrambleMotion` | Random symbols settle into the real text, in reading order | seconds, rate |
-| `<roll>` | `RollMotion` | Characters turn on a wheel and settle on their value, as a counter does | seconds, start, lag |
+| `<scramble>` | `ScrambleMotion` | Random symbols settle into the real text, in reading order | seconds, rate, progress |
+| `<roll>` | `RollMotion` | Characters turn on a wheel and settle on their value, as a counter does | seconds, start, lag, roll |
 
 Lengths are in em. **Rate** is cycles per second; **step** is how far behind its neighbour each glyph runs, in cycles, which is what turns a bob into a wave.
 
