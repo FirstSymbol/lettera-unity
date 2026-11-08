@@ -28,7 +28,8 @@ def cell(row, engine, kind):
     if not c:
         return "—"
     if kind == "ms":
-        return f"{c['ms']:.2f} ms" if c["ms"] < 100 else f"{c['ms']:.0f} ms"
+        mark = " †" if c.get("spread", 0) > 0.25 * abs(c["ms"]) else ""
+        return (f"{c['ms']:.2f} ms" if c["ms"] < 100 else f"{c['ms']:.0f} ms") + mark
     if kind == "mb":
         return f"{c['bytes'] / 1048576:.1f} MB"
     if kind == "bytes":
@@ -197,10 +198,18 @@ Every figure below comes from a script: [compare/](compare/) runs both engines a
 - The same font file on both: Noto Sans. TextMesh Pro in two setups, each its best case: a static atlas prepared ahead with the characters used, and a dynamic atlas. Lettera has one.
 - The work is forced inside the clock (`ForceMeshUpdate`, `ForceRebuild`), and rows named "a frame" time the whole frame, so that no row is won by moving work out of it.
 - Allocation comes from a development player, with a deliberate allocation showing that the counter counts.
+- The players ran on a desktop of their own, off the screen of the machine, so the timing is not disturbed by a window; Direct3D drew as usual.
+- Since 1.0's third optimization batch, the rows that follow the long texts (scrolling a document, mixed labels, 5000 world texts, 3000 Han) start after a collection and ten idle frames, the same for every engine, so that none pays for the garbage of the row before it. Earlier figures had no such pause.
+- Since the fifth, each long text of R8 (10 KB, 100 KB, 1 MB) starts the same way. The players keep Unity's default, the incremental collector, and a cycle started by the labels or the text before a long text ran its slices in that row's frames in some runs and not in others: the 100 KB row moved between 1.7 and 7 ms on a Mono build, on code that had not changed. A row after the pause pays, as it allocates, for sweeping what the collection freed, on every engine.
+- Since the sixth, R27 draws 200 labels at 28 px with a stroke and a shadow, and the same 200 plain, standing still, and gives the GPU time of a frame of each, on every engine that has both layers: Lettera by tags, TextMesh Pro by one shared material with an outline and an underlay. Another engine joins it through `LetteraCompare.ILayers`.
+- Since the sixth, too, Lettera opens R16's 19 MB font by its path, with `LetteraFont.CreateFromFile`, as TextMesh Pro opens it by its path; before, the script read the file into an array and gave Lettera that. R16b keeps the array route, Lettera's only, in a process of its own.
+- A text whose paragraphs are partly left for later frames (Lettera's long texts) is timed on the frame it is set; the finishing in the frames after is the frame time of whatever row comes next.
 
 ## Time
 
 {time}
+
+{spread_note}
 
 R12 times the work only: TextMesh Pro's Arabic comes out unjoined, as S2 shows, so its row is not the same result for less. R15's first frame is one run of each engine's own atlas filling.
 
@@ -219,8 +228,7 @@ The figure is what `Profiler.GetRuntimeMemorySizeLong` says of each engine's tex
 | | Lettera | TextMesh Pro, static | TextMesh Pro, dynamic |
 |---|---:|---:|---:|
 | Whole player's peak over a run | {peak_l} MB | {peak_s} MB | {peak_d} MB |
-| Managed assemblies in a Windows build | {lettera_kb} KB | {tmp_kb} KB | {tmp_kb} KB |
-| Native library in a Windows build | {native_kb} KB | none | none |
+{managed_row}| Native library in a Windows build | {native_kb} KB | none | none |
 
 ## Features
 
@@ -236,10 +244,8 @@ The same scene in each engine, at 1200 × 700. Lettera on the left, TextMesh Pro
 
 ## When to stay on TextMesh Pro
 
-- **You create many labels at once and every millisecond there counts.** 1 000 labels take {r1} here and {r1t} there, and 5 000 world texts {r11} and {r11t}.
-- **Numbers that change every frame on many labels.** 64 labels take {r3} here and {r3t} there.
 - **Scrolling one very long text, once it is open.** {r10} a frame here, {r10t} there. Opening it is the other way round, by a long way.
-- **A build that must stay small, or no native plugin.** TextMesh Pro is {tmp_kb} KB of managed code and nothing else.
+- **A build that must stay small, or no native plugin.** {small_en}
 - **You rely on `textInfo`,** or on years of field use. Lettera is new, and parts of it have not been seen on a real phone.
 - **Latin only, and a static atlas you already have.** Then most of what Lettera adds, you will not use.
 
@@ -248,7 +254,7 @@ The same scene in each engine, at 1200 × 700. Lettera on the left, TextMesh Pro
 - **Draw calls and batches (R14).** The `Batches Count` recorder gave no valid value in this player, even in a development build. The other route, the Frame Debugger's count in the editor, has not been done.
 - **Scene load, and first use of a 16 MB font (R16); inspector typing (R18); alpha through `CanvasGroup` (R6, by property only); atlas after 200 emoji (R15).** Not written yet.
 - **Build size per platform (R17).** Windows only, above.
-- **IL2CPP on Windows.** The module is not installed on the machine used.
+- **Managed code size under IL2CPP.** It is compiled into `GameAssembly.dll`, so the per-assembly row is left out of the table above.
 - **Web and Android.** Not yet; Android needs the phone of whoever runs it.
 - **iOS.** Exported only. No Mac was at hand.
 - **TextMesh Pro's emoji by sprite asset,** which a project would prepare itself.
@@ -274,10 +280,17 @@ RU = """# Lettera и TextMesh Pro
 - Один и тот же файл шрифта: Noto Sans. TextMesh Pro в двух настройках, каждая в лучшем для него случае: статический атлас, заранее заполненный нужными символами, и динамический. У Lettera настройка одна.
 - Работа принудительно выполняется внутри замера (`ForceMeshUpdate`, `ForceRebuild`), а строки «за кадр» замеряют весь кадр, чтобы ни одна строка не выигрывала за счёт переноса работы за пределы замера.
 - Выделения памяти взяты из development-плеера, а контрольное выделение показывает, что счётчик работает.
+- Плееры работали на отдельном рабочем столе, вне экрана машины, так что окно замер не сбивает; Direct3D рисовал как обычно.
+- С третьей серии оптимизаций 1.0 строки после длинных текстов (прокрутка документа, смешанные подписи, 5000 текстов в мире, 3000 иероглифов) начинаются после сборки мусора и десяти пустых кадров, одинаково для всех движков, чтобы ни одна не платила за мусор строки перед ней. В более ранних числах такой паузы не было.
+- С пятой серии так же начинается каждый длинный текст R8 (10 КБ, 100 КБ, 1 МБ). Плееры оставляют сборщик Unity по умолчанию, инкрементальный, и цикл, начатый подписями или текстом перед длинным текстом, в одних запусках отрабатывал свои отрезки в кадрах этой строки, а в других нет: строка 100 КБ гуляла между 1,7 и 7 мс на сборке Mono, на неизменном коде. Строка после паузы, выделяя память, платит за подметание того, что освободила сборка, на любом движке.
+- С шестой серии R27 рисует 200 подписей в 28 px с обводкой и тенью и те же 200 без них, неподвижно, и даёт время GPU на кадр того и другого, на каждом движке, где есть оба слоя: у Lettera тегами, у TextMesh Pro одним общим материалом с обводкой и подложкой. Другой движок подключается через `LetteraCompare.ILayers`.
+- С шестой серии также Lettera открывает шрифт R16 в 19 МБ по пути, через `LetteraFont.CreateFromFile`, как TextMesh Pro открывает его по пути; раньше скрипт читал файл в массив и отдавал Lettera его. R16b оставляет путь через массив, только у Lettera, в отдельном процессе.
 
 ## Время
 
 {time}
+
+{spread_note}
 
 R12 замеряет только работу: арабский у TextMesh Pro выходит без связей, как видно на S2, так что это не тот же результат за меньшее время. Первый кадр R15 — заполнение собственного атласа каждого движка.
 
@@ -296,8 +309,7 @@ R12 замеряет только работу: арабский у TextMesh Pro
 | | Lettera | TextMesh Pro, статический | TextMesh Pro, динамический |
 |---|---:|---:|---:|
 | Пик всего плеера за запуск | {peak_l} МБ | {peak_s} МБ | {peak_d} МБ |
-| Управляемые сборки в билде Windows | {lettera_kb} КБ | {tmp_kb} КБ | {tmp_kb} КБ |
-| Нативная библиотека в билде Windows | {native_kb} КБ | нет | нет |
+{managed_row_ru}| Нативная библиотека в билде Windows | {native_kb} КБ | нет | нет |
 
 ## Возможности
 
@@ -313,10 +325,8 @@ R12 замеряет только работу: арабский у TextMesh Pro
 
 ## Когда остаться на TextMesh Pro
 
-- **Вы создаёте много подписей разом, и там важна каждая миллисекунда.** 1 000 подписей: {r1} здесь и {r1t} там; 5 000 текстов в мире: {r11} и {r11t}.
-- **Числа, которые меняются каждый кадр на многих подписях.** 64 подписи: {r3} здесь и {r3t} там.
 - **Прокрутка одного очень длинного текста, когда он уже открыт.** {r10} за кадр здесь, {r10t} там. Само открытие наоборот, причём с большим отрывом.
-- **Билд должен оставаться маленьким или без нативного плагина.** TextMesh Pro — это {tmp_kb} КБ управляемого кода, и больше ничего.
+- **Билд должен оставаться маленьким или без нативного плагина.** {small_ru}
 - **Вы опираетесь на `textInfo`** или на годы работы в реальных проектах. Lettera новый, и часть его ещё не видели на настоящем телефоне.
 - **Только латиница и уже готовый статический атлас.** Тогда большая часть того, что добавляет Lettera, вам не пригодится.
 
@@ -325,7 +335,7 @@ R12 замеряет только работу: арабский у TextMesh Pro
 - **Вызовы отрисовки и батчи (R14).** Счётчик `Batches Count` не дал допустимого значения в этом плеере, даже в development-сборке. Другой путь, счёт Frame Debugger в редакторе, пока не пройден.
 - **Загрузка сцены и первое использование шрифта на 16 МБ (R16); ввод в инспекторе (R18); альфа через `CanvasGroup` (R6, только свойством); атлас после 200 эмодзи (R15).** Пока не написаны.
 - **Размер билда по платформам (R17).** Только Windows, выше.
-- **IL2CPP на Windows.** На использованной машине модуль не установлен.
+- **Размер управляемого кода под IL2CPP.** Он компилируется в `GameAssembly.dll`, поэтому строки по сборкам в таблице выше нет.
 - **Web и Android.** Пока нет; для Android нужен телефон того, кто запускает.
 - **iOS.** Только экспорт. Mac под рукой не было.
 - **Эмодзи TextMesh Pro через спрайт-ассет,** который проект готовит сам.
@@ -345,8 +355,18 @@ for sheet, a, b in SHEETS:
         shutil.copyfile(os.path.join(WORK, "sheets", f"{sheet}_{engine}.png"), os.path.join(PICTURES, f"{sheet}_{engine}.png"))
 shutil.copyfile(os.path.join(WORK, "sheets", "S9_sharp_msdf_lettera.png"), os.path.join(PICTURES, "S9_sharp_msdf_lettera.png"))
 
+SPREAD = {"en": "† The five runs of this row differ by more than a quarter of the median (largest minus smallest over the median), so its figure is rough; the table shows it as it came out.",
+          "ru": "† Пять запусков этой строки различаются больше чем на четверть медианы (наибольший минус наименьший, делённый на медиану), поэтому её число грубое; таблица показывает его как есть."}
+for key in ("r1", "r1t", "r11", "r11t", "r3", "r3t", "r10", "r10t"):
+    info[key] = info[key].replace(" †", "")
+readable = info["lettera_kb"] > 0 and info["tmp_kb"] > 0
+info["managed_row"] = f"| Managed assemblies in a Windows build | {info['lettera_kb']} KB | {info['tmp_kb']} KB | {info['tmp_kb']} KB |\n" if readable else ""
+info["managed_row_ru"] = f"| Управляемые сборки в билде Windows | {info['lettera_kb']} КБ | {info['tmp_kb']} КБ | {info['tmp_kb']} КБ |\n" if readable else ""
+info["small_en"] = f"TextMesh Pro is {info['tmp_kb']} KB of managed code and nothing else." if readable else f"TextMesh Pro brings no native library; Lettera's is {info['native_kb']} KB."
+info["small_ru"] = f"TextMesh Pro — это {info['tmp_kb']} КБ управляемого кода, и больше ничего." if readable else f"У TextMesh Pro нет нативной библиотеки; у Lettera она {info['native_kb']} КБ."
+wide = any(c.get("spread", 0) > 0.25 * abs(c["ms"]) for row, _ in TIME["en"] for c in [rows.get(row, {}).get("lettera"), rows.get(row, {}).get("tmp-static"), rows.get(row, {}).get("tmp-dynamic")] if c)
 for lang, template, matrix, name in (("en", EN, MATRIX_EN, "Comparison.md"), ("ru", RU, MATRIX_RU, "Comparison.ru.md")):
-    text = template.format(time=table(HEAD[lang], TIME[lang]), gc=table(HEAD[lang], GC["en"], "bytes"), memory=table(HEAD[lang], MEMORY[lang], "mb"), matrix=matrix, sheets=sheets(lang), **info)
+    text = template.format(time=table(HEAD[lang], TIME[lang]), gc=table(HEAD[lang], GC["en"], "bytes"), memory=table(HEAD[lang], MEMORY[lang], "mb"), matrix=matrix, sheets=sheets(lang), spread_note=SPREAD[lang] if wide else "", **info)
     open(os.path.join(DOCS, name), "w", encoding="utf-8", newline="\n").write(text)
 total = sum(os.path.getsize(os.path.join(PICTURES, f)) for f in os.listdir(PICTURES))
 print("pictures", total // 1024, "KB")

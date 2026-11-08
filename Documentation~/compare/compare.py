@@ -91,8 +91,52 @@ class Counters(ctypes.Structure):
 
 kernel = ctypes.WinDLL("kernel32", use_last_error=True)
 kernel.OpenProcess.restype = wt.HANDLE
+kernel.CreateProcessW.argtypes = [wt.LPCWSTR, wt.LPWSTR, ctypes.c_void_p, ctypes.c_void_p, wt.BOOL, wt.DWORD, ctypes.c_void_p, wt.LPCWSTR, ctypes.c_void_p, ctypes.c_void_p]
+kernel.GetExitCodeProcess.argtypes = [wt.HANDLE, ctypes.POINTER(wt.DWORD)]
+kernel.WaitForSingleObject.argtypes = [wt.HANDLE, wt.DWORD]
+kernel.TerminateProcess.argtypes = [wt.HANDLE, wt.UINT]
 kernel.K32GetProcessMemoryInfo.argtypes = [wt.HANDLE, ctypes.POINTER(Counters), wt.DWORD]
 kernel.GetProcessTimes.argtypes = [wt.HANDLE] + [ctypes.POINTER(wt.FILETIME)] * 4
+
+
+class Player:
+    """A player started on a desktop of its own, so that no window ever shows on the owner's screen or takes focus; unlike a minimized one it keeps rendering."""
+    desktop = None
+
+    def __init__(self, command):
+        class Startup(ctypes.Structure):
+            _fields_ = [("cb", wt.DWORD), ("r", wt.LPWSTR), ("d", wt.LPWSTR), ("t", wt.LPWSTR), ("x", wt.DWORD), ("y", wt.DWORD), ("xs", wt.DWORD), ("ys", wt.DWORD), ("xc", wt.DWORD), ("yc", wt.DWORD), ("fill", wt.DWORD), ("flags", wt.DWORD), ("show", wt.WORD), ("r2", wt.WORD), ("r3", ctypes.c_void_p), ("i", wt.HANDLE), ("o", wt.HANDLE), ("e", wt.HANDLE)]
+
+        class Info(ctypes.Structure):
+            _fields_ = [("process", wt.HANDLE), ("thread", wt.HANDLE), ("pid", wt.DWORD), ("tid", wt.DWORD)]
+        startup = Startup()
+        startup.cb = ctypes.sizeof(Startup)
+        if Player.desktop is None:
+            Player.desktop = ctypes.windll.user32.CreateDesktopW("LetteraCompareHidden", None, None, 0, 0x10000000, None)  # GENERIC_ALL
+        startup.d = "LetteraCompareHidden"
+        startup.flags = 0x1  # STARTF_USESHOWWINDOW
+        startup.show = 4  # SW_SHOWNOACTIVATE
+        info = Info()
+        line = subprocess.list2cmdline(command)
+        if not kernel.CreateProcessW(None, ctypes.create_unicode_buffer(line), None, None, False, 0x00000040, None, None, ctypes.byref(startup), ctypes.byref(info)):  # IDLE_PRIORITY_CLASS
+            raise OSError(ctypes.get_last_error())
+        kernel.CloseHandle(info.thread)
+        self.handle, self.pid, self.returncode = info.process, info.pid, None
+
+    def poll(self):
+        code = wt.DWORD()
+        kernel.GetExitCodeProcess(self.handle, ctypes.byref(code))
+        if code.value == 259:
+            return None
+        self.returncode = code.value
+        return code.value
+
+    def kill(self):
+        kernel.TerminateProcess(self.handle, 1)
+
+    def wait(self, timeout=None):
+        kernel.WaitForSingleObject(self.handle, int(timeout * 1000) if timeout else 0xFFFFFFFF)
+        return self.poll()
 
 
 def memory_mb(handle):
@@ -124,7 +168,7 @@ def run(exe, engine, name, folder, scenario="main", extra=(), timeout=420, limit
     if os.path.exists(partial):
         os.remove(partial)
     before = cpu_seconds(args.watch_pid)
-    process = subprocess.Popen([exe, "-screen-width", "1200", "-screen-height", "700", "-screen-fullscreen", "0", "-logFile", os.path.join(folder, name + ".log"), "-compare", engine, "-scenario", scenario, "-fonts", FONTS, "-out", partial, *extra])
+    process = Player([exe, "-screen-width", "1200", "-screen-height", "700", "-screen-fullscreen", "0", "-logFile", os.path.join(folder, name + ".log"), "-compare", engine, "-scenario", scenario, "-fonts", FONTS, "-out", partial, *extra])
     handle = kernel.OpenProcess(0x1000, False, process.pid)
     started = time.time()
     peak = 0
@@ -268,7 +312,8 @@ SHEETS = ENGINES + (["tmp-fallback"] if "tmp-dynamic" in ENGINES else [])
 
 def sheets(release):
     for engine in SHEETS:
-        process = subprocess.run([release, "-screen-width", "1200", "-screen-height", "700", "-screen-fullscreen", "0", "-logFile", os.path.join(OUT, engine + "_sheets.log"), "-compare", engine, "-fonts", FONTS, "-sheets", os.path.join(WORK, "sheets")], timeout=300)
+        process = Player([release, "-screen-width", "1200", "-screen-height", "700", "-screen-fullscreen", "0", "-logFile", os.path.join(OUT, engine + "_sheets.log"), "-compare", engine, "-fonts", FONTS, "-sheets", os.path.join(WORK, "sheets")])
+        process.wait(300)
         print("sheets", engine, process.returncode, flush=True)
 
 

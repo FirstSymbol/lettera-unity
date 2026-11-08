@@ -6,42 +6,43 @@ Every figure below comes from a script: [compare/](compare/) runs both engines a
 
 ## Method
 
-- Unity 6000.4.8f1, Windows player, Mono scripting backend, Direct3D12, AMD Ryzen 7 4800H with Radeon Graphics. Median of 5 runs, a cold start each. Nothing else heavy running.
+- Unity 6000.4.8f1, Windows player, IL2CPP, Direct3D11, AMD Ryzen 7 4800H with Radeon Graphics. Median of 5 runs, a cold start each. Nothing else heavy running.
 - The same font file on both: Noto Sans. TextMesh Pro in two setups, each its best case: a static atlas prepared ahead with the characters used, and a dynamic atlas. Lettera has one.
 - The work is forced inside the clock (`ForceMeshUpdate`, `ForceRebuild`), and rows named "a frame" time the whole frame, so that no row is won by moving work out of it.
 - Allocation comes from a development player, with a deliberate allocation showing that the counter counts.
+- The players ran on a desktop of their own, off the screen of the machine, so the timing is not disturbed by a window; Direct3D drew as usual.
 - Since 1.0's third optimization batch, the rows that follow the long texts (scrolling a document, mixed labels, 5000 world texts, 3000 Han) start after a collection and ten idle frames, the same for every engine, so that none pays for the garbage of the row before it. Earlier figures had no such pause.
-- Since the fifth, each long text of R8 (10 KB, 100 KB, 1 MB) starts the same way. The players keep Unity's default, the incremental collector, and a cycle started by the labels or the text before a long text ran its slices in that row's frames in some runs and not in others: the 100 KB row moved between 1.7 and 7 ms on Mono, on code that had not changed. A row after the pause pays, as it allocates, for sweeping what the collection freed, on every engine.
+- Since the fifth, each long text of R8 (10 KB, 100 KB, 1 MB) starts the same way. The players keep Unity's default, the incremental collector, and a cycle started by the labels or the text before a long text ran its slices in that row's frames in some runs and not in others: the 100 KB row moved between 1.7 and 7 ms on a Mono build, on code that had not changed. A row after the pause pays, as it allocates, for sweeping what the collection freed, on every engine.
 - Since the sixth, R27 draws 200 labels at 28 px with a stroke and a shadow, and the same 200 plain, standing still, and gives the GPU time of a frame of each, on every engine that has both layers: Lettera by tags, TextMesh Pro by one shared material with an outline and an underlay. Another engine joins it through `LetteraCompare.ILayers`.
 - Since the sixth, too, Lettera opens R16's 19 MB font by its path, with `LetteraFont.CreateFromFile`, as TextMesh Pro opens it by its path; before, the script read the file into an array and gave Lettera that. R16b keeps the array route, Lettera's only, in a process of its own.
 - A text whose paragraphs are partly left for later frames (Lettera's long texts) is timed on the frame it is set; the finishing in the frames after is the frame time of whatever row comes next.
 
 ## Time
 
-> Note: the figures in this section are Mono builds. They are being regenerated from IL2CPP release players, and this table will be replaced.
-
 | Row | Lettera | TextMesh Pro, static atlas | TextMesh Pro, dynamic atlas |
 |---|---:|---:|---:|
-| Prepare a font (R0) | 2.98 ms | 54.55 ms | 38.12 ms |
-| Create 1 000 labels (R1) | 417 ms | 270 ms | 349 ms |
-| The frame after (R1) | 25.47 ms | 30.67 ms | 27.63 ms |
-| Rebuild 1 000 labels (R2) | 38.64 ms | 55.39 ms | 56.70 ms |
-| 64 labels change a frame (R3) | 2.03 ms | 1.52 ms | 1.50 ms |
-| One label changes a frame (R4) | 1.28 ms | 1.21 ms | 1.12 ms |
-| Colour of 100 labels a frame (R5) | 1.62 ms | 6.25 ms | 6.40 ms |
-| Alpha of 100 labels a frame, by property (R6) | 1.63 ms | 6.24 ms | 6.40 ms |
-| A frame of 1 000 unchanging labels (R7) | 3.17 ms | 4.27 ms | 4.30 ms |
-| Set 10 KB, first long text of a run (R8) | 94.71 ms | 25.75 ms | 26.66 ms |
-| Set 10 KB again (R8) | 12.51 ms | 21.07 ms | 21.68 ms |
-| Set 100 KB (R8) | 216 ms | 279 ms | 293 ms |
-| Set 1 MB (R8) | 1717 ms | 4859 ms | 5246 ms |
-| 100 KB, one character appended a frame (R9) | 83.10 ms | 207 ms | 216 ms |
-| Scroll 1 MB: open and first frame (R10) | 147 ms | 7628 ms | 8240 ms |
-| Scroll 1 MB: a frame (R10) | 7.48 ms | 1.77 ms | 1.98 ms |
-| 5 000 world texts: create and first frame (R11) | 1041 ms | 412 ms | 420 ms |
-| 5 000 world texts: a frame (R11) | 4.23 ms | 4.90 ms | 4.98 ms |
-| 100 Arabic and Latin labels (R12) | 20.53 ms | 43.71 ms | 43.95 ms |
-| 3 000 Han characters: first frame (R15) | 1266 ms | — | 12421 ms |
+| Prepare a font (R0) | 1.46 ms † | 21.50 ms † | 13.08 ms |
+| Create 1 000 labels (R1) | 118 ms | 142 ms | 200 ms |
+| The frame after (R1) | 29.50 ms | 33.48 ms | 32.73 ms |
+| Rebuild 1 000 labels (R2) | 18.49 ms | 35.76 ms | 36.64 ms |
+| 64 labels change a frame (R3) | 1.12 ms | 1.28 ms | 1.31 ms |
+| One label changes a frame (R4) | 0.67 ms | 0.64 ms | 0.66 ms |
+| Colour of 100 labels a frame (R5) | 1.27 ms | 4.36 ms | 4.44 ms |
+| Alpha of 100 labels a frame, by property (R6) | 1.26 ms | 4.35 ms | 4.44 ms |
+| A frame of 1 000 unchanging labels (R7) | 0.83 ms | 0.93 ms | 0.97 ms |
+| Set 10 KB, first long text of a run (R8) | 0.81 ms | 15.58 ms | 16.01 ms |
+| Set 10 KB again (R8) | 0.40 ms | 15.81 ms | 16.31 ms |
+| Set 100 KB (R8) | 0.86 ms | 198 ms | 203 ms |
+| Set 1 MB (R8) | 8.14 ms | 4544 ms | 4694 ms |
+| 100 KB, one character appended a frame (R9) | 1.05 ms | 136 ms | 138 ms |
+| Scroll 1 MB: open and first frame (R10) | 11.92 ms | 5213 ms | 5910 ms |
+| Scroll 1 MB: a frame (R10) | 1.23 ms | 0.65 ms | 0.65 ms |
+| 5 000 world texts: create and first frame (R11) | 210 ms | 335 ms † | 534 ms † |
+| 5 000 world texts: a frame (R11) | 3.51 ms | 4.65 ms | 4.70 ms |
+| 100 Arabic and Latin labels (R12) | 12.04 ms | 138 ms | 142 ms |
+| 3 000 Han characters: first frame (R15) | 136 ms | — | 12506 ms |
+
+† The five runs of this row differ by more than a quarter of the median (largest minus smallest over the median), so its figure is rough; the table shows it as it came out.
 
 R12 times the work only: TextMesh Pro's Arabic comes out unjoined, as S2 shows, so its row is not the same result for less. R15's first frame is one run of each engine's own atlas filling.
 
@@ -51,12 +52,12 @@ A usual frame (the median) / the largest single frame of the row.
 
 | Row | Lettera | TextMesh Pro, static atlas | TextMesh Pro, dynamic atlas |
 |---|---:|---:|---:|
-| R3 | 0 B / 8 756 B | 0 B / 4 160 B | 0 B / 24 572 B |
-| R4 | 0 B / 4 160 B | 0 B / 4 160 B | 0 B / 4 160 B |
-| R5 | 0 B / 28 888 B | 0 B / 4 160 B | 0 B / 4 160 B |
+| R3 | 0 B / 8 712 B | 0 B / 6 240 B | 0 B / 24 568 B |
+| R4 | 0 B / 6 240 B | 0 B / 6 240 B | 0 B / 6 240 B |
+| R5 | 0 B / 4 160 B | 0 B / 4 160 B | 0 B / 4 160 B |
 | R6 | 0 B / 4 160 B | 0 B / 4 160 B | 0 B / 4 160 B |
-| R7 | 0 B / 2 112 B | 0 B / 2 112 B | 0 B / 2 112 B |
-| R9 | 209 440 B / 32 263 044 B | 38 717 812 B / 42 388 222 B | 38 717 812 B / 42 388 222 B |
+| R7 | 0 B / 3 168 B | 0 B / 3 168 B | 0 B / 3 168 B |
+| R9 | 204 888 B / 205 746 B | 38 717 816 B / 42 388 226 B | 38 717 816 B / 42 388 226 B |
 
 ## Memory and size
 
@@ -67,13 +68,10 @@ A usual frame (the median) / the largest single frame of the row.
 
 The figure is what `Profiler.GetRuntimeMemorySizeLong` says of each engine's textures. It counts a readable texture's copy in memory too, which TextMesh Pro's dynamic atlases keep.
 
-Backend of these builds: TODO(owner) to confirm; they are not stated as Mono or IL2CPP in the harness output.
-
 | | Lettera | TextMesh Pro, static | TextMesh Pro, dynamic |
 |---|---:|---:|---:|
-| Whole player's peak over a run | 2067 MB | 3742 MB | 5942 MB |
-| Managed assemblies in a Windows build | 1675 KB | 437 KB | 437 KB |
-| Native library in a Windows build | 1656 KB | none | none |
+| Whole player's peak over a run | 468 MB | 2830 MB | 2586 MB |
+| Native library in a Windows build | 1356 KB | none | none |
 
 ## Features
 
@@ -173,12 +171,8 @@ The same scene in each engine, at 1200 × 700. Lettera on the left, TextMesh Pro
 
 ## When to stay on TextMesh Pro
 
-The figures in this list are the Mono ones from the table above.
-
-- **You create many labels at once and every millisecond there counts.** 1 000 labels take 417 ms here and 270 ms there, and 5 000 world texts 1041 ms and 412 ms.
-- **Numbers that change every frame on many labels.** 64 labels take 2.03 ms here and 1.52 ms there.
-- **Scrolling one very long text, once it is open.** 7.48 ms a frame here, 1.77 ms there. Opening it is the other way round, by a long way.
-- **A build that must stay small, or no native plugin.** TextMesh Pro is 437 KB of managed code and nothing else.
+- **Scrolling one very long text, once it is open.** 1.23 ms a frame here, 0.65 ms there. Opening it is the other way round, by a long way.
+- **A build that must stay small, or no native plugin.** TextMesh Pro brings no native library; Lettera's is 1356 KB.
 - **You rely on `textInfo`,** or on years of field use. Lettera is new, and parts of it have not been seen on a real phone.
 - **Latin only, and a static atlas you already have.** Then most of what Lettera adds, you will not use.
 
@@ -187,7 +181,7 @@ The figures in this list are the Mono ones from the table above.
 - **Draw calls and batches (R14).** The `Batches Count` recorder gave no valid value in this player, even in a development build. The other route, the Frame Debugger's count in the editor, has not been done.
 - **Scene load, and first use of a 16 MB font (R16); inspector typing (R18); alpha through `CanvasGroup` (R6, by property only); atlas after 200 emoji (R15).** Not written yet.
 - **Build size per platform (R17).** Windows only, above.
-- **IL2CPP on Windows.** The module is not installed on the machine used.
+- **Managed code size under IL2CPP.** It is compiled into `GameAssembly.dll`, so the per-assembly row is left out of the table above.
 - **Web and Android.** Not yet; Android needs the phone of whoever runs it.
 - **iOS.** Exported only. No Mac was at hand.
 - **TextMesh Pro's emoji by sprite asset,** which a project would prepare itself.
