@@ -51,8 +51,9 @@ Shader "Lettera/UI"
             #include "UnityUI.cginc"
 
             int _UIVertexColorAlwaysGammaSpace;
-            // A merged quad's layer colors come in texture coordinates, so they take the conversion its vertex color takes.
-            #define LETTERA_LAYER_RGB(rgb) ((_UIVertexColorAlwaysGammaSpace && !IsGammaSpace()) ? UIGammaToLinear(rgb) : (rgb))
+            // A merged quad's layer colors come in texture coordinates, which the canvas never converts, so they always end up linear in a linear project.
+            // A vertex color is converted by the canvas, or by the vertex stage when it is flagged as gamma; either way it is linear by here.
+            #define LETTERA_LAYER_RGB(rgb) (IsGammaSpace() ? (rgb) : UIGammaToLinear(rgb))
             #include "LetteraGlyph.cginc"
 
             struct appdata

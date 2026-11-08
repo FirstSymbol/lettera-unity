@@ -203,6 +203,20 @@ namespace FirstSymbol.Lettera.Editor.Tests
             SamePictureMergedAndApart(text);
         }
 
+        // A canvas that flags its vertex colors as gamma has the shader convert them; the layers' colors, which ride in texture coordinates, take the same road.
+        [Test]
+        public void MergedLayersAgreeOnACanvasFlaggedForGammaColors()
+        {
+            LetteraText text = LayeredLabel("<stroke=#3399FF,0.08><shadow=#000000,0.06,-0.06>Flagged label</shadow></stroke>");
+            text.canvas.vertexColorAlwaysGammaSpace = true;
+            text.Styles.Add(LetteraStyle.ForWholeText(new PaintOrderEffect { Order = LetteraPaintOrder.GlyphMajor }));
+            text.MarkStylesDirty();
+            text.ForceRebuild();
+            Canvas.ForceUpdateCanvases();
+            Assert.IsTrue(text.Engine.LayersMerged);
+            SamePictureMergedAndApart(text);
+        }
+
         LetteraText LayeredLabel(string body)
         {
             GlyphAtlas.Clear();
