@@ -69,8 +69,8 @@ A tag means something only because a style binds it to an effect; a tag nothing 
 | `<font>` | Family | family: a family name of the font stack |
 | `<lang>` | Language | language: a BCP 47 tag |
 | `<u>`, `<s>` | Underline, strikethrough | paint, style, thickness, offset, skip ink, overlay, then paint settings |
-| `<outline>` | Outline | paint, width in em or `2px`, then paint settings |
-| `<shadow>` | Shadow | paint, x, y, softness, dilate, then paint settings |
+| `<outline>` | Outline | color, width in em or `2px`, then paint settings |
+| `<shadow>` | Shadow | color, x, y, softness, dilate, then paint settings |
 | `<fill>` | Face paint | paint, dilate, softness, then paint settings |
 | `<stroke>` | Band along the outline | paint, width (em or `2px`), align: `inside` `center` `outside` or -1 to 1, softness, corners: `round` or `sharp` |
 | `<glow>` | Halo | paint, radius, softness, dilate |

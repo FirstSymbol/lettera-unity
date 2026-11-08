@@ -12,8 +12,8 @@ namespace FirstSymbol.Lettera
         const LetteraSlotUnits LayoutUnits = LetteraSlotUnits.Bare | LetteraSlotUnits.Px | LetteraSlotUnits.Em | LetteraSlotUnits.Percent;
         const string PaintHint = "A colour (#RGB, #RRGGBB, #RRGGBBAA or a name) or the name of a swatch. Empty uses the effect's own paint.";
 
-        static LetteraParamInfo Paint(string defaultField, string defaultText) =>
-            LetteraParamInfo.ForSlot(0, "Paint", LetteraParamKind.Paint, PaintHint, defaultField: defaultField, defaultText: defaultText, essential: true);
+        static LetteraParamInfo Paint(string defaultField, string defaultText, string name = "Paint") =>
+            LetteraParamInfo.ForSlot(0, name, LetteraParamKind.Paint, PaintHint, defaultField: defaultField, defaultText: defaultText, essential: true);
 
         // A length in em, or local units with px. Bare means em.
         static LetteraParamInfo EmLength(int slot, string name, string hint, string defaultField, string defaultText = null, bool essential = false) =>
@@ -79,13 +79,13 @@ namespace FirstSymbol.Lettera
 
         public static readonly LetteraParamInfo[] Outline =
         {
-            Paint("m_Color", null),
+            Paint("m_Color", null, "Color"),
             EmLength(1, "Width", "Width in em, or px.", "m_Width", essential: true),
         };
 
         public static readonly LetteraParamInfo[] Shadow =
         {
-            Paint("m_Color", null),
+            Paint("m_Color", null, "Color"),
             EmLength(1, "X", "Offset to the right, in em, or px.", "m_Offset.x", essential: true),
             EmLength(2, "Y", "Offset upward, in em, or px. Below the text is negative.", "m_Offset.y", essential: true),
             Unit(3, "Softness", "0 sharp to 1 fully blurred.", "m_Softness", true),

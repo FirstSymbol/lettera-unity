@@ -328,7 +328,11 @@ namespace FirstSymbol.Lettera.Editor
             AddAllChildren(body, matcher);
             body.Add(TypePicker("Effect", effect, typeof(LetteraEffect), "Effect"));
             AddEffectParameters(body, effect, index, tagBound);
-            body.Add(LtUI.Field("Defaults", style.FindPropertyRelative("m_DefaultParameter"), "Parameters used when a tag gives none, in the tag's syntax."));
+            SerializedProperty defaultParameter = style.FindPropertyRelative("m_DefaultParameter");
+            if (LtDefaultsForm.Wants(effectValue) && (matcherValue is TagMatcher || matcherValue is WholeTextMatcher || matcherValue is SpanMatcher))
+                body.Add(new LtDefaultsForm(defaultParameter, () => effect.managedReferenceValue as LetteraEffect, (matcherValue as TagMatcher)?.Name));
+            else
+                body.Add(LtUI.Field("Defaults", defaultParameter, "Parameters used when a tag gives none, in the tag's syntax."));
             card.Add(body);
             return card;
         }

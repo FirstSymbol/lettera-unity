@@ -257,6 +257,69 @@ namespace FirstSymbol.Lettera.Editor
             return found;
         }
 
+        /// <summary>
+        /// Widens a selection so that wrapping it cuts no tag: a boundary inside a tag's text moves to the tag's edge, and a pair with only one
+        /// end inside is taken whole. <paramref name="adjusted"/> says whether anything moved.
+        /// </summary>
+        public static void Balance(string text, ref int a, ref int b, out bool adjusted)
+        {
+            adjusted = false;
+            if (string.IsNullOrEmpty(text)) return;
+            List<LetteraTagSpan> tags = Scan(text);
+            if (a == b)
+            {
+                // A caret inside a tag's own text cannot take a pair: it goes to the tag's end.
+                foreach (LetteraTagSpan tag in tags)
+                {
+                    if (a > tag.Start && a < tag.End) a = b = tag.End;
+                    else if (tag.HasClose && a > tag.CloseStart && a < tag.CloseEnd) a = b = tag.CloseEnd;
+                    else continue;
+                    adjusted = true;
+                    break;
+                }
+                return;
+            }
+            for (int round = 0; round < 8; round++)
+            {
+                bool changed = false;
+                foreach (LetteraTagSpan tag in tags)
+                {
+                    changed |= Edge(ref a, ref b, tag.Start, tag.End);
+                    if (tag.HasClose) changed |= Edge(ref a, ref b, tag.CloseStart, tag.CloseEnd);
+                    if (!tag.HasClose) continue;
+                    bool openIn = tag.Start >= a && tag.End <= b, closeIn = tag.CloseStart >= a && tag.CloseEnd <= b;
+                    if (openIn && !closeIn && b < tag.CloseEnd)
+                    {
+                        b = tag.CloseEnd;
+                        changed = true;
+                    }
+                    else if (closeIn && !openIn && a > tag.Start)
+                    {
+                        a = tag.Start;
+                        changed = true;
+                    }
+                }
+                if (!changed) break;
+                adjusted = true;
+            }
+        }
+
+        static bool Edge(ref int a, ref int b, int start, int end)
+        {
+            bool changed = false;
+            if (a > start && a < end)
+            {
+                a = start;
+                changed = true;
+            }
+            if (b > start && b < end)
+            {
+                b = end;
+                changed = true;
+            }
+            return changed;
+        }
+
         /// <summary>The slot a caret in an open tag's value sits in, or -1 when it is in the name or outside.</summary>
         public static int SlotAt(LetteraTagSpan tag, int caret)
         {

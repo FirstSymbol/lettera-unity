@@ -375,6 +375,7 @@ namespace FirstSymbol.Lettera.Editor
         bool m_HasSelection;
         string m_RichFor;
         Label m_NoTag;
+        LtTagPanel m_TagPanel;
 
         bool ColoredOn
         {
@@ -440,6 +441,7 @@ namespace FirstSymbol.Lettera.Editor
             format.Add(Toggle("Link", "lt-tool", "Link", typeof(LinkEffect), "=https://", ""));
             format.Add(LtUI.El("lt-tool-gap"));
             format.Add(LtUI.Clickable("↵", "lt-tool", "Line break inside the paragraph", () => Wrap("<br>", "")));
+            format.Add(LtUI.Clickable("<>", "lt-tool lt-tool--wrap", "Wrap the selection in a tag, or insert one at the caret (Ctrl+.).", () => m_TagPanel?.OpenWrap(false)));
             Label more = LtUI.Clickable("More", "lt-tool", "All styles, with a search", null);
             more.RegisterCallback<ClickEvent>(_ => OpenMore(more));
             format.Add(more);
@@ -473,7 +475,26 @@ namespace FirstSymbol.Lettera.Editor
             m_SceneEditWhy = LtUI.Text("", "lt-chip lt-chip--orange");
             ApplyPreviewSize();
             RefreshSource();
-            return LtUI.El("lt-editor", show, format, m_SourceBox, m_NoTag, m_SceneEditWhy);
+            m_TagPanel = new LtTagPanel(m_TextField, new LtTagPanelHost
+            {
+                Styles = () =>
+                {
+                    TextEngine engine = Engine;
+                    if (engine == null) return null;
+                    engine.EnsureParsed();
+                    return engine.EffectiveStyles;
+                },
+                EmPixels = () =>
+                {
+                    TextEngine engine = Engine;
+                    return engine != null && engine.CurrentFontSize > 0 ? engine.CurrentFontSize : P("FontSize")?.floatValue ?? 0;
+                },
+                Mode = () => m_Mode,
+                Multiple = () => m_Object.isEditingMultipleObjects,
+                ReadOnly = () => m_Object.targetObject == null || (m_Object.targetObject.hideFlags & HideFlags.NotEditable) != 0 || PrefabUtility.IsPartOfImmutablePrefab(m_Object.targetObject),
+                OpenStyle = OpenStyleOf,
+            });
+            return LtUI.El("lt-editor", show, format, m_SourceBox, m_TagPanel, m_NoTag, m_SceneEditWhy);
         }
 
         static VisualElement IconTool(LtIcon.Kind kind, string tip, Action click)
@@ -565,6 +586,7 @@ namespace FirstSymbol.Lettera.Editor
             m_ShownBox.style.display = mode == 0 ? DisplayStyle.None : DisplayStyle.Flex;
             m_RichFor = null;
             RefreshSource();
+            m_TagPanel?.Refresh();
         }
 
         internal int Mode

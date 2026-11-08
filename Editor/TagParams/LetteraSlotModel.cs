@@ -219,6 +219,8 @@ namespace FirstSymbol.Lettera.Editor
         public string Token;
         public LetteraSlotState State;
         public string Inherited, InheritedFrom;
+        /// <summary>Why a token is not read, when the descriptor alone cannot say.</summary>
+        public string Note;
     }
 
     internal static class LetteraTagModel
@@ -233,11 +235,29 @@ namespace FirstSymbol.Lettera.Editor
                 if (info.Slot < 0) continue;
                 string token = tag?.Slot(info.Slot);
                 var row = new LetteraSlotRow { Info = info, Token = token, State = LetteraSlotValue.Classify(info, token) };
+                // A paint that is no colour must name a swatch the effect can find.
+                if (info.Kind == LetteraParamKind.Paint && row.State == LetteraSlotState.Set && !LetteraSlots.TryColor(token, out _) && effect is LetteraLayerEffect layer && !SwatchExists(layer, token))
+                {
+                    row.State = LetteraSlotState.Invalid;
+                    row.Note = "Not read: the effect's value is used. No swatch is named \"" + token + "\".";
+                }
                 row.Inherited = LetteraSlotDefaults.Inherited(info, effect, styleDefaults, out row.InheritedFrom);
                 rows.Add(row);
             }
             rows.Sort((a, b) => a.Info.Slot.CompareTo(b.Info.Slot));
             return rows;
+        }
+
+        static bool SwatchExists(LetteraLayerEffect layer, string name)
+        {
+            switch (layer.Catalog)
+            {
+                case LetteraPaintCatalog.Own: return LetteraPaintCatalogs.Find(layer.OwnSwatches, name) != null;
+                case LetteraPaintCatalog.Library: return layer.Library != null && layer.Library.Find(name) != null;
+                default:
+                    LetteraPaintLibrary project = LetteraSettings.Instance.Paints;
+                    return project != null && project.Find(name) != null;
+            }
         }
 
         /// <summary>Whether a form can be drawn: at least one described slot.</summary>
