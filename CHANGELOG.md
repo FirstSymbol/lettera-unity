@@ -4,6 +4,33 @@ All notable changes to this package are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.0.0-rc.3] - 2026-11-09
+
+### Added
+- **Every built-in tag now says what it does and what to write, in the Tag panel.** Under the markup the panel gives a sentence on what the tag does and one to four **Try** markups (`<curve=180>`, `<curve=90,0.5>`); a click writes that value into the tag. Under every slot's field a line that is always visible says what the slot changes, what it takes (range, choices, units) and a value to try. Slots in degrees show a `°`, rates show `Hz`, distances show `em`. A layer's nine paint settings (span, shape, fit, edge, blend, angle, scale, offset x and y) are described and sit under one heading, closed until one is set. The signature line under the panel carries the slot's hint.
+- **"This tag takes no parameters."** `<uppercase>`, `<lowercase>`, `<union>`, `<nobr>`, `<br>`, `<noparse>`, `<rt>` and `<rp>` say so plainly, and offer to remove a value written after the `=` that the tag ignores. "No slot form for this effect yet." now appears only for an effect of your own that declares no slots, and then points at the Styles guide, *Your own effect*.
+- **All 80 or so built-in effects are described**, not 21: `inner-shadow`, `extrude`, `filter`, `union`, `warp`, `smallcaps`, `otf`, `axes`, `size-match`, `ruby`, `word-spacing`, `cell`, `para-spacing`, `line-gap`, `li`, `trim`, `curve`, `divider`, `link`, `spoiler`, `sprite`, `obj`, `math`, `ellipsis`, `truncate`, `dir`, `reveal`, every motion, the 3D effects and motions, and the picker-only effects (`MaterialEffect`, `PaintOrderEffect`, `ResolutionEffect`, `RangeTintEffect`, `ActionEffect`, `MarqueeEffect`, `SemanticEffect`). The motions' slots, which only had names, now have hints, defaults, units and examples; their ids and levels, which rules, cues and holds know them by, are unchanged.
+- **Tags a matcher reads get a form too**: `<li>`, `<ruby>`, `<divider>`, `<sprite>`, `<obj>` and `<math>`. The panel used to look for a tag matcher only and found none for these.
+- **`<a>` and other composite tags** show one field for each of their effects, named for the effect (the first of `<a>` is the URL), joined with `;` as the tag reads them. A semicolon inside a part is wrapped in parentheses.
+- **`LetteraEffect` says what it is** (additive): `Description`, `Examples` (`LetteraTagExample`, a value after the equals sign and what it gives) and `TakesNoParameters`. `LetteraParamInfo` gains `Example` and `UnitLabel` (`ForSlot(..., example:, unitLabel:)`, `ForEnum<T>(..., example:)`) and `ForMotion(...)` for a motion's described slots. The tag panel, `lettera tags` and `lettera types` read these, so the words live in one place. `lettera tags` no longer has a hand-written hint table beside the schema; it lists `description`, `slots`, `examples` and `takesNoParameters` from the effects.
+- **Tests that fail if an effect is left undescribed.** One runs every built-in effect type and fails if it has no description, or neither slots nor `TakesNoParameters`; another runs each effect with a sample in every slot and fails if it reads a position that is not described, leaves one alone, or says it takes nothing and reads something; examples must be read by their own schema. The README, Motion and Math tables are read against the schema, in both directions: a tag with no row, a row naming slots in another order, a tag that takes nothing without the word "none", and two tags with different slots sharing a row all fail.
+
+### Fixed
+- **`Motion.md` (both languages)** listed `<scramble>` as seconds, rate and `<roll>` as seconds, start, lag; they also take progress and roll. The README table was split so each tag has the row that is true for it (`<union>` and `<warp>`, `<para-spacing>` and `<line-gap>`, `<ellipsis>` and `<truncate>` no longer share a row), and gained rows for `<strikethrough>`, `<spoiler>`, `<reveal>`, `<sprite>`, `<obj>`, `<math>`, `<rt>` and `<rp>`; the rows for `<filter>`, `<otf>`, `<axes>`, `<li>`, `<divider>` and `<dir>` now name every slot.
+- **`<rp>` was reported as a tag no style uses**, though the ruby matcher reads it.
+
+### Changed
+- Rows of the Defaults form of a layer count only the layer's own slots in its bare-tag summary; the paint settings are under a heading.
+
+### Limits
+- `<curve>`'s value is a radius in local units or em, not an angle. The panel says so; there is no dial for it.
+- Angles are a number with a degree sign, not a dial; the token stays a bare number, as the parsers read it.
+- A sprite or object name is a text field, with no picker of the project's inline library yet.
+- The 3D tags (`<depth>`, `<bevel>`, `<bend>`, `<pose>`, `<surface>`...) are described in the schema and the tests; the panel was not drawn for a 3D text.
+- The light skin was drawn with the panel's light theme on a light ground, not by switching the editor's skin (that is a setting shared with other editors on the PC).
+- `Text3D.md` rows are not read against the schema.
+
+
 ## [1.0.0-rc.2] - 2026-11-08
 
 ### Added
