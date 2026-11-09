@@ -238,7 +238,7 @@ Each cell is Yes, With setup, Partly or No. A sheet (S) or a named test stands b
 
 ## Sheets
 
-The same scene in each engine, at 1200 × 700. Lettera on the left, TextMesh Pro on the right. System fonts on Windows drew what Noto Sans does not hold.
+The same scene in each engine, at 1200 × 700. Lettera on the left, TextMesh Pro on the right. Every picture is drawn with Noto fonts only, on both engines and the same on both: Noto Sans, Noto Sans Arabic, Hebrew, Devanagari, Bengali, Tamil and Thai, Noto Sans CJK SC, and for emoji Noto Color Emoji on Lettera and Noto Emoji, its single-colour face, on TextMesh Pro, which draws no colour fonts. All are under the SIL Open Font License 1.1; no operating-system font is used, and none of these fonts ships in the package.
 
 {sheets}
 
@@ -263,7 +263,7 @@ The same scene in each engine, at 1200 × 700. Lettera on the left, TextMesh Pro
 ## Run it yourself
 
 ```
-python compare.py <Unity.exe> <path to this package> <work folder> 5
+python compare.py <Unity.exe> <path to this package> <work folder> 5 --sheet-fonts <folder of the Noto fonts>
 python report.py <work folder>
 ```
 """
@@ -319,7 +319,7 @@ R12 замеряет только работу: арабский у TextMesh Pro
 
 ## Листы
 
-Одна и та же сцена в каждом движке, 1200 × 700. Слева Lettera, справа TextMesh Pro. То, чего нет в Noto Sans, нарисовано системными шрифтами Windows.
+Одна и та же сцена в каждом движке, 1200 × 700. Слева Lettera, справа TextMesh Pro. Все картинки нарисованы только шрифтами Noto, на обоих движках одними и теми же: Noto Sans, Noto Sans Arabic, Hebrew, Devanagari, Bengali, Tamil и Thai, Noto Sans CJK SC, а для эмодзи Noto Color Emoji у Lettera и Noto Emoji, его одноцветная гарнитура, у TextMesh Pro, который цветные шрифты не рисует. Все они под SIL Open Font License 1.1; системные шрифты не используются, и ни один из этих шрифтов не входит в пакет.
 
 {sheets}
 
@@ -344,7 +344,7 @@ R12 замеряет только работу: арабский у TextMesh Pro
 ## Запустить самому
 
 ```
-python compare.py <Unity.exe> <путь к этому пакету> <рабочая папка> 5
+python compare.py <Unity.exe> <путь к этому пакету> <рабочая папка> 5 --sheet-fonts <папка со шрифтами Noto>
 python report.py <рабочая папка>
 ```
 """

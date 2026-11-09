@@ -76,7 +76,17 @@ public class LetteraCompare : MonoBehaviour
 
         public void SetText(Component c, string text) => ((LetteraText)c).SetText(text);
         public void ForceAll(IReadOnlyList<Component> all) { foreach (Component c in all) Force(c); }
-        public void Fallbacks() { }
+        public void Fallbacks()
+        {
+            string folder = SheetFontsFolder;
+            if (folder == null || s_LetteraStack != null) return;
+            RequireSheetFonts(folder);
+            LetteraSettings.Instance.DisableSystemFontFallback = true;
+            s_LetteraStack = ScriptableObject.CreateInstance<LetteraFontStack>();
+            foreach (string name in SheetFonts)
+                s_LetteraStack.Families.Add(new LetteraFontFamily { Primary = LetteraFont.CreateFromFile(Path.Combine(folder, name)) });
+            s_LetteraStack.Families.Add(new LetteraFontFamily { Primary = LetteraFont.CreateFromFile<LetteraColorFont>(Path.Combine(folder, SheetColorEmoji)) });
+        }
 
         public Component Field(Transform parent, string text, float size, Vector2 box)
         {
@@ -102,6 +112,7 @@ public class LetteraCompare : MonoBehaviour
             var label = go.AddComponent<LetteraText>();
             label.raycastTarget = false;
             label.Font = s_LetteraFont;
+            if (s_LetteraStack != null) label.FontStack = s_LetteraStack;
             label.FontSize = size;
             label.Text = text;
             return label;
@@ -191,6 +202,15 @@ public class LetteraCompare : MonoBehaviour
         public void Fallbacks()
         {
             s_TmpFont.fallbackFontAssetTable = new List<TMP_FontAsset>();
+            string folder = SheetFontsFolder;
+            if (folder != null)
+            {
+                // TextMesh Pro draws no colour fonts, so it gets Noto's single-colour emoji font where Lettera has the coloured one.
+                RequireSheetFonts(folder);
+                foreach (string name in SheetFonts.Append(SheetMonoEmoji))
+                    s_TmpFont.fallbackFontAssetTable.Add(TMP_FontAsset.CreateFontAsset(Path.Combine(folder, name), 0, 90, 9, UnityEngine.TextCore.LowLevel.GlyphRenderMode.SDFAA, 2048, 2048));
+                return;
+            }
             foreach ((string family, string style) in new[] { ("Segoe UI", "Regular"), ("Nirmala UI", "Regular"), ("Leelawadee UI", "Regular"), ("Microsoft YaHei", "Regular"), ("Yu Gothic", "Regular"), ("Malgun Gothic", "Regular"), ("Segoe UI Emoji", "Regular") })
             {
                 TMP_FontAsset font = TMP_FontAsset.CreateFontAsset(family, style);
@@ -283,6 +303,24 @@ public class LetteraCompare : MonoBehaviour
     }
 
     static LetteraFont s_LetteraFont;
+    static LetteraFontStack s_LetteraStack;
+
+    // The pictures use these fonts and no others, on both engines, so that no operating-system font shows in them. All are Noto, under the SIL Open Font License.
+    // -sheetfonts <folder> holds the files; the sheets stop if one is missing.
+    static readonly string[] SheetFonts =
+    {
+        "NotoSansArabic-Regular.ttf", "NotoSansHebrew-Regular.ttf", "NotoSansDevanagari-Regular.ttf", "NotoSansBengali-Regular.ttf",
+        "NotoSansTamil-Regular.ttf", "NotoSansThai-Regular.ttf", "NotoSansCJKsc-Regular.otf",
+    };
+    const string SheetColorEmoji = "NotoColorEmoji-Regular.ttf";
+    const string SheetMonoEmoji = "NotoEmoji-Regular.ttf";
+    static string SheetFontsFolder => Arg("-sheets") == null ? null : Arg("-sheetfonts");
+
+    static void RequireSheetFonts(string folder)
+    {
+        foreach (string name in SheetFonts.Append(SheetColorEmoji).Append(SheetMonoEmoji))
+            if (!File.Exists(Path.Combine(folder, name))) throw new FileNotFoundException("The sheets need this font in -sheetfonts: " + name);
+    }
     static TMP_FontAsset s_TmpFont;
     static readonly ProfilerRecorder s_Gc = ProfilerRecorder.StartNew(ProfilerCategory.Memory, "GC Allocated In Frame");
     static readonly FrameTiming[] s_Timing = new FrameTiming[1];
@@ -394,7 +432,7 @@ public class LetteraCompare : MonoBehaviour
         var clock = Stopwatch.StartNew();
         m_Engine.LoadFont(path);
         Say("prepare_font", clock.Elapsed.TotalMilliseconds);
-        if (m_Name == "tmp-fallback") m_Engine.Fallbacks();
+        if (m_Name == "tmp-fallback" || (m_Name == "lettera" && SheetFontsFolder != null)) m_Engine.Fallbacks();
     }
 
     void Say(string row, double ms, long bytes = -1, string note = "")

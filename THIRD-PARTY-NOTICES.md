@@ -63,6 +63,8 @@ PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS, OR MODIFICATIONS.
 
 `Runtime/Resources/Lettera/LetteraWebFont.asset` holds Noto Sans, which ships in player builds as the web's default font. `Tests/Fonts~` holds Noto Sans, Noto Sans Arabic, Noto Sans Hebrew and Noto Sans Devanagari, used only by the tests. https://fonts.google.com/noto
 
+The pictures in `Documentation~/comparison` were drawn with Noto Sans, Noto Sans Arabic, Hebrew, Devanagari, Bengali, Tamil and Thai, Noto Sans CJK SC, Noto Color Emoji and Noto Emoji, all under the SIL Open Font License 1.1. Those fonts are not part of the package; `Documentation~/compare` names them.
+
 ```
 Copyright 2018 The Noto Project Authors (github.com/googlei18n/noto-fonts)
 

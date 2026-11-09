@@ -1,5 +1,5 @@
 """Runs the comparison with TextMesh Pro and writes its tables.
-usage: python compare.py <unity.exe> <lettera package path> <work folder> [rounds] [--backends mono,il2cpp] [--engines a,b,c] [--extra folder] [--no-sheets] [--fresh]
+usage: python compare.py <unity.exe> <lettera package path> <work folder> [rounds] [--backends mono,il2cpp] [--engines a,b,c] [--extra folder] [--no-sheets | --sheet-fonts folder] [--fresh]
 Makes a project of its own, builds Windows players, and runs each engine in turns, a cold start each. Nothing else should be running.
 Results land per run in <work>/Out/<backend>/runs, so that a run stopped halfway goes on from where it was. --fresh starts over.
 --extra copies that folder's scripts into the project: another engine can add itself to LetteraCompare.External and be named in --engines."""
@@ -14,6 +14,7 @@ parser.add_argument("--backends", default="mono")
 parser.add_argument("--engines", default="lettera,tmp-static,tmp-dynamic")
 parser.add_argument("--extra")
 parser.add_argument("--no-sheets", action="store_true")
+parser.add_argument("--sheet-fonts", help="folder with the Noto fonts the pictures use (see SheetFonts in LetteraCompare.cs); required unless --no-sheets")
 parser.add_argument("--fresh", action="store_true")
 parser.add_argument("--build-only", action="store_true")
 parser.add_argument("--dev-rounds", type=int, default=None)
@@ -311,8 +312,10 @@ SHEETS = ENGINES + (["tmp-fallback"] if "tmp-dynamic" in ENGINES else [])
 
 
 def sheets(release):
+    if not args.sheet_fonts:
+        sys.exit("The pictures need --sheet-fonts <folder of Noto fonts>; no operating-system font may show in them.")
     for engine in SHEETS:
-        process = Player([release, "-screen-width", "1200", "-screen-height", "700", "-screen-fullscreen", "0", "-logFile", os.path.join(OUT, engine + "_sheets.log"), "-compare", engine, "-fonts", FONTS, "-sheets", os.path.join(WORK, "sheets")])
+        process = Player([release, "-screen-width", "1200", "-screen-height", "700", "-screen-fullscreen", "0", "-logFile", os.path.join(OUT, engine + "_sheets.log"), "-compare", engine, "-fonts", FONTS, "-sheets", os.path.join(WORK, "sheets"), "-sheetfonts", args.sheet_fonts])
         process.wait(300)
         print("sheets", engine, process.returncode, flush=True)
 
