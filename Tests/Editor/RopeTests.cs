@@ -382,14 +382,16 @@ namespace FirstSymbol.Lettera.Editor.Tests
             UnityEngine.Debug.Log($"LETTERA_BUDGET rope_query_100kb={a:0.000}ms rope_query_100mb={b:0.000}ms per 2000");
             Assert.Less(b, a * 8 + 1, "the query grew with the document");
 
-            using var recorder = Unity.Profiling.ProfilerRecorder.StartNew(Unity.Profiling.ProfilerCategory.Memory, "GC Allocated In Frame");
+            // Only this thread: the editor's own threads allocate at times; the all-thread figure is for the message.
+            using var recorder = Unity.Profiling.ProfilerRecorder.StartNew(Unity.Profiling.ProfilerCategory.Memory, "GC Allocated In Frame", 1, Unity.Profiling.ProfilerRecorderOptions.Default | Unity.Profiling.ProfilerRecorderOptions.CollectOnlyOnCurrentThread);
+            using var everyThread = Unity.Profiling.ProfilerRecorder.StartNew(Unity.Profiling.ProfilerCategory.Memory, "GC Allocated In Frame");
             long control = recorder.CurrentValue;
             s_Control = new byte[64];
             Assert.GreaterOrEqual(recorder.CurrentValue - control, 32, "the allocation counter does not work here");
-            long quietest = long.MaxValue;
+            long quietest = long.MaxValue, anyThread = long.MaxValue;
             for (int window = 0; window < 5; window++)
             {
-                long before = recorder.CurrentValue;
+                long before = recorder.CurrentValue, beforeAll = everyThread.CurrentValue;
                 for (int i = 0; i < 1000; i++)
                 {
                     int at = i * 997 % huge.Length;
@@ -397,9 +399,9 @@ namespace FirstSymbol.Lettera.Editor.Tests
                     huge.CharToParagraph(at);
                     huge.BlockAtHeight(i, out _);
                 }
-                quietest = Math.Min(quietest, recorder.CurrentValue - before);
+                quietest = Math.Min(quietest, recorder.CurrentValue - before); anyThread = System.Math.Min(anyThread, everyThread.CurrentValue - beforeAll);
             }
-            Assert.Less(quietest, 200);
+            Assert.Less(quietest, 200, $"{quietest} bytes on this thread ({anyThread} on all threads)");
         }
 
         static byte[] s_Control;

@@ -150,16 +150,18 @@ namespace FirstSymbol.Lettera.Tests
         // The rest of the editor allocates at times too, so it takes the quietest of a few windows, all inside one frame.
         static long AllocatedBy(Action action)
         {
-            using var recorder = Unity.Profiling.ProfilerRecorder.StartNew(Unity.Profiling.ProfilerCategory.Memory, "GC Allocated In Frame");
+            // Only this thread: the editor's own threads allocate at times; the all-thread figure is for the message.
+            using var recorder = Unity.Profiling.ProfilerRecorder.StartNew(Unity.Profiling.ProfilerCategory.Memory, "GC Allocated In Frame", 1, Unity.Profiling.ProfilerRecorderOptions.Default | Unity.Profiling.ProfilerRecorderOptions.CollectOnlyOnCurrentThread);
+            using var everyThread = Unity.Profiling.ProfilerRecorder.StartNew(Unity.Profiling.ProfilerCategory.Memory, "GC Allocated In Frame");
             long control = recorder.CurrentValue;
             s_Control = new byte[64];
             Assert.GreaterOrEqual(recorder.CurrentValue - control, 32, "the allocation counter does not work here");
-            long quietest = long.MaxValue;
+            long quietest = long.MaxValue, anyThread = long.MaxValue;
             for (int window = 0; window < 5; window++)
             {
-                long before = recorder.CurrentValue;
+                long before = recorder.CurrentValue, beforeAll = everyThread.CurrentValue;
                 action();
-                quietest = Math.Min(quietest, recorder.CurrentValue - before);
+                quietest = Math.Min(quietest, recorder.CurrentValue - before); anyThread = System.Math.Min(anyThread, everyThread.CurrentValue - beforeAll);
             }
             return quietest;
         }

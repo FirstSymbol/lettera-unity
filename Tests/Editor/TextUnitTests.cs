@@ -219,16 +219,18 @@ namespace FirstSymbol.Lettera.Editor.Tests
         // The least a body allocated over a few windows of rounds, by the profiler's counter, which must see a control allocation first.
         static long Quietest(Action body, int rounds)
         {
-            using var recorder = Unity.Profiling.ProfilerRecorder.StartNew(Unity.Profiling.ProfilerCategory.Memory, "GC Allocated In Frame");
+            // Only this thread: the editor's own threads allocate at times; the all-thread figure is for the message.
+            using var recorder = Unity.Profiling.ProfilerRecorder.StartNew(Unity.Profiling.ProfilerCategory.Memory, "GC Allocated In Frame", 1, Unity.Profiling.ProfilerRecorderOptions.Default | Unity.Profiling.ProfilerRecorderOptions.CollectOnlyOnCurrentThread);
+            using var everyThread = Unity.Profiling.ProfilerRecorder.StartNew(Unity.Profiling.ProfilerCategory.Memory, "GC Allocated In Frame");
             long control = recorder.CurrentValue;
             for (int i = 0; i < rounds; i++) GC.KeepAlive(new int[64]);
             Assert.Greater(recorder.CurrentValue - control, 200, "the counter sees an allocation");
-            long quietest = long.MaxValue;
+            long quietest = long.MaxValue, anyThread = long.MaxValue;
             for (int window = 0; window < 5; window++)
             {
-                long before = recorder.CurrentValue;
+                long before = recorder.CurrentValue, beforeAll = everyThread.CurrentValue;
                 for (int i = 0; i < rounds; i++) body();
-                quietest = Math.Min(quietest, recorder.CurrentValue - before);
+                quietest = Math.Min(quietest, recorder.CurrentValue - before); anyThread = System.Math.Min(anyThread, everyThread.CurrentValue - beforeAll);
             }
             return quietest;
         }

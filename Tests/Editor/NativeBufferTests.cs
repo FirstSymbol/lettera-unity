@@ -69,7 +69,8 @@ namespace FirstSymbol.Lettera.Editor.Tests
             // is the same in both texts, so the difference is what the text holds per codepoint past the band.
             string source = LongTextTests.Page(512 * 1024), longer = LongTextTests.Page(1024 * 1024);
             LetteraText warm = InViewport("", 30000), text = InViewport("", 30000), other = InViewport("", 30000);
-            using var recorder = ProfilerRecorder.StartNew(ProfilerCategory.Memory, "GC Allocated In Frame");
+            // Only this thread: the editor's own threads allocate at times.
+            using var recorder = ProfilerRecorder.StartNew(ProfilerCategory.Memory, "GC Allocated In Frame", 1, ProfilerRecorderOptions.Default | ProfilerRecorderOptions.CollectOnlyOnCurrentThread);
             long control = recorder.CurrentValue;
             System.GC.KeepAlive(new byte[32]);
             Assert.GreaterOrEqual(recorder.CurrentValue - control, 32, "the allocation counter does not work here");

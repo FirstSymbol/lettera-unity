@@ -95,20 +95,22 @@ namespace FirstSymbol.Lettera.Editor.Tests
         {
             LetteraEditable field = Field("Some text with \U0001F600");
             Span<char> buffer = stackalloc char[64];
-            using var recorder = Unity.Profiling.ProfilerRecorder.StartNew(Unity.Profiling.ProfilerCategory.Memory, "GC Allocated In Frame");
-            long quietest = long.MaxValue;
+            // Only this thread: the editor's own threads allocate at times; the all-thread figure is for the message.
+            using var recorder = Unity.Profiling.ProfilerRecorder.StartNew(Unity.Profiling.ProfilerCategory.Memory, "GC Allocated In Frame", 1, Unity.Profiling.ProfilerRecorderOptions.Default | Unity.Profiling.ProfilerRecorderOptions.CollectOnlyOnCurrentThread);
+            using var everyThread = Unity.Profiling.ProfilerRecorder.StartNew(Unity.Profiling.ProfilerCategory.Memory, "GC Allocated In Frame");
+            long quietest = long.MaxValue, anyThread = long.MaxValue;
             for (int window = 0; window < 5; window++)
             {
-                long before = recorder.CurrentValue;
+                long before = recorder.CurrentValue, beforeAll = everyThread.CurrentValue;
                 for (int i = 0; i < 1000; i++)
                 {
                     field.CopyTo(buffer);
                     field.Equals("Some text".AsSpan());
                     _ = field.Length;
                 }
-                quietest = Math.Min(quietest, recorder.CurrentValue - before);
+                quietest = Math.Min(quietest, recorder.CurrentValue - before); anyThread = System.Math.Min(anyThread, everyThread.CurrentValue - beforeAll);
             }
-            Assert.Less(quietest, 200);
+            Assert.Less(quietest, 200, $"{quietest} bytes on this thread ({anyThread} on all threads)");
             Assert.AreEqual(field.PlainText.Length, field.CopyTo(buffer));
             Assert.IsTrue(field.Equals(field.PlainText.AsSpan()));
             Assert.IsFalse(field.Equals("Some".AsSpan()));
@@ -385,21 +387,23 @@ namespace FirstSymbol.Lettera.Editor.Tests
                 history.EndEdit(LetteraSelectionRange.AtCaret(1), 0);
             }
             history.Clear();
-            using var recorder = Unity.Profiling.ProfilerRecorder.StartNew(Unity.Profiling.ProfilerCategory.Memory, "GC Allocated In Frame");
-            long quietest = long.MaxValue;
+            // Only this thread: the editor's own threads allocate at times; the all-thread figure is for the message.
+            using var recorder = Unity.Profiling.ProfilerRecorder.StartNew(Unity.Profiling.ProfilerCategory.Memory, "GC Allocated In Frame", 1, Unity.Profiling.ProfilerRecorderOptions.Default | Unity.Profiling.ProfilerRecorderOptions.CollectOnlyOnCurrentThread);
+            using var everyThread = Unity.Profiling.ProfilerRecorder.StartNew(Unity.Profiling.ProfilerCategory.Memory, "GC Allocated In Frame");
+            long quietest = long.MaxValue, anyThread = long.MaxValue;
             for (int window = 0; window < 5; window++)
             {
                 history.Clear();
-                long before = recorder.CurrentValue;
+                long before = recorder.CurrentValue, beforeAll = everyThread.CurrentValue;
                 for (int i = 0; i < 1000; i++)
                 {
                     history.BeginEdit(LetteraEditHistory.Kind.Typing, LetteraEditHistory.TokenClass.Word, LetteraSelectionRange.AtCaret(0), i, 0.5f);
                     history.AddSplice(0, source, 0, "x");
                     history.EndEdit(LetteraSelectionRange.AtCaret(1), 0);
                 }
-                quietest = Math.Min(quietest, recorder.CurrentValue - before);
+                quietest = Math.Min(quietest, recorder.CurrentValue - before); anyThread = System.Math.Min(anyThread, everyThread.CurrentValue - beforeAll);
             }
-            Assert.Less(quietest, 200);
+            Assert.Less(quietest, 200, $"{quietest} bytes on this thread ({anyThread} on all threads)");
         }
 
         // ------------------------------------------------------------- selection
@@ -863,15 +867,16 @@ namespace FirstSymbol.Lettera.Editor.Tests
             int rebuilds = label.RebuildCount;
             // Only this thread: the editor's own threads allocate at times, and the counter spans every thread by default.
             using var recorder = Unity.Profiling.ProfilerRecorder.StartNew(Unity.Profiling.ProfilerCategory.Memory, "GC Allocated In Frame", 1, Unity.Profiling.ProfilerRecorderOptions.Default | Unity.Profiling.ProfilerRecorderOptions.CollectOnlyOnCurrentThread);
-            long quietest = long.MaxValue;
+            using var everyThread = Unity.Profiling.ProfilerRecorder.StartNew(Unity.Profiling.ProfilerCategory.Memory, "GC Allocated In Frame");
+            long quietest = long.MaxValue, anyThread = long.MaxValue;
             for (int window = 0; window < 5; window++)
             {
-                long before = recorder.CurrentValue;
+                long before = recorder.CurrentValue, beforeAll = everyThread.CurrentValue;
                 for (int i = 0; i < 120; i++) field.Selectable.Tick();
-                quietest = Math.Min(quietest, recorder.CurrentValue - before);
+                quietest = Math.Min(quietest, recorder.CurrentValue - before); anyThread = System.Math.Min(anyThread, everyThread.CurrentValue - beforeAll);
             }
             Assert.AreEqual(rebuilds, label.RebuildCount);
-            Assert.Less(quietest, 200);
+            Assert.Less(quietest, 200, $"{quietest} bytes on this thread ({anyThread} on all threads)");
         }
 
         [Test]

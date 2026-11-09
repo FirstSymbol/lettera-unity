@@ -11,7 +11,8 @@ namespace FirstSymbol.Lettera.Editor.Tests
     /// <summary>What a frame allocates, read from the engine's own counter over real frames, less what an idle frame of the editor allocates.</summary>
     public class FrameBudgetTests : TextFixture
     {
-        static readonly ProfilerRecorder s_Gc = ProfilerRecorder.StartNew(ProfilerCategory.Memory, "GC Allocated In Frame");
+        // Only the calling thread: the editor's own threads allocate at times.
+        static readonly ProfilerRecorder s_Gc = ProfilerRecorder.StartNew(ProfilerCategory.Memory, "GC Allocated In Frame", 1, ProfilerRecorderOptions.Default | ProfilerRecorderOptions.CollectOnlyOnCurrentThread);
         static byte[] s_Control;
 
         static string Body(int length)

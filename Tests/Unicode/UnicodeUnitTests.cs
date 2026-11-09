@@ -192,8 +192,10 @@ namespace FirstSymbol.Lettera.Unicode.Tests
         {
             // GC.GetAllocatedBytesForCurrentThread always reads 0 on Unity's Mono, so this uses the live profiler counter.
             // Control: the counter must see even a small allocation. The test stays within one frame.
-            using var recorder = ProfilerRecorder.StartNew(ProfilerCategory.Memory, "GC Allocated In Frame");
-            long before = recorder.CurrentValue;
+            // Only this thread: the editor's own threads allocate at times; the all-thread figure is for the message.
+            using var recorder = ProfilerRecorder.StartNew(ProfilerCategory.Memory, "GC Allocated In Frame", 1, ProfilerRecorderOptions.Default | ProfilerRecorderOptions.CollectOnlyOnCurrentThread);
+            using var everyThread = ProfilerRecorder.StartNew(ProfilerCategory.Memory, "GC Allocated In Frame");
+            long before = recorder.CurrentValue, beforeAll = everyThread.CurrentValue;
             GC.KeepAlive(new byte[32]);
             Assert.That(recorder.CurrentValue - before, Is.GreaterThanOrEqualTo(32), "allocation counter is not functional");
 
