@@ -237,7 +237,8 @@ float2 LetteraWarpedUv(float2 uv, float4 warp)
 float LetteraLineDistance(float along, float across, float style, float thickness, float span)
 {
     float halfWidth = thickness * 0.5;
-    float inner = max(max(-along, along - span), 0);
+    // Negative inside the span: clamping it at zero capped a line's coverage at one half.
+    float inner = max(-along, along - span);
     if (style < 0.5) return max(abs(across) - halfWidth, inner);
     if (style < 1.5) return max(abs(abs(across) - thickness) - halfWidth, inner);
     if (style < 2.5)

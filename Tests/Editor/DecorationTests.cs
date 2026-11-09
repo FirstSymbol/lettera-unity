@@ -56,6 +56,31 @@ namespace FirstSymbol.Lettera.Editor.Tests
             Assert.AreEqual(3f, e.Uv0[e.VertexCount - 1].w);
         }
 
+        static float PeakRed(Texture2D image)
+        {
+            float peak = 0;
+            for (int y = 0; y < H; y++)
+                for (int x = 0; x < W; x++)
+                {
+                    Color c = image.GetPixel(x, y);
+                    if (c.g < 0.3f && c.b < 0.3f) peak = Mathf.Max(peak, c.r);
+                }
+            return peak;
+        }
+
+        [Test]
+        public void EveryLineStyleReachesTheFullColorTheSolidLineDoes()
+        {
+            Big("<u=#F00,solid,0.1em>HHHH</u>");
+            float solid = PeakRed(Render(W, H, Background));
+            Assert.Greater(solid, 0.95f);
+            foreach (string style in new[] { "double", "dotted", "dashed", "wavy" })
+            {
+                Big("<u=#F00," + style + ",0.1em>HHHH</u>");
+                Assert.Greater(PeakRed(Render(W, H, Background)), solid * 0.95f, style + " line stays under the solid line's color");
+            }
+        }
+
         [Test]
         public void OldColorSlotStillWorks()
         {
