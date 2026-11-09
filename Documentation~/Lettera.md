@@ -25,7 +25,7 @@ https://github.com/FirstSymbol/lettera-unity.git
 To pin a version, add its tag:
 
 ```text
-https://github.com/FirstSymbol/lettera-unity.git#1.0.0
+https://github.com/FirstSymbol/lettera-unity.git#1.1.0
 ```
 
 Lettera needs Unity 6.3 LTS (6000.3) or newer. The Package Manager brings its dependencies (uGUI, Burst, Collections, Mathematics). A first open of the project prints one line in the console pointing to **Tools > FirstSymbol > Lettera > Getting Started**, which lists these guides and imports the samples.

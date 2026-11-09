@@ -4,7 +4,7 @@ All notable changes to this package are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [1.1.0] - 2026-11-09
 
 ### Added
 - **FirstSymbol Hub page.** With the FirstSymbol Hub package (`com.firstsymbol.hub`) installed, Lettera appears in its window with a status card (native routes on for this platform, atlas page sizes) and its settings page. The assembly `FirstSymbol.Lettera.HubPage` compiles only when the hub is there; without it Lettera is unchanged.
