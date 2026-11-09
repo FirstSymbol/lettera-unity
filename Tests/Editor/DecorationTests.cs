@@ -25,7 +25,7 @@ namespace FirstSymbol.Lettera.Editor.Tests
             return text;
         }
 
-        static bool IsRed(Color c) => c.r > 0.4f && c.g < 0.3f && c.b < 0.3f;
+        static bool IsRed(Color c) => c.r > 0.5f && c.g < 0.3f && c.b < 0.3f;
 
         // Red pixels in the column at a fraction of the image's width, as runs top to bottom.
         static int RunsInColumn(Texture2D image, int x, out int red)
