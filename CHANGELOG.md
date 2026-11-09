@@ -4,6 +4,28 @@ All notable changes to this package are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.0.0] - 2026-11-09
+
+### Fixed
+- **Double, dotted, dashed and wavy underlines and strikethroughs drew at half strength.** The line shader, shared by Built-in, URP and HDRP, clamped the distance along the line at zero, so a styled line's core stopped at half coverage; a solid line, drawn as plain quads, was right. They reach the full colour now, and a test compares each style's peak with the solid line's. In a Linear project half coverage reads as about three quarters, which is why it went unseen there.
+
+### Changed
+- **The editor UI kit is internal.** The `Lt*` controls (`LtUI`, `LtPaint`, `LtSection`, `LtNumber`, `LtList` and the rest), the migration engine's types and a few editor helpers are no longer public API, so they can change and be shared across products later. No documented API changed; the font subset API (`LetteraFontSubset` and its options) stays public. An inspector written on `Lt*` from an rc build stops compiling.
+
+### Docs
+- **The comparison pictures are drawn with Noto fonts only** (Noto Sans, Arabic, Hebrew, Devanagari, Bengali, Tamil, Thai, Sans CJK SC and Color Emoji; Noto Emoji for TextMesh Pro, which draws no colour fonts), the same on both engines, so no operating-system font appears in them. The family emoji looks as the font draws it; a browser shows the same.
+- The 0.3.0 line on the I-beam says that a range inside an editable field now shows it.
+
+### Tests
+- `LETTERA_TEST_CULTURE=ru-RU` (or any culture) runs the editor and the suite in that culture. Markup with fractions, formulas, solids, pasted sizes, the command line's numbers and the slot readers give the same results under ru-RU, de-DE and fr-FR as under en-US.
+- Every allocation test counts the calling thread, with the all-thread figure in its message: the editor's own threads allocate right after start and failed them now and then.
+- The menu-title inspector test lists Select among the default commands.
+
+### Limits
+- Not checked by a person on a Windows player: typing with a real keyboard, a real mouse on fields, links and handles, the right-click menu, copy and paste with Word and Chrome, and a Japanese or Korean input method. The Device Check sample walks through them.
+- Some of Lettera's own performance targets are missed at 1.0.0 and stay for 1.x: a new text's first frame, the first solid of 64 glyphs, large-text set, line breaking on the main thread, one edit row, and 5000 world texts' first frame by a few milliseconds. Against TextMesh Pro, only per-frame document scrolling is clearly slower.
+
+
 ## [1.0.0-rc.4] - 2026-11-09
 
 ### Fixed

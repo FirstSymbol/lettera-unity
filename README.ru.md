@@ -21,7 +21,7 @@ https://github.com/FirstSymbol/lettera-unity.git
 Конкретная версия:
 
 ```
-https://github.com/FirstSymbol/lettera-unity.git#1.0.0-rc.4
+https://github.com/FirstSymbol/lettera-unity.git#1.0.0
 ```
 
 Нужен Unity 6.3 LTS (6000.3) или новее.
