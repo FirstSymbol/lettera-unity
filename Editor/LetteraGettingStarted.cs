@@ -34,19 +34,19 @@ namespace FirstSymbol.Lettera.Editor
 
         internal static readonly (string title, string menu, string what)[] Windows =
         {
-            ("Commands", "Tools/Lettera/Commands...", "Everything here and more, by typing. Ctrl+Alt+L"),
-            ("Glyphs", "Tools/Lettera/Glyphs", "What a font and the shaper made of a text"),
-            ("Ranges", "Tools/Lettera/Ranges", "Which styles reach which characters, and problems with a fix"),
-            ("Atlases", "Tools/Lettera/Atlases", "What the atlases hold and what they cost"),
-            ("Clipboard", "Tools/Lettera/Clipboard", "Every format a copy wrote"),
-            ("Font Tools", "Tools/Lettera/Font Tools", "Font assets, subsets and dictionaries in one place"),
-            ("Sequencer", "Tools/Lettera/Sequencer", "Cues on rows"),
-            ("Inspect Text In Scene", "Tools/Lettera/Inspect Text In Scene", "Boxes and baselines over a text"),
-            ("Edit Text In Scene", "Tools/Lettera/Edit Text In Scene", "Type into a text where it stands. F2"),
-            ("Repair Saved Objects", "Tools/Lettera/Repair Saved Objects", "Assets from an older version that came back as missing scripts"),
+            ("Commands", "Tools/FirstSymbol/Lettera/Commands...", "Everything here and more, by typing. Ctrl+Alt+L"),
+            ("Glyphs", "Tools/FirstSymbol/Lettera/Glyphs", "What a font and the shaper made of a text"),
+            ("Ranges", "Tools/FirstSymbol/Lettera/Ranges", "Which styles reach which characters, and problems with a fix"),
+            ("Atlases", "Tools/FirstSymbol/Lettera/Atlases", "What the atlases hold and what they cost"),
+            ("Clipboard", "Tools/FirstSymbol/Lettera/Clipboard", "Every format a copy wrote"),
+            ("Font Tools", "Tools/FirstSymbol/Lettera/Font Tools", "Font assets, subsets and dictionaries in one place"),
+            ("Sequencer", "Tools/FirstSymbol/Lettera/Sequencer", "Cues on rows"),
+            ("Inspect Text In Scene", "Tools/FirstSymbol/Lettera/Inspect Text In Scene", "Boxes and baselines over a text"),
+            ("Edit Text In Scene", "Tools/FirstSymbol/Lettera/Edit Text In Scene", "Type into a text where it stands. F2"),
+            ("Repair Saved Objects", "Tools/FirstSymbol/Lettera/Repair Saved Objects", "Assets from an older version that came back as missing scripts"),
         };
 
-        [MenuItem("Tools/Lettera/Getting Started", false, 1)]
+        [MenuItem("Tools/FirstSymbol/Lettera/Getting Started", false, 1)]
         internal static void Open() => GetWindow<LetteraGettingStarted>("Lettera").minSize = new Vector2(320, 360);
 
         protected override string Title => "Getting Started";
@@ -57,14 +57,14 @@ namespace FirstSymbol.Lettera.Editor
         {
             if (Application.isBatchMode || EditorUserSettings.GetConfigValue(ToldKey) == "1") return;
             EditorUserSettings.SetConfigValue(ToldKey, "1");
-            EditorApplication.delayCall += () => Debug.Log("Lettera is installed. Tools > Lettera > Getting Started has the guides, the samples and the migration tool.");
+            EditorApplication.delayCall += () => Debug.Log("Lettera is installed. Tools > FirstSymbol > Lettera > Getting Started has the guides, the samples and the migration tool.");
         }
 
         protected override void Build()
         {
             Page.Add(LtUI.Card("From TextMesh Pro",
                 LtUI.Text("Scans a project, says what will change, and converts it with a way back.", "lt-hint"),
-                Button("Open The Migration Tool", "Tools > Lettera > Migrate From TextMesh Pro", () => EditorApplication.ExecuteMenuItem("Tools/Lettera/Migrate From TextMesh Pro"))));
+                Button("Open The Migration Tool", "Tools > FirstSymbol > Lettera > Migrate From TextMesh Pro", () => EditorApplication.ExecuteMenuItem("Tools/FirstSymbol/Lettera/Migrate From TextMesh Pro"))));
 
             VisualElement guides = LtUI.Card("Guides");
             foreach ((string file, string title, string what, bool russian) in Guides)
@@ -97,7 +97,7 @@ namespace FirstSymbol.Lettera.Editor
             Page.Add(tools);
 
             Page.Add(LtUI.Card("Settings",
-                Button("Project Settings", "Project Settings > Lettera", () => SettingsService.OpenProjectSettings("Project/Lettera")),
+                Button("Project Settings", "Project Settings > FirstSymbol > Lettera", () => SettingsService.OpenProjectSettings("Project/FirstSymbol/Lettera")),
                 Button("Preferences", "Preferences > Lettera", () => SettingsService.OpenUserPreferences("Preferences/Lettera"))));
         }
 

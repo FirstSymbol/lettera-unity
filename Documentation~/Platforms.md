@@ -80,7 +80,7 @@ Unity 6 builds no 32-bit x86 Android, so there is no library for it.
 
 ## Native routes and their gates
 
-Fields, clipboards and menus can go through the platform's own controls. Each piece has a gate in **Project Settings > Lettera > Native Platform**, set to **Auto**, **On** or **Off**, and the page says why it is on or off for the platform you are building for. **Auto** takes the shipped default, and the default is off wherever a piece has not been seen to work:
+Fields, clipboards and menus can go through the platform's own controls. Each piece has a gate in **Project Settings > FirstSymbol > Lettera > Native Platform**, set to **Auto**, **On** or **Off**, and the page says why it is on or off for the platform you are building for. **Auto** takes the shipped default, and the default is off wherever a piece has not been seen to work:
 
 | | Windows | Web | Android, iOS | macOS | Everything else |
 |---|---|---|---|---|---|

@@ -14,7 +14,7 @@ namespace FirstSymbol.Lettera.Editor
     /// <summary>The shared atlases: their pages, what they hold, and clearing or warming them.</summary>
     internal sealed class LetteraAtlasesWindow : LetteraToolWindow
     {
-        [MenuItem("Tools/Lettera/Atlases", false, 22)]
+        [MenuItem("Tools/FirstSymbol/Lettera/Atlases", false, 22)]
         internal static void Open() => GetWindow<LetteraAtlasesWindow>("Lettera Atlases").minSize = new Vector2(320, 300);
 
         protected override string Title => "Atlases";

@@ -42,7 +42,7 @@
 
 Текст берёт стили из трёх мест, в таком порядке:
 
-1. **Словарь.** Глобальный пресет стилей проекта из **Project Settings > Lettera > Defaults > Global Style Preset**; если его нет — встроенный словарь по умолчанию (`LetteraDefaultStyles`). Выключенный флажок **Use Global Style Preset** у текста убирает словарь для этого текста.
+1. **Словарь.** Глобальный пресет стилей проекта из **Project Settings > FirstSymbol > Lettera > Defaults > Global Style Preset**; если его нет — встроенный словарь по умолчанию (`LetteraDefaultStyles`). Выключенный флажок **Use Global Style Preset** у текста убирает словарь для этого текста.
 2. **Пресеты стилей** в `StylePresets` текста: ассеты `LetteraStylePreset`, общие по ссылке, — для вида, который нужен многим текстам.
 3. **Собственные** `Styles` текста.
 

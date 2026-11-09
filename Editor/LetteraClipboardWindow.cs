@@ -14,7 +14,7 @@ namespace FirstSymbol.Lettera.Editor
     /// <summary>What is on the clipboard, in each format. It reads only when asked.</summary>
     internal sealed class LetteraClipboardWindow : LetteraToolWindow
     {
-        [MenuItem("Tools/Lettera/Clipboard", false, 23)]
+        [MenuItem("Tools/FirstSymbol/Lettera/Clipboard", false, 23)]
         static void Open() => GetWindow<LetteraClipboardWindow>("Lettera Clipboard").minSize = new Vector2(320, 300);
 
         protected override string Title => "Clipboard";

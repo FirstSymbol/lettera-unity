@@ -4,6 +4,14 @@ All notable changes to this package are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+- **FirstSymbol Hub page.** With the FirstSymbol Hub package (`com.firstsymbol.hub`) installed, Lettera appears in its window with a status card (native routes on for this platform, atlas page sizes) and its settings page. The assembly `FirstSymbol.Lettera.HubPage` compiles only when the hub is there; without it Lettera is unchanged.
+
+### Changed
+- **Menus and settings under FirstSymbol.** `Tools > Lettera` is now `Tools > FirstSymbol > Lettera`, and `Project Settings > Lettera` is `Project Settings > FirstSymbol > Lettera`. Shortcuts keep their keys. The old Tools paths are gone (a menu cannot be hidden, and two copies of ten entries would crowd the menu); `EditorApplication.ExecuteMenuItem` calls of your own need the new path.
+
 ## [1.0.0] - 2026-11-09
 
 ### Fixed

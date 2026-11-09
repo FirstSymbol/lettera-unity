@@ -1,6 +1,6 @@
 # From TextMesh Pro
 
-**Tools > Lettera > Migrate From TextMesh Pro** moves a project's texts, fonts and scripts from TextMesh Pro to Lettera. It scans when asked, changes only what a button says, deletes nothing, and leaves TextMesh Pro installed.
+**Tools > FirstSymbol > Lettera > Migrate From TextMesh Pro** moves a project's texts, fonts and scripts from TextMesh Pro to Lettera. It scans when asked, changes only what a button says, deletes nothing, and leaves TextMesh Pro installed.
 
 [Русская версия](Migration.ru.md) · Other guides: [Getting Started](GettingStarted.md), [Fonts](Fonts.md), [Styles](Styles.md), [Fields](Fields.md), [Tools](Tools.md)
 

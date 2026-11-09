@@ -209,7 +209,7 @@ namespace FirstSymbol.Lettera.Editor
         static void InspectInScene(MenuCommand command)
         {
             Selection.activeObject = ((Component)command.context).gameObject;
-            if (!LetteraInspectOverlay.Enabled) EditorApplication.ExecuteMenuItem("Tools/Lettera/Inspect Text In Scene");
+            if (!LetteraInspectOverlay.Enabled) EditorApplication.ExecuteMenuItem("Tools/FirstSymbol/Lettera/Inspect Text In Scene");
         }
 
         [MenuItem("CONTEXT/LetteraText/Save As Default")]
@@ -432,13 +432,13 @@ namespace FirstSymbol.Lettera.Editor
         }
     }
 
-    /// <summary>Project Settings > Lettera.</summary>
+    /// <summary>Project Settings > FirstSymbol > Lettera.</summary>
     internal static class LetteraSettingsProvider
     {
         const string AssetPath = "Assets/Resources/" + LetteraSettings.ResourceName + ".asset";
 
         [SettingsProvider]
-        static SettingsProvider Create() => new SettingsProvider("Project/Lettera", SettingsScope.Project)
+        static SettingsProvider Create() => new SettingsProvider("Project/FirstSymbol/Lettera", SettingsScope.Project)
         {
             activateHandler = (_, root) => root.Add(Build()),
             keywords = new HashSet<string>(new[] { "Lettera", "Text", "Font", "Emoji", "Fallback", "Caret", "Selection", "Undo", "Clipboard", "Commands", "Prefab", "Atlas", "Build", "Shader", "Dictionary", "Math", "Formula", "3D", "Solid", "Outline", "Visibility", "Palette", "Document", "Motion", "Paint" }),

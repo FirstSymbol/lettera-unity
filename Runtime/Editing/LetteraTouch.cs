@@ -43,11 +43,11 @@ namespace FirstSymbol.Lettera
         [Tooltip("A component that magnifies. Empty uses the built-in one.")]
         [SerializeField] Component m_LoupeComponent;
         [SerializeField] bool m_NoHandles, m_NoLoupe;
-        [Tooltip("Whose menu this text shows on Android. Project follows Project Settings > Lettera.")]
+        [Tooltip("Whose menu this text shows on Android. Project follows Project Settings > FirstSymbol > Lettera.")]
         [SerializeField] LetteraMenuOverride m_AndroidMenu;
-        [Tooltip("Whose menu this text shows on iOS. Project follows Project Settings > Lettera.")]
+        [Tooltip("Whose menu this text shows on iOS. Project follows Project Settings > FirstSymbol > Lettera.")]
         [SerializeField] LetteraMenuOverride m_IosMenu;
-        [Tooltip("Whose loupe this text shows on a phone. Project follows Project Settings > Lettera.")]
+        [Tooltip("Whose loupe this text shows on a phone. Project follows Project Settings > FirstSymbol > Lettera.")]
         [SerializeField] LetteraLoupeOverride m_LoupeChoice;
 
         ILetteraHandles m_Handles;

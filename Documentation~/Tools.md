@@ -6,11 +6,11 @@ Everything Lettera adds to the editor: where to make things, the text inspector,
 
 ## Start here
 
-**Tools > Lettera > Getting Started** lists the guides (each opens in English or Russian), the samples with an **Import** button for each, the migration tool, every window and the two settings pages. A new project is told once, by a line in the console, that it is there.
+**Tools > FirstSymbol > Lettera > Getting Started** lists the guides (each opens in English or Russian), the samples with an **Import** button for each, the migration tool, every window and the two settings pages. A new project is told once, by a line in the console, that it is there.
 
 ## The palette
 
-**Tools > Lettera > Commands...**, or **Ctrl+Alt+L** (Cmd+Alt+L on a Mac): everything Lettera makes or opens, by typing.
+**Tools > FirstSymbol > Lettera > Commands...**, or **Ctrl+Alt+L** (Cmd+Alt+L on a Mac): everything Lettera makes or opens, by typing.
 
 - It reads the keyboard in either layout: typing `ищдв` with a Russian layout on finds **Bold** as `bold` does.
 - What you used last comes first when nothing is typed.
@@ -23,7 +23,7 @@ Everything Lettera adds to the editor: where to make things, the text inspector,
 
 **Assets > Create > Lettera:** a font asset, a colour font asset, a font variant, a system font, a font stack (empty, or from the selected font files, each a fallback or one family), a style preset, an effect preset, a paint library, an inline library, an entrance library, a range topic, a field preset, a word dictionary, a solid look and a custom effect with its shader.
 
-**A project's own defaults.** **Project Settings > Lettera > Defaults** has slots for Text, World Text, Text 3D, Button and Document. A filled slot is what the GameObject menu makes; Add Component and Reset seed from it. A text's right click has **Save As Default**, which makes a prefab of it and fills its slot.
+**A project's own defaults.** **Project Settings > FirstSymbol > Lettera > Defaults** has slots for Text, World Text, Text 3D, Button and Document. A filled slot is what the GameObject menu makes; Add Component and Reset seed from it. A text's right click has **Save As Default**, which makes a prefab of it and fills its slot.
 
 ## The text inspector
 
@@ -43,7 +43,7 @@ Every other component and asset has a card page of the same kind: Selectable, Ed
 
 ## Typing into a text in the Scene view
 
-Start with **F2** while the Scene view has focus and one text is selected, **Alt and a double click** on a text, the inspector's **Edit In Scene**, or **Tools > Lettera > Edit Text In Scene**. A plain double click stays Unity's.
+Start with **F2** while the Scene view has focus and one text is selected, **Alt and a double click** on a text, the inspector's **Edit In Scene**, or **Tools > FirstSymbol > Lettera > Edit Text In Scene**. A plain double click stays Unity's.
 
 - Inside is the runtime's own field: caret, drag by unit, word and paragraph clicks, keys, the clipboard, composition and its undo. **W** types and does not switch tools.
 - The **Lettera Text** bar, listed in the Scene view's overlay menu, has B, I, U, S, a colour, the tags this text can write, and markup shown or hidden. The right click has the field's commands, custom ones included, then formatting.
@@ -53,11 +53,11 @@ Start with **F2** while the Scene view has focus and one text is selected, **Alt
 
 ## In the Scene view
 
-- **Inspect Text In Scene**, **Ctrl+Shift+I** with the Scene view focused, or **Tools > Lettera > Inspect Text In Scene**: draws each selected text's glyph advances and baselines, for up to 2 000 glyphs.
+- **Inspect Text In Scene**, **Ctrl+Shift+I** with the Scene view focused, or **Tools > FirstSymbol > Lettera > Inspect Text In Scene**: draws each selected text's glyph advances and baselines, for up to 2 000 glyphs.
 - **Outlines:** a selected text shows its padding, the area that takes the pointer and its ink as outlines. World text with nothing to click it says so beside itself.
 - **Text 3D** has a box and a handle that drags its depth.
 - **The Hierarchy's eye** hides batched world text.
-- **Tools > Lettera > Scene > Outlines** and **Follow The Hierarchy's Eye** turn these off, for you alone.
+- **Tools > FirstSymbol > Lettera > Scene > Outlines** and **Follow The Hierarchy's Eye** turn these off, for you alone.
 
 ## Windows
 
@@ -65,14 +65,14 @@ Each window follows the selection; the chip at its top, **Follows the selection*
 
 | Window | Menu | What it shows |
 |---|---|---|
-| Glyphs | Tools > Lettera > Glyphs | What shaping made of a text. **From A Text** reads the selected text's own runs (**Use Selected Text**); **Free** shapes any string with a font you pick, or the system's. The table lists each glyph's id, character, advance and font; a click draws its outline with the points on and off the curve. |
-| Ranges | Tools > Lettera > Ranges | What the markup became: every range with its tag, effect, span and parameters, and **Problems** with a fix where one exists. **Refresh** reads the text again. |
-| Atlases | Tools > Lettera > Atlases | Every text's glyph pages: glyphs, SDF, MSDF and colour pages, the page limits and the bytes. Pages one by one, **Export PNG**, **Clear And Rebuild**, and **Warm**, which renders the characters you type with the selected text's font. |
-| Clipboard | Tools > Lettera > Clipboard | Every format a copy wrote, decoded. It reads the clipboard only when you press **Read The Clipboard**. |
-| Font Tools | Tools > Lettera > Font Tools | Font files into assets, many at once: drop them, **Browse...** or **Use Selected**, then **Create Assets**, each beside its file; a file outside the project asks for a folder. Subsets are on a font's own inspector, in its Subset card. |
-| Sequencer | Tools > Lettera > Sequencer, or the button on a sequencer's inspector | A sequencer's cues on rows. See below. |
-| Migration | Tools > Lettera > Migrate From TextMesh Pro | See [Migration](Migration.md). |
-| Repair Saved Objects | Tools > Lettera > Repair Saved Objects | Writes back the script reference of Lettera objects that an older version saved and that came back as missing scripts, in `.asset`, `.prefab` and `.unity` files under Assets. Files change on disk, so version control is the undo. |
+| Glyphs | Tools > FirstSymbol > Lettera > Glyphs | What shaping made of a text. **From A Text** reads the selected text's own runs (**Use Selected Text**); **Free** shapes any string with a font you pick, or the system's. The table lists each glyph's id, character, advance and font; a click draws its outline with the points on and off the curve. |
+| Ranges | Tools > FirstSymbol > Lettera > Ranges | What the markup became: every range with its tag, effect, span and parameters, and **Problems** with a fix where one exists. **Refresh** reads the text again. |
+| Atlases | Tools > FirstSymbol > Lettera > Atlases | Every text's glyph pages: glyphs, SDF, MSDF and colour pages, the page limits and the bytes. Pages one by one, **Export PNG**, **Clear And Rebuild**, and **Warm**, which renders the characters you type with the selected text's font. |
+| Clipboard | Tools > FirstSymbol > Lettera > Clipboard | Every format a copy wrote, decoded. It reads the clipboard only when you press **Read The Clipboard**. |
+| Font Tools | Tools > FirstSymbol > Lettera > Font Tools | Font files into assets, many at once: drop them, **Browse...** or **Use Selected**, then **Create Assets**, each beside its file; a file outside the project asks for a folder. Subsets are on a font's own inspector, in its Subset card. |
+| Sequencer | Tools > FirstSymbol > Lettera > Sequencer, or the button on a sequencer's inspector | A sequencer's cues on rows. See below. |
+| Migration | Tools > FirstSymbol > Lettera > Migrate From TextMesh Pro | See [Migration](Migration.md). |
+| Repair Saved Objects | Tools > FirstSymbol > Lettera > Repair Saved Objects | Writes back the script reference of Lettera objects that an older version saved and that came back as missing scripts, in `.asset`, `.prefab` and `.unity` files under Assets. Files change on disk, so version control is the undo. |
 | Bake Text 3D | A Text 3D's right click > Bake... | A mesh asset, a static object, lightmap UVs, levels of detail and FBX. See [3D text](Text3D.md). |
 | Lettera Solid Material | **Edit In Lettera** on a `Lettera/Solid Lit` material | The material's settings as a card page. |
 
@@ -100,7 +100,7 @@ With the Timeline package installed, **Add Track > Lettera** offers a text track
 
 ## Settings
 
-**Project Settings > Lettera**, one card per area, with a filter at the top: Defaults (fonts, the global style preset, paints, dictionaries, the prefab slots), Selection & Editing, Animation & Interaction, Documents, Native Platform, Font Memory, Memory, Atlases, Math, 3D, Commands, **In Your Build** (what this project carries into a build, why, and what it weighs, with **Rescan Scenes**), and Tools. With no settings asset yet, the page offers to make one.
+**Project Settings > FirstSymbol > Lettera**, one card per area, with a filter at the top: Defaults (fonts, the global style preset, paints, dictionaries, the prefab slots), Selection & Editing, Animation & Interaction, Documents, Native Platform, Font Memory, Memory, Atlases, Math, 3D, Commands, **In Your Build** (what this project carries into a build, why, and what it weighs, with **Rescan Scenes**), and Tools. With no settings asset yet, the page offers to make one.
 
 **Preferences > Lettera** holds what is yours alone: Shift and a right click opening the palette, and the row controls of lists.
 

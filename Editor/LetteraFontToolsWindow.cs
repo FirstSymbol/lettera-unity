@@ -14,7 +14,7 @@ namespace FirstSymbol.Lettera.Editor
     /// <summary>Making font assets in a batch, and the way to the tools that make a font smaller or teach it words.</summary>
     internal sealed class LetteraFontToolsWindow : LetteraToolWindow
     {
-        [MenuItem("Tools/Lettera/Font Tools", false, 24)]
+        [MenuItem("Tools/FirstSymbol/Lettera/Font Tools", false, 24)]
         static void Open() => GetWindow<LetteraFontToolsWindow>("Lettera Font Tools").minSize = new Vector2(320, 300);
 
         protected override string Title => "Font Tools";

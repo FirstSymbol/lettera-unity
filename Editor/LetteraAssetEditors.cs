@@ -708,7 +708,7 @@ namespace FirstSymbol.Lettera.Editor
 
         protected override void Fill(VisualElement root) => root.Add(LtUI.Card("",
             LtUI.Text("Everything here is edited in one place, in Project Settings.", "lt-hint"),
-            LtUI.Clickable("Open Project Settings", "lt-add lt-add--small", "Goes to Project Settings > Lettera.", () => SettingsService.OpenProjectSettings("Project/Lettera"))));
+            LtUI.Clickable("Open Project Settings", "lt-add lt-add--small", "Goes to Project Settings > FirstSymbol > Lettera.", () => SettingsService.OpenProjectSettings("Project/FirstSymbol/Lettera"))));
     }
 
     /// <summary>Writes the files of an effect of your own: a shader whose one function you edit, for a Custom Material effect on Canvas and world text.</summary>

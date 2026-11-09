@@ -48,7 +48,7 @@ label.Text = "Энергия это <math>E = mc^2</math>, а <math=display>\\su
 Формула берёт первый заданный из этих шрифтов:
 
 1. `LetteraMathEffect.Font` у стиля;
-2. шрифт проекта, **Project Settings > Lettera > Math > Font** (`LetteraSettings.Math.Font`);
+2. шрифт проекта, **Project Settings > FirstSymbol > Lettera > Math > Font** (`LetteraSettings.Math.Font`);
 3. собственный шрифт текста, если в нём есть таблица MATH;
 4. системный математический шрифт: Cambria Math на Windows. В вебе, на Android и iOS его нет;
 5. шрифт текста с запасной вёрсткой, читаемой, но простой.
@@ -80,7 +80,7 @@ label.Text = "Площадь равна <tex>\\pi r^2</tex>.";
 Формула — один объект в строке: она не переносится, выделяется, копируется и удаляется целиком.
 
 - **При копировании** обычным текстом идёт `$исходник$`, в HTML — MathML с исходником, а в поле Lettera — сам тег.
-- **Формула, которую нельзя прочитать**, рисует написанное в рамке, а текст вокруг остаётся. **Project Settings > Lettera > Math > Errors** показывает вместо этого исходник без рамки или ничего.
+- **Формула, которую нельзя прочитать**, рисует написанное в рамке, а текст вокруг остаётся. **Project Settings > FirstSymbol > Lettera > Math > Errors** показывает вместо этого исходник без рамки или ничего.
 - **Формулы из кода:**
 
 ```csharp
@@ -141,7 +141,7 @@ label.Text = "Цены: \\begin{tabular}{|l|r|}\\hline Яблоки & 1.20 \\\\ 
 
 ## Настройки
 
-**Project Settings > Lettera > Math:**
+**Project Settings > FirstSymbol > Lettera > Math:**
 
 | Настройка | Что делает |
 |---|---|

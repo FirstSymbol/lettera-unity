@@ -14,7 +14,7 @@ namespace FirstSymbol.Lettera.Editor
     {
         const float GutterWidth = 44;
 
-        [MenuItem("Tools/Lettera/Sequencer", false, 26)]
+        [MenuItem("Tools/FirstSymbol/Lettera/Sequencer", false, 26)]
         static void Menu() => GetWindow<LetteraSequencerWindow>("Lettera Sequencer").Follow(Selection.activeGameObject);
 
         internal static LetteraSequencerWindow Open(LetteraSequencer sequencer)

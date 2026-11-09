@@ -14,7 +14,7 @@ namespace FirstSymbol.Lettera.Editor
     /// <summary>The ranges of a text, what each does, and what is wrong with them.</summary>
     internal sealed class LetteraRangesWindow : LetteraToolWindow
     {
-        [MenuItem("Tools/Lettera/Ranges", false, 21)]
+        [MenuItem("Tools/FirstSymbol/Lettera/Ranges", false, 21)]
         static void Open() => GetWindow<LetteraRangesWindow>("Lettera Ranges").minSize = new Vector2(320, 300);
 
         protected override string Title => "Ranges";

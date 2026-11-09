@@ -986,7 +986,7 @@ namespace FirstSymbol.Lettera.Editor.Tests
         [Test]
         public void TheMenuAndTheShortcutExist()
         {
-            Assert.IsTrue(TypeCache.GetMethodsWithAttribute<MenuItem>().Any(m => m.GetCustomAttributes(typeof(MenuItem), false).Cast<MenuItem>().Any(a => a.menuItem == "Tools/Lettera/Edit Text In Scene")));
+            Assert.IsTrue(TypeCache.GetMethodsWithAttribute<MenuItem>().Any(m => m.GetCustomAttributes(typeof(MenuItem), false).Cast<MenuItem>().Any(a => a.menuItem == "Tools/FirstSymbol/Lettera/Edit Text In Scene")));
             UnityEditor.ShortcutManagement.ShortcutBinding binding = UnityEditor.ShortcutManagement.ShortcutManager.instance.GetShortcutBinding("Lettera/Edit Text In Scene");
             Assert.AreEqual(KeyCode.F2, binding.keyCombinationSequence.First().keyCode);
             Assert.IsFalse(binding.keyCombinationSequence.First().action, "no modifier");

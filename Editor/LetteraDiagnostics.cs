@@ -114,13 +114,13 @@ namespace FirstSymbol.Lettera.Editor
         static void Install() => SceneView.duringSceneGui += Draw;
 
         [Shortcut("Lettera/Inspect Text In Scene", typeof(SceneView), KeyCode.I, ShortcutModifiers.Action | ShortcutModifiers.Shift)]
-        [MenuItem("Tools/Lettera/Inspect Text In Scene", false, 25)]
+        [MenuItem("Tools/FirstSymbol/Lettera/Inspect Text In Scene", false, 25)]
         static void Toggle() => Enabled = !Enabled;
 
-        [MenuItem("Tools/Lettera/Inspect Text In Scene", true)]
+        [MenuItem("Tools/FirstSymbol/Lettera/Inspect Text In Scene", true)]
         static bool ToggleCheck()
         {
-            Menu.SetChecked("Tools/Lettera/Inspect Text In Scene", Enabled);
+            Menu.SetChecked("Tools/FirstSymbol/Lettera/Inspect Text In Scene", Enabled);
             return true;
         }
 

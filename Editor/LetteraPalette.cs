@@ -48,7 +48,7 @@ namespace FirstSymbol.Lettera.Editor
         int m_At;
 
         [Shortcut("Lettera/Commands", KeyCode.L, ShortcutModifiers.Action | ShortcutModifiers.Alt)]
-        [MenuItem("Tools/Lettera/Commands...", false, 0)]
+        [MenuItem("Tools/FirstSymbol/Lettera/Commands...", false, 0)]
         internal static void Open()
         {
             Rect main = EditorGUIUtility.GetMainWindowPosition();
@@ -280,7 +280,7 @@ namespace FirstSymbol.Lettera.Editor
                 Do("Add Range Navigator", "Selected text", "links keyboard gamepad focus", AddToSelected<LetteraRangeNavigator>, Text, LetteraPaletteSource.Scene),
                 Do("Add Document Scroller", "Selected text", "scroll drag inertia ticker", AddToSelected<LetteraDocumentScroller>, Text, LetteraPaletteSource.Scene),
                 Do("Edit In Scene", "Selected text", "type caret write where it stands", () => LetteraSceneEditView.Begin(Selection.objects), Text, LetteraPaletteSource.Scene, "F2"),
-                Do("Inspect", "Selected text", "overlay boxes baselines bounds debug probe", () => EditorApplication.ExecuteMenuItem("Tools/Lettera/Inspect Text In Scene"), Text, LetteraPaletteSource.Scene, KeysOf("Lettera/Inspect Text In Scene")),
+                Do("Inspect", "Selected text", "overlay boxes baselines bounds debug probe", () => EditorApplication.ExecuteMenuItem("Tools/FirstSymbol/Lettera/Inspect Text In Scene"), Text, LetteraPaletteSource.Scene, KeysOf("Lettera/Inspect Text In Scene")),
                 Do("Save As Default", "Selected text", "prefab new text project", () => LetteraMenus.SaveAsDefault(Selection.activeGameObject), Text, LetteraPaletteSource.Scene),
 
                 Asset("Font From Selected File", "create ttf otf import", "Assets/Create/Lettera/Font Asset From Selection", Fonts),
@@ -298,20 +298,20 @@ namespace FirstSymbol.Lettera.Editor
                 Asset("Word Dictionary", "create segmentation thai", "Assets/Create/Lettera/Word Dictionary"),
                 Asset("Custom Effect", "create script code", "Assets/Create/Lettera/Custom Effect"),
 
-                Menu("Glyphs", "Window", "shaping font harfbuzz fallback debug", "Tools/Lettera/Glyphs"),
-                Menu("Ranges", "Window", "styles markup tags debug problems", "Tools/Lettera/Ranges"),
-                Menu("Atlases", "Window", "sdf memory pages texture", "Tools/Lettera/Atlases"),
-                Menu("Clipboard", "Window", "copy paste formats html", "Tools/Lettera/Clipboard"),
-                Menu("Font Tools", "Window", "create subset dictionary font asset batch", "Tools/Lettera/Font Tools"),
-                Menu("Sequencer", "Window", "cues timeline rows drag split motion", "Tools/Lettera/Sequencer"),
-                Menu("Inspect Text In Scene", "Window", "overlay boxes baselines bounds debug probe", "Tools/Lettera/Inspect Text In Scene", keys: KeysOf("Lettera/Inspect Text In Scene")),
-                Menu("Edit Text In Scene", "Window", "type caret f2 write where it stands bar", "Tools/Lettera/Edit Text In Scene", keys: "F2"),
-                Menu("Repair Saved Objects", "Window", "missing script older version lost fix", "Tools/Lettera/Repair Saved Objects"),
-                Menu("Migrate From TextMesh Pro", "Window", "tmp upgrade convert", "Tools/Lettera/Migrate From TextMesh Pro"),
+                Menu("Glyphs", "Window", "shaping font harfbuzz fallback debug", "Tools/FirstSymbol/Lettera/Glyphs"),
+                Menu("Ranges", "Window", "styles markup tags debug problems", "Tools/FirstSymbol/Lettera/Ranges"),
+                Menu("Atlases", "Window", "sdf memory pages texture", "Tools/FirstSymbol/Lettera/Atlases"),
+                Menu("Clipboard", "Window", "copy paste formats html", "Tools/FirstSymbol/Lettera/Clipboard"),
+                Menu("Font Tools", "Window", "create subset dictionary font asset batch", "Tools/FirstSymbol/Lettera/Font Tools"),
+                Menu("Sequencer", "Window", "cues timeline rows drag split motion", "Tools/FirstSymbol/Lettera/Sequencer"),
+                Menu("Inspect Text In Scene", "Window", "overlay boxes baselines bounds debug probe", "Tools/FirstSymbol/Lettera/Inspect Text In Scene", keys: KeysOf("Lettera/Inspect Text In Scene")),
+                Menu("Edit Text In Scene", "Window", "type caret f2 write where it stands bar", "Tools/FirstSymbol/Lettera/Edit Text In Scene", keys: "F2"),
+                Menu("Repair Saved Objects", "Window", "missing script older version lost fix", "Tools/FirstSymbol/Lettera/Repair Saved Objects"),
+                Menu("Migrate From TextMesh Pro", "Window", "tmp upgrade convert", "Tools/FirstSymbol/Lettera/Migrate From TextMesh Pro"),
                 Menu("Use Bundled Math Font", "Math", "formula noto", "Lettera/Math/Use Bundled Font"),
-                Do("Project Settings", "Settings", "defaults preferences", () => SettingsService.OpenProjectSettings("Project/Lettera")),
+                Do("Project Settings", "Settings", "defaults preferences", () => SettingsService.OpenProjectSettings("Project/FirstSymbol/Lettera")),
                 Do("Preferences", "Settings", "this user hook right click", () => SettingsService.OpenUserPreferences("Preferences/Lettera")),
-                Menu("Getting Started", "Help", "guide start docs samples first new", "Tools/Lettera/Getting Started"),
+                Menu("Getting Started", "Help", "guide start docs samples first new", "Tools/FirstSymbol/Lettera/Getting Started"),
                 Do("Show Docs", "Help", "readme guide manual", () => { string[] found = AssetDatabase.FindAssets("README t:TextAsset", new[] { "Packages/com.firstsymbol.lettera" }); if (found.Length > 0) EditorGUIUtility.PingObject(AssetDatabase.LoadAssetAtPath<TextAsset>(AssetDatabase.GUIDToAssetPath(found[0]))); }),
             };
             foreach (string target in new[] { "Android", "iOS", "Web", "Windows", "macOS" })

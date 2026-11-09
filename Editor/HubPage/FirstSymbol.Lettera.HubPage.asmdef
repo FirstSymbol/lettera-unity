@@ -1,0 +1,27 @@
+{
+    "name": "FirstSymbol.Lettera.HubPage",
+    "rootNamespace": "FirstSymbol.Lettera.Editor.HubPage",
+    "references": [
+        "FirstSymbol.Lettera",
+        "FirstSymbol.Hub.Editor"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [
+        "FIRSTSYMBOL_HUB"
+    ],
+    "versionDefines": [
+        {
+            "name": "com.firstsymbol.hub",
+            "expression": "0.1.0",
+            "define": "FIRSTSYMBOL_HUB"
+        }
+    ],
+    "noEngineReferences": false
+}

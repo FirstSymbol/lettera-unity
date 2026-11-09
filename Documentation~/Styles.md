@@ -42,7 +42,7 @@ A style also has `Enabled`, so it can be turned off without being removed.
 
 A text reads its styles from three places, in this order:
 
-1. **The vocabulary.** The project's global style preset, set in **Project Settings > Lettera > Defaults > Global Style Preset**; without one, the built-in default vocabulary (`LetteraDefaultStyles`). **Use Global Style Preset** off on a text leaves it out for that text.
+1. **The vocabulary.** The project's global style preset, set in **Project Settings > FirstSymbol > Lettera > Defaults > Global Style Preset**; without one, the built-in default vocabulary (`LetteraDefaultStyles`). **Use Global Style Preset** off on a text leaves it out for that text.
 2. **Style presets** in the text's `StylePresets`: `LetteraStylePreset` assets shared by reference, for a look many texts use.
 3. **The text's own** `Styles`.
 

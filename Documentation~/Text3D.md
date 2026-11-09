@@ -144,7 +144,7 @@ A solid text is not a `Graphic`, since a Canvas has no light: inside one it draw
 ## In a build
 
 - A scene's Text 3D brings its material and shader into the build. A build with none holds neither.
-- A text made from a script with no material needs **Lettera > 3D > Allow Creating From Scripts**, which puts the shader in every build, or a **Default Material** in **Project Settings > Lettera > 3D**.
+- A text made from a script with no material needs **Lettera > 3D > Allow Creating From Scripts**, which puts the shader in every build, or a **Default Material** in **Project Settings > FirstSymbol > Lettera > 3D**.
 - `LETTERA_NO_3D` removes the module.
 
 ## What it does not do

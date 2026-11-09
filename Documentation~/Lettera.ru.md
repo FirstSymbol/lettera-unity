@@ -28,7 +28,7 @@ https://github.com/FirstSymbol/lettera-unity.git
 https://github.com/FirstSymbol/lettera-unity.git#1.0.0
 ```
 
-Нужен Unity 6.3 LTS (6000.3) или новее. Зависимости (uGUI, Burst, Collections, Mathematics) Package Manager подтянет сам. При первом открытии проекта в консоли появится одна строка со ссылкой на **Tools > Lettera > Getting Started**: там список этих руководств и импорт примеров.
+Нужен Unity 6.3 LTS (6000.3) или новее. Зависимости (uGUI, Burst, Collections, Mathematics) Package Manager подтянет сам. При первом открытии проекта в консоли появится одна строка со ссылкой на **Tools > FirstSymbol > Lettera > Getting Started**: там список этих руководств и импорт примеров.
 
 ## Пять минут
 

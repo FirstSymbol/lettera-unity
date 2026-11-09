@@ -23,7 +23,7 @@ Lettera reads font files itself, through HarfBuzz, and draws every glyph from on
 
 A text with no **Font** and no **Font Stack** draws in the operating system's default face. A character that face lacks is looked up in the other fonts installed on the system: Arabic, Devanagari, Han and emoji all draw in an empty project. On Android Lettera reads the device's own font configuration, so a Chinese phone and a Japanese phone each draw Han characters in their own forms.
 
-**Project Settings > Lettera > Defaults** changes this for the whole project:
+**Project Settings > FirstSymbol > Lettera > Defaults** changes this for the whole project:
 
 | Setting | What it does |
 |---|---|
@@ -207,7 +207,7 @@ public class FontsVariant : MonoBehaviour
 
 Other tags work through features when the face has them and synthesize otherwise: `<smallcaps>`, `<sup>`, `<sub>`.
 
-`<size-match=XHeight>` or `<size-match=CapHeight>` scales fallback faces so their x-height or cap height matches the primary face, as CSS's `font-size-adjust` does. **Project Settings > Lettera > Defaults > Size Match** sets the metric; a font asset's **Normalize Size** does the same for that face whenever it is a fallback.
+`<size-match=XHeight>` or `<size-match=CapHeight>` scales fallback faces so their x-height or cap height matches the primary face, as CSS's `font-size-adjust` does. **Project Settings > FirstSymbol > Lettera > Defaults > Size Match** sets the metric; a font asset's **Normalize Size** does the same for that face whenever it is a fallback.
 
 ## Tuning a face
 
@@ -253,7 +253,7 @@ A glyph override's size draws the same pixels larger, so raise its **Pixels Per 
 Fonts cost nothing until they are used:
 
 - In a player no font keeps a whole copy of its file in memory. A font is unpacked the first time a text needs it, into a cache folder, and **mapped** from disk after that.
-- On desktop a build carries each font in a file of its own beside the build, so a font no scene reaches costs nothing at all. On Android, iOS and the web the bytes stay inside the asset. **Project Settings > Lettera > Font Memory** chooses per platform: `Auto`, `Inline` or `Packed`. A font asset's **Keep Inline** keeps that one font inside its asset everywhere.
+- On desktop a build carries each font in a file of its own beside the build, so a font no scene reaches costs nothing at all. On Android, iOS and the web the bytes stay inside the asset. **Project Settings > FirstSymbol > Lettera > Font Memory** chooses per platform: `Auto`, `Inline` or `Packed`. A font asset's **Keep Inline** keeps that one font inside its asset everywhere.
 - The same section bounds the cache folder (`FontCacheBytes`, 256 MB by default).
 
 What fonts hold right now:
@@ -299,11 +299,11 @@ public class FontsWarmUp : MonoBehaviour
 
 Text under 72 units and text over it use different glyphs, so prepare at the size you will show.
 
-After 10 seconds in which no text was rebuilt, and when the system reports low memory, Lettera gives back the caches it keeps only for speed. Texts keep what they show. **Project Settings > Lettera > Memory** sets the delay, and `LetteraMemory.Release()` does it at once.
+After 10 seconds in which no text was rebuilt, and when the system reports low memory, Lettera gives back the caches it keeps only for speed. Texts keep what they show. **Project Settings > FirstSymbol > Lettera > Memory** sets the delay, and `LetteraMemory.Release()` does it at once.
 
 ## Subsets
 
-A subset is a copy of a font that keeps only the characters you choose: a smaller download, and fewer bytes carried for characters the project never shows. The **Subset** card of a font asset's page, and **Tools > Lettera > Font Tools** for many at once, keep or remove characters by text, by Unicode ranges such as `U+0400-04FF`, by presets (Basic Latin, Latin-1, Cyrillic, Greek, Digits), or by what the project's texts use. By default it keeps what an ordinary subset tool quietly drops: OpenType features, names, glyph names and the missing-glyph outline.
+A subset is a copy of a font that keeps only the characters you choose: a smaller download, and fewer bytes carried for characters the project never shows. The **Subset** card of a font asset's page, and **Tools > FirstSymbol > Lettera > Font Tools** for many at once, keep or remove characters by text, by Unicode ranges such as `U+0400-04FF`, by presets (Basic Latin, Latin-1, Cyrillic, Greek, Digits), or by what the project's texts use. By default it keeps what an ordinary subset tool quietly drops: OpenType features, names, glyph names and the missing-glyph outline.
 
 The same from an editor script:
 
@@ -345,7 +345,7 @@ Glyphs are stored as signed distance fields, so one glyph serves every size, and
 - **SDF**, the default: round corners at large sizes, the least memory.
 - **MSDF**: sharp corners at any size, and sharp stroke corners, in an atlas of its own at more memory per glyph.
 
-**Project Settings > Lettera > Atlases** sets, per kind, the page size (2048 or 1024; a page of 1024 costs a quarter) and, for the distance-field kinds, 8 or 16 bits per channel. 16 bits doubles a page and keeps the field smooth far from the edge, where wide outlines, glows and shadows read it. A change takes effect when that kind's pages are next made from nothing. **Tools > Lettera > Atlases** shows what the pages hold. When the page limit is reached, the least recently used page is recycled.
+**Project Settings > FirstSymbol > Lettera > Atlases** sets, per kind, the page size (2048 or 1024; a page of 1024 costs a quarter) and, for the distance-field kinds, 8 or 16 bits per channel. 16 bits doubles a page and keeps the field smooth far from the edge, where wide outlines, glows and shadows read it. A change takes effect when that kind's pages are next made from nothing. **Tools > FirstSymbol > Lettera > Atlases** shows what the pages hold. When the page limit is reached, the least recently used page is recycled.
 
 ## Pixel fonts
 

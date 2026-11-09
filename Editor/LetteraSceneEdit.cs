@@ -695,7 +695,7 @@ namespace FirstSymbol.Lettera.Editor
     [InitializeOnLoad]
     internal static class LetteraSceneEditView
     {
-        const string Menu = "Tools/Lettera/Edit Text In Scene";
+        const string Menu = "Tools/FirstSymbol/Lettera/Edit Text In Scene";
         static readonly int s_Control = "LetteraSceneEdit".GetHashCode();
         static bool s_Pressed, s_BarIsOurs;
 

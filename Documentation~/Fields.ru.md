@@ -71,7 +71,7 @@ public class FieldsSelectable : MonoBehaviour
 | Selectable Text, Editable Text | Голый текст с компонентами, без рамки. |
 | World Selectable Text | Выделяемый текст в мире; если на главной камере нет `LetteraWorldRaycaster`, он добавляется. |
 
-`LetteraFieldFactory` строит то же из кода: `CreateInputField`, `CreateTextArea`, `CreatePasswordField`, `CreateSelectableText`, `CreateEditableText` и `CreateDropdown`. Каждый метод возвращает корневой объект; поле висит на тексте внутри. **Project Settings > Lettera > Selection & Editing** принимает для каждого вида ваши собственные префабы.
+`LetteraFieldFactory` строит то же из кода: `CreateInputField`, `CreateTextArea`, `CreatePasswordField`, `CreateSelectableText`, `CreateEditableText` и `CreateDropdown`. Каждый метод возвращает корневой объект; поле висит на тексте внутри. **Project Settings > FirstSymbol > Lettera > Selection & Editing** принимает для каждого вида ваши собственные префабы.
 
 ```csharp
 using FirstSymbol.Lettera;
@@ -275,7 +275,7 @@ HTML, вставленный из браузеров и текстовых ре�
 
 Всё, что пользователь может запустить на тексте из меню, кнопкой или клавишей, — это `LetteraEditCommand`: `CutCommand`, `CopyCommand`, `PasteCommand`, `PastePlainCommand`, `SelectCommand`, `SelectAllCommand`, `UndoCommand`, `RedoCommand`, `ToggleEffectCommand`, `ClearStylesCommand`, `WebLookupCommand`, `ShareTextCommand` и `PlatformActionsCommand`.
 
-- Контекстное меню показывает команды проекта из **Project Settings > Lettera > Selection & Editing > Commands**. `LetteraContextMenu` — поставляемое меню, собранное из ваших UI-объектов; префаб в **Menu Prefab** его заменяет.
+- Контекстное меню показывает команды проекта из **Project Settings > FirstSymbol > Lettera > Selection & Editing > Commands**. `LetteraContextMenu` — поставляемое меню, собранное из ваших UI-объектов; префаб в **Menu Prefab** его заменяет.
 - `LetteraCommandControl` привязывает `Button` или `Toggle` к команде для панели инструментов. Без цели он действует на поле, у которого клавиатура.
 - `LetteraKeepFocus` на кнопке панели не даёт нажатию на неё завершить редактирование.
 
@@ -319,7 +319,7 @@ public class FieldsPasteButton : MonoBehaviour
 ```
 
 - `LetteraClipboard.Backend` можно заменить: реализуйте `ILetteraClipboardBackend` для своей платформы или для теста.
-- **Tools > Lettera > Clipboard** показывает все форматы, которые записало последнее копирование.
+- **Tools > FirstSymbol > Lettera > Clipboard** показывает все форматы, которые записало последнее копирование.
 
 ## Композиция и методы ввода
 
@@ -339,7 +339,7 @@ public class FieldsPasteButton : MonoBehaviour
 
 Поле может работать через собственное текстовое поле платформы, её буфер обмена и меню. Всё, что выдаёт такой элемент — клавишами, голосом, автозаполнением или вставкой, — всё равно проходит через правила поля, а отклонённая правка возвращает элемент в верное состояние.
 
-У каждой части есть **переключатель** в **Project Settings > Lettera > Native Platform**: `Auto`, `On` или `Off`, со строкой, которая объясняет, почему он включён или выключен на платформе текущего билда. **То, что не запускалось на настоящем устройстве, поставляется выключенным**:
+У каждой части есть **переключатель** в **Project Settings > FirstSymbol > Lettera > Native Platform**: `Auto`, `On` или `Off`, со строкой, которая объясняет, почему он включён или выключен на платформе текущего билда. **То, что не запускалось на настоящем устройстве, поставляется выключенным**:
 
 | | Windows | Веб | Android, iOS | macOS |
 |---|---|---|---|---|

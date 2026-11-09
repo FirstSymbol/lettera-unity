@@ -144,7 +144,7 @@ if (solid.Raycast(ray, out LetteraSolidHit hit))
 ## В сборке
 
 - Text 3D в сцене приносит в сборку свой материал и шейдер. Сборка без него не содержит ни того ни другого.
-- Тексту, созданному скриптом без материала, нужен **Lettera > 3D > Allow Creating From Scripts**, который кладёт шейдер в каждую сборку, или **Default Material** в **Project Settings > Lettera > 3D**.
+- Тексту, созданному скриптом без материала, нужен **Lettera > 3D > Allow Creating From Scripts**, который кладёт шейдер в каждую сборку, или **Default Material** в **Project Settings > FirstSymbol > Lettera > 3D**.
 - `LETTERA_NO_3D` убирает модуль.
 
 ## Чего он не делает

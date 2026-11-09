@@ -45,7 +45,7 @@ Vector2 size = label.MeasureText(new LetteraMeasureOptions { MaxWidth = 300 });
 
 ## Руководства
 
-В `Documentation~`, каждое на русском и на английском; их открывает и **Tools > Lettera > Getting Started**.
+В `Documentation~`, каждое на русском и на английском; их открывает и **Tools > FirstSymbol > Lettera > Getting Started**.
 
 - [Lettera](Documentation~/Lettera.ru.md): что это, установка, пять минут.
 - [Getting Started](Documentation~/GettingStarted.ru.md): текст на экране, шрифты, разметка, стили, поля, анимация, документы, формулы и 3D, по порядку задач.
@@ -190,7 +190,7 @@ field.Submitted += value => Debug.Log(value);
 ```
 
 - **Анимация** работает через проход поз: без перестроения и без аллокаций за кадр. `RevealEffect` работает как печатная машинка, `MarqueeEffect` как бегущая строка.
-- **`LetteraSequencer`** плавно меняет любой параметр эффекта на таймлайне, а его `Progress` можно вести кривой. **Tools > Lettera > Sequencer** показывает его реплики на дорожках: их можно двигать, делить и копировать. `LetteraParamLink` даёт одному параметру поле для анимации. Дорожки Timeline появляются, когда установлен этот пакет.
+- **`LetteraSequencer`** плавно меняет любой параметр эффекта на таймлайне, а его `Progress` можно вести кривой. **Tools > FirstSymbol > Lettera > Sequencer** показывает его реплики на дорожках: их можно двигать, делить и копировать. `LetteraParamLink` даёт одному параметру поле для анимации. Дорожки Timeline появляются, когда установлен этот пакет.
 - **Диапазоны** реагируют на указатель и клавиатуру: `LetteraRangeRouter.Of(text).All.Activated += e => Debug.Log(e.Primary);`. Ссылки открываются только со схемами из списка `LetteraSettings.Motion.LinkSchemes`.
 - **`LetteraRangeRule`** меняет параметры при наведении, нажатии или фокусе. **Инлайн-элементы** берутся из `InlineEffect` или `LetteraInlineLibrary`. **`LetteraSemanticTree`** описывает диапазоны для моста к экранным дикторам. Эффекты могут участвовать в любой стадии перестроения через `Stages`.
 - `LetteraAccessibility.ReducedMotion` учитывается везде, а в вебе следует настройке браузера.
@@ -286,7 +286,7 @@ solid.FrontBevel = new LetteraBevel { Shape = LetteraBevelShape.Round, Width = 0
 
 ### Нативная платформа
 
-Поля, буфер обмена и меню могут работать через собственные элементы платформы. У каждой части есть переключатель в Project Settings > Lettera > Native Platform, и там сказано, почему она включена или выключена на текущей платформе сборки.
+Поля, буфер обмена и меню могут работать через собственные элементы платформы. У каждой части есть переключатель в Project Settings > FirstSymbol > Lettera > Native Platform, и там сказано, почему она включена или выключена на текущей платформе сборки.
 
 | | Windows | Web | Android, iOS | macOS |
 |---|---|---|---|---|

@@ -1,6 +1,6 @@
 # Переход с TextMesh Pro
 
-**Tools > Lettera > Migrate From TextMesh Pro** переводит тексты, шрифты и скрипты проекта с TextMesh Pro на Lettera. Он сканирует, только когда попросят, меняет только то, что написано на кнопке, ничего не удаляет и оставляет TextMesh Pro установленным.
+**Tools > FirstSymbol > Lettera > Migrate From TextMesh Pro** переводит тексты, шрифты и скрипты проекта с TextMesh Pro на Lettera. Он сканирует, только когда попросят, меняет только то, что написано на кнопке, ничего не удаляет и оставляет TextMesh Pro установленным.
 
 [English version](Migration.md) · Другие руководства: [Getting Started](GettingStarted.ru.md), [Fonts](Fonts.ru.md), [Styles](Styles.ru.md), [Fields](Fields.ru.md), [Инструменты](Tools.ru.md)
 

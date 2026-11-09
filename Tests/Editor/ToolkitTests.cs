@@ -220,7 +220,7 @@ namespace FirstSymbol.Lettera.Editor.Tests
         [Test]
         public void EveryPaletteCommandOfAMenuPointsAtARealMenu()
         {
-            foreach (string menu in new[] { "Tools/Lettera/Glyphs", "Tools/Lettera/Ranges", "Tools/Lettera/Atlases", "Tools/Lettera/Clipboard", "Tools/Lettera/Font Tools", "Tools/Lettera/Inspect Text In Scene", "GameObject/Lettera/Text", "GameObject/Lettera/Input Field" })
+            foreach (string menu in new[] { "Tools/FirstSymbol/Lettera/Glyphs", "Tools/FirstSymbol/Lettera/Ranges", "Tools/FirstSymbol/Lettera/Atlases", "Tools/FirstSymbol/Lettera/Clipboard", "Tools/FirstSymbol/Lettera/Font Tools", "Tools/FirstSymbol/Lettera/Inspect Text In Scene", "GameObject/Lettera/Text", "GameObject/Lettera/Input Field" })
                 Assert.IsTrue(UnityEditor.Menu.GetEnabled(menu) || EditorApplication.ExecuteMenuItem("Window/General/Console") || true, menu);
             Assert.Greater(LetteraPalette.Commands().Count, 20);
         }
@@ -284,8 +284,8 @@ namespace FirstSymbol.Lettera.Editor.Tests
         [Test]
         public void GettingStartedOffersWhatItNames()
         {
-            string[] menu = Unsupported.GetSubmenus("Tools/Lettera");
-            CollectionAssert.Contains(menu, "Tools/Lettera/Getting Started");
+            string[] menu = Unsupported.GetSubmenus("Tools/FirstSymbol/Lettera");
+            CollectionAssert.Contains(menu, "Tools/FirstSymbol/Lettera/Getting Started");
             foreach ((string title, string path, string what) in LetteraGettingStarted.Windows) CollectionAssert.Contains(menu, path, title);
             // Every window of the Tools menu is listed, but for itself and what is on another of its cards.
             foreach (string path in menu)

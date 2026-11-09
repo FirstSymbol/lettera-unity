@@ -101,14 +101,14 @@ StartCoroutine(Find("кит"));
 
 В этих письменностях слова пишутся без пробелов, поэтому строки переносятся, а двойной щелчок выделяет по списку слов. В пакете четыре списка, собранных из списков ICU: **Thai Words**, **Lao Words**, **Khmer Words** и **Myanmar Words**.
 
-- По умолчанию ни один не подключён, и в сборку ничего не добавляется. Нужные укажите в **Project Settings > Lettera > Defaults > Dictionaries**.
+- По умолчанию ни один не подключён, и в сборку ничего не добавляется. Нужные укажите в **Project Settings > FirstSymbol > Lettera > Defaults > Dictionaries**.
 - Или подключите из скрипта: `LetteraWordDictionaries.Register(dictionary)`.
 - Свой словарь: **Assets > Create > Lettera > Word Dictionary**, затем **Build From A Word List…** в его инспекторе: по слову в строке, `#` для комментариев.
 - Анимации по словам и `text.Units(LetteraTextUnit.Word)` считают те же слова в любом тексте, документ он или нет.
 
 ## Настройки
 
-**Project Settings > Lettera > Documents**, читаются при открытии документа:
+**Project Settings > FirstSymbol > Lettera > Documents**, читаются при открытии документа:
 
 | Настройка | По умолчанию | Что делает |
 |---|---|---|

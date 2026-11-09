@@ -130,7 +130,7 @@ public class MotionTypewriter : MonoBehaviour
 - `Reflow` off keeps the space of hidden text, so lines do not move as words arrive; on closes it up.
 - `Independent` fills each range on its own instead of one frontier through all of them.
 - Moving the reach back plays units out: an entry's **Leave** entrance, if it has one.
-- `LetteraEntranceLibrary` assets hold named entrances with their timing and easing, for a project's own; **Project Settings > Lettera > Animation & Interaction > Default Entrance Library** makes one available to every text.
+- `LetteraEntranceLibrary` assets hold named entrances with their timing and easing, for a project's own; **Project Settings > FirstSymbol > Lettera > Animation & Interaction > Default Entrance Library** makes one available to every text.
 
 A sequencer or a Timeline clip can drive the reach too, with no code.
 
@@ -192,7 +192,7 @@ public class MotionIntro : MonoBehaviour
 - `Select` narrows a cue to some ranges: by label, primary value, token, overlap, `Skip` and `Take`.
 - `Repeat` is `Restart`, `Retrace` (back the same way), `Return` or `Accumulate`; `Cycles` says how many passes, and a negative number repeats forever.
 - `Play`, `Pause`, `Stop`, `Seek` and `Progress` drive it. Setting `Progress` shows exactly that moment, so an `AnimationCurve` or a slider can scrub it.
-- **Tools > Lettera > Sequencer**, also a button on its inspector, shows cues on rows: drag and resize with snapping, split at the playhead, copy, paste, mute, zoom and scrub. Space plays.
+- **Tools > FirstSymbol > Lettera > Sequencer**, also a button on its inspector, shows cues on rows: drag and resize with snapping, split at the playhead, copy, paste, mute, zoom and scrub. Space plays.
 
 ## Animator and parameter links
 
@@ -268,7 +268,7 @@ public class MotionClickableWords : MonoBehaviour
 
 ## Links and spoilers
 
-`<a=https://unity.com>Unity</a>` draws as a link and opens its address when clicked; `<link=...>` opens it without the look. Addresses open through `LetteraLinks.Open`, which takes only the schemes in **Project Settings > Lettera > Animation & Interaction > Link Schemes** (`http`, `https`, `mailto` and `tel` by default) and refuses the rest with a warning; `www.` gains `https://`. On the web the page's own release handler opens it, so popup blockers let it through.
+`<a=https://unity.com>Unity</a>` draws as a link and opens its address when clicked; `<link=...>` opens it without the look. Addresses open through `LetteraLinks.Open`, which takes only the schemes in **Project Settings > FirstSymbol > Lettera > Animation & Interaction > Link Schemes** (`http`, `https`, `mailto` and `tel` by default) and refuses the rest with a warning; `www.` gains `https://`. On the web the page's own release handler opens it, so popup blockers let it through.
 
 ```csharp
 using FirstSymbol.Lettera;
@@ -327,7 +327,7 @@ Conditions combine with `AllOf`, `AnyOf` and `NotOf`; `ScalarAtLeast` reads a si
 
 `<sprite=name>` puts a sprite in the line as one character: it wraps, selects, copies as its alt text, and moves, fades and reveals with its neighbours. It is one quad in the text's own mesh. `<obj=name>` places a prefab, or adopts a scene object, where its character lands.
 
-Names are looked up in the effect's own items, then its library, then the project's **Inline Library** in **Project Settings > Lettera > Animation & Interaction**. A `LetteraInlineLibrary` asset (**Assets > Create > Lettera > Inline Library**) holds entries with a sprite or object, alt text, size and lift in em, and a tint.
+Names are looked up in the effect's own items, then its library, then the project's **Inline Library** in **Project Settings > FirstSymbol > Lettera > Animation & Interaction**. A `LetteraInlineLibrary` asset (**Assets > Create > Lettera > Inline Library**) holds entries with a sprite or object, alt text, size and lift in em, and a tint.
 
 ```csharp
 using FirstSymbol.Lettera;

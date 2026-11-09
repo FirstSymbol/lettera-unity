@@ -76,7 +76,7 @@ namespace FirstSymbol.Lettera.Editor
             return changed;
         }
 
-        [MenuItem("Tools/Lettera/Repair Saved Objects", false, 60)]
+        [MenuItem("Tools/FirstSymbol/Lettera/Repair Saved Objects", false, 60)]
         static void Run()
         {
             if (!EditorUtility.DisplayDialog("Repair saved Lettera objects?", "Looks through Assets for Lettera objects saved by a version before 1.0.0 that came back as missing scripts, and writes their script back. Files change on disk, so version control is the undo. A scene open with unsaved changes should be saved first.", "Repair", "Cancel")) return;

@@ -101,7 +101,7 @@ public class StartMeasure : MonoBehaviour
 
 With no font assigned, a text uses the operating system's default face and fills every gap from the other fonts the system has, emoji included. On the web there are no system fonts: Lettera brings Noto Sans for Latin, Cyrillic and Greek, and other scripts need a font you assign.
 
-To use a font of your own, select the file and choose **Assets > Create > Lettera > Font Asset From Selection**. Then set it on a text's **Font**, or in **Project Settings > Lettera > Defaults** for every text. Several faces with fallbacks between them make a **font stack**; a font the player's system already has is a **system font asset**, which holds only names.
+To use a font of your own, select the file and choose **Assets > Create > Lettera > Font Asset From Selection**. Then set it on a text's **Font**, or in **Project Settings > FirstSymbol > Lettera > Defaults** for every text. Several faces with fallbacks between them make a **font stack**; a font the player's system already has is a **system font asset**, which holds only names.
 
 ```csharp
 using FirstSymbol.Lettera;
@@ -171,7 +171,7 @@ public class StartOwnTag : MonoBehaviour
 }
 ```
 
-In the inspector, the **Styles** card's **+ Add Style** offers every effect and matcher by what it does. Styles shared by many texts go in a **style preset** asset; a project-wide one in **Project Settings > Lettera** replaces the default vocabulary.
+In the inspector, the **Styles** card's **+ Add Style** offers every effect and matcher by what it does. Styles shared by many texts go in a **style preset** asset; a project-wide one in **Project Settings > FirstSymbol > Lettera** replaces the default vocabulary.
 
 More in [Styles](Styles.md): paints and gradients, the layer order, holds that change a parameter without parsing, composite effects, your own effect and shader.
 
@@ -259,7 +259,7 @@ More in [3D Text](Text3D.md).
 
 ## Where to look next
 
-- **Tools > Lettera > Getting Started** lists these guides, imports the samples and opens every window.
-- **Tools > Lettera > Commands** (Ctrl+Alt+L) finds anything Lettera makes or opens by typing.
+- **Tools > FirstSymbol > Lettera > Getting Started** lists these guides, imports the samples and opens every window.
+- **Tools > FirstSymbol > Lettera > Commands** (Ctrl+Alt+L) finds anything Lettera makes or opens by typing.
 - [Tools](Tools.md) describes the windows: Glyphs, Ranges, Atlases, Clipboard, Font Tools, the Sequencer and the Scene view overlay.
 - Coming from TextMesh Pro? Read [Migration](Migration.md).

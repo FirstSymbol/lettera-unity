@@ -9,7 +9,7 @@ namespace FirstSymbol.Lettera.Editor
     internal static class LetteraSceneOptions
     {
         const string OutlinesKey = "Lettera.Scene.Outlines", VisibilityKey = "Lettera.Scene.Visibility";
-        const string OutlinesMenu = "Tools/Lettera/Scene/Outlines", VisibilityMenu = "Tools/Lettera/Scene/Follow The Hierarchy's Eye";
+        const string OutlinesMenu = "Tools/FirstSymbol/Lettera/Scene/Outlines", VisibilityMenu = "Tools/FirstSymbol/Lettera/Scene/Follow The Hierarchy's Eye";
 
         static LetteraSceneOptions()
         {

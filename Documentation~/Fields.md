@@ -71,7 +71,7 @@ public class FieldsSelectable : MonoBehaviour
 | Selectable Text, Editable Text | A bare text with the components, no frame. |
 | World Selectable Text | Selectable world text; a `LetteraWorldRaycaster` goes on the main camera if it has none. |
 
-`LetteraFieldFactory` builds the same from code: `CreateInputField`, `CreateTextArea`, `CreatePasswordField`, `CreateSelectableText`, `CreateEditableText` and `CreateDropdown`. Each returns the root object; the field is on the text inside. **Project Settings > Lettera > Selection & Editing** takes prefabs of your own for each kind.
+`LetteraFieldFactory` builds the same from code: `CreateInputField`, `CreateTextArea`, `CreatePasswordField`, `CreateSelectableText`, `CreateEditableText` and `CreateDropdown`. Each returns the root object; the field is on the text inside. **Project Settings > FirstSymbol > Lettera > Selection & Editing** takes prefabs of your own for each kind.
 
 ```csharp
 using FirstSymbol.Lettera;
@@ -275,7 +275,7 @@ Pasted HTML from browsers and word processors keeps its bold, italics, colours, 
 
 Everything a user can run on a text, from a menu, a button or a key, is a `LetteraEditCommand`: `CutCommand`, `CopyCommand`, `PasteCommand`, `PastePlainCommand`, `SelectCommand`, `SelectAllCommand`, `UndoCommand`, `RedoCommand`, `ToggleEffectCommand`, `ClearStylesCommand`, `WebLookupCommand`, `ShareTextCommand` and `PlatformActionsCommand`.
 
-- The context menu lists the project's commands from **Project Settings > Lettera > Selection & Editing > Commands**. `LetteraContextMenu` is the shipped menu, built from UI objects you own; a prefab in **Menu Prefab** replaces it.
+- The context menu lists the project's commands from **Project Settings > FirstSymbol > Lettera > Selection & Editing > Commands**. `LetteraContextMenu` is the shipped menu, built from UI objects you own; a prefab in **Menu Prefab** replaces it.
 - `LetteraCommandControl` binds a `Button` or `Toggle` to a command for a toolbar. With no target it acts on the field that has the keyboard.
 - `LetteraKeepFocus` on a toolbar button keeps a press there from ending the edit.
 
@@ -319,7 +319,7 @@ public class FieldsPasteButton : MonoBehaviour
 ```
 
 - `LetteraClipboard.Backend` is replaceable: implement `ILetteraClipboardBackend` for a platform of your own or a test.
-- **Tools > Lettera > Clipboard** shows every format the last copy wrote.
+- **Tools > FirstSymbol > Lettera > Clipboard** shows every format the last copy wrote.
 
 ## Composition and input methods
 
@@ -339,7 +339,7 @@ On a touch screen a long press selects a word, a double tap selects, handles dra
 
 A field can run through the platform's own text control, clipboard and menu. Whatever the control produces, by keys, voice, autofill or paste, still goes through the field's rules, and a refused edit puts the control right.
 
-Each piece has a **gate** in **Project Settings > Lettera > Native Platform**: `Auto`, `On` or `Off`, with a line saying why it is on or off for the platform you are building. **What has not been seen to run on a real device ships off**:
+Each piece has a **gate** in **Project Settings > FirstSymbol > Lettera > Native Platform**: `Auto`, `On` or `Off`, with a line saying why it is on or off for the platform you are building. **What has not been seen to run on a real device ships off**:
 
 | | Windows | Web | Android, iOS | macOS |
 |---|---|---|---|---|

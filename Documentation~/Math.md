@@ -48,7 +48,7 @@ In `<math=display>`, `align` and `gather` number each row, and `equation` and `m
 A formula takes the first of these that is set:
 
 1. the style's `LetteraMathEffect.Font`;
-2. the project's font, **Project Settings > Lettera > Math > Font** (`LetteraSettings.Math.Font`);
+2. the project's font, **Project Settings > FirstSymbol > Lettera > Math > Font** (`LetteraSettings.Math.Font`);
 3. the text's own font, if it holds a MATH table;
 4. a system math font: Cambria Math on Windows. The web, Android and iOS have none;
 5. the text's font with fallback layout, which is readable but plain.
@@ -80,7 +80,7 @@ See [Styles](Styles.md) for styles in general.
 A formula is one object in its line: it does not break, and selects, copies and deletes whole.
 
 - **Copying** gives `$source$` as plain text, MathML with its source as HTML, and the tag itself to a Lettera field.
-- **A formula that cannot be read** draws what was written in a frame, and the text around it renders. **Project Settings > Lettera > Math > Errors** shows the source without the frame, or nothing.
+- **A formula that cannot be read** draws what was written in a frame, and the text around it renders. **Project Settings > FirstSymbol > Lettera > Math > Errors** shows the source without the frame, or nothing.
 - **Formulas from code:**
 
 ```csharp
@@ -141,7 +141,7 @@ label.Text = "Prices: \\begin{tabular}{|l|r|}\\hline Apples & 1.20 \\\\ Pears & 
 
 ## Settings
 
-**Project Settings > Lettera > Math:**
+**Project Settings > FirstSymbol > Lettera > Math:**
 
 | Setting | What it does |
 |---|---|

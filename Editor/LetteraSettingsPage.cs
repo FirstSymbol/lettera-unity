@@ -91,7 +91,7 @@ namespace FirstSymbol.Lettera.Editor
         }
     }
 
-    /// <summary>Project Settings > Lettera, as cards that close, with a filter.</summary>
+    /// <summary>Project Settings > FirstSymbol > Lettera, as cards that close, with a filter.</summary>
     internal static class LetteraSettingsPage
     {
         static void AddAll(VisualElement card, SerializedProperty group, params string[] skip)

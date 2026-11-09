@@ -101,14 +101,14 @@ A document drawn below 4 screen pixels to an em draws bars in place of its glyph
 
 These scripts write words without spaces, so lines break and double clicks select by a word list. Four lists ship with the package, built from ICU's: **Thai Words**, **Lao Words**, **Khmer Words** and **Myanmar Words**.
 
-- Nothing is listed by default, so nothing is added to a build. List the ones you need in **Project Settings > Lettera > Defaults > Dictionaries**.
+- Nothing is listed by default, so nothing is added to a build. List the ones you need in **Project Settings > FirstSymbol > Lettera > Defaults > Dictionaries**.
 - Or register one from a script: `LetteraWordDictionaries.Register(dictionary)`.
 - To make your own, **Assets > Create > Lettera > Word Dictionary**, then **Build From A Word List…** on its inspector: one word per line, `#` for comments.
 - Word motions and `text.Units(LetteraTextUnit.Word)` count the same words, in any text, document or not.
 
 ## Settings
 
-**Project Settings > Lettera > Documents**, read when a document opens:
+**Project Settings > FirstSymbol > Lettera > Documents**, read when a document opens:
 
 | Setting | Default | What it does |
 |---|---|---|

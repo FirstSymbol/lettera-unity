@@ -385,7 +385,7 @@ namespace FirstSymbol.Lettera
             if (s_Bytes > budget && !s_WarnedBudget)
             {
                 s_WarnedBudget = true;
-                Debug.LogWarning($"Lettera: solid text holds {s_Bytes / (1024 * 1024)} MB, over the {budget / (1024 * 1024)} MB in Project Settings > Lettera > 3D. Everything is in use, so it carries on over.");
+                Debug.LogWarning($"Lettera: solid text holds {s_Bytes / (1024 * 1024)} MB, over the {budget / (1024 * 1024)} MB in Project Settings > FirstSymbol > Lettera > 3D. Everything is in use, so it carries on over.");
             }
         }
     }

@@ -14,7 +14,7 @@ namespace FirstSymbol.Lettera.Editor
     /// <summary>What shaping made of a text: its glyphs, their fonts and their tiles, and one glyph's outline.</summary>
     internal sealed class LetteraGlyphsWindow : LetteraToolWindow
     {
-        [MenuItem("Tools/Lettera/Glyphs", false, 20)]
+        [MenuItem("Tools/FirstSymbol/Lettera/Glyphs", false, 20)]
         static void Open() => GetWindow<LetteraGlyphsWindow>("Lettera Glyphs").minSize = new Vector2(320, 300);
 
         /// <summary>Opens on a font and some letters of it, as a font's own glyph grid asks.</summary>

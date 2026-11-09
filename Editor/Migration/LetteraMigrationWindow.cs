@@ -7,12 +7,12 @@ using UnityEngine.UIElements;
 
 namespace FirstSymbol.Lettera.Editor.Migration
 {
-    /// <summary>Tools > Lettera > Migrate From TextMesh Pro. Scans when asked, and changes only what the button says.</summary>
+    /// <summary>Tools > FirstSymbol > Lettera > Migrate From TextMesh Pro. Scans when asked, and changes only what the button says.</summary>
     internal sealed class LetteraMigrationWindow : EditorWindow
     {
         const int MostRows = 200;
 
-        [MenuItem("Tools/Lettera/Migrate From TextMesh Pro", false, 40)]
+        [MenuItem("Tools/FirstSymbol/Lettera/Migrate From TextMesh Pro", false, 40)]
         static void Open() => GetWindow<LetteraMigrationWindow>("Lettera Migration").minSize = new Vector2(360, 400);
 
         LetteraMigrationRun m_Run;

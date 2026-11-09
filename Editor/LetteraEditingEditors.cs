@@ -259,7 +259,7 @@ namespace FirstSymbol.Lettera.Editor
             VisualElement color = LtUI.Field("Color", P("m_HighlightColor"), "This selection's own color.");
             LetteraTextInspector.ShowWhen(color, P("m_UseProjectHighlightColor"), p => !p.boolValue);
             page.Add(LtUI.Card("Highlight",
-                LtUI.Field("Project Color", P("m_UseProjectHighlightColor"), "Takes the color from Project Settings > Lettera."),
+                LtUI.Field("Project Color", P("m_UseProjectHighlightColor"), "Takes the color from Project Settings > FirstSymbol > Lettera."),
                 color,
                 LtUI.Field("Order", P("m_HighlightOrder"), "Whether the highlight lies under the text or over it."),
                 LtUI.Field("When Not Focused", P("m_InactiveHighlight"), "What a selection does while this text has no focus.")));
@@ -271,9 +271,9 @@ namespace FirstSymbol.Lettera.Editor
                 LtFrame.WithSwitch(LtUI.Field("Handles", P("m_HandlesComponent"), "Selection ends a finger can drag. Empty uses the project's."), "None", P("m_NoHandles"), "No handles on this text at all."),
                 LtFrame.WithSwitch(LtUI.Field("Loupe", P("m_LoupeComponent"), "Magnifies under a finger. Empty uses the project's."), "None", P("m_NoLoupe"), "No loupe on this text at all."),
                 LtUI.Field("Menu", P("m_MenuPresenter"), "Draws the right-click and long-press menu. Empty uses the project's."),
-                LtUI.Field("Android Menu", P("m_AndroidMenu"), "Whose menu this text shows on Android. Project follows Project Settings > Lettera; System needs the System Menu gate on."),
-                LtUI.Field("iOS Menu", P("m_IosMenu"), "Whose menu this text shows on iOS. Project follows Project Settings > Lettera; System needs the System Menu gate on, and iOS 16."),
-                LtUI.Field("Phone Loupe", P("m_LoupeChoice"), "Whose loupe this text shows on a phone, when no Loupe component is set. Project follows Project Settings > Lettera."),
+                LtUI.Field("Android Menu", P("m_AndroidMenu"), "Whose menu this text shows on Android. Project follows Project Settings > FirstSymbol > Lettera; System needs the System Menu gate on."),
+                LtUI.Field("iOS Menu", P("m_IosMenu"), "Whose menu this text shows on iOS. Project follows Project Settings > FirstSymbol > Lettera; System needs the System Menu gate on, and iOS 16."),
+                LtUI.Field("Phone Loupe", P("m_LoupeChoice"), "Whose loupe this text shows on a phone, when no Loupe component is set. Project follows Project Settings > FirstSymbol > Lettera."),
                 new LtStatus().Line("Project's Android Menu", () => LetteraSettings.Instance.Editing.AndroidMenu.ToString()).Line("Project's iOS Menu", () => LetteraSettings.Instance.Editing.IosMenu.ToString()).Line("Project's Loupe", () => LetteraSettings.Instance.Editing.Loupe.ToString()).RefreshNow()));
             page.Add(LtUI.Card("", new LetteraReferenceList(P("m_Commands"), () => LetteraRuleCatalog.Commands, null, "Commands", "No commands: the menu stays empty.")));
 
