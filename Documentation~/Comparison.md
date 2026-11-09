@@ -123,7 +123,7 @@ Each cell is Yes, With setup, Partly or No. A sheet (S) or a named test stands b
 
 ## Sheets
 
-The same scene in each engine, at 1200 × 700. Lettera on the left, TextMesh Pro on the right. System fonts on Windows drew what Noto Sans does not hold.
+The same scene in each engine, at 1200 × 700. Lettera on the left, TextMesh Pro on the right. Every picture is drawn with Noto fonts only, on both engines and the same on both: Noto Sans, Noto Sans Arabic, Hebrew, Devanagari, Bengali, Tamil and Thai, Noto Sans CJK SC, and for emoji Noto Color Emoji on Lettera and Noto Emoji, its single-colour face, on TextMesh Pro, which draws no colour fonts. All are under the SIL Open Font License 1.1; no operating-system font is used, and none of these fonts ships in the package. Noto Color Emoji draws the family emoji as black figures on a light square in this version; a browser draws the same from the same file.
 
 **S1 Latin**
 
@@ -190,6 +190,6 @@ The same scene in each engine, at 1200 × 700. Lettera on the left, TextMesh Pro
 ## Run it yourself
 
 ```
-python compare.py <Unity.exe> <path to this package> <work folder> 5
+python compare.py <Unity.exe> <path to this package> <work folder> 5 --sheet-fonts <folder of the Noto fonts>
 python report.py <work folder>
 ```
