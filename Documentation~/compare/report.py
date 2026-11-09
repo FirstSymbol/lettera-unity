@@ -238,7 +238,7 @@ Each cell is Yes, With setup, Partly or No. A sheet (S) or a named test stands b
 
 ## Sheets
 
-The same scene in each engine, at 1200 × 700. Lettera on the left, TextMesh Pro on the right. Every picture is drawn with Noto fonts only, on both engines and the same on both: Noto Sans, Noto Sans Arabic, Hebrew, Devanagari, Bengali, Tamil and Thai, Noto Sans CJK SC, and for emoji Noto Color Emoji on Lettera and Noto Emoji, its single-colour face, on TextMesh Pro, which draws no colour fonts. All are under the SIL Open Font License 1.1; no operating-system font is used, and none of these fonts ships in the package.
+The same scene in each engine, at 1200 × 700. Lettera on the left, TextMesh Pro on the right. Every picture is drawn with Noto fonts only, on both engines and the same on both: Noto Sans, Noto Sans Arabic, Hebrew, Devanagari, Bengali, Tamil and Thai, Noto Sans CJK SC, and for emoji Noto Color Emoji on Lettera and Noto Emoji, its single-colour face, on TextMesh Pro, which draws no colour fonts. All are under the SIL Open Font License 1.1; no operating-system font is used, and none of these fonts ships in the package. Noto Color Emoji draws the family emoji as black figures on a light square in this version; a browser draws the same from the same file.
 
 {sheets}
 
@@ -319,7 +319,7 @@ R12 замеряет только работу: арабский у TextMesh Pro
 
 ## Листы
 
-Одна и та же сцена в каждом движке, 1200 × 700. Слева Lettera, справа TextMesh Pro. Все картинки нарисованы только шрифтами Noto, на обоих движках одними и теми же: Noto Sans, Noto Sans Arabic, Hebrew, Devanagari, Bengali, Tamil и Thai, Noto Sans CJK SC, а для эмодзи Noto Color Emoji у Lettera и Noto Emoji, его одноцветная гарнитура, у TextMesh Pro, который цветные шрифты не рисует. Все они под SIL Open Font License 1.1; системные шрифты не используются, и ни один из этих шрифтов не входит в пакет.
+Одна и та же сцена в каждом движке, 1200 × 700. Слева Lettera, справа TextMesh Pro. Все картинки нарисованы только шрифтами Noto, на обоих движках одними и теми же: Noto Sans, Noto Sans Arabic, Hebrew, Devanagari, Bengali, Tamil и Thai, Noto Sans CJK SC, а для эмодзи Noto Color Emoji у Lettera и Noto Emoji, его одноцветная гарнитура, у TextMesh Pro, который цветные шрифты не рисует. Все они под SIL Open Font License 1.1; системные шрифты не используются, и ни один из этих шрифтов не входит в пакет. Noto Color Emoji в этой версии рисует эмодзи семьи чёрными фигурами на светлом квадрате; браузер рисует то же из того же файла.
 
 {sheets}
 
