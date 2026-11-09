@@ -896,7 +896,7 @@ Selection and editing: any text can be selected, and any text can be a field.
 - Composition inline needs Unity's own IME path, with one clause; the web on touch devices shows it through its box. Native input comes in 0.6.0.
 - The selection highlight is a solid color with square corners; `HighlightPaint` and rounded looks are not implemented. The caret stays upright on italic text, and on curved text caret and rectangles do not follow the glyph's angle.
 - Styling visible delimiters (markup chrome) is not implemented.
-- The I-beam cursor is not set: `WantsIBeam` tells where it belongs. A menu open during a change of language keeps its titles until it opens again. A touch menu does not hide while the text moves.
+- The I-beam cursor is not set: `WantsIBeam` tells where it belongs. (Later, over a range inside an editable field the cursor is the I-beam; elsewhere in a field it is still not set.) A menu open during a change of language keeps its titles until it opens again. A touch menu does not hide while the text moves.
 - Fields and menus are built from code, not prefab assets; the settings' slots take your own prefabs. The mesh loupe shows the text and its plate, not the scene behind, and only on a Canvas.
 - Word navigation in Thai, Lao, Khmer and Myanmar takes whole runs until dictionaries come in 0.5.0. Every keystroke parses the text again until 0.5.0 too.
 - No text drag and drop, visual caret movement, several carets, or find and spelling UI.
