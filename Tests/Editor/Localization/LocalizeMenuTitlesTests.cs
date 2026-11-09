@@ -108,7 +108,7 @@ namespace FirstSymbol.Lettera.Localization.Editor.Tests
             {
                 var labels = new List<string>();
                 editor.CreateInspectorGUI().Query<Label>().ForEach(l => labels.Add(l.text));
-                Assert.IsTrue(labels.Exists(l => l.Contains("Cut, Copy, Paste, PastePlain, SelectAll")), string.Join(" | ", labels));
+                Assert.IsTrue(labels.Exists(l => l.Contains("Cut, Copy, Paste, PastePlain, Select, SelectAll")), string.Join(" | ", labels));
             }
             finally
             {
