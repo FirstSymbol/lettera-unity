@@ -81,6 +81,18 @@ namespace FirstSymbol.Lettera.Editor.Tests
         // ------------------------------------------------------------- warm-up
 
         [Test]
+        public void AllIsEveryTierThereIs()
+        {
+            int every = 0;
+            foreach (LetteraSurfaceTier tier in System.Enum.GetValues(typeof(LetteraSurfaceTier)))
+                if (tier != LetteraSurfaceTier.All) every |= (int)tier;
+            Assert.AreEqual(every, (int)LetteraSurfaceTier.All, "a tier added without All knowing it");
+            foreach (LetteraSurfaceTier tier in System.Enum.GetValues(typeof(LetteraSurfaceTier)))
+                if (tier != LetteraSurfaceTier.None && tier != LetteraSurfaceTier.All)
+                    Assert.AreEqual(1, LetteraShaderWarmUp.AllVariantsOf(tier).Count, tier + " has its variant");
+        }
+
+        [Test]
         public void TiersMapToExactlyTheirVariants()
         {
             Assert.AreEqual(2, LetteraShaderWarmUp.AllVariantsOf(LetteraSurfaceTier.UiPlain | LetteraSurfaceTier.UiStyled).Count);

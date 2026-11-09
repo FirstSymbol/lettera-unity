@@ -861,7 +861,8 @@ namespace FirstSymbol.Lettera.Editor.Tests
             field.Selectable.Tick();
             label.ForceRebuild();
             int rebuilds = label.RebuildCount;
-            using var recorder = Unity.Profiling.ProfilerRecorder.StartNew(Unity.Profiling.ProfilerCategory.Memory, "GC Allocated In Frame");
+            // Only this thread: the editor's own threads allocate at times, and the counter spans every thread by default.
+            using var recorder = Unity.Profiling.ProfilerRecorder.StartNew(Unity.Profiling.ProfilerCategory.Memory, "GC Allocated In Frame", 1, Unity.Profiling.ProfilerRecorderOptions.Default | Unity.Profiling.ProfilerRecorderOptions.CollectOnlyOnCurrentThread);
             long quietest = long.MaxValue;
             for (int window = 0; window < 5; window++)
             {
