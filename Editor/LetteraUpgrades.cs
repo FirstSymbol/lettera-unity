@@ -9,7 +9,7 @@ namespace FirstSymbol.Lettera.Editor
     /// What a version does to objects saved by an older one, when a field cannot just carry <c>[FormerlySerializedAs]</c>. Steps run in the editor, when an older object loads, and never on a build.
     /// With no step between its version and the current one an object is stamped in memory only, and opening an old scene or asset leaves it clean: the stamp goes out with its next save.
     /// </summary>
-    public static class LetteraUpgrades
+    internal static class LetteraUpgrades
     {
         struct Step
         {

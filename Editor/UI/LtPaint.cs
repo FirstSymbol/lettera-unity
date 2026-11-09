@@ -8,7 +8,7 @@ using UnityEngine.UIElements;
 namespace FirstSymbol.Lettera.Editor
 {
     /// <summary>A paint in one row: a swatch of its color, gradient or texture and a word on what it is. A click opens the whole of it: kind, stops, how it lies on the text.</summary>
-    public sealed class LtPaint : VisualElement
+    internal sealed class LtPaint : VisualElement
     {
         const int SwatchWidth = 64;
         static readonly Color32[] s_Pixels = new Color32[SwatchWidth];

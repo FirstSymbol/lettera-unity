@@ -10,7 +10,7 @@ namespace FirstSymbol.Lettera.Editor.Migration
     /// Files and folders the migration leaves alone, kept per project in a file that is committed, so that a team shares them.
     /// A path covers itself and everything under it.
     /// </summary>
-    public sealed class LetteraMigrationExclusions
+    internal sealed class LetteraMigrationExclusions
     {
         public const string DefaultFile = "ProjectSettings/Lettera/Migration.json";
 
@@ -88,7 +88,7 @@ namespace FirstSymbol.Lettera.Editor.Migration
     }
 
     /// <summary>The folders that hold findings, as a tree with a count on each, so that a long list can be narrowed to one part of a project.</summary>
-    public sealed class LetteraFolderTree
+    internal sealed class LetteraFolderTree
     {
         public sealed class Node
         {

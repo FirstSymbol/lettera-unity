@@ -12,7 +12,7 @@ namespace FirstSymbol.Lettera.Editor.Migration
 {
     /// <summary>What a scan found in one file.</summary>
     [Serializable]
-    public class LetteraTmpFinding
+    internal class LetteraTmpFinding
     {
         public enum FileKind { Scene, Prefab, Script, Definition, Font, Material, Other }
 
@@ -27,7 +27,7 @@ namespace FirstSymbol.Lettera.Editor.Migration
     }
 
     /// <summary>A pass over a project: scanning, then each stage. Nothing runs by itself, nothing deletes, and git is the undo.</summary>
-    public sealed class LetteraMigrationRun
+    internal sealed class LetteraMigrationRun
     {
         const string FontAssetGuid = "71c1514a6bd24e1e882cebbe1904ce04";
         static readonly string[] Markers = { LetteraTmpYaml.GuidCanvas, LetteraTmpYaml.GuidWorld, LetteraTmpYaml.GuidInput, LetteraTmpYaml.GuidDropdown, LetteraTmpYaml.GuidSubMeshUi, LetteraTmpYaml.GuidSubMesh };

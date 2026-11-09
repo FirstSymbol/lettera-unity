@@ -10,7 +10,7 @@ using UnityEngine.UIElements;
 namespace FirstSymbol.Lettera.Editor
 {
     /// <summary>Finds words typed in the wrong keyboard layout: ищдв is Bold, and цфму is Wave.</summary>
-    public static class LtSearchText
+    internal static class LtSearchText
     {
         const string Latin = "`qwertyuiop[]asdfghjkl;'zxcvbnm,./";
         const string Cyrillic = "ёйцукенгшщзхъфывапролджэячсмитьбю.";
@@ -73,7 +73,7 @@ namespace FirstSymbol.Lettera.Editor
     }
 
     /// <summary>Reads what a person types into a number: 12*1.5, or +10 to add to what is there.</summary>
-    public static class LtExpression
+    internal static class LtExpression
     {
         /// <summary>The value, or false when this is no sum.</summary>
         public static bool TryEvaluate(string text, double current, out double value)
@@ -149,7 +149,7 @@ namespace FirstSymbol.Lettera.Editor
     }
 
     /// <summary>Which rows of a list are selected, and what each act leaves. Pure, so that it can be tested by the table.</summary>
-    public sealed class LtListSelection
+    internal sealed class LtListSelection
     {
         readonly List<int> m_Selected = new List<int>();
         int m_Anchor = -1, m_Head = -1;
@@ -303,7 +303,7 @@ namespace FirstSymbol.Lettera.Editor
     }
 
     /// <summary>A card with a header that collapses, which says in a word what it holds while closed. Open or closed is kept per user.</summary>
-    public sealed class LtSection : VisualElement
+    internal sealed class LtSection : VisualElement
     {
         const string Prefix = "Lettera.Section.";
         readonly string m_Key;
@@ -384,7 +384,7 @@ namespace FirstSymbol.Lettera.Editor
     }
 
     /// <summary>A number that commits on Enter or on leaving the field, and scrubs by a drag on its label. A sum works: 12*1.5, or +10.</summary>
-    public sealed class LtNumber : VisualElement
+    internal sealed class LtNumber : VisualElement
     {
         readonly TextField m_Field;
         readonly SerializedProperty m_Property;
@@ -551,7 +551,7 @@ namespace FirstSymbol.Lettera.Editor
     }
 
     /// <summary>A number with its unit: px, em or %. Held as text, as a tag's value is, so that what is no length stays as written.</summary>
-    public sealed class LtUnit : VisualElement
+    internal sealed class LtUnit : VisualElement
     {
         static readonly string[] s_Units = { "px", "em", "%" };
         readonly SerializedProperty m_Property;
@@ -671,7 +671,7 @@ namespace FirstSymbol.Lettera.Editor
     }
 
     /// <summary>A searchable list to choose from: arrows, Enter and a click, in either keyboard layout.</summary>
-    public sealed class LtChoiceList : VisualElement
+    internal sealed class LtChoiceList : VisualElement
     {
         readonly List<(string name, string hint, object value)> m_All;
         readonly List<(string name, string hint, object value)> m_Shown = new List<(string, string, object)>();
@@ -766,7 +766,7 @@ namespace FirstSymbol.Lettera.Editor
     }
 
     /// <summary>A row that shows a value in words and chooses it from a list with a search. For what is no enum: a type, an effect's parameter, a family.</summary>
-    public sealed class LtPick : VisualElement
+    internal sealed class LtPick : VisualElement
     {
         readonly Func<string> m_Shown;
         readonly Func<List<(string name, string hint, object value)>> m_Items;
@@ -813,7 +813,7 @@ namespace FirstSymbol.Lettera.Editor
     }
 
     /// <summary>A row that opens to show more, built on first opening, so that a long list stays short and quick.</summary>
-    public sealed class LtFold : VisualElement
+    internal sealed class LtFold : VisualElement
     {
         readonly Func<VisualElement> m_Build;
         readonly VisualElement m_Body;
@@ -852,7 +852,7 @@ namespace FirstSymbol.Lettera.Editor
     }
 
     /// <summary>Up to four choices as segments, more as a list with a search. The value reads in plain words, with the accent when it is not the first.</summary>
-    public sealed class LtEnum : VisualElement
+    internal sealed class LtEnum : VisualElement
     {
         readonly SerializedProperty m_Property;
         readonly string[] m_Names;
@@ -929,7 +929,7 @@ namespace FirstSymbol.Lettera.Editor
     }
 
     /// <summary>A slot for an object: its type's icon and its name. A click pings it, a drag sets it, the ring picks from a list with a search, and the arrow opens it.</summary>
-    public sealed class LtObject : VisualElement
+    internal sealed class LtObject : VisualElement
     {
         readonly SerializedProperty m_Property;
         readonly Type m_Type;
@@ -1046,7 +1046,7 @@ namespace FirstSymbol.Lettera.Editor
     }
 
     /// <summary>A colour: the swatch opens Unity's picker with its eyedropper, and hex can be typed or pasted beside it.</summary>
-    public sealed class LtColor : VisualElement
+    internal sealed class LtColor : VisualElement
     {
         readonly SerializedProperty m_Property;
         readonly TextField m_Hex;
@@ -1099,7 +1099,7 @@ namespace FirstSymbol.Lettera.Editor
     }
 
     /// <summary>Shows what is wrong, and mends it with a click where a click can. It goes when it is mended.</summary>
-    public sealed class LtFix : VisualElement
+    internal sealed class LtFix : VisualElement
     {
         readonly Label m_Text;
         readonly Func<bool> m_Problem;
@@ -1127,7 +1127,7 @@ namespace FirstSymbol.Lettera.Editor
     }
 
     /// <summary>Lines of a label, a value and a dot saying how that is.</summary>
-    public sealed class LtStatus : VisualElement
+    internal sealed class LtStatus : VisualElement
     {
         public enum State { None, Good, Warn, Bad }
 
@@ -1173,7 +1173,7 @@ namespace FirstSymbol.Lettera.Editor
     }
 
     /// <summary>The one filter box: pickers, the palette and the inspector's filter.</summary>
-    public sealed class LtSearch : VisualElement
+    internal sealed class LtSearch : VisualElement
     {
         readonly TextField m_Field;
         public event Action<string> Changed;
@@ -1194,7 +1194,7 @@ namespace FirstSymbol.Lettera.Editor
     }
 
     /// <summary>One way to float something: on the side with more room, of a steady size, and gone with Esc or a click elsewhere.</summary>
-    public sealed class LtPopup : PopupWindowContent
+    internal sealed class LtPopup : PopupWindowContent
     {
         static LtPopup s_Current;
 
@@ -1250,7 +1250,7 @@ namespace FirstSymbol.Lettera.Editor
     }
 
     /// <summary>Padding as a box: drag or type each side. Shift links opposite sides and Alt links all, and the row says 4 8 4 8.</summary>
-    public sealed class LtBox : VisualElement
+    internal sealed class LtBox : VisualElement
     {
         readonly SerializedProperty m_Property;
         readonly Label m_Summary;
@@ -1345,7 +1345,7 @@ namespace FirstSymbol.Lettera.Editor
     /// The one list in the house. Rows from an array property: click, Shift and Ctrl select, Delete removes, Ctrl+D copies, Alt with an arrow moves,
     /// a drag from any free place carries the selection, and each act is one undo. Long lists draw thirty rows until asked for more, so that a big one opens quickly.
     /// </summary>
-    public sealed class LtList : VisualElement
+    internal sealed class LtList : VisualElement
     {
         const int FirstRows = 30;
         const string HiddenKey = "Lettera.List.ControlsHidden";

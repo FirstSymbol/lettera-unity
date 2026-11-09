@@ -8,7 +8,7 @@ using UnityEngine.UIElements;
 namespace FirstSymbol.Lettera.Editor
 {
     /// <summary>Building blocks of the Lettera inspector, styled by LetteraInspector.uss. Public, so that a custom effect's or a text subclass's drawer can use them.</summary>
-    public static class LtUI
+    internal static class LtUI
     {
         static StyleSheet s_Sheet;
 
@@ -469,7 +469,7 @@ namespace FirstSymbol.Lettera.Editor
     }
 
     /// <summary>A small icon drawn with vector strokes, so it stays sharp at any display scale.</summary>
-    public sealed class LtIcon : VisualElement
+    internal sealed class LtIcon : VisualElement
     {
         public enum Kind { AlignStart, AlignCenter, AlignEnd, AlignLeft, AlignRight, AlignJustify, AlignTop, AlignMiddle, AlignBottom, Expand, Eye, GoTo, Pick, Scene, Chevron, More }
 

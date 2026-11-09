@@ -11,7 +11,7 @@ using UnityEngine.UIElements;
 namespace FirstSymbol.Lettera.Editor
 {
     /// <summary>Compiles a word list into the flat automaton the runtime reads. The same words always give the same bytes.</summary>
-    public static class LetteraWordDictionaryBuilder
+    internal static class LetteraWordDictionaryBuilder
     {
         sealed class State
         {

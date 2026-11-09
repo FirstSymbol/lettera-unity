@@ -6,7 +6,7 @@ using System.Text;
 namespace FirstSymbol.Lettera.Editor.Migration
 {
     /// <summary>What a text in TextMesh Pro's markup becomes. Pure, and linear in what it reads.</summary>
-    public static class LetteraTmpMarkup
+    internal static class LetteraTmpMarkup
     {
         /// <summary>The text with tags Lettera's vocabulary would read differently rewritten, and what could not be carried.</summary>
         public static string Convert(string source, List<string> notes)
@@ -101,7 +101,7 @@ namespace FirstSymbol.Lettera.Editor.Migration
     }
 
     /// <summary>A finding of a C# rewrite: what was done or what is left to do, on which line.</summary>
-    public struct LetteraTmpNote
+    internal struct LetteraTmpNote
     {
         public int Line;
         public string Message;
@@ -112,7 +112,7 @@ namespace FirstSymbol.Lettera.Editor.Migration
     /// Rewrites a script's uses of TextMesh Pro. Lexical: strings, comments and preprocessor lines are never touched,
     /// and a member is renamed only on a receiver this file's own text shows to hold a TextMesh Pro type.
     /// </summary>
-    public static class LetteraTmpScript
+    internal static class LetteraTmpScript
     {
         static readonly Dictionary<string, string> Types = new Dictionary<string, string>
         {
@@ -500,7 +500,7 @@ namespace FirstSymbol.Lettera.Editor.Migration
     /// Rewrites TextMesh Pro's components in a text-serialized scene or prefab. The script is swapped where it stands, so that a component keeps its file id,
     /// and every field, event and override that points at it stays valid, with nothing to repair. Pure: text in, text out.
     /// </summary>
-    public sealed class LetteraTmpYaml
+    internal sealed class LetteraTmpYaml
     {
         public const string GuidCanvas = "f4688fdb7df04437aeb418b961361dc5", GuidWorld = "9541d86e2fd84c1d9990edf0852d74ab";
         public const string GuidInput = "2da0c512f12947e489f739169773d7ca", GuidDropdown = "7b743370ac3e4ec2a1668f5455a8ef8a";

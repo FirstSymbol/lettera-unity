@@ -1041,7 +1041,7 @@ namespace FirstSymbol.Lettera.Editor
     }
 
     /// <summary>The base of a text component's inspector. A subclass of a text component gets the same page by deriving from this, and adds to the Render card.</summary>
-    public abstract class LetteraTextEditorBase : UnityEditor.Editor
+    internal abstract class LetteraTextEditorBase : UnityEditor.Editor
     {
         /// <summary>The header's name.</summary>
         protected abstract string InspectorTitle { get; }
