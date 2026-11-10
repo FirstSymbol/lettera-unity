@@ -16,12 +16,14 @@ namespace FirstSymbol.Lettera.Editor
         {
             get
             {
-                if (s_Root != null && File.Exists(Path.Combine(s_Root, "package.json"))) return s_Root;
+                if (s_Root != null && AssetDatabase.IsValidFolder(s_Root)) return s_Root;
                 string asmdef = CompilationPipeline.GetAssemblyDefinitionFilePathFromAssemblyName(RuntimeAssembly);
                 string dir = string.IsNullOrEmpty(asmdef) ? null : Path.GetDirectoryName(asmdef).Replace('\\', '/');
                 while (!string.IsNullOrEmpty(dir))
                 {
-                    if (File.Exists(Path.Combine(AbsoluteOf(dir), "package.json"))) return s_Root = dir;
+                    var info = UnityEditor.PackageManager.PackageInfo.FindForAssetPath(dir);
+                    if (info != null) return s_Root = info.assetPath;
+                    if (File.Exists(Path.Combine(Path.GetFullPath(dir), "package.json"))) return s_Root = dir;
                     int slash = dir.LastIndexOf('/');
                     if (slash <= 0) break;
                     dir = dir.Substring(0, slash);
