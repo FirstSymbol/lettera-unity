@@ -4,6 +4,26 @@ All notable changes to this package are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.2.0] - 2026-11-10
+
+### Added
+- **`LetteraFontResolver`: a font by CSS-like family list.** `Resolve("Inter, 'Segoe UI', sans-serif", 700, false, text)` answers with a `LetteraResolvedFont`: the font asset to draw with, the project stack it came from, where it was found (project, system, generic, fallback), the weight and slope of the cut it really is, whether it covers the text, and whether bold or italic must be made synthetically. The list is tried left to right; for each name the project is asked first (the new **Project Fonts** and **Project Font Stacks** in the project settings, `Register`, the default font), then the installed fonts by the family name their files state; generic names (`serif`, `sans-serif`, `monospace`, `cursive`, `fantasy`, `system-ui`) stand for each platform's own fonts and `SetGenericFamilies` replaces them; the fallback is the default font, the system's default face, or on the web the web fallback font. Cuts are chosen as CSS does, a variable font at the weight asked. The answer is cached by list, weight and slope and a second call allocates nothing. Guide: Fonts, "Finding a font by family name".
+- **`GetGlyphOutlines`: a laid-out text's glyphs as paths.** On `LetteraText`, `LetteraWorldText` and `LetteraText3D`, it fills a reusable `LetteraOutlineBuffer` with one `LetteraGlyphPath` per glyph (per layer for a COLRv0 colour glyph): move, line, quadratic, cubic and close commands in the text's local space, where layout, line breaking, alignment, curves and the effects of the moment put the glyph, with its fill colour, opacity, stroke, size, line and cluster. `Tolerance` flattens curves to lines; `IgnoreMotion` reads the rest state; bitmap and painted colour glyphs come back as `NotOutline` and are counted. A second read allocates nothing. Guide: Text 3D, "Outlines as paths".
+
+### Docs
+- Fonts and Text 3D guides (English and Russian) describe both.
+
+### Tests
+- `FontResolverTests` (lookup order, quotes, each platform's generic names with fixture fonts standing for installed ones, project against system, fallbacks and the web, cut choice, text coverage, no allocation on a second call) and `GlyphOutlineTests` (a glyph's box against its font's extents, command and point counts, contour winding, flattening within tolerance, positions inside the drawn quads and after line breaks, motion read against the mesh, colour and stroke, colour layers and skipped glyphs, no allocation on a second read).
+
+### Limits
+- The system font families are found by opening every font file once, the first time a family is not a file's name; some tens of milliseconds on a desktop, and it was not timed on a phone. `PrepareSystemFonts()` moves it to a time you choose.
+- The generic-name lists per platform were written from the fonts each system is known to ship; only Windows (this machine) was run against real fonts. macOS, iOS, Android and Linux were tested with fixture fonts standing for the installed ones, and iOS cannot list its system folder, so a family there is found only if the default face or a project font is.
+- Weight and slope are chosen per text, not per character; a text that mixes families still gets Lettera's own per-character fallback for what the chosen font lacks.
+- Glyph outlines hold solid colours: a gradient or a texture paint gives its base colour. Underlines and strikethroughs, shadows, glows and other layers are not outlines and are not in the paths; the stroke is reported (colour, width, alignment), not outlined. A glyph cut at a seam by a formula (a stretched brace's pieces) is its whole outline. A banded very long text gives only the lines it has laid out.
+- COLRv1 and bitmap colour glyphs have no outline (`NotOutline`); only COLRv0 layers are returned.
+
+
 ## [1.1.0] - 2026-11-09
 
 ### Added
