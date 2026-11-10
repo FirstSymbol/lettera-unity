@@ -45,6 +45,8 @@ namespace FirstSymbol.Lettera
         [NonSerialized] bool m_OwnsFace;
         [NonSerialized] List<FontFace> m_Cuts;
         [NonSerialized] bool m_Resolved;
+        [NonSerialized] string m_PinnedPath;
+        [NonSerialized] int m_PinnedIndex;
 
         /// <summary>The name that resolved, or null before first use or when none is installed.</summary>
         public string ResolvedFamily { get; private set; }
@@ -149,6 +151,11 @@ namespace FirstSymbol.Lettera
             if (m_Resolved) return null;
             m_Resolved = true;
             FontFace shared = null;
+            if (m_PinnedPath != null)
+            {
+                shared = LetteraSystemFonts.OpenCut(m_PinnedPath, m_PinnedIndex);
+                if (shared != null) ResolvedFamily = shared.Family;
+            }
             foreach (string[] list in new[] { PlatformList(), m_Common })
             {
                 if (list == null || shared != null) continue;
@@ -176,6 +183,14 @@ namespace FirstSymbol.Lettera
             return m_Face;
         }
 
+        /// <summary>Makes this asset one cut of an installed family: that file and face, whatever names it lists, with no other cuts. A weight of 0 draws it as it is.</summary>
+        internal void Pin(string path, int index, int weight)
+        {
+            m_PinnedPath = path;
+            m_PinnedIndex = index;
+            m_Weight = weight;
+        }
+
         static FontFace Own(string path, int index)
         {
             if (path == null) return null;
@@ -185,7 +200,7 @@ namespace FirstSymbol.Lettera
 
         internal override void AddCuts(List<FontFace> faces)
         {
-            if (LoadFace() == null || !m_OwnsFace) return;
+            if (LoadFace() == null || !m_OwnsFace || m_PinnedPath != null) return;
             if (m_Cuts == null)
             {
                 m_Cuts = new List<FontFace>();

@@ -323,7 +323,7 @@ namespace FirstSymbol.Lettera
             return best;
         }
 
-        static int WeightPenalty(int wanted, int actual)
+        internal static int WeightPenalty(int wanted, int actual)
         {
             if (actual == wanted) return 0;
             if (wanted >= 400 && wanted <= 500)

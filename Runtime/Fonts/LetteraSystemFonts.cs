@@ -10,9 +10,12 @@ namespace FirstSymbol.Lettera
     /// codepoint needs them. Uses Application.platform, so an editor targeting another platform still
     /// resolves the host machine's fonts.
     /// </summary>
-    public static class LetteraSystemFonts
+    public static partial class LetteraSystemFonts
     {
-        enum Os { None, Windows, Apple, Mobile, Android, Linux }
+        internal enum Os { None, Windows, Apple, Mobile, Android, Linux }
+
+        /// <summary>What a test makes the host look like; null reads the platform.</summary>
+        internal static Os? HostForTests;
 
         sealed class Entry
         {
@@ -235,8 +238,9 @@ namespace FirstSymbol.Lettera
         /// <summary>True when this platform exposes OS font files at all (WebGL does not).</summary>
         public static bool IsSupported => Host() != Os.None;
 
-        static Os Host()
+        internal static Os Host()
         {
+            if (HostForTests.HasValue) return HostForTests.Value;
             switch (Application.platform)
             {
                 case RuntimePlatform.WindowsEditor:
@@ -689,9 +693,11 @@ namespace FirstSymbol.Lettera
             s_Fallback.Clear();
             s_Named.Clear();
             s_DefaultFaces = null;
+            s_Families = null;
             s_Emoji = null;
             s_EmojiSearched = false;
             BrowserEmoji.Reset();
+            LetteraFontResolver.Invalidate();
         }
     }
 }

@@ -137,7 +137,7 @@ namespace FirstSymbol.Lettera.Editor
             VisualElement defaults = LtUI.El("lt-list");
             Fields(defaults, serialized,
                 ("Default Font", "m_DefaultFont"), ("No System Fallback", "m_DisableSystemFontFallback"), ("No Emoji", "m_DisableEmoji"), ("Global Style Preset", "m_GlobalStylePreset"),
-                ("Line Height Mode", "m_DefaultLineHeightMode"), ("Line Height", "m_DefaultLineHeightValue"), ("Size Match", "m_FontSizeMatchMetric"), ("Web Fallback Font", "m_WebGLFallbackFont"), ("Paints", "m_Paints"), ("Dictionaries", "m_Dictionaries"));
+                ("Line Height Mode", "m_DefaultLineHeightMode"), ("Line Height", "m_DefaultLineHeightValue"), ("Size Match", "m_FontSizeMatchMetric"), ("Web Fallback Font", "m_WebGLFallbackFont"), ("Project Fonts", "m_ProjectFonts"), ("Project Font Stacks", "m_ProjectFontStacks"), ("Paints", "m_Paints"), ("Dictionaries", "m_Dictionaries"));
             VisualElement prefabs = LtUI.El("lt-group", LtUI.Text("A filled slot is what creating instantiates, and Add Component seeds from it.", "lt-hint"));
             Fields(prefabs, serialized, ("Text", "m_TextPrefab"), ("World Text", "m_WorldTextPrefab"), ("Text 3D", "m_Text3DPrefab"), ("Button", "m_ButtonPrefab"), ("Document", "m_DocumentPrefab"));
             defaults.Add(prefabs);

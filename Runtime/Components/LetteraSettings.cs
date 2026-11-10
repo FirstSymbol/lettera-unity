@@ -24,6 +24,17 @@ namespace FirstSymbol.Lettera
         public int MaxVertices = 1000000;
     }
 
+    /// <summary>A font the project offers to lookups by family name, under a name of its own or the one its file states.</summary>
+    [System.Serializable]
+    public class LetteraProjectFont
+    {
+        [Tooltip("The family name a lookup finds it by, such as the one a web page's font-family names. Empty reads the family from the font, which loads it with the first lookup.")]
+        public string Family = "";
+
+        [Tooltip("A face of that family. Give each weight and slope its own entry with the same family name.")]
+        public LetteraFontAsset Font;
+    }
+
     /// <summary>Project-wide defaults. Lives at Resources/LetteraSettings in the project, so it survives a package update.</summary>
     public partial class LetteraSettings : ScriptableObject
     {
@@ -48,6 +59,10 @@ namespace FirstSymbol.Lettera
         [SerializeField] LetteraSizeMatchMetric m_FontSizeMatchMetric;
         [Tooltip("Used on WebGL when a text has no font, because browsers expose no OS fonts.")]
         [SerializeField] LetteraFontAsset m_WebGLFallbackFont;
+        [Tooltip("Fonts found first when a family name is looked up (see LetteraFontResolver), before the system's.")]
+        [SerializeField] System.Collections.Generic.List<LetteraProjectFont> m_ProjectFonts = new System.Collections.Generic.List<LetteraProjectFont>();
+        [Tooltip("Font stacks whose families a lookup by family name finds first, before the system's.")]
+        [SerializeField] System.Collections.Generic.List<LetteraFontStack> m_ProjectFontStacks = new System.Collections.Generic.List<LetteraFontStack>();
         [Tooltip("The paints effects find by name, by default.")]
         [SerializeField] LetteraPaintLibrary m_Paints;
         [SerializeField] GameObject m_TextPrefab;
@@ -109,6 +124,12 @@ namespace FirstSymbol.Lettera
         public float DefaultLineHeightValue { get => m_DefaultLineHeightValue; set { m_DefaultLineHeightValue = value; Changed?.Invoke(); } }
         public LetteraSizeMatchMetric FontSizeMatchMetric { get => m_FontSizeMatchMetric; set { m_FontSizeMatchMetric = value; Changed?.Invoke(); } }
         public LetteraFontAsset WebGLFallbackFont { get => m_WebGLFallbackFont; set { m_WebGLFallbackFont = value; Changed?.Invoke(); } }
+        /// <summary>Fonts a lookup by family name finds first. After changing the list, call <see cref="LetteraFontResolver.ClearCache"/>.</summary>
+        public System.Collections.Generic.List<LetteraProjectFont> ProjectFonts => m_ProjectFonts ?? (m_ProjectFonts = new System.Collections.Generic.List<LetteraProjectFont>());
+
+        /// <summary>Font stacks a lookup by family name finds first. After changing the list, call <see cref="LetteraFontResolver.ClearCache"/>.</summary>
+        public System.Collections.Generic.List<LetteraFontStack> ProjectFontStacks => m_ProjectFontStacks ?? (m_ProjectFontStacks = new System.Collections.Generic.List<LetteraFontStack>());
+
         public LetteraPaintLibrary Paints { get => m_Paints; set { m_Paints = value; Changed?.Invoke(); } }
         public GameObject TextPrefab { get => m_TextPrefab; set => m_TextPrefab = value; }
         public GameObject WorldTextPrefab { get => m_WorldTextPrefab; set => m_WorldTextPrefab = value; }

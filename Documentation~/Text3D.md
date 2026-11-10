@@ -153,6 +153,43 @@ A solid text is not a `Graphic`, since a Canvas has no light: inside one it draw
 - A colour glyph draws flat on the front plane, or not at all (**Color Glyphs**). Underline and strikethrough extrude; dashed, dotted and wavy lines extrude as plain boxes. Formulas extrude, with their bars as boxes.
 - A gradient paint does not reach a solid's vertices: a solid takes a colour.
 
+## Outlines as paths
+
+A host that draws glyphs itself, such as vector graphics, a plotter or a cut file, can read the outlines of any laid-out text, flat or solid, as paths. `GetGlyphOutlines` is on `LetteraText`, `LetteraWorldText` and `LetteraText3D`, and fills a `LetteraOutlineBuffer`.
+
+```csharp
+using System;
+using FirstSymbol.Lettera;
+using UnityEngine;
+
+public class OutlinesToPaths : MonoBehaviour
+{
+    readonly LetteraOutlineBuffer m_Buffer = new LetteraOutlineBuffer();
+
+    void Start()
+    {
+        var text = GetComponent<LetteraWorldText>();
+        // Lines only, never farther than a tenth of a unit from the curve.
+        int paths = text.GetGlyphOutlines(m_Buffer, new LetteraOutlineOptions { Tolerance = 0.1f });
+        foreach (LetteraGlyphPath path in m_Buffer.Paths)
+        {
+            if (path.Kind == LetteraOutlineKind.NotOutline) continue;   // A bitmap emoji: nothing to draw as a path.
+            ReadOnlySpan<LetteraPathCommand> commands = m_Buffer.CommandsOf(path);
+            ReadOnlySpan<Vector2> points = m_Buffer.PointsOf(path);
+            Debug.Log($"glyph {path.GlyphIndex} of line {path.Line}: {commands.Length} steps, {points.Length} points, fill {path.Fill}");
+        }
+    }
+}
+```
+
+The paths are in the text's local space, the one `GetGlyph`, `InkBounds` and `LayoutBounds` use, with y up, so they sit where the text is drawn after line breaking, alignment, justification and curves. Each path is one glyph, or one layer of a colour glyph, and says its glyph's index, its cluster and line, its fill colour, how opaque it is, the stroke the text has on it, its size and its box. Fill with the non-zero winding rule: a letter's hole is a contour turning the other way.
+
+- **Motion.** The state at the time of the call is read: a glyph a wave has lifted is lifted in its path. `IgnoreMotion` reads where layout put it. A glyph an effect has wholly hidden is left out.
+- **Curves.** `Tolerance` 0 keeps the font's quadratic and cubic Beziers (`QuadTo` takes a control point and an end point, `CubicTo` two control points and an end point). Above 0 the paths hold lines only, none of the curve farther from them than the tolerance in local units.
+- **Colour glyphs.** A COLRv0 glyph gives one path per layer, in the layer's colour (or the text's, where the font leaves it to the text); `NoColorLayers` gives its plain outline. A glyph that is a bitmap, painted (COLRv1) or a browser emoji has no outline: its path is `NotOutline`, with no commands and the cell it fills as its box, and `SkippedGlyphs` counts them.
+- **Formulas.** A fraction bar is a path of four points; the glyphs of a formula come after `GlyphCount`.
+- **Cost.** The buffer keeps its arrays: a second read of the same size allocates nothing. Reading rebuilds a text that is out of date first.
+
 ## Limits
 
 - Bevels narrow and do not ridge: a wide edge on a thin stroke leaves a thin flat strip.
@@ -164,3 +201,4 @@ A solid text is not a `Graphic`, since a Canvas has no light: inside one it draw
 - Copies along strokes keep a spacing from every copy on the glyph, so a stroke thinner than the spacing gets copies on one side only.
 - Lightmap UVs take the second UV set, from which a material mapped across the whole text reads its texture; such a material maps per surface on the baked object, with a warning.
 - Solids have run on Windows and in desktop browsers, and not on a phone or a Mac. See [Platforms](Platforms.md).
+- Glyph outlines (`GetGlyphOutlines`) carry solid colours: a gradient or texture paint gives its base colour. Underlines, strikethroughs, shadows, glows and other layers are not in the paths, and a stroke is reported as colour, width and alignment, not outlined. COLRv1 and bitmap colour glyphs have no outline. A very long banded text gives the lines it has laid out.

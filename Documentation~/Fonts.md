@@ -167,6 +167,44 @@ Names can be family names or file names. On Android the generic names `sans-seri
 
 The asset's page in the inspector has a tab per platform and **Re-Resolve**.
 
+## Finding a font by family name
+
+A host that has a CSS-like `font-family` list, such as an SVG or a web style, asks `LetteraFontResolver` for the font to use. It takes the list, a weight, a slope and the text, and answers with a font asset to set as a text's **Font**.
+
+```csharp
+using FirstSymbol.Lettera;
+using UnityEngine;
+
+public class FontsByFamily : MonoBehaviour
+{
+    void Start()
+    {
+        LetteraResolvedFont found = LetteraFontResolver.Resolve("Inter, 'Segoe UI', sans-serif", 700, false, "Saved");
+        if (!found.IsFound) return;
+        var label = GetComponent<LetteraText>();
+        label.Font = found.Font;
+        // The cut may be lighter or upright where the family has none for the request.
+        label.Text = found.NeedsSyntheticBold ? "<b>Saved</b>" : "Saved";
+        Debug.Log(found.Source + ": " + found.FontFamily + " at " + found.CutWeight);
+    }
+}
+```
+
+The list is tried left to right, and each name is looked up in this order:
+
+1. **The project.** Fonts in **Project Fonts** and stacks in **Project Font Stacks** of the project settings, anything registered with `LetteraFontResolver.Register`, and the project's default font. A font is found by the family name it is listed under, or by the family its file states when the entry names none. Give an entry a **Family** to spare the first lookup from loading it, and to use a name the file does not state. Several entries of one family, one for each weight and slope, make a family with cuts.
+2. **The system.** The installed fonts, by the family name in their files: `Segoe UI`, `segoe-ui` and `SegoeUI` are one name. The system's font files are read once, at the first lookup of a family that no file name gives away; this takes some tens of milliseconds, and `LetteraFontResolver.PrepareSystemFonts()` does it at a time of your choice. On Android the device's own font configuration answers first.
+3. **A generic name**, unquoted: `serif`, `sans-serif`, `monospace`, `cursive`, `fantasy` and `system-ui` (with `ui-sans-serif`, `ui-serif`, `ui-monospace`, `-apple-system`). Each stands for the platform's fonts of that kind, tried in order: sans-serif is Segoe UI, Arial and Tahoma on Windows, Helvetica Neue and Helvetica on Apple platforms, Roboto on Android, Noto Sans and DejaVu Sans on Linux, and ends with the system's default face. A project font registered under a generic name takes its place. `GetGenericFamilies("serif", list)` lists a name on this platform and `SetGenericFamilies` replaces the list.
+4. **The fallback**: the project's default font, else the system's default face, else the web fallback font.
+
+For a family with several cuts, the one nearest the weight and slope asked is chosen as CSS does it: the slope first, then the nearest weight, lighter first below 400 and heavier first above 500. A variable font is taken at the weight asked, within its axis. `CutWeight`, `CutItalic`, `NeedsSyntheticBold` and `NeedsSyntheticItalic` say what the font really is; a text that asks for `<b>` or `<i>` on top of a cut that is not one makes the shape itself.
+
+The text matters because a font that lacks its letters is passed over: the first font of the list with a glyph for every character wins, and when none has, the one with most (`CoversText` is then false). An empty text takes the first font found. Line breaks and joiners need no glyph.
+
+The answer is cached by list, weight and slope: the second call with the same arguments allocates nothing and does one glyph lookup per character. The cache forgets itself when a font asset or the settings change; after editing the settings' lists from code, call `ClearCache()`. Call it from the main thread.
+
+On the web there are no system fonts, so names that are not in the project and every generic name give the fallback: set **Web Fallback Font** or **Default Font**, or the bundled Noto Sans is used. Fonts in the project work as everywhere.
+
 ## Weights, italics and variable fonts
 
 `<b>` asks for weight 700 and `<i>` for italic. Lettera first looks for a real face: a cut in the stack family's **Faces**, a face of a system family, or a variable font's axis. Only when there is none does it synthesize one: a bolder outline (`SyntheticBoldStrength` on the font asset) or a shear (`SyntheticItalicSlant`, in percent of the glyph height).
@@ -403,3 +441,5 @@ Browsers expose no font files:
 - On macOS, a font in an asset bundle built with the Scriptable Build Pipeline stays inline.
 - A text's own buffers are not given back after it stays unused for a while, only the shared caches.
 - Spacing, glyph overrides, atlas depth, system font weights and Android's configuration are covered by the test suite; a timing run of them against the version before was not finished.
+- A lookup by family name finds installed fonts by opening every system font file once, the first time a family is not a file's name; this was timed on a desktop only. The generic names' lists per platform follow what each system is known to ship; only Windows was run against real fonts, and iOS cannot list its system folder, so a family there is found only if it is a project font or the default face.
+- A lookup chooses one font for a whole text by its weight and slope; characters that font lacks are drawn from Lettera's own fallback as always.
