@@ -336,9 +336,8 @@ namespace FirstSymbol.Lettera.Editor.Tests
 
         static string PackageRoot()
         {
-            var info = UnityEditor.PackageManager.PackageInfo.FindForAssembly(typeof(LetteraText).Assembly);
-            Assert.IsNotNull(info, "Lettera is not a package in this project");
-            return info.resolvedPath;
+            Assert.IsNotNull(LetteraLocations.Root, "Lettera's folder was not found");
+            return LetteraLocations.AbsoluteRoot;
         }
 
         // Every table row whose first cell holds tags: the tags, and the last cell, which names the parameters.

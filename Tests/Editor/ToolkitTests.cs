@@ -295,14 +295,14 @@ namespace FirstSymbol.Lettera.Editor.Tests
             }
             Assert.AreEqual(14, LetteraGettingStarted.Guides.Length, "The list of guides in the spec's documentation section.");
             StringAssert.StartsWith("https://", LetteraGettingStarted.GuideAddress("No Such Guide.md"));
-            var samples = new System.Collections.Generic.List<UnityEditor.PackageManager.UI.Sample>(UnityEditor.PackageManager.UI.Sample.FindByPackage(LetteraGettingStarted.PackageName, null));
+            var samples = LetteraLocations.Samples();
             Assert.Greater(samples.Count, 7);
             var window = ScriptableObject.CreateInstance<LetteraGettingStarted>();
             try
             {
                 typeof(LetteraGettingStarted).GetMethod("CreateGUI", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic).Invoke(window, null);
                 var names = window.rootVisualElement.Query<UnityEngine.UIElements.Label>().ToList().ConvertAll(l => l.text);
-                foreach (var sample in samples) CollectionAssert.Contains(names, sample.displayName);
+                foreach (var sample in samples) CollectionAssert.Contains(names, sample.DisplayName);
                 CollectionAssert.Contains(names, "Open The Migration Tool");
             }
             finally

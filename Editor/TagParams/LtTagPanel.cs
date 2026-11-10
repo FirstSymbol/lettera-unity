@@ -438,9 +438,9 @@ namespace FirstSymbol.Lettera.Editor
 
         static void OpenGuide()
         {
-            UnityEditor.PackageManager.PackageInfo info = UnityEditor.PackageManager.PackageInfo.FindForAssembly(typeof(LetteraText).Assembly);
-            if (info == null) return;
-            string path = Path.Combine(info.resolvedPath, "Documentation~", "Styles.md");
+            string root = LetteraLocations.AbsoluteRoot;
+            if (root == null) return;
+            string path = Path.Combine(root, "Documentation~", "Styles.md");
             if (File.Exists(path)) EditorUtility.OpenWithDefaultApp(path);
         }
 

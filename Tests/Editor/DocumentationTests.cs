@@ -57,9 +57,8 @@ namespace LetteraDocs
 
         static string PackageRoot()
         {
-            var info = UnityEditor.PackageManager.PackageInfo.FindForAssembly(typeof(LetteraText).Assembly);
-            Assert.IsNotNull(info, "Lettera is not a package in this project");
-            return info.resolvedPath;
+            Assert.IsNotNull(LetteraLocations.Root, "Lettera's folder was not found");
+            return LetteraLocations.AbsoluteRoot;
         }
 
         static List<string> Docs(string root)

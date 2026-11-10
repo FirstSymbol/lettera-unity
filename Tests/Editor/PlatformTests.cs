@@ -480,7 +480,7 @@ namespace FirstSymbol.Lettera.Editor.Tests
 
         static UnityEditor.PluginImporter Plugin(string relative)
         {
-            var importer = UnityEditor.AssetImporter.GetAtPath("Packages/com.firstsymbol.lettera/Plugins/" + relative) as UnityEditor.PluginImporter;
+            var importer = UnityEditor.AssetImporter.GetAtPath(LetteraLocations.AssetPath("Plugins/" + relative)) as UnityEditor.PluginImporter;
             Assert.IsNotNull(importer, relative);
             return importer;
         }

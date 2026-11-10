@@ -312,7 +312,7 @@ namespace FirstSymbol.Lettera.Editor
                 Do("Project Settings", "Settings", "defaults preferences", () => SettingsService.OpenProjectSettings("Project/FirstSymbol/Lettera")),
                 Do("Preferences", "Settings", "this user hook right click", () => SettingsService.OpenUserPreferences("Preferences/Lettera")),
                 Menu("Getting Started", "Help", "guide start docs samples first new", "Tools/FirstSymbol/Lettera/Getting Started"),
-                Do("Show Docs", "Help", "readme guide manual", () => { string[] found = AssetDatabase.FindAssets("README t:TextAsset", new[] { "Packages/com.firstsymbol.lettera" }); if (found.Length > 0) EditorGUIUtility.PingObject(AssetDatabase.LoadAssetAtPath<TextAsset>(AssetDatabase.GUIDToAssetPath(found[0]))); }),
+                Do("Show Docs", "Help", "readme guide manual", () => { string[] found = AssetDatabase.FindAssets("README t:TextAsset", new[] { LetteraLocations.Root }); if (found.Length > 0) EditorGUIUtility.PingObject(AssetDatabase.LoadAssetAtPath<TextAsset>(AssetDatabase.GUIDToAssetPath(found[0]))); }),
             };
             foreach (string target in new[] { "Android", "iOS", "Web", "Windows", "macOS" })
                 all.Add(Menu("Device Check for " + target, "Build", "kit phone test", "Lettera/Device Check/Build for " + target));

@@ -11,7 +11,7 @@ namespace FirstSymbol.Lettera.Editor.Tests
     {
         static IEnumerable<Shader> PackageShaders()
         {
-            foreach (string guid in AssetDatabase.FindAssets("t:Shader", new[] { "Packages/com.firstsymbol.lettera" }))
+            foreach (string guid in AssetDatabase.FindAssets("t:Shader", new[] { LetteraLocations.Root }))
             {
                 var shader = AssetDatabase.LoadAssetAtPath<Shader>(AssetDatabase.GUIDToAssetPath(guid));
                 if (shader != null) yield return shader;

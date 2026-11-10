@@ -1,7 +1,6 @@
 using System.Collections.Generic;
 using System.IO;
 using UnityEditor;
-using UnityEditor.PackageManager.UI;
 using UnityEngine;
 using UnityEngine.UIElements;
 
@@ -77,9 +76,8 @@ namespace FirstSymbol.Lettera.Editor
             Page.Add(guides);
 
             VisualElement samples = LtUI.Card("Samples");
-            IEnumerable<Sample> found = Sample.FindByPackage(PackageName, null);
             bool any = false;
-            foreach (Sample sample in found)
+            foreach (LetteraLocations.SampleInfo sample in LetteraLocations.Samples())
             {
                 any = true;
                 samples.Add(SampleRow(sample));
@@ -101,27 +99,28 @@ namespace FirstSymbol.Lettera.Editor
                 Button("Preferences", "Preferences > Lettera", () => SettingsService.OpenUserPreferences("Preferences/Lettera"))));
         }
 
-        static VisualElement SampleRow(Sample sample)
+        static VisualElement SampleRow(LetteraLocations.SampleInfo sample)
         {
-            VisualElement row = Line(sample.displayName, sample.description);
+            VisualElement row = Line(sample.DisplayName, sample.Description);
             Label act = null;
             void Refresh()
             {
-                act.text = sample.isImported ? "Show" : "Import";
-                act.tooltip = sample.isImported ? "Finds it in the Project window." : "Copies it into Assets/Samples.";
+                act.text = sample.IsImported ? "Show" : "Import";
+                act.tooltip = sample.IsImported ? "Finds it in the Project window." : "Copies it into Assets/Samples.";
             }
             act = Button("", "", () =>
             {
-                if (!sample.isImported)
+                if (!sample.IsImported)
                 {
-                    sample.Import(Sample.ImportOptions.HideImportWindow);
+                    sample.Import();
                     AssetDatabase.Refresh();
                     Refresh();
                     return;
                 }
-                string path = sample.importPath.Replace('\\', '/');
+                string path = sample.ImportPath;
                 int at = path.IndexOf("/Assets/", System.StringComparison.Ordinal);
-                if (at >= 0) EditorGUIUtility.PingObject(AssetDatabase.LoadMainAssetAtPath(path.Substring(at + 1)));
+                if (at >= 0) path = path.Substring(at + 1);
+                if (path.StartsWith("Assets/", System.StringComparison.Ordinal)) EditorGUIUtility.PingObject(AssetDatabase.LoadMainAssetAtPath(path));
             });
             Refresh();
             row.Add(act);
@@ -144,8 +143,8 @@ namespace FirstSymbol.Lettera.Editor
         /// <summary>The copy in the package when there is one, else the repository's.</summary>
         internal static string GuideAddress(string file)
         {
-            var package = UnityEditor.PackageManager.PackageInfo.FindForAssetPath("Packages/" + PackageName);
-            string local = package == null ? null : Path.Combine(package.resolvedPath, "Documentation~", file);
+            string root = LetteraLocations.AbsoluteRoot;
+            string local = root == null ? null : Path.Combine(root, "Documentation~", file);
             return local != null && File.Exists(local) ? "file:///" + local.Replace('\\', '/') : OnlineDocs + file;
         }
 
