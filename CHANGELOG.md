@@ -4,6 +4,12 @@ All notable changes to this package are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.2.1] - 2026-11-10
+
+### Fixed
+- Lettera now works when it lives as a plain folder under `Assets/` (for example `Assets/Plugins/Lettera`), not only as a package. The Getting Started window, its guide links and sample list, the Styles guide link of the tag panel, and the palette's Show Docs find the package's own files from the assembly definition, with no fixed `Packages/com.firstsymbol.lettera` path. Samples are read from `package.json` and copied into `Assets/Samples/Lettera/<version>/` when the Package Manager cannot list them.
+
+
 ## [1.2.0] - 2026-11-10
 
 ### Added

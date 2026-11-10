@@ -21,7 +21,7 @@ https://github.com/FirstSymbol/lettera-unity.git
 A specific version:
 
 ```
-https://github.com/FirstSymbol/lettera-unity.git#1.2.0
+https://github.com/FirstSymbol/lettera-unity.git#1.2.1
 ```
 
 Requires Unity 6.3 LTS (6000.3) or newer.
